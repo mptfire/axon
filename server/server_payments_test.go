@@ -1,3 +1,5 @@
+//go:build !nopayments
+
 package server
 
 import (

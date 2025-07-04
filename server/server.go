@@ -158,7 +158,7 @@ func New(conf *Config) (*Server, error) {
 		mailer = &smtpSender{config: conf}
 	}
 	var stripe stripeAPI
-	if conf.StripeSecretKey != "" {
+	if hasStripe && conf.StripeSecretKey != "" {
 		stripe = newStripeAPI()
 	}
 	messageCache, err := createMessageCache(conf)

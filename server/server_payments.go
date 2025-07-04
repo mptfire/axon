@@ -1,3 +1,5 @@
+//go:build !nopayments
+
 package server
 
 import (
@@ -22,7 +24,7 @@ import (
 
 // Payments in ntfy are done via Stripe.
 //
-// Pretty much all payments related things are in this file. The following processes
+// Pretty much all payments-related things are in this file. The following processes
 // handle payments:
 //
 // - Checkout:
@@ -41,6 +43,8 @@ import (
 //      Whenever a subscription changes (updated, deleted), Stripe sends us a request via a webhook.
 //      This is used to keep the local user database fields up to date. Stripe is the source of truth.
 //      What Stripe says is mirrored and not questioned.
+
+const hasStripe = true
 
 var (
 	errNotAPaidTier                 = errors.New("tier does not have billing price identifier")
