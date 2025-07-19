@@ -3,6 +3,7 @@ package sprig
 import (
 	"fmt"
 	"math"
+	"math/rand"
 	"reflect"
 	"strconv"
 	"strings"
@@ -78,7 +79,43 @@ func toInt64(v any) int64 {
 	}
 }
 
-func max(a any, i ...any) int64 {
+func add1(i any) int64 {
+	return toInt64(i) + 1
+}
+
+func add(i ...any) int64 {
+	var a int64
+	for _, b := range i {
+		a += toInt64(b)
+	}
+	return a
+}
+
+func sub(a, b any) int64 {
+	return toInt64(a) - toInt64(b)
+}
+
+func div(a, b any) int64 {
+	return toInt64(a) / toInt64(b)
+}
+
+func mod(a, b any) int64 {
+	return toInt64(a) % toInt64(b)
+}
+
+func mul(a any, v ...any) int64 {
+	val := toInt64(a)
+	for _, b := range v {
+		val = val * toInt64(b)
+	}
+	return val
+}
+
+func randInt(min, max int) int {
+	return rand.Intn(max-min) + min
+}
+
+func maxAsInt64(a any, i ...any) int64 {
 	aa := toInt64(a)
 	for _, b := range i {
 		bb := toInt64(b)
@@ -89,16 +126,15 @@ func max(a any, i ...any) int64 {
 	return aa
 }
 
-func maxf(a any, i ...any) float64 {
-	aa := toFloat64(a)
+func maxAsFloat64(a any, i ...any) float64 {
+	m := toFloat64(a)
 	for _, b := range i {
-		bb := toFloat64(b)
-		aa = math.Max(aa, bb)
+		m = math.Max(m, toFloat64(b))
 	}
-	return aa
+	return m
 }
 
-func min(a any, i ...any) int64 {
+func minAsInt64(a any, i ...any) int64 {
 	aa := toInt64(a)
 	for _, b := range i {
 		bb := toInt64(b)
@@ -109,13 +145,12 @@ func min(a any, i ...any) int64 {
 	return aa
 }
 
-func minf(a any, i ...any) float64 {
-	aa := toFloat64(a)
+func minAsFloat64(a any, i ...any) float64 {
+	m := toFloat64(a)
 	for _, b := range i {
-		bb := toFloat64(b)
-		aa = math.Min(aa, bb)
+		m = math.Min(m, toFloat64(b))
 	}
-	return aa
+	return m
 }
 
 func until(count int) []int {
@@ -131,12 +166,10 @@ func untilStep(start, stop, step int) []int {
 	if step == 0 {
 		return v
 	}
-
 	iterations := math.Abs(float64(stop)-float64(start)) / float64(step)
 	if iterations > loopExecutionLimit {
 		panic(fmt.Sprintf("too many iterations in untilStep; max allowed is %d, got %f", loopExecutionLimit, iterations))
 	}
-
 	if stop < start {
 		if step >= 0 {
 			return v
@@ -146,7 +179,6 @@ func untilStep(start, stop, step int) []int {
 		}
 		return v
 	}
-
 	if step <= 0 {
 		return v
 	}
@@ -157,13 +189,11 @@ func untilStep(start, stop, step int) []int {
 }
 
 func floor(a any) float64 {
-	aa := toFloat64(a)
-	return math.Floor(aa)
+	return math.Floor(toFloat64(a))
 }
 
 func ceil(a any) float64 {
-	aa := toFloat64(a)
-	return math.Ceil(aa)
+	return math.Ceil(toFloat64(a))
 }
 
 func round(a any, p int, rOpt ...float64) float64 {
@@ -193,6 +223,11 @@ func toDecimal(v any) int64 {
 		return 0
 	}
 	return result
+}
+
+func atoi(a string) int {
+	i, _ := strconv.Atoi(a)
+	return i
 }
 
 func seq(params ...int) string {
@@ -231,6 +266,6 @@ func seq(params ...int) string {
 	}
 }
 
-func intArrayToString(slice []int, delimeter string) string {
-	return strings.Trim(strings.Join(strings.Fields(fmt.Sprint(slice)), delimeter), "[]")
+func intArrayToString(slice []int, delimiter string) string {
+	return strings.Trim(strings.Join(strings.Fields(fmt.Sprint(slice)), delimiter), "[]")
 }

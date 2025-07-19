@@ -4,6 +4,8 @@ import (
 	"encoding/base32"
 	"encoding/base64"
 	"fmt"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"reflect"
 	"strconv"
 	"strings"
@@ -149,6 +151,10 @@ func trunc(c int, s string) string {
 	return s
 }
 
+func title(s string) string {
+	return cases.Title(language.English).String(s)
+}
+
 func join(sep string, v any) string {
 	return strings.Join(strslice(v), sep)
 }
@@ -160,6 +166,10 @@ func split(sep, orig string) map[string]string {
 		res["_"+strconv.Itoa(i)] = v
 	}
 	return res
+}
+
+func splitList(sep, orig string) []string {
+	return strings.Split(orig, sep)
 }
 
 func splitn(sep string, n int, orig string) map[string]string {
@@ -195,4 +205,28 @@ func repeat(count int, str string) string {
 		panic(fmt.Sprintf("repeat count %d with string length %d exceeds limit of %d", count, len(str), stringLengthLimit))
 	}
 	return strings.Repeat(str, count)
+}
+
+func trimAll(a, b string) string {
+	return strings.Trim(b, a)
+}
+
+func trimPrefix(a, b string) string {
+	return strings.TrimPrefix(b, a)
+}
+
+func trimSuffix(a, b string) string {
+	return strings.TrimSuffix(b, a)
+}
+
+func contains(substr string, str string) bool {
+	return strings.Contains(str, substr)
+}
+
+func hasPrefix(substr string, str string) bool {
+	return strings.HasPrefix(str, substr)
+}
+
+func hasSuffix(substr string, str string) bool {
+	return strings.HasSuffix(str, substr)
 }
