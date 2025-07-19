@@ -33,7 +33,7 @@ func pluck(key string, d ...map[string]any) []any {
 }
 
 func keys(dicts ...map[string]any) []string {
-	k := []string{}
+	var k []string
 	for _, dict := range dicts {
 		for key := range dict {
 			k = append(k, key)
@@ -54,12 +54,10 @@ func pick(dict map[string]any, keys ...string) map[string]any {
 
 func omit(dict map[string]any, keys ...string) map[string]any {
 	res := map[string]any{}
-
 	omit := make(map[string]bool, len(keys))
 	for _, k := range keys {
 		omit[k] = true
 	}
-
 	for k, v := range dict {
 		if _, ok := omit[k]; !ok {
 			res[k] = v

@@ -100,7 +100,7 @@ func TxtFuncMap() template.FuncMap {
 		"sortAlpha": sortAlpha,
 
 		// Defaults
-		"default":          dfault,
+		"default":          defaultValue,
 		"empty":            empty,
 		"coalesce":         coalesce,
 		"all":              all,

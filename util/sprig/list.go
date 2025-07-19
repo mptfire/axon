@@ -20,7 +20,6 @@ func push(list any, v any) []any {
 	if err != nil {
 		panic(err)
 	}
-
 	return l
 }
 

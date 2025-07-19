@@ -38,12 +38,10 @@ func dateInZone(fmt string, date any, zone string) string {
 	case int32:
 		t = time.Unix(int64(date), 0)
 	}
-
 	loc, err := time.LoadLocation(zone)
 	if err != nil {
 		loc, _ = time.LoadLocation("UTC")
 	}
-
 	return t.In(loc).Format(fmt)
 }
 
@@ -65,7 +63,6 @@ func mustDateModify(fmt string, date time.Time) (time.Time, error) {
 
 func dateAgo(date any) string {
 	var t time.Time
-
 	switch date := date.(type) {
 	default:
 		t = time.Now()
@@ -76,9 +73,7 @@ func dateAgo(date any) string {
 	case int:
 		t = time.Unix(int64(date), 0)
 	}
-	// Drop resolution to seconds
-	duration := time.Since(t).Round(time.Second)
-	return duration.String()
+	return time.Since(t).Round(time.Second).String()
 }
 
 func duration(sec any) string {
@@ -106,13 +101,10 @@ func durationRound(duration any) string {
 	case time.Time:
 		d = time.Since(duration)
 	}
-
-	u := uint64(d)
-	neg := d < 0
-	if neg {
+	var u uint64
+	if d < 0 {
 		u = -u
 	}
-
 	var (
 		year   = uint64(time.Hour) * 24 * 365
 		month  = uint64(time.Hour) * 24 * 30

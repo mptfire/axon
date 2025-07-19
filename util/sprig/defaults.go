@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// dfault checks whether `given` is set, and returns default if not set.
+// defaultValue checks whether `given` is set, and returns default if not set.
 //
 // This returns `d` if `given` appears not to be set, and `given` otherwise.
 //
@@ -17,8 +17,7 @@ import (
 // Structs are never considered unset.
 //
 // For everything else, including pointers, a nil value is unset.
-func dfault(d any, given ...any) any {
-
+func defaultValue(d any, given ...any) any {
 	if empty(given) || empty(given[0]) {
 		return d
 	}
@@ -31,7 +30,6 @@ func empty(given any) bool {
 	if !g.IsValid() {
 		return true
 	}
-
 	// Basically adapted from text/template.isTrue
 	switch g.Kind() {
 	default:
@@ -140,8 +138,7 @@ func mustToRawJSON(v any) (string, error) {
 	buf := new(bytes.Buffer)
 	enc := json.NewEncoder(buf)
 	enc.SetEscapeHTML(false)
-	err := enc.Encode(&v)
-	if err != nil {
+	if err := enc.Encode(&v); err != nil {
 		return "", err
 	}
 	return strings.TrimSuffix(buf.String(), "\n"), nil
