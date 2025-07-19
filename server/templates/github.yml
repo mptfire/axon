@@ -55,4 +55,3 @@ message: |
   {{- else }}
   {{ fail "Unsupported GitHub event type or action." }}
   {{- end }}
-

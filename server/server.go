@@ -57,7 +57,7 @@ type Server struct {
 	userManager       *user.Manager                       // Might be nil!
 	messageCache      *messageCache                       // Database that stores the messages
 	webPush           *webPushStore                       // Database that stores web push subscriptions
-	fileCache         *fileCache                          // Name system based cache that stores attachments
+	fileCache         *fileCache                          // File system based cache that stores attachments
 	stripe            stripeAPI                           // Stripe API, can be replaced with a mock
 	priceCache        *util.LookupCache[map[string]int64] // Stripe price ID -> price as cents (USD implied!)
 	metricsHandler    http.Handler                        // Handles /metrics if enable-metrics set, and listen-metrics-http not set
@@ -1120,11 +1120,11 @@ func (s *Server) handleBodyAsTemplatedTextMessage(m *message, template templateM
 	}
 	peekedBody := strings.TrimSpace(string(body.PeekedBytes))
 	if templateName := template.Name(); templateName != "" {
-		if err := s.replaceTemplateFromFile(m, templateName, peekedBody); err != nil {
+		if err := s.renderTemplateFromFile(m, templateName, peekedBody); err != nil {
 			return err
 		}
 	} else {
-		if err := s.replaceTemplateFromParams(m, peekedBody); err != nil {
+		if err := s.renderTemplateFromParams(m, peekedBody); err != nil {
 			return err
 		}
 	}
@@ -1134,7 +1134,9 @@ func (s *Server) handleBodyAsTemplatedTextMessage(m *message, template templateM
 	return nil
 }
 
-func (s *Server) replaceTemplateFromFile(m *message, templateName, peekedBody string) error {
+// renderTemplateFromFile transforms the JSON message body according to a template from the filesystem.
+// The template file must be in the templates directory, or in the configured template directory.
+func (s *Server) renderTemplateFromFile(m *message, templateName, peekedBody string) error {
 	if !templateNameRegex.MatchString(templateName) {
 		return errHTTPBadRequestTemplateFileNotFound
 	}
@@ -1153,30 +1155,33 @@ func (s *Server) replaceTemplateFromFile(m *message, templateName, peekedBody st
 	}
 	var err error
 	if tpl.Message != nil {
-		if m.Message, err = s.replaceTemplate(*tpl.Message, peekedBody); err != nil {
+		if m.Message, err = s.renderTemplate(*tpl.Message, peekedBody); err != nil {
 			return err
 		}
 	}
 	if tpl.Title != nil {
-		if m.Title, err = s.replaceTemplate(*tpl.Title, peekedBody); err != nil {
+		if m.Title, err = s.renderTemplate(*tpl.Title, peekedBody); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Server) replaceTemplateFromParams(m *message, peekedBody string) error {
+// renderTemplateFromParams transforms the JSON message body according to the inline template in the
+// message and title parameters.
+func (s *Server) renderTemplateFromParams(m *message, peekedBody string) error {
 	var err error
-	if m.Message, err = s.replaceTemplate(m.Message, peekedBody); err != nil {
+	if m.Message, err = s.renderTemplate(m.Message, peekedBody); err != nil {
 		return err
 	}
-	if m.Title, err = s.replaceTemplate(m.Title, peekedBody); err != nil {
+	if m.Title, err = s.renderTemplate(m.Title, peekedBody); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *Server) replaceTemplate(tpl string, source string) (string, error) {
+// renderTemplate renders a template with the given JSON source data.
+func (s *Server) renderTemplate(tpl string, source string) (string, error) {
 	if templateDisallowedRegex.MatchString(tpl) {
 		return "", errHTTPBadRequestTemplateDisallowedFunctionCalls
 	}
