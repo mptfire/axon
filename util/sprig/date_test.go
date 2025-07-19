@@ -52,7 +52,7 @@ func TestDateInZone(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	tpl := `{{ date_in_zone "02 Jan 06 15:04 -0700" .Time "UTC" }}`
+	tpl := `{{ dateInZone "02 Jan 06 15:04 -0700" .Time "UTC" }}`
 
 	// Test time.Time input
 	if err = runtv(tpl, "13 Jun 19 20:39 +0000", map[string]any{"Time": tm}); err != nil {
@@ -86,7 +86,7 @@ func TestDateInZone(t *testing.T) {
 	}
 
 	// Test case of invalid timezone
-	tpl = `{{ date_in_zone "02 Jan 06 15:04 -0700" .Time "foobar" }}`
+	tpl = `{{ dateInZone "02 Jan 06 15:04 -0700" .Time "foobar" }}`
 	if err = runtv(tpl, "13 Jun 19 20:39 +0000", map[string]any{"Time": tm}); err != nil {
 		t.Error(err)
 	}
