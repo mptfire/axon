@@ -10,6 +10,7 @@ The original set of template functions is based on the [Sprig library](https://m
 - [String List Functions](#string-list-functions)
 - [Integer Math Functions](#integer-math-functions)
 - [Integer List Functions](#integer-list-functions)
+- [Float Math Functions](#float-math-functions)
 - [Date Functions](#date-functions)
 - [Default Functions](#default-functions)
 - [Encoding Functions](#encoding-functions)
@@ -524,6 +525,28 @@ seq 0 2     => 0 1 2
 seq 2 -2    => 2 1 0 -1 -2
 seq 0 2 10  => 0 2 4 6 8 10
 seq 0 -2 -5 => 0 -2 -4
+```
+
+## Float Math Functions
+
+### maxf
+
+Return the largest of a series of floats:
+
+This will return `3`:
+
+```
+maxf 1 2.5 3
+```
+
+### minf
+
+Return the smallest of a series of floats.
+
+This will return `1.5`:
+
+```
+minf 1.5 2 3
 ```
 
 ## Date Functions
