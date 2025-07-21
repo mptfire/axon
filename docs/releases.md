@@ -1452,6 +1452,13 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
+### ntfy server v2.14.0 (UNRELEASED)
+
+**Features:**
+
+* Enhanced JSON webhook support via [pre-defined](publish.md#pre-defined-templates) and [custom templates](publish.md#custom-templates) ([#1390](https://github.com/binwiederhier/ntfy/pull/1390))
+* Support of advanced [template functions](publish.md#template-functions) based on the [Sprig](https://github.com/Masterminds/sprig) library ([#1121](https://github.com/binwiederhier/ntfy/issues/1121), thanks to [@davidatkinsondoyle](https://github.com/davidatkinsondoyle) for reporting, to [@wunter8](https://github.com/wunter8) for implementing, and to the Sprig team for their work)
+
 ### ntfy Android app v1.16.1 (UNRELEASED)
 
 **Features:**
