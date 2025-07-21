@@ -954,8 +954,8 @@ is valid JSON).
 
 You can enable templating by setting the `X-Template` header (or its aliases `Template` or `tpl`, or the query parameter `?template=...`):
 
-* **Pre-defined template files**: Setting the `X-Template` header or query parameter to a template name (e.g. `?template=github`)
-  to a pre-defined template name (e.g. `github`, `grafana`, or `alertmanager`) will use the template with that name.
+* **Pre-defined template files**: Setting the `X-Template` header or query parameter to a pre-defined template name (one of `github`,
+  `grafana`, or `alertmanager`, such as `?template=github`) will use the built-in template with that name.
   See [pre-defined templates](#pre-defined-templates) for more details.
 * **Custom template files**: Setting the `X-Template` header or query parameter to a custom template name (e.g. `?template=myapp`)
   will use a custom template file from the template directory (defaults to `/etc/ntfy/templates`, can be overridden with `template-dir`).
@@ -1244,6 +1244,7 @@ Below are the functions that are available to use inside your message/title temp
 * [String List Functions](publish/template-functions.md#string-list-functions): `splitList`, `sortAlpha`, etc.
 * [Integer Math Functions](publish/template-functions.md#integer-math-functions): `add`, `max`, `mul`, etc.
 * [Integer List Functions](publish/template-functions.md#integer-list-functions): `until`, `untilStep`
+* [Float Math Functions](publish/template-functions.md#float-math-functions): `maxf`, `minf`
 * [Date Functions](publish/template-functions.md#date-functions): `now`, `date`, etc.
 * [Defaults Functions](publish/template-functions.md#default-functions): `default`, `empty`, `coalesce`, `fromJSON`, `toJSON`, `toPrettyJSON`, `toRawJSON`, `ternary`
 * [Encoding Functions](publish/template-functions.md#encoding-functions): `b64enc`, `b64dec`, etc.
