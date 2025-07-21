@@ -1,6 +1,6 @@
 # Template Functions
 
-These template functions may be used in the [message template](../publish.md#message-templating) feature of ntfy. Please refer to the examples in the documentation for how to use them.
+These template functions may be used in the **[message template](../publish.md#message-templating)** feature of ntfy. Please refer to the examples in the documentation for how to use them.
 
 The original set of template functions is based on the [Sprig library](https://masterminds.github.io/sprig/). This documentation page is a (slightly modified) copy of their docs. **Thank you to the Sprig developers for their work!** 🙏
 
