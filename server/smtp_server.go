@@ -192,12 +192,12 @@ func (s *smtpSession) publishMessage(m *message) error {
 	// Call HTTP handler with fake HTTP request
 	url := fmt.Sprintf("%s/%s", s.backend.config.BaseURL, m.Topic)
 	req, err := http.NewRequest("POST", url, strings.NewReader(m.Message))
-	req.RequestURI = "/" + m.Topic                                    // just for the logs
-	req.RemoteAddr = remoteAddr                                       // rate limiting!!
-	req.Header.Set(s.backend.config.ProxyForwardedHeader, remoteAddr) // Set X-Forwarded-For header
 	if err != nil {
 		return err
 	}
+	req.RequestURI = "/" + m.Topic                                    // just for the logs
+	req.RemoteAddr = remoteAddr                                       // rate limiting!!
+	req.Header.Set(s.backend.config.ProxyForwardedHeader, remoteAddr) // Set X-Forwarded-For header
 	if m.Title != "" {
 		req.Header.Set("Title", m.Title)
 	}
