@@ -52,7 +52,7 @@ func runtv(tpl, expect string, vars any) error {
 		return err
 	}
 	if expect != b.String() {
-		return fmt.Errorf("Expected '%s', got '%s'", expect, b.String())
+		return fmt.Errorf("expected '%s', got '%s'", expect, b.String())
 	}
 	return nil
 }

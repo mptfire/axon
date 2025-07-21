@@ -60,7 +60,6 @@ func urlJoin(d map[string]any) string {
 		}
 		user = tempURL.User
 	}
-
 	resURL.User = user
 	return resURL.String()
 }

@@ -12,6 +12,7 @@ import (
 const (
 	loopExecutionLimit = 10_000  // Limit the number of loop executions to prevent execution from taking too long
 	stringLengthLimit  = 100_000 // Limit the length of strings to prevent memory issues
+	sliceSizeLimit     = 10_000  // Limit the size of slices to prevent memory issues
 )
 
 // TxtFuncMap produces the function map.

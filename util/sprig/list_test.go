@@ -1,6 +1,7 @@
 package sprig
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,6 +69,8 @@ func TestMustChunk(t *testing.T) {
 	for tpl, expect := range tests {
 		assert.NoError(t, runt(tpl, expect))
 	}
+	err := runt(`{{ tuple `+strings.Repeat(" 0", 10001)+` | mustChunk 1 }}`, "a")
+	assert.ErrorContains(t, err, "number of chunks 10001 exceeds maximum limit of 10000")
 }
 
 func TestPrepend(t *testing.T) {

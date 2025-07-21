@@ -25,6 +25,21 @@ func defaultValue(d any, given ...any) any {
 }
 
 // empty returns true if the given value has the zero value for its type.
+// This is a helper function used by defaultValue, coalesce, all, and anyNonEmpty.
+//
+// The following values are considered empty:
+// - Invalid values
+// - nil values
+// - Zero-length arrays, slices, maps, and strings
+// - Boolean false
+// - Zero for all numeric types
+// - Structs are never considered empty
+//
+// Parameters:
+//   - given: The value to check for emptiness
+//
+// Returns:
+//   - bool: True if the value is considered empty, false otherwise
 func empty(given any) bool {
 	g := reflect.ValueOf(given)
 	if !g.IsValid() {
@@ -51,7 +66,16 @@ func empty(given any) bool {
 	}
 }
 
-// coalesce returns the first non-empty value.
+// coalesce returns the first non-empty value from a list of values.
+// If all values are empty, it returns nil.
+//
+// This is useful for providing a series of fallback values.
+//
+// Parameters:
+//   - v: A variadic list of values to check
+//
+// Returns:
+//   - any: The first non-empty value, or nil if all values are empty
 func coalesce(v ...any) any {
 	for _, val := range v {
 		if !empty(val) {
@@ -61,8 +85,15 @@ func coalesce(v ...any) any {
 	return nil
 }
 
-// all returns true if empty(x) is false for all values x in the list.
-// If the list is empty, return true.
+// all checks if all values in a list are non-empty.
+// Returns true if every value in the list is non-empty.
+// If the list is empty, returns true (vacuously true).
+//
+// Parameters:
+//   - v: A variadic list of values to check
+//
+// Returns:
+//   - bool: True if all values are non-empty, false otherwise
 func all(v ...any) bool {
 	for _, val := range v {
 		if empty(val) {
@@ -72,8 +103,15 @@ func all(v ...any) bool {
 	return true
 }
 
-// anyNonEmpty returns true if empty(x) is false for anyNonEmpty x in the list.
-// If the list is empty, return false.
+// anyNonEmpty checks if at least one value in a list is non-empty.
+// Returns true if any value in the list is non-empty.
+// If the list is empty, returns false.
+//
+// Parameters:
+//   - v: A variadic list of values to check
+//
+// Returns:
+//   - bool: True if at least one value is non-empty, false otherwise
 func anyNonEmpty(v ...any) bool {
 	for _, val := range v {
 		if !empty(val) {
@@ -83,25 +121,58 @@ func anyNonEmpty(v ...any) bool {
 	return false
 }
 
-// fromJSON decodes JSON into a structured value, ignoring errors.
+// fromJSON decodes a JSON string into a structured value.
+// This function ignores any errors that occur during decoding.
+// If the JSON is invalid, it returns nil.
+//
+// Parameters:
+//   - v: The JSON string to decode
+//
+// Returns:
+//   - any: The decoded value, or nil if decoding failed
 func fromJSON(v string) any {
 	output, _ := mustFromJSON(v)
 	return output
 }
 
-// mustFromJSON decodes JSON into a structured value, returning errors.
+// mustFromJSON decodes a JSON string into a structured value.
+// Unlike fromJSON, this function returns any errors that occur during decoding.
+//
+// Parameters:
+//   - v: The JSON string to decode
+//
+// Returns:
+//   - any: The decoded value
+//   - error: Any error that occurred during decoding
 func mustFromJSON(v string) (any, error) {
 	var output any
 	err := json.Unmarshal([]byte(v), &output)
 	return output, err
 }
 
-// toJSON encodes an item into a JSON string
+// toJSON encodes a value into a JSON string.
+// This function ignores any errors that occur during encoding.
+// If the value cannot be encoded, it returns an empty string.
+//
+// Parameters:
+//   - v: The value to encode to JSON
+//
+// Returns:
+//   - string: The JSON string representation of the value
 func toJSON(v any) string {
 	output, _ := json.Marshal(v)
 	return string(output)
 }
 
+// mustToJSON encodes a value into a JSON string.
+// Unlike toJSON, this function returns any errors that occur during encoding.
+//
+// Parameters:
+//   - v: The value to encode to JSON
+//
+// Returns:
+//   - string: The JSON string representation of the value
+//   - error: Any error that occurred during encoding
 func mustToJSON(v any) (string, error) {
 	output, err := json.Marshal(v)
 	if err != nil {
@@ -110,12 +181,29 @@ func mustToJSON(v any) (string, error) {
 	return string(output), nil
 }
 
-// toPrettyJSON encodes an item into a pretty (indented) JSON string
+// toPrettyJSON encodes a value into a pretty (indented) JSON string.
+// This function ignores any errors that occur during encoding.
+// If the value cannot be encoded, it returns an empty string.
+//
+// Parameters:
+//   - v: The value to encode to JSON
+//
+// Returns:
+//   - string: The indented JSON string representation of the value
 func toPrettyJSON(v any) string {
 	output, _ := json.MarshalIndent(v, "", "  ")
 	return string(output)
 }
 
+// mustToPrettyJSON encodes a value into a pretty (indented) JSON string.
+// Unlike toPrettyJSON, this function returns any errors that occur during encoding.
+//
+// Parameters:
+//   - v: The value to encode to JSON
+//
+// Returns:
+//   - string: The indented JSON string representation of the value
+//   - error: Any error that occurred during encoding
 func mustToPrettyJSON(v any) (string, error) {
 	output, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
@@ -124,7 +212,15 @@ func mustToPrettyJSON(v any) (string, error) {
 	return string(output), nil
 }
 
-// toRawJSON encodes an item into a JSON string with no escaping of HTML characters.
+// toRawJSON encodes a value into a JSON string with no escaping of HTML characters.
+// This function panics if an error occurs during encoding.
+// Unlike toJSON, HTML characters like <, >, and & are not escaped.
+//
+// Parameters:
+//   - v: The value to encode to JSON
+//
+// Returns:
+//   - string: The JSON string representation of the value without HTML escaping
 func toRawJSON(v any) string {
 	output, err := mustToRawJSON(v)
 	if err != nil {
@@ -133,7 +229,16 @@ func toRawJSON(v any) string {
 	return output
 }
 
-// mustToRawJSON encodes an item into a JSON string with no escaping of HTML characters.
+// mustToRawJSON encodes a value into a JSON string with no escaping of HTML characters.
+// Unlike toRawJSON, this function returns any errors that occur during encoding.
+// HTML characters like <, >, and & are not escaped in the output.
+//
+// Parameters:
+//   - v: The value to encode to JSON
+//
+// Returns:
+//   - string: The JSON string representation of the value without HTML escaping
+//   - error: Any error that occurred during encoding
 func mustToRawJSON(v any) (string, error) {
 	buf := new(bytes.Buffer)
 	enc := json.NewEncoder(buf)
@@ -144,7 +249,17 @@ func mustToRawJSON(v any) (string, error) {
 	return strings.TrimSuffix(buf.String(), "\n"), nil
 }
 
-// ternary returns the first value if the last value is true, otherwise returns the second value.
+// ternary implements a conditional (ternary) operator.
+// It returns the first value if the condition is true, otherwise returns the second value.
+// This is similar to the ?: operator in many programming languages.
+//
+// Parameters:
+//   - vt: The value to return if the condition is true
+//   - vf: The value to return if the condition is false
+//   - v: The boolean condition to evaluate
+//
+// Returns:
+//   - any: Either vt or vf depending on the value of v
 func ternary(vt any, vf any, v bool) any {
 	if v {
 		return vt
