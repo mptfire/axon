@@ -185,9 +185,9 @@ func values(dict map[string]any) []any {
 //
 // Parameters:
 //   - ps: A variadic list where:
-//     - The first N-2 arguments are string keys forming the path
-//     - The second-to-last argument is the default value to return if the path doesn't exist
-//     - The last argument is the map to traverse
+//   - The first N-2 arguments are string keys forming the path
+//   - The second-to-last argument is the default value to return if the path doesn't exist
+//   - The last argument is the map to traverse
 //
 // Returns:
 //   - any: The value found at the specified path, or the default value if not found
