@@ -232,7 +232,7 @@ cli-deps-update:
 	go get -u
 	go install honnef.co/go/tools/cmd/staticcheck@latest
 	go install golang.org/x/lint/golint@latest
-	go install github.com/goreleaser/goreleaser@latest
+	go install github.com/goreleaser/goreleaser/v2@latest
 
 cli-build-results:
 	cat dist/config.yaml

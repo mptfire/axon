@@ -120,6 +120,18 @@ func Filter[T any](slice []T, f func(T) bool) []T {
 	return result
 }
 
+// Find returns the first element in the slice that satisfies the given function, and a boolean indicating
+// whether such an element was found. If no element is found, it returns the zero value of T and false.
+func Find[T any](slice []T, f func(T) bool) (T, bool) {
+	for _, v := range slice {
+		if f(v) {
+			return v, true
+		}
+	}
+	var zero T
+	return zero, false
+}
+
 // RandomString returns a random string with a given length
 func RandomString(length int) string {
 	return RandomStringPrefix("", length)

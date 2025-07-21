@@ -12,17 +12,18 @@ import (
 
 // User is a struct that represents a user
 type User struct {
-	ID        string
-	Name      string
-	Hash      string // password hash (bcrypt)
-	Token     string // Only set if token was used to log in
-	Role      Role
-	Prefs     *Prefs
-	Tier      *Tier
-	Stats     *Stats
-	Billing   *Billing
-	SyncTopic string
-	Deleted   bool
+	ID          string
+	Name        string
+	Hash        string // Password hash (bcrypt)
+	Token       string // Only set if token was used to log in
+	Role        Role
+	Prefs       *Prefs
+	Tier        *Tier
+	Stats       *Stats
+	Billing     *Billing
+	SyncTopic   string
+	Provisioned bool // Whether the user was provisioned by the config file
+	Deleted     bool // Whether the user was soft-deleted
 }
 
 // TierID returns the ID of the User.Tier, or an empty string if the user has no tier,
@@ -148,7 +149,8 @@ type Billing struct {
 // Grant is a struct that represents an access control entry to a topic by a user
 type Grant struct {
 	TopicPattern string // May include wildcard (*)
-	Allow        Permission
+	Permission   Permission
+	Provisioned  bool // Whether the grant was provisioned by the config file
 }
 
 // Reservation is a struct that represents the ownership over a topic by a user

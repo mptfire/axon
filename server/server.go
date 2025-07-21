@@ -200,8 +200,9 @@ func New(conf *Config) (*Server, error) {
 			Filename:            conf.AuthFile,
 			StartupQueries:      conf.AuthStartupQueries,
 			DefaultAccess:       conf.AuthDefault,
-			ProvisionedUsers:    conf.AuthProvisionedUsers,
-			ProvisionedAccess:   conf.AuthProvisionedAccess,
+			ProvisionEnabled:    true, // Enable provisioning of users and access
+			ProvisionUsers:      conf.AuthProvisionedUsers,
+			ProvisionAccess:     conf.AuthProvisionedAccess,
 			BcryptCost:          conf.AuthBcryptCost,
 			QueueWriterInterval: conf.AuthStatsQueueWriterInterval,
 		}

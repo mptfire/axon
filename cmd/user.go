@@ -349,8 +349,7 @@ func createUserManager(c *cli.Context) (*user.Manager, error) {
 		Filename:            authFile,
 		StartupQueries:      authStartupQueries,
 		DefaultAccess:       authDefault,
-		ProvisionedUsers:    nil, //FIXME
-		ProvisionedAccess:   nil, //FIXME
+		ProvisionEnabled:    false, // Do not re-provision users on manager initialization
 		BcryptCost:          user.DefaultUserPasswordBcryptCost,
 		QueueWriterInterval: user.DefaultUserStatsQueueWriterInterval,
 	}

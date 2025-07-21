@@ -489,12 +489,12 @@ func TestManager_ChangeRoleFromTierUserToAdmin(t *testing.T) {
 	benGrants, err := a.Grants("ben")
 	require.Nil(t, err)
 	require.Equal(t, 1, len(benGrants))
-	require.Equal(t, PermissionReadWrite, benGrants[0].Allow)
+	require.Equal(t, PermissionReadWrite, benGrants[0].Permission)
 
 	everyoneGrants, err := a.Grants(Everyone)
 	require.Nil(t, err)
 	require.Equal(t, 1, len(everyoneGrants))
-	require.Equal(t, PermissionDenyAll, everyoneGrants[0].Allow)
+	require.Equal(t, PermissionDenyAll, everyoneGrants[0].Permission)
 
 	benReservations, err := a.Reservations("ben")
 	require.Nil(t, err)
@@ -1201,16 +1201,16 @@ func TestMigrationFrom1(t *testing.T) {
 	require.NotEqual(t, ben.SyncTopic, phil.SyncTopic)
 	require.Equal(t, 2, len(benGrants))
 	require.Equal(t, "secret", benGrants[0].TopicPattern)
-	require.Equal(t, PermissionRead, benGrants[0].Allow)
+	require.Equal(t, PermissionRead, benGrants[0].Permission)
 	require.Equal(t, "stats", benGrants[1].TopicPattern)
-	require.Equal(t, PermissionReadWrite, benGrants[1].Allow)
+	require.Equal(t, PermissionReadWrite, benGrants[1].Permission)
 
 	require.Equal(t, "u_everyone", everyone.ID)
 	require.Equal(t, Everyone, everyone.Name)
 	require.Equal(t, RoleAnonymous, everyone.Role)
 	require.Equal(t, 1, len(everyoneGrants))
 	require.Equal(t, "stats", everyoneGrants[0].TopicPattern)
-	require.Equal(t, PermissionRead, everyoneGrants[0].Allow)
+	require.Equal(t, PermissionRead, everyoneGrants[0].Permission)
 }
 
 func TestMigrationFrom4(t *testing.T) {
