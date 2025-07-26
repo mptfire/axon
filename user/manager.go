@@ -529,11 +529,12 @@ type Manager struct {
 	mu         sync.Mutex
 }
 
+// Config holds the configuration for the user Manager
 type Config struct {
 	Filename            string              // Database filename, e.g. "/var/lib/ntfy/user.db"
 	StartupQueries      string              // Queries to run on startup, e.g. to create initial users or tiers
 	DefaultAccess       Permission          // Default permission if no ACL matches
-	ProvisionEnabled    bool                // Enable auto-provisioning of users and access grants
+	ProvisionEnabled    bool                // Enable auto-provisioning of users and access grants, disabled for "ntfy user" commands
 	ProvisionUsers      []*User             // Predefined users to create on startup
 	ProvisionAccess     map[string][]*Grant // Predefined access grants to create on startup
 	QueueWriterInterval time.Duration       // Interval for the async queue writer to flush stats and token updates to the database
