@@ -543,8 +543,8 @@ func parseProvisionUsers(usersRaw []string) ([]*user.User, error) {
 		role := user.Role(strings.TrimSpace(parts[2]))
 		if !user.AllowedUsername(username) {
 			return nil, fmt.Errorf("invalid auth-provision-users: %s, username invalid", userLine)
-		} else if passwordHash == "" {
-			return nil, fmt.Errorf("invalid auth-provision-users: %s, password hash cannot be empty", userLine)
+		} else if err := user.AllowedPasswordHash(passwordHash); err != nil {
+			return nil, fmt.Errorf("invalid auth-provision-users: %s, %s", userLine, err.Error())
 		} else if !user.AllowedRole(role) {
 			return nil, fmt.Errorf("invalid auth-provision-users: %s, role %s is not allowed, allowed roles are 'admin' or 'user'", userLine, role)
 		}

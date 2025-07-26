@@ -340,7 +340,7 @@ func TestManager_UserManagement(t *testing.T) {
 func TestManager_ChangePassword(t *testing.T) {
 	a := newTestManager(t, PermissionDenyAll)
 	require.Nil(t, a.AddUser("phil", "phil", RoleAdmin, false))
-	require.Nil(t, a.AddUser("jane", "$2b$10$OyqU72muEy7VMd1SAU2Iru5IbeSMgrtCGHu/fWLmxL1MwlijQXWbG", RoleUser, true))
+	require.Nil(t, a.AddUser("jane", "$2a$10$OyqU72muEy7VMd1SAU2Iru5IbeSMgrtCGHu/fWLmxL1MwlijQXWbG", RoleUser, true))
 
 	_, err := a.Authenticate("phil", "phil")
 	require.Nil(t, err)
@@ -354,7 +354,7 @@ func TestManager_ChangePassword(t *testing.T) {
 	_, err = a.Authenticate("phil", "newpass")
 	require.Nil(t, err)
 
-	require.Nil(t, a.ChangePassword("jane", "$2b$10$CNaCW.q1R431urlbQ5Drh.zl48TiiOeJSmZgfcswkZiPbJGQ1ApSS", true))
+	require.Nil(t, a.ChangePassword("jane", "$2a$10$CNaCW.q1R431urlbQ5Drh.zl48TiiOeJSmZgfcswkZiPbJGQ1ApSS", true))
 	_, err = a.Authenticate("jane", "jane")
 	require.Equal(t, ErrUnauthenticated, err)
 	_, err = a.Authenticate("jane", "newpass")

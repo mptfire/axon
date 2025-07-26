@@ -981,12 +981,15 @@ func (a *Manager) addUserTx(tx *sql.Tx, username, password string, role Role, ha
 	if !AllowedUsername(username) || !AllowedRole(role) {
 		return ErrInvalidArgument
 	}
-	var hash []byte
+	var hash string
 	var err error = nil
 	if hashed {
-		hash = []byte(password)
+		hash = password
+		if err := AllowedPasswordHash(hash); err != nil {
+			return err
+		}
 	} else {
-		hash, err = bcrypt.GenerateFromPassword([]byte(password), a.config.BcryptCost)
+		hash, err = a.HashPassword(password)
 		if err != nil {
 			return err
 		}
@@ -1328,12 +1331,15 @@ func (a *Manager) ChangePassword(username, password string, hashed bool) error {
 }
 
 func (a *Manager) changePasswordTx(tx *sql.Tx, username, password string, hashed bool) error {
-	var hash []byte
+	var hash string
 	var err error
 	if hashed {
-		hash = []byte(password)
+		hash = password
+		if err := AllowedPasswordHash(hash); err != nil {
+			return err
+		}
 	} else {
-		hash, err = bcrypt.GenerateFromPassword([]byte(password), a.config.BcryptCost)
+		hash, err = a.HashPassword(password)
 		if err != nil {
 			return err
 		}
@@ -1640,6 +1646,15 @@ func (a *Manager) readTier(rows *sql.Rows) (*Tier, error) {
 	}, nil
 }
 
+// HashPassword hashes the given password using bcrypt with the configured cost
+func (a *Manager) HashPassword(password string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), a.config.BcryptCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hash), nil
+}
+
 // Close closes the underlying database
 func (a *Manager) Close() error {
 	return a.db.Close()
@@ -1681,7 +1696,7 @@ func (a *Manager) maybeProvisionUsersAndAccess() error {
 				if err := a.addUserTx(tx, user.Name, user.Hash, user.Role, true, true); err != nil && !errors.Is(err, ErrUserExists) {
 					return fmt.Errorf("failed to add provisioned user %s: %v", user.Name, err)
 				}
-			} else if existingUser.Hash != user.Hash || existingUser.Role != user.Role {
+			} else if existingUser.Provisioned && (existingUser.Hash != user.Hash || existingUser.Role != user.Role) {
 				log.Tag(tag).Info("Updating provisioned user %s", user.Name)
 				if err := a.changePasswordTx(tx, user.Name, user.Hash, true); err != nil {
 					return fmt.Errorf("failed to change password for provisioned user %s: %v", user.Name, err)

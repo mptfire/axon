@@ -274,6 +274,14 @@ func AllowedTier(tier string) bool {
 	return allowedTierRegex.MatchString(tier)
 }
 
+// AllowedPasswordHash checks if the given password hash is a valid bcrypt hash
+func AllowedPasswordHash(hash string) error {
+	if !strings.HasPrefix(hash, "$2a$") && !strings.HasPrefix(hash, "$2b$") && !strings.HasPrefix(hash, "$2y$") {
+		return ErrPasswordHashInvalid
+	}
+	return nil
+}
+
 // Error constants used by the package
 var (
 	ErrUnauthenticated     = errors.New("unauthenticated")
@@ -281,6 +289,7 @@ var (
 	ErrInvalidArgument     = errors.New("invalid argument")
 	ErrUserNotFound        = errors.New("user not found")
 	ErrUserExists          = errors.New("user already exists")
+	ErrPasswordHashInvalid = errors.New("password hash but be a bcrypt hash, use 'ntfy user hash' to generate")
 	ErrTierNotFound        = errors.New("tier not found")
 	ErrTokenNotFound       = errors.New("token not found")
 	ErrPhoneNumberNotFound = errors.New("phone number not found")

@@ -136,6 +136,22 @@ Example:
 `,
 		},
 		{
+			Name:      "hash",
+			Usage:     "Create password hash for a predefined user",
+			UsageText: "ntfy user hash",
+			Action:    execUserHash,
+			Description: `Asks for a password and creates a bcrypt password hash.
+
+This command is useful to create a password hash for a user, which can then be used
+for predefined users in the server config file, in auth-provision-users.
+
+Example:
+  $ ntfy user hash
+  (asks for password and confirmation)
+  $2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C
+`,
+		},
+		{
 			Name:    "list",
 			Aliases: []string{"l"},
 			Usage:   "Shows a list of users",
@@ -286,6 +302,23 @@ func execUserChangeRole(c *cli.Context) error {
 		return err
 	}
 	fmt.Fprintf(c.App.ErrWriter, "changed role for user %s to %s\n", username, role)
+	return nil
+}
+
+func execUserHash(c *cli.Context) error {
+	manager, err := createUserManager(c)
+	if err != nil {
+		return err
+	}
+	password, err := readPasswordAndConfirm(c)
+	if err != nil {
+		return err
+	}
+	hash, err := manager.HashPassword(password)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+	fmt.Fprintf(c.App.Writer, "%s\n", string(hash))
 	return nil
 }
 
