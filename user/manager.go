@@ -316,7 +316,7 @@ const (
 
 // Schema management queries
 const (
-	currentSchemaVersion     = 5
+	currentSchemaVersion     = 6
 	insertSchemaVersion      = `INSERT INTO schemaVersion VALUES (1, ?)`
 	updateSchemaVersion      = `UPDATE schemaVersion SET version = ? WHERE id = 1`
 	selectSchemaVersionQuery = `SELECT version FROM schemaVersion WHERE id = 1`
@@ -434,11 +434,78 @@ const (
 
 	// 5 -> 6
 	migrate5To6UpdateQueries = `
-		ALTER TABLE user ADD COLUMN provisioned INT NOT NULL DEFAULT (0);
-		ALTER TABLE user ALTER COLUMN provisioned DROP DEFAULT;
+		PRAGMA foreign_keys=off;
 
-		ALTER TABLE user_access ADD COLUMN provisioned INT NOT NULL DEFAULT (0);
-		ALTER TABLE user_access ALTER COLUMN provisioned DROP DEFAULT;
+		-- Alter user table: Add provisioned column
+		ALTER TABLE user RENAME TO user_old;
+		CREATE TABLE IF NOT EXISTS user (
+		    id TEXT PRIMARY KEY,
+			tier_id TEXT,
+			user TEXT NOT NULL,
+			pass TEXT NOT NULL,
+			role TEXT CHECK (role IN ('anonymous', 'admin', 'user')) NOT NULL,
+			prefs JSON NOT NULL DEFAULT '{}',
+			sync_topic TEXT NOT NULL,
+			provisioned INT NOT NULL,
+			stats_messages INT NOT NULL DEFAULT (0),
+			stats_emails INT NOT NULL DEFAULT (0),
+			stats_calls INT NOT NULL DEFAULT (0),
+			stripe_customer_id TEXT,
+			stripe_subscription_id TEXT,
+			stripe_subscription_status TEXT,
+			stripe_subscription_interval TEXT,
+			stripe_subscription_paid_until INT,
+			stripe_subscription_cancel_at INT,
+			created INT NOT NULL,
+			deleted INT,
+		    FOREIGN KEY (tier_id) REFERENCES tier (id)
+		);
+		INSERT INTO user
+		SELECT
+		    id,
+		    tier_id,
+		    user,
+		    pass,
+		    role,
+		    prefs,
+		    sync_topic,
+		    0,
+		    stats_messages,
+		    stats_emails,
+		    stats_calls,
+		    stripe_customer_id,
+		    stripe_subscription_id,
+		    stripe_subscription_status,
+		    stripe_subscription_interval,
+		    stripe_subscription_paid_until,
+		    stripe_subscription_cancel_at,
+		    created, deleted
+		FROM user_old;
+		DROP TABLE user_old;
+
+		-- Alter user_access table: Add provisioned column
+		ALTER TABLE user_access RENAME TO user_access_old;
+		CREATE TABLE user_access (
+			user_id TEXT NOT NULL,
+			topic TEXT NOT NULL,
+			read INT NOT NULL,
+			write INT NOT NULL,
+			owner_user_id INT,
+			provisioned INTEGER NOT NULL,
+			PRIMARY KEY (user_id, topic),
+			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE,
+			FOREIGN KEY (owner_user_id) REFERENCES user (id) ON DELETE CASCADE
+		);
+		INSERT INTO user_access SELECT *, 0 FROM user_access_old;
+		DROP TABLE user_access_old;
+
+		-- Recreate indices
+		CREATE UNIQUE INDEX idx_user ON user (user);
+		CREATE UNIQUE INDEX idx_user_stripe_customer_id ON user (stripe_customer_id);
+		CREATE UNIQUE INDEX idx_user_stripe_subscription_id ON user (stripe_subscription_id);
+
+		-- Re-enable foreign keys
+		PRAGMA foreign_keys=on;
 	`
 )
 
@@ -1422,10 +1489,10 @@ func (a *Manager) AddReservation(username string, topic string, everyone Permiss
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(upsertUserAccessQuery, username, escapeUnderscore(topic), true, true, username, username); err != nil {
+	if _, err := tx.Exec(upsertUserAccessQuery, username, escapeUnderscore(topic), true, true, username, username, false); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(upsertUserAccessQuery, Everyone, escapeUnderscore(topic), everyone.IsRead(), everyone.IsWrite(), username, username); err != nil {
+	if _, err := tx.Exec(upsertUserAccessQuery, Everyone, escapeUnderscore(topic), everyone.IsRead(), everyone.IsWrite(), username, username, false); err != nil {
 		return err
 	}
 	return tx.Commit()

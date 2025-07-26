@@ -52,10 +52,10 @@ func TestManager_FullScenario_Default_DenyAll(t *testing.T) {
 	benGrants, err := a.Grants("ben")
 	require.Nil(t, err)
 	require.Equal(t, []Grant{
-		{"everyonewrite", PermissionDenyAll},
-		{"mytopic", PermissionReadWrite},
-		{"writeme", PermissionWrite},
-		{"readme", PermissionRead},
+		{"everyonewrite", PermissionDenyAll, false},
+		{"mytopic", PermissionReadWrite, false},
+		{"writeme", PermissionWrite, false},
+		{"readme", PermissionRead, false},
 	}, benGrants)
 
 	john, err := a.Authenticate("john", "john")
@@ -67,10 +67,10 @@ func TestManager_FullScenario_Default_DenyAll(t *testing.T) {
 	johnGrants, err := a.Grants("john")
 	require.Nil(t, err)
 	require.Equal(t, []Grant{
-		{"mytopic_deny*", PermissionDenyAll},
-		{"mytopic_ro*", PermissionRead},
-		{"mytopic*", PermissionReadWrite},
-		{"*", PermissionRead},
+		{"mytopic_deny*", PermissionDenyAll, false},
+		{"mytopic_ro*", PermissionRead, false},
+		{"mytopic*", PermissionReadWrite, false},
+		{"*", PermissionRead, false},
 	}, johnGrants)
 
 	notben, err := a.Authenticate("ben", "this is wrong")
@@ -277,10 +277,10 @@ func TestManager_UserManagement(t *testing.T) {
 	benGrants, err := a.Grants("ben")
 	require.Nil(t, err)
 	require.Equal(t, []Grant{
-		{"everyonewrite", PermissionDenyAll},
-		{"mytopic", PermissionReadWrite},
-		{"writeme", PermissionWrite},
-		{"readme", PermissionRead},
+		{"everyonewrite", PermissionDenyAll, false},
+		{"mytopic", PermissionReadWrite, false},
+		{"writeme", PermissionWrite, false},
+		{"readme", PermissionRead, false},
 	}, benGrants)
 
 	everyone, err := a.User(Everyone)
@@ -292,8 +292,8 @@ func TestManager_UserManagement(t *testing.T) {
 	everyoneGrants, err := a.Grants(Everyone)
 	require.Nil(t, err)
 	require.Equal(t, []Grant{
-		{"everyonewrite", PermissionReadWrite},
-		{"announcements", PermissionRead},
+		{"everyonewrite", PermissionReadWrite, false},
+		{"announcements", PermissionRead, false},
 	}, everyoneGrants)
 
 	// Ben: Before revoking
@@ -1099,19 +1099,98 @@ func TestManager_Topic_Wildcard_With_Underscore(t *testing.T) {
 func TestManager_WithProvisionedUsers(t *testing.T) {
 	f := filepath.Join(t.TempDir(), "user.db")
 	conf := &Config{
-		Filename:      f,
-		DefaultAccess: PermissionReadWrite,
-		ProvisionedUsers: []*User{
-			{Name: "phil", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleAdmin},
+		Filename:         f,
+		DefaultAccess:    PermissionReadWrite,
+		ProvisionEnabled: true,
+		ProvisionUsers: []*User{
+			{Name: "philuser", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
+			{Name: "philadmin", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleAdmin},
+		},
+		ProvisionAccess: map[string][]*Grant{
+			"philuser": {
+				{TopicPattern: "stats", Permission: PermissionReadWrite},
+				{TopicPattern: "secret", Permission: PermissionRead},
+			},
 		},
 	}
 	a, err := NewManager(conf)
 	require.Nil(t, err)
+
+	// Manually add user
+	require.Nil(t, a.AddUser("philmanual", "manual", RoleUser, false))
+
+	// Check that the provisioned users are there
 	users, err := a.Users()
 	require.Nil(t, err)
-	for _, u := range users {
-		fmt.Println(u.ID, u.Name, u.Role)
+	require.Len(t, users, 4)
+
+	require.Equal(t, "philadmin", users[0].Name)
+	require.Equal(t, RoleAdmin, users[0].Role)
+
+	require.Equal(t, "philmanual", users[1].Name)
+	require.Equal(t, RoleUser, users[1].Role)
+
+	grants, err := a.Grants("philuser")
+	require.Nil(t, err)
+	require.Equal(t, "philuser", users[2].Name)
+	require.Equal(t, RoleUser, users[2].Role)
+	require.Equal(t, 2, len(grants))
+	require.Equal(t, "secret", grants[0].TopicPattern)
+	require.Equal(t, PermissionRead, grants[0].Permission)
+	require.Equal(t, "stats", grants[1].TopicPattern)
+	require.Equal(t, PermissionReadWrite, grants[1].Permission)
+
+	require.Equal(t, "*", users[3].Name)
+
+	// Re-open the DB (second app start)
+	require.Nil(t, a.db.Close())
+	conf.ProvisionUsers = []*User{
+		{Name: "philuser", Hash: "$2a$10$AAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
 	}
+	conf.ProvisionAccess = map[string][]*Grant{
+		"philuser": {
+			{TopicPattern: "stats12", Permission: PermissionReadWrite},
+			{TopicPattern: "secret12", Permission: PermissionRead},
+		},
+	}
+	a, err = NewManager(conf)
+	require.Nil(t, err)
+
+	// Check that the provisioned users are there
+	users, err = a.Users()
+	require.Nil(t, err)
+	require.Len(t, users, 3)
+
+	require.Equal(t, "philmanual", users[0].Name)
+	require.Equal(t, RoleUser, users[0].Role)
+
+	grants, err = a.Grants("philuser")
+	require.Nil(t, err)
+	require.Equal(t, "philuser", users[1].Name)
+	require.Equal(t, RoleUser, users[1].Role)
+	require.Equal(t, 2, len(grants))
+	require.Equal(t, "secret12", grants[0].TopicPattern)
+	require.Equal(t, PermissionRead, grants[0].Permission)
+	require.Equal(t, "stats12", grants[1].TopicPattern)
+	require.Equal(t, PermissionReadWrite, grants[1].Permission)
+
+	require.Equal(t, "*", users[2].Name)
+
+	// Re-open the DB again (third app start)
+	require.Nil(t, a.db.Close())
+	conf.ProvisionUsers = []*User{}
+	conf.ProvisionAccess = map[string][]*Grant{}
+	a, err = NewManager(conf)
+	require.Nil(t, err)
+
+	// Check that the provisioned users are there
+	users, err = a.Users()
+	require.Nil(t, err)
+	require.Len(t, users, 2)
+
+	require.Equal(t, "philmanual", users[0].Name)
+	require.Equal(t, RoleUser, users[0].Role)
+	require.Equal(t, "*", users[1].Name)
 }
 
 func TestToFromSQLWildcard(t *testing.T) {
