@@ -1484,19 +1484,25 @@ func (a *Manager) allowAccessTx(tx *sql.Tx, username string, topicPattern string
 // ResetAccess removes an access control list entry for a specific username/topic, or (if topic is
 // empty) for an entire user. The parameter topicPattern may include wildcards (*).
 func (a *Manager) ResetAccess(username string, topicPattern string) error {
+	return execTx(a.db, func(tx *sql.Tx) error {
+		return a.resetAccessTx(tx, username, topicPattern)
+	})
+}
+
+func (a *Manager) resetAccessTx(tx *sql.Tx, username string, topicPattern string) error {
 	if !AllowedUsername(username) && username != Everyone && username != "" {
 		return ErrInvalidArgument
 	} else if !AllowedTopicPattern(topicPattern) && topicPattern != "" {
 		return ErrInvalidArgument
 	}
 	if username == "" && topicPattern == "" {
-		_, err := a.db.Exec(deleteAllAccessQuery, username)
+		_, err := tx.Exec(deleteAllAccessQuery, username)
 		return err
 	} else if topicPattern == "" {
-		_, err := a.db.Exec(deleteUserAccessQuery, username, username)
+		_, err := tx.Exec(deleteUserAccessQuery, username, username)
 		return err
 	}
-	_, err := a.db.Exec(deleteTopicAccessQuery, username, username, toSQLWildcard(topicPattern))
+	_, err := tx.Exec(deleteTopicAccessQuery, username, username, toSQLWildcard(topicPattern))
 	return err
 }
 
@@ -1734,7 +1740,18 @@ func (a *Manager) maybeProvisionUsersAndAccess() error {
 			return err
 		}
 		for username, grants := range a.config.Access {
+			user, exists := util.Find(a.config.Users, func(u *User) bool {
+				return u.Name == username
+			})
+			if !exists && username != Everyone {
+				return fmt.Errorf("user %s is not a provisioned user, refusing to add ACL entry", username)
+			} else if user != nil && user.Role == RoleAdmin {
+				return fmt.Errorf("adding access control entries is not allowed for admin roles for user %s", username)
+			}
 			for _, grant := range grants {
+				if err := a.resetAccessTx(tx, username, grant.TopicPattern); err != nil {
+					return fmt.Errorf("failed to reset access for user %s and topic %s: %v", username, grant.TopicPattern, err)
+				}
 				if err := a.allowAccessTx(tx, username, grant.TopicPattern, grant.Permission, true); err != nil {
 					return err
 				}
@@ -1951,10 +1968,8 @@ func execTx(db *sql.DB, f func(tx *sql.Tx) error) error {
 	if err != nil {
 		return err
 	}
+	defer tx.Rollback()
 	if err := f(tx); err != nil {
-		if e := tx.Rollback(); e != nil {
-			return err
-		}
 		return err
 	}
 	return tx.Commit()

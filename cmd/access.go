@@ -197,7 +197,7 @@ func showUsers(c *cli.Context, manager *user.Manager, users []*user.User) error 
 		}
 		provisioned := ""
 		if u.Provisioned {
-			provisioned = ", provisioned user"
+			provisioned = ", server config"
 		}
 		fmt.Fprintf(c.App.ErrWriter, "user %s (role: %s, tier: %s%s)\n", u.Name, u.Role, tier, provisioned)
 		if u.Role == user.RoleAdmin {
@@ -206,7 +206,7 @@ func showUsers(c *cli.Context, manager *user.Manager, users []*user.User) error 
 			for _, grant := range grants {
 				grantProvisioned := ""
 				if grant.Provisioned {
-					grantProvisioned = ", provisioned access entry"
+					grantProvisioned = " (server config)"
 				}
 				if grant.Permission.IsReadWrite() {
 					fmt.Fprintf(c.App.ErrWriter, "- read-write access to topic %s%s\n", grant.TopicPattern, grantProvisioned)
