@@ -48,8 +48,8 @@ var flagsServe = append(
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "auth-file", Aliases: []string{"auth_file", "H"}, EnvVars: []string{"NTFY_AUTH_FILE"}, Usage: "auth database file used for access control"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "auth-startup-queries", Aliases: []string{"auth_startup_queries"}, EnvVars: []string{"NTFY_AUTH_STARTUP_QUERIES"}, Usage: "queries run when the auth database is initialized"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "auth-default-access", Aliases: []string{"auth_default_access", "p"}, EnvVars: []string{"NTFY_AUTH_DEFAULT_ACCESS"}, Value: "read-write", Usage: "default permissions if no matching entries in the auth database are found"}),
-	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "auth-provision-users", Aliases: []string{"auth_provision_users"}, EnvVars: []string{"NTFY_AUTH_PROVISION_USERS"}, Usage: "pre-provisioned declarative users"}),
-	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "auth-provision-access", Aliases: []string{"auth_provision_access"}, EnvVars: []string{"NTFY_AUTH_PROVISION_ACCESS"}, Usage: "pre-provisioned declarative access control entries"}),
+	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "auth-users", Aliases: []string{"auth_users"}, EnvVars: []string{"NTFY_AUTH_USERS"}, Usage: "pre-provisioned declarative users"}),
+	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "auth-access", Aliases: []string{"auth_access"}, EnvVars: []string{"NTFY_AUTH_ACCESS"}, Usage: "pre-provisioned declarative access control entries"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-cache-dir", Aliases: []string{"attachment_cache_dir"}, EnvVars: []string{"NTFY_ATTACHMENT_CACHE_DIR"}, Usage: "cache directory for attached files"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-total-size-limit", Aliases: []string{"attachment_total_size_limit", "A"}, EnvVars: []string{"NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT"}, Value: util.FormatSize(server.DefaultAttachmentTotalSizeLimit), Usage: "limit of the on-disk attachment cache"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-file-size-limit", Aliases: []string{"attachment_file_size_limit", "Y"}, EnvVars: []string{"NTFY_ATTACHMENT_FILE_SIZE_LIMIT"}, Value: util.FormatSize(server.DefaultAttachmentFileSizeLimit), Usage: "per-file attachment size limit (e.g. 300k, 2M, 100M)"}),
@@ -156,8 +156,8 @@ func execServe(c *cli.Context) error {
 	authFile := c.String("auth-file")
 	authStartupQueries := c.String("auth-startup-queries")
 	authDefaultAccess := c.String("auth-default-access")
-	authProvisionUsersRaw := c.StringSlice("auth-provision-users")
-	authProvisionAccessRaw := c.StringSlice("auth-provision-access")
+	authUsersRaw := c.StringSlice("auth-users")
+	authAccessRaw := c.StringSlice("auth-access")
 	attachmentCacheDir := c.String("attachment-cache-dir")
 	attachmentTotalSizeLimitStr := c.String("attachment-total-size-limit")
 	attachmentFileSizeLimitStr := c.String("attachment-file-size-limit")
@@ -353,11 +353,11 @@ func execServe(c *cli.Context) error {
 	if err != nil {
 		return errors.New("if set, auth-default-access must start set to 'read-write', 'read-only', 'write-only' or 'deny-all'")
 	}
-	authProvisionUsers, err := parseProvisionUsers(authProvisionUsersRaw)
+	authUsers, err := parseUsers(authUsersRaw)
 	if err != nil {
 		return err
 	}
-	authProvisionAccess, err := parseProvisionAccess(authProvisionUsers, authProvisionAccessRaw)
+	authAccess, err := parseAccess(authUsers, authAccessRaw)
 	if err != nil {
 		return err
 	}
@@ -416,8 +416,8 @@ func execServe(c *cli.Context) error {
 	conf.AuthFile = authFile
 	conf.AuthStartupQueries = authStartupQueries
 	conf.AuthDefault = authDefault
-	conf.AuthProvisionUsers = authProvisionUsers
-	conf.AuthProvisionAccess = authProvisionAccess
+	conf.AuthUsers = authUsers
+	conf.AuthAccess = authAccess
 	conf.AttachmentCacheDir = attachmentCacheDir
 	conf.AttachmentTotalSizeLimit = attachmentTotalSizeLimit
 	conf.AttachmentFileSizeLimit = attachmentFileSizeLimit
@@ -531,22 +531,22 @@ func parseIPHostPrefix(host string) (prefixes []netip.Prefix, err error) {
 	return
 }
 
-func parseProvisionUsers(usersRaw []string) ([]*user.User, error) {
+func parseUsers(usersRaw []string) ([]*user.User, error) {
 	provisionUsers := make([]*user.User, 0)
 	for _, userLine := range usersRaw {
 		parts := strings.Split(userLine, ":")
 		if len(parts) != 3 {
-			return nil, fmt.Errorf("invalid auth-provision-users: %s, expected format: 'name:hash:role'", userLine)
+			return nil, fmt.Errorf("invalid auth-users: %s, expected format: 'name:hash:role'", userLine)
 		}
 		username := strings.TrimSpace(parts[0])
 		passwordHash := strings.TrimSpace(parts[1])
 		role := user.Role(strings.TrimSpace(parts[2]))
 		if !user.AllowedUsername(username) {
-			return nil, fmt.Errorf("invalid auth-provision-users: %s, username invalid", userLine)
+			return nil, fmt.Errorf("invalid auth-users: %s, username invalid", userLine)
 		} else if err := user.AllowedPasswordHash(passwordHash); err != nil {
-			return nil, fmt.Errorf("invalid auth-provision-users: %s, %s", userLine, err.Error())
+			return nil, fmt.Errorf("invalid auth-users: %s, %s", userLine, err.Error())
 		} else if !user.AllowedRole(role) {
-			return nil, fmt.Errorf("invalid auth-provision-users: %s, role %s is not allowed, allowed roles are 'admin' or 'user'", userLine, role)
+			return nil, fmt.Errorf("invalid auth-users: %s, role %s is not allowed, allowed roles are 'admin' or 'user'", userLine, role)
 		}
 		provisionUsers = append(provisionUsers, &user.User{
 			Name:        username,
@@ -558,12 +558,12 @@ func parseProvisionUsers(usersRaw []string) ([]*user.User, error) {
 	return provisionUsers, nil
 }
 
-func parseProvisionAccess(provisionUsers []*user.User, provisionAccessRaw []string) (map[string][]*user.Grant, error) {
+func parseAccess(provisionUsers []*user.User, provisionAccessRaw []string) (map[string][]*user.Grant, error) {
 	access := make(map[string][]*user.Grant)
 	for _, accessLine := range provisionAccessRaw {
 		parts := strings.Split(accessLine, ":")
 		if len(parts) != 3 {
-			return nil, fmt.Errorf("invalid auth-provision-access: %s, expected format: 'user:topic:permission'", accessLine)
+			return nil, fmt.Errorf("invalid auth-access: %s, expected format: 'user:topic:permission'", accessLine)
 		}
 		username := strings.TrimSpace(parts[0])
 		if username == userEveryone {
@@ -574,20 +574,20 @@ func parseProvisionAccess(provisionUsers []*user.User, provisionAccessRaw []stri
 		})
 		if username != user.Everyone {
 			if !exists {
-				return nil, fmt.Errorf("invalid auth-provision-access: %s, user %s is not provisioned", accessLine, username)
+				return nil, fmt.Errorf("invalid auth-access: %s, user %s is not provisioned", accessLine, username)
 			} else if !user.AllowedUsername(username) {
-				return nil, fmt.Errorf("invalid auth-provision-access: %s, username %s invalid", accessLine, username)
+				return nil, fmt.Errorf("invalid auth-access: %s, username %s invalid", accessLine, username)
 			} else if provisionUser.Role != user.RoleUser {
-				return nil, fmt.Errorf("invalid auth-provision-access: %s, user %s is not a regular user, only regular users can have ACL entries", accessLine, username)
+				return nil, fmt.Errorf("invalid auth-access: %s, user %s is not a regular user, only regular users can have ACL entries", accessLine, username)
 			}
 		}
 		topic := strings.TrimSpace(parts[1])
 		if !user.AllowedTopicPattern(topic) {
-			return nil, fmt.Errorf("invalid auth-provision-access: %s, topic pattern %s invalid", accessLine, topic)
+			return nil, fmt.Errorf("invalid auth-access: %s, topic pattern %s invalid", accessLine, topic)
 		}
 		permission, err := user.ParsePermission(strings.TrimSpace(parts[2]))
 		if err != nil {
-			return nil, fmt.Errorf("invalid auth-provision-access: %s, permission %s invalid, %s", accessLine, parts[2], err.Error())
+			return nil, fmt.Errorf("invalid auth-access: %s, permission %s invalid, %s", accessLine, parts[2], err.Error())
 		}
 		if _, exists := access[username]; !exists {
 			access[username] = make([]*user.Grant, 0)

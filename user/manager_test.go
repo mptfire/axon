@@ -1102,11 +1102,11 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 		Filename:         f,
 		DefaultAccess:    PermissionReadWrite,
 		ProvisionEnabled: true,
-		ProvisionUsers: []*User{
+		Users: []*User{
 			{Name: "philuser", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
 			{Name: "philadmin", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleAdmin},
 		},
-		ProvisionAccess: map[string][]*Grant{
+		Access: map[string][]*Grant{
 			"philuser": {
 				{TopicPattern: "stats", Permission: PermissionReadWrite},
 				{TopicPattern: "secret", Permission: PermissionRead},
@@ -1144,10 +1144,10 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 
 	// Re-open the DB (second app start)
 	require.Nil(t, a.db.Close())
-	conf.ProvisionUsers = []*User{
+	conf.Users = []*User{
 		{Name: "philuser", Hash: "$2a$10$AAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
 	}
-	conf.ProvisionAccess = map[string][]*Grant{
+	conf.Access = map[string][]*Grant{
 		"philuser": {
 			{TopicPattern: "stats12", Permission: PermissionReadWrite},
 			{TopicPattern: "secret12", Permission: PermissionRead},
@@ -1178,8 +1178,8 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 
 	// Re-open the DB again (third app start)
 	require.Nil(t, a.db.Close())
-	conf.ProvisionUsers = []*User{}
-	conf.ProvisionAccess = map[string][]*Grant{}
+	conf.Users = []*User{}
+	conf.Access = map[string][]*Grant{}
 	a, err = NewManager(conf)
 	require.Nil(t, err)
 
@@ -1199,8 +1199,8 @@ func TestManager_DoNotUpdateNonProvisionedUsers(t *testing.T) {
 		Filename:         f,
 		DefaultAccess:    PermissionReadWrite,
 		ProvisionEnabled: true,
-		ProvisionUsers:   []*User{},
-		ProvisionAccess:  map[string][]*Grant{},
+		Users:            []*User{},
+		Access:           map[string][]*Grant{},
 	}
 	a, err := NewManager(conf)
 	require.Nil(t, err)
@@ -1210,10 +1210,10 @@ func TestManager_DoNotUpdateNonProvisionedUsers(t *testing.T) {
 
 	// Re-open the DB (second app start)
 	require.Nil(t, a.db.Close())
-	conf.ProvisionUsers = []*User{
+	conf.Users = []*User{
 		{Name: "philuser", Hash: "$2a$10$AAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleAdmin},
 	}
-	conf.ProvisionAccess = map[string][]*Grant{}
+	conf.Access = map[string][]*Grant{}
 	a, err = NewManager(conf)
 	require.Nil(t, err)
 

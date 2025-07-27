@@ -95,8 +95,8 @@ type Config struct {
 	AuthFile                             string
 	AuthStartupQueries                   string
 	AuthDefault                          user.Permission
-	AuthProvisionUsers                   []*user.User
-	AuthProvisionAccess                  map[string][]*user.Grant
+	AuthUsers                            []*user.User
+	AuthAccess                           map[string][]*user.Grant
 	AuthBcryptCost                       int
 	AuthStatsQueueWriterInterval         time.Duration
 	AttachmentCacheDir                   string

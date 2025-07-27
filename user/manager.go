@@ -184,6 +184,7 @@ const (
 	selectUserCountQuery         = `SELECT COUNT(*) FROM user`
 	updateUserPassQuery          = `UPDATE user SET pass = ? WHERE user = ?`
 	updateUserRoleQuery          = `UPDATE user SET role = ? WHERE user = ?`
+	updateUserProvisionedQuery   = `UPDATE user SET provisioned = ? WHERE user = ?`
 	updateUserPrefsQuery         = `UPDATE user SET prefs = ? WHERE id = ?`
 	updateUserStatsQuery         = `UPDATE user SET stats_messages = ?, stats_emails = ?, stats_calls = ? WHERE id = ?`
 	updateUserStatsResetAllQuery = `UPDATE user SET stats_messages = 0, stats_emails = 0, stats_calls = 0`
@@ -535,8 +536,8 @@ type Config struct {
 	StartupQueries      string              // Queries to run on startup, e.g. to create initial users or tiers
 	DefaultAccess       Permission          // Default permission if no ACL matches
 	ProvisionEnabled    bool                // Enable auto-provisioning of users and access grants, disabled for "ntfy user" commands
-	ProvisionUsers      []*User             // Predefined users to create on startup
-	ProvisionAccess     map[string][]*Grant // Predefined access grants to create on startup
+	Users               []*User             // Predefined users to create on startup
+	Access              map[string][]*Grant // Predefined access grants to create on startup
 	QueueWriterInterval time.Duration       // Interval for the async queue writer to flush stats and token updates to the database
 	BcryptCost          int                 // Cost of generated passwords; lowering makes testing faster
 }
@@ -1374,6 +1375,21 @@ func (a *Manager) changeRoleTx(tx *sql.Tx, username string, role Role) error {
 	return nil
 }
 
+// ChangeProvisioned changes the provisioned status of a user. This is used to mark users as
+// provisioned. A provisioned user is a user defined in the config file.
+func (a *Manager) ChangeProvisioned(username string, provisioned bool) error {
+	return execTx(a.db, func(tx *sql.Tx) error {
+		return a.changeProvisionedTx(tx, username, provisioned)
+	})
+}
+
+func (a *Manager) changeProvisionedTx(tx *sql.Tx, username string, provisioned bool) error {
+	if _, err := tx.Exec(updateUserProvisionedQuery, provisioned, username); err != nil {
+		return err
+	}
+	return nil
+}
+
 // ChangeTier changes a user's tier using the tier code. This function does not delete reservations, messages,
 // or attachments, even if the new tier has lower limits in this regard. That has to be done elsewhere.
 func (a *Manager) ChangeTier(username, tier string) error {
@@ -1669,7 +1685,7 @@ func (a *Manager) maybeProvisionUsersAndAccess() error {
 	if err != nil {
 		return err
 	}
-	provisionUsernames := util.Map(a.config.ProvisionUsers, func(u *User) string {
+	provisionUsernames := util.Map(a.config.Users, func(u *User) string {
 		return u.Name
 	})
 	return execTx(a.db, func(tx *sql.Tx) error {
@@ -1678,14 +1694,13 @@ func (a *Manager) maybeProvisionUsersAndAccess() error {
 			if user.Name == Everyone {
 				continue
 			} else if user.Provisioned && !util.Contains(provisionUsernames, user.Name) {
-				log.Tag(tag).Info("Removing previously provisioned user %s", user.Name)
 				if err := a.removeUserTx(tx, user.Name); err != nil {
 					return fmt.Errorf("failed to remove provisioned user %s: %v", user.Name, err)
 				}
 			}
 		}
 		// Add or update provisioned users
-		for _, user := range a.config.ProvisionUsers {
+		for _, user := range a.config.Users {
 			if user.Name == Everyone {
 				continue
 			}
@@ -1693,18 +1708,21 @@ func (a *Manager) maybeProvisionUsersAndAccess() error {
 				return u.Name == user.Name
 			})
 			if !exists {
-				log.Tag(tag).Info("Adding provisioned user %s", user.Name)
 				if err := a.addUserTx(tx, user.Name, user.Hash, user.Role, true, true); err != nil && !errors.Is(err, ErrUserExists) {
 					return fmt.Errorf("failed to add provisioned user %s: %v", user.Name, err)
 				}
 			} else {
 				if !existingUser.Provisioned {
-					log.Tag(tag).Warn("Refusing to update manually user %s", user.Name)
-				} else if existingUser.Hash != user.Hash || existingUser.Role != user.Role {
-					log.Tag(tag).Info("Updating provisioned user %s", user.Name)
+					if err := a.changeProvisionedTx(tx, user.Name, true); err != nil {
+						return fmt.Errorf("failed to change provisioned status for user %s: %v", user.Name, err)
+					}
+				}
+				if existingUser.Hash != user.Hash {
 					if err := a.changePasswordTx(tx, user.Name, user.Hash, true); err != nil {
 						return fmt.Errorf("failed to change password for provisioned user %s: %v", user.Name, err)
 					}
+				}
+				if existingUser.Role != user.Role {
 					if err := a.changeRoleTx(tx, user.Name, user.Role); err != nil {
 						return fmt.Errorf("failed to change role for provisioned user %s: %v", user.Name, err)
 					}
@@ -1715,7 +1733,7 @@ func (a *Manager) maybeProvisionUsersAndAccess() error {
 		if _, err := tx.Exec(deleteUserAccessProvisionedQuery); err != nil {
 			return err
 		}
-		for username, grants := range a.config.ProvisionAccess {
+		for username, grants := range a.config.Access {
 			for _, grant := range grants {
 				if err := a.allowAccessTx(tx, username, grant.TopicPattern, grant.Permission, true); err != nil {
 					return err
