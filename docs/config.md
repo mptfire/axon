@@ -88,6 +88,7 @@ using Docker Compose (i.e. `docker-compose.yml`):
 	      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
 	      NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
 	      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+	      NTFY_AUTH_USERS: 'phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin'
 	      NTFY_BEHIND_PROXY: true
 	      NTFY_ATTACHMENT_CACHE_DIR: /var/lib/ntfy/attachments
 	      NTFY_ENABLE_LOGIN: true
@@ -195,12 +196,20 @@ To set up auth, simply **configure the following two options**:
 * `auth-default-access` defines the default/fallback access if no access control entry is found; it can be
   set to `read-write` (default), `read-only`, `write-only` or `deny-all`.
 
-Once configured, you can use the `ntfy user` command to [add or modify users](#users-and-roles), and the `ntfy access` command
-lets you [modify the access control list](#access-control-list-acl) for specific users and topic patterns. Both of these 
-commands **directly edit the auth database** (as defined in `auth-file`), so they only work on the server, and only if the user 
-accessing them has the right permissions.
+Once configured, you can use the `ntfy user` command and the `auth-users` config option to [add or modify users](#users-and-roles).
+The `ntfy access` command and the `auth-access` option let you [modify the access control list](#access-control-list-acl) for specific users
+and topic patterns. 
+
+Both of these commands **directly edit the auth database** (as defined in `auth-file`), so they only work on the server, 
+and only if the user accessing them has the right permissions.
 
 ### Users and roles
+Users can be added to the ntfy user database in two different ways
+
+* [Using the CLI](#users-via-the-cli): Using the `ntfy user` command, you can manually add/update/remove users.
+* [In the config](#users-via-the-config): You can provision users in the `server.yml` file via `auth-users` key.
+
+#### Users via the CLI
 The `ntfy user` command allows you to add/remove/change users in the ntfy user database, as well as change
 passwords or roles (`user` or `admin`). In practice, you'll often just create one admin 
 user with `ntfy user add --role=admin ...` and be done with all this (see [example below](#example-private-instance)).
@@ -223,10 +232,45 @@ ntfy user change-role phil admin   # Make user phil an admin
 ntfy user change-tier phil pro     # Change phil's tier to "pro"
 ```
 
+#### Users via the config
+As an alternative to manually creating users via the `ntfy user` CLI command, you can provision users declaratively in
+the `server.yml` file by adding them to the `auth-users` array. This is useful for general admins, or if you'd like to
+deploy your ntfy server via Ansible without manually editing the database.
+
+The `auth-users` option is a list of users that are automatically created when the server starts. Each entry is defined 
+in the format `<username>:<password-hash>:<role>`.
+
+Here's an example with two users: `phil` is an admin, `ben` is a regular user.
+
+=== "Declarative users in /etc/ntfy/server.yml"
+    ``` yaml
+    auth-users:
+      - "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin"
+      - "ben:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user"
+    ```
+
+=== "Declarative users via env variables"
+    ```
+    # Comma-separated list, use single quotes to avoid issues with the bcrypt hash 
+    NTFY_AUTH_USERS='phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin,ben:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user'
+    ```
+
+The bcrypt hash can be created using `ntfy user hash` or an [online bcrypt generator](https://bcrypt-generator.com/) (though
+note that you're putting your password in an untrusted website).
+
+!!! important
+    Users added declaratively via the config file are marked in the database as "provisioned users". Removing users
+    from the config file will **delete them from the database** the next time ntfy is restarted.
+
+    Also, users that were originally manually created will be "upgraded" to be provisioned users if they are added to
+    the config. Adding a user manually, then adding it to the config, and then removing it from the config will hence
+    lead to the **deletion of that user**.
+
 ### Access control list (ACL)
 The access control list (ACL) **manages access to topics for non-admin users, and for anonymous access (`everyone`/`*`)**.
 Each entry represents the access permissions for a user to a specific topic or topic pattern. 
 
+#### ACL entries via the CLI
 The ACL can be displayed or modified with the `ntfy access` command:
 
 ```
@@ -281,6 +325,14 @@ In this example, `phil` has the role `admin`, so he has read-write access to all
 User `ben` has three topic-specific entries. He can read, but not write to topic `furnace`, and has read-write access
 to topic `garagedoor` and all topics starting with the word `alerts` (wildcards). Clients that are not authenticated
 (called `*`/`everyone`) only have read access to the `announcements` and `server-stats` topics.
+
+#### ACL entries via the config
+Alternatively to the `ntfy access` command
+
++# - auth-access is a list of access control entries that are automatically created when the server starts.
+#   Each entry is in the format "<username>:<topic-pattern>:<access>", e.g. "phil:mytopic:rw" or "phil:phil-*:rw".
+#
+
 
 ### Access tokens
 In addition to username/password auth, ntfy also provides authentication via access tokens. Access tokens are useful
