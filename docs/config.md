@@ -327,12 +327,37 @@ to topic `garagedoor` and all topics starting with the word `alerts` (wildcards)
 (called `*`/`everyone`) only have read access to the `announcements` and `server-stats` topics.
 
 #### ACL entries via the config
-Alternatively to the `ntfy access` command
+As an alternative to manually creating ACL entries via the `ntfy access` CLI command, you can provision access control
+entries declaratively in the `server.yml` file by adding them to the `auth-access` array, similar to the `auth-users` 
+option (see [users via the config](#users-via-the-config).
 
-+# - auth-access is a list of access control entries that are automatically created when the server starts.
-#   Each entry is in the format "<username>:<topic-pattern>:<access>", e.g. "phil:mytopic:rw" or "phil:phil-*:rw".
-#
+The `auth-access` option is a list of access control entries that are automatically created when the server starts.
+Each entry is defined in the format `<username>:<topic-pattern>:<access>`.
 
+Here's an example with several ACL entries:
+
+=== "Declarative ACL entries in /etc/ntfy/server.yml"
+    ``` yaml
+    auth-access:
+      - "phil:mytopic:rw"
+      - "ben:alerts-*:rw"
+      - "ben:system-logs:ro"
+      - "*:announcements:ro" # or: "everyone:announcements,ro"
+    ```
+
+=== "Declarative ACL entries via env variables"
+    ```
+    # Comma-separated list
+    NTFY_AUTH_ACCESS='phil:mytopic:rw,ben:alerts-*:rw,ben:system-logs:ro,*:announcements:ro'
+    ```
+
+The `<username>` can be any existing user, or `everyone`/`*` for anonymous access. The `<topic-pattern>` can be a specific
+topic name or a pattern with wildcards (`*`). The `<access>` can be one of the following:
+
+* `read-write` or `rw`: Allows both publishing to and subscribing to the topic
+* `read-only`, `read`, or `ro`: Allows only subscribing to the topic
+* `write-only`, `write`, or `wo`: Allows only publishing to the topic
+* `deny-all`, `deny`, or `none`: Denies all access to the topic
 
 ### Access tokens
 In addition to username/password auth, ntfy also provides authentication via access tokens. Access tokens are useful
