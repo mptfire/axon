@@ -393,22 +393,16 @@ Once an access token is created, you can **use it to authenticate against the nt
 subscribe to topics**. To learn how, check out [authenticate via access tokens](publish.md#access-tokens).
 
 ### Example: Private instance
-The easiest way to configure a private instance is to set `auth-default-access` to `deny-all` in the `server.yml`:
+The easiest way to configure a private instance is to set `auth-default-access` to `deny-all` in the `server.yml`,
+and to configure a single admin user in the `auth-users` section (see [Users via the config](#users-via-the-config)).
 
 === "/etc/ntfy/server.yml"
     ``` yaml
     auth-file: "/var/lib/ntfy/user.db"
     auth-default-access: "deny-all"
+    auth-users:
+      - "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin"
     ```
-
-After that, simply create an `admin` user:
-
-```
-$ ntfy user add --role=admin phil
-password: mypass
-confirm: mypass
-user phil added with role admin 
-```
 
 Once you've done that, you can publish and subscribe using [Basic Auth](https://en.wikipedia.org/wiki/Basic_access_authentication) 
 with the given username/password. Be sure to use HTTPS to avoid eavesdropping and exposing your password. Here's a simple example:
