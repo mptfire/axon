@@ -1697,13 +1697,17 @@ func (a *Manager) maybeProvisionUsersAndAccess() error {
 				if err := a.addUserTx(tx, user.Name, user.Hash, user.Role, true, true); err != nil && !errors.Is(err, ErrUserExists) {
 					return fmt.Errorf("failed to add provisioned user %s: %v", user.Name, err)
 				}
-			} else if existingUser.Provisioned && (existingUser.Hash != user.Hash || existingUser.Role != user.Role) {
-				log.Tag(tag).Info("Updating provisioned user %s", user.Name)
-				if err := a.changePasswordTx(tx, user.Name, user.Hash, true); err != nil {
-					return fmt.Errorf("failed to change password for provisioned user %s: %v", user.Name, err)
-				}
-				if err := a.changeRoleTx(tx, user.Name, user.Role); err != nil {
-					return fmt.Errorf("failed to change role for provisioned user %s: %v", user.Name, err)
+			} else {
+				if !existingUser.Provisioned {
+					log.Tag(tag).Warn("Refusing to update manually user %s", user.Name)
+				} else if existingUser.Hash != user.Hash || existingUser.Role != user.Role {
+					log.Tag(tag).Info("Updating provisioned user %s", user.Name)
+					if err := a.changePasswordTx(tx, user.Name, user.Hash, true); err != nil {
+						return fmt.Errorf("failed to change password for provisioned user %s: %v", user.Name, err)
+					}
+					if err := a.changeRoleTx(tx, user.Name, user.Role); err != nil {
+						return fmt.Errorf("failed to change role for provisioned user %s: %v", user.Name, err)
+					}
 				}
 			}
 		}

@@ -416,8 +416,8 @@ func execServe(c *cli.Context) error {
 	conf.AuthFile = authFile
 	conf.AuthStartupQueries = authStartupQueries
 	conf.AuthDefault = authDefault
-	conf.AuthProvisionedUsers = authProvisionUsers
-	conf.AuthProvisionedAccess = authProvisionAccess
+	conf.AuthProvisionUsers = authProvisionUsers
+	conf.AuthProvisionAccess = authProvisionAccess
 	conf.AttachmentCacheDir = attachmentCacheDir
 	conf.AttachmentTotalSizeLimit = attachmentTotalSizeLimit
 	conf.AttachmentFileSizeLimit = attachmentFileSizeLimit

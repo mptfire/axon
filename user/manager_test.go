@@ -1193,6 +1193,39 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	require.Equal(t, "*", users[1].Name)
 }
 
+func TestManager_DoNotUpdateNonProvisionedUsers(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "user.db")
+	conf := &Config{
+		Filename:         f,
+		DefaultAccess:    PermissionReadWrite,
+		ProvisionEnabled: true,
+		ProvisionUsers:   []*User{},
+		ProvisionAccess:  map[string][]*Grant{},
+	}
+	a, err := NewManager(conf)
+	require.Nil(t, err)
+
+	// Manually add user
+	require.Nil(t, a.AddUser("philuser", "manual", RoleUser, false))
+
+	// Re-open the DB (second app start)
+	require.Nil(t, a.db.Close())
+	conf.ProvisionUsers = []*User{
+		{Name: "philuser", Hash: "$2a$10$AAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleAdmin},
+	}
+	conf.ProvisionAccess = map[string][]*Grant{}
+	a, err = NewManager(conf)
+	require.Nil(t, err)
+
+	// Check that the provisioned users are there
+	users, err := a.Users()
+	require.Nil(t, err)
+	require.Len(t, users, 2)
+	require.Equal(t, "philuser", users[0].Name)
+	require.Equal(t, RoleUser, users[0].Role) // Should not have been updated
+	require.NotEqual(t, "$2a$10$AAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", users[0].Hash)
+}
+
 func TestToFromSQLWildcard(t *testing.T) {
 	require.Equal(t, "up%", toSQLWildcard("up*"))
 	require.Equal(t, "up\\_%", toSQLWildcard("up_*"))
