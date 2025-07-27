@@ -992,12 +992,10 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 		return false, false, "", "", "", false, errHTTPBadRequestPhoneNumberInvalid
 	}
 	template = templateMode(readParam(r, "x-template", "template", "tpl"))
-	var messageStr string
-	if template.Enabled() && template.Name() == "" {
-		// don't convert "\n" to literal newline for inline templates
-		messageStr = readParam(r, "x-message", "message", "m")
-	} else {
-		messageStr = strings.ReplaceAll(readParam(r, "x-message", "message", "m"), "\\n", "\n")
+	messageStr := readParam(r, "x-message", "message", "m")
+	if !template.InlineMode() {
+		// Convert "\n" to literal newline everything but inline mode
+		messageStr = strings.ReplaceAll(messageStr, "\\n", "\n")
 	}
 	if messageStr != "" {
 		m.Message = messageStr
@@ -1125,8 +1123,8 @@ func (s *Server) handleBodyAsTemplatedTextMessage(m *message, template templateM
 		return errHTTPEntityTooLargeJSONBody
 	}
 	peekedBody := strings.TrimSpace(string(body.PeekedBytes))
-	if templateName := template.Name(); templateName != "" {
-		if err := s.renderTemplateFromFile(m, templateName, peekedBody); err != nil {
+	if template.FileMode() {
+		if err := s.renderTemplateFromFile(m, template.FileName(), peekedBody); err != nil {
 			return err
 		}
 	} else {

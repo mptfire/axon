@@ -245,19 +245,46 @@ func (q *queryFilter) Pass(msg *message) bool {
 	return true
 }
 
+// templateMode represents the mode in which templates are used
+//
+// It can be
+// - empty: templating is disabled
+// - a boolean string (yes/1/true/no/0/false): inline-templating mode
+// - a filename (e.g. grafana): template mode with a file
 type templateMode string
 
+// Enabled returns true if templating is enabled
 func (t templateMode) Enabled() bool {
 	return t != ""
 }
 
-func (t templateMode) Name() string {
-	if isBoolValue(string(t)) {
-		return ""
-	}
-	return string(t)
+// InlineMode returns true if inline-templating mode is enabled
+func (t templateMode) InlineMode() bool {
+	return t.Enabled() && isBoolValue(string(t))
 }
 
+// FileMode returns true if file-templating mode is enabled
+func (t templateMode) FileMode() bool {
+	return t.Enabled() && !isBoolValue(string(t))
+}
+
+// FileName returns the filename if file-templating mode is enabled, or an empty string otherwise
+func (t templateMode) FileName() string {
+	if t.FileMode() {
+		return string(t)
+	}
+	return ""
+}
+
+// templateFile represents a template file with title and message
+// It is used for file-based templates, e.g. grafana, influxdb, etc.
+//
+// Example YAML:
+//
+//	  title: "Alert: {{ .Title }}"
+//	  message: |
+//		   This is a {{ .Type }} alert.
+//		   It can be multiline.
 type templateFile struct {
 	Title   *string `yaml:"title"`
 	Message *string `yaml:"message"`
