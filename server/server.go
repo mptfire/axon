@@ -991,7 +991,12 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 	} else if call != "" && !isBoolValue(call) && !phoneNumberRegex.MatchString(call) {
 		return false, false, "", "", "", false, errHTTPBadRequestPhoneNumberInvalid
 	}
-	messageStr := strings.ReplaceAll(readParam(r, "x-message", "message", "m"), "\\n", "\n")
+	template = templateMode(readParam(r, "x-template", "template", "tpl"))
+	messageStr := readParam(r, "x-message", "message", "m")
+	if !template.InlineMode() {
+		// Convert "\n" to literal newline everything but inline mode
+		messageStr = strings.ReplaceAll(messageStr, "\\n", "\n")
+	}
 	if messageStr != "" {
 		m.Message = messageStr
 	}
@@ -1033,7 +1038,6 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 	if markdown || strings.ToLower(contentType) == "text/markdown" {
 		m.ContentType = "text/markdown"
 	}
-	template = templateMode(readParam(r, "x-template", "template", "tpl"))
 	unifiedpush = readBoolParam(r, false, "x-unifiedpush", "unifiedpush", "up") // see GET too!
 	contentEncoding := readParam(r, "content-encoding")
 	if unifiedpush || contentEncoding == "aes128gcm" {
@@ -1119,8 +1123,8 @@ func (s *Server) handleBodyAsTemplatedTextMessage(m *message, template templateM
 		return errHTTPEntityTooLargeJSONBody
 	}
 	peekedBody := strings.TrimSpace(string(body.PeekedBytes))
-	if templateName := template.Name(); templateName != "" {
-		if err := s.renderTemplateFromFile(m, templateName, peekedBody); err != nil {
+	if template.FileMode() {
+		if err := s.renderTemplateFromFile(m, template.FileName(), peekedBody); err != nil {
 			return err
 		}
 	} else {
@@ -1198,7 +1202,7 @@ func (s *Server) renderTemplate(tpl string, source string) (string, error) {
 	if err := t.Execute(limitWriter, data); err != nil {
 		return "", errHTTPBadRequestTemplateExecuteFailed.Wrap("%s", err.Error())
 	}
-	return strings.TrimSpace(buf.String()), nil
+	return strings.TrimSpace(strings.ReplaceAll(buf.String(), "\\n", "\n")), nil // replace any remaining "\n" (those outside of template curly braces) with newlines
 }
 
 func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *message, body *util.PeekedReadCloser) error {

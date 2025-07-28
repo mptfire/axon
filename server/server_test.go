@@ -3069,6 +3069,61 @@ func TestServer_MessageTemplate_UnsafeSprigFunctions(t *testing.T) {
 	require.Equal(t, 40043, toHTTPError(t, response.Body.String()).Code)
 }
 
+func TestServer_MessageTemplate_InlineNewlines(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	response := request(t, s, "PUT", "/mytopic", `{}`, map[string]string{
+		"X-Message":  `{{"New\nlines"}}`,
+		"X-Title":    `{{"New\nlines"}}`,
+		"X-Template": "1",
+	})
+
+	require.Equal(t, 200, response.Code)
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, `New
+lines`, m.Message)
+	require.Equal(t, `New
+lines`, m.Title)
+}
+
+func TestServer_MessageTemplate_InlineNewlinesOutsideOfTemplate(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	response := request(t, s, "PUT", "/mytopic", `{"foo":"bar","food":"bag"}`, map[string]string{
+		"X-Message":  `{{.foo}}{{"\n"}}{{.food}}`,
+		"X-Title":    `{{.food}}{{"\n"}}{{.foo}}`,
+		"X-Template": "1",
+	})
+
+	require.Equal(t, 200, response.Code)
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, `bar
+bag`, m.Message)
+	require.Equal(t, `bag
+bar`, m.Title)
+}
+
+func TestServer_MessageTemplate_TemplateFileNewlines(t *testing.T) {
+	t.Parallel()
+	c := newTestConfig(t)
+	c.TemplateDir = t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(c.TemplateDir, "newline.yml"), []byte(`
+title: |
+  {{.food}}{{"\n"}}{{.foo}}
+message: |
+  {{.foo}}{{"\n"}}{{.food}}
+`), 0644))
+	s := newTestServer(t, c)
+	response := request(t, s, "POST", "/mytopic?template=newline", `{"foo":"bar","food":"bag"}`, nil)
+	fmt.Println(response.Body.String())
+	require.Equal(t, 200, response.Code)
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, `bar
+bag`, m.Message)
+	require.Equal(t, `bag
+bar`, m.Title)
+}
+
 var (
 	//go:embed testdata/webhook_github_comment_created.json
 	githubCommentCreatedJSON string
