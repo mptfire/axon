@@ -525,6 +525,8 @@ func (c *messageCache) Message(id string) (*message, error) {
 }
 
 func (c *messageCache) MarkPublished(m *message) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	_, err := c.db.Exec(updateMessagePublishedQuery, m.ID)
 	return err
 }
@@ -570,6 +572,8 @@ func (c *messageCache) Topics() (map[string]*topic, error) {
 }
 
 func (c *messageCache) DeleteMessages(ids ...string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	tx, err := c.db.Begin()
 	if err != nil {
 		return err
@@ -584,6 +588,8 @@ func (c *messageCache) DeleteMessages(ids ...string) error {
 }
 
 func (c *messageCache) ExpireMessages(topics ...string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	tx, err := c.db.Begin()
 	if err != nil {
 		return err
@@ -618,6 +624,8 @@ func (c *messageCache) AttachmentsExpired() ([]string, error) {
 }
 
 func (c *messageCache) MarkAttachmentsDeleted(ids ...string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	tx, err := c.db.Begin()
 	if err != nil {
 		return err
@@ -763,6 +771,8 @@ func readMessage(rows *sql.Rows) (*message, error) {
 }
 
 func (c *messageCache) UpdateStats(messages int64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	_, err := c.db.Exec(updateStatsQuery, messages)
 	return err
 }
