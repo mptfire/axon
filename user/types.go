@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/stripe/stripe-go/v74"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/util"
 	"net/netip"
 	"regexp"
 	"strings"
@@ -59,11 +60,12 @@ type Auther interface {
 
 // Token represents a user token, including expiry date
 type Token struct {
-	Value      string
-	Label      string
-	LastAccess time.Time
-	LastOrigin netip.Addr
-	Expires    time.Time
+	Value       string
+	Label       string
+	LastAccess  time.Time
+	LastOrigin  netip.Addr
+	Expires     time.Time
+	Provisioned bool
 }
 
 // TokenUpdate holds information about the last access time and origin IP address of a token
@@ -247,6 +249,7 @@ var (
 	allowedTopicRegex        = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)  // No '*'
 	allowedTopicPatternRegex = regexp.MustCompile(`^[-_*A-Za-z0-9]{1,64}$`) // Adds '*' for wildcards!
 	allowedTierRegex         = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)
+	allowedTokenRegex        = regexp.MustCompile(`^tk_[-_A-Za-z0-9]{29}$`) // Must be tokenLength-len(tokenPrefix)
 )
 
 // AllowedRole returns true if the given role can be used for new users
@@ -280,6 +283,17 @@ func AllowedPasswordHash(hash string) error {
 		return ErrPasswordHashInvalid
 	}
 	return nil
+}
+
+// AllowedToken returns true if the given token matches the naming convention
+func AllowedToken(token string) bool {
+	return allowedTokenRegex.MatchString(token)
+}
+
+// GenerateToken generates a new token with a prefix and a fixed length
+// Lowercase only to support "<topic>+<token>@<domain>" email addresses
+func GenerateToken() string {
+	return util.RandomLowerStringPrefix(tokenPrefix, tokenLength)
 }
 
 // Error constants used by the package

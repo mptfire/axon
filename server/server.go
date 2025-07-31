@@ -203,6 +203,7 @@ func New(conf *Config) (*Server, error) {
 			ProvisionEnabled:    true, // Enable provisioning of users and access
 			Users:               conf.AuthUsers,
 			Access:              conf.AuthAccess,
+			Tokens:              conf.AuthTokens,
 			BcryptCost:          conf.AuthBcryptCost,
 			QueueWriterInterval: conf.AuthStatsQueueWriterInterval,
 		}

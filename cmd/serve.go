@@ -50,6 +50,7 @@ var flagsServe = append(
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "auth-default-access", Aliases: []string{"auth_default_access", "p"}, EnvVars: []string{"NTFY_AUTH_DEFAULT_ACCESS"}, Value: "read-write", Usage: "default permissions if no matching entries in the auth database are found"}),
 	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "auth-users", Aliases: []string{"auth_users"}, EnvVars: []string{"NTFY_AUTH_USERS"}, Usage: "pre-provisioned declarative users"}),
 	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "auth-access", Aliases: []string{"auth_access"}, EnvVars: []string{"NTFY_AUTH_ACCESS"}, Usage: "pre-provisioned declarative access control entries"}),
+	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "auth-tokens", Aliases: []string{"auth_tokens"}, EnvVars: []string{"NTFY_AUTH_TOKENS"}, Usage: "pre-provisioned declarative access tokens"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-cache-dir", Aliases: []string{"attachment_cache_dir"}, EnvVars: []string{"NTFY_ATTACHMENT_CACHE_DIR"}, Usage: "cache directory for attached files"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-total-size-limit", Aliases: []string{"attachment_total_size_limit", "A"}, EnvVars: []string{"NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT"}, Value: util.FormatSize(server.DefaultAttachmentTotalSizeLimit), Usage: "limit of the on-disk attachment cache"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-file-size-limit", Aliases: []string{"attachment_file_size_limit", "Y"}, EnvVars: []string{"NTFY_ATTACHMENT_FILE_SIZE_LIMIT"}, Value: util.FormatSize(server.DefaultAttachmentFileSizeLimit), Usage: "per-file attachment size limit (e.g. 300k, 2M, 100M)"}),
@@ -158,6 +159,7 @@ func execServe(c *cli.Context) error {
 	authDefaultAccess := c.String("auth-default-access")
 	authUsersRaw := c.StringSlice("auth-users")
 	authAccessRaw := c.StringSlice("auth-access")
+	authTokensRaw := c.StringSlice("auth-tokens")
 	attachmentCacheDir := c.String("attachment-cache-dir")
 	attachmentTotalSizeLimitStr := c.String("attachment-total-size-limit")
 	attachmentFileSizeLimitStr := c.String("attachment-file-size-limit")
@@ -361,6 +363,10 @@ func execServe(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	authTokens, err := parseTokens(authUsers, authTokensRaw)
+	if err != nil {
+		return err
+	}
 
 	// Special case: Unset default
 	if listenHTTP == "-" {
@@ -418,6 +424,7 @@ func execServe(c *cli.Context) error {
 	conf.AuthDefault = authDefault
 	conf.AuthUsers = authUsers
 	conf.AuthAccess = authAccess
+	conf.AuthTokens = authTokens
 	conf.AttachmentCacheDir = attachmentCacheDir
 	conf.AttachmentTotalSizeLimit = attachmentTotalSizeLimit
 	conf.AttachmentFileSizeLimit = attachmentFileSizeLimit
@@ -532,7 +539,7 @@ func parseIPHostPrefix(host string) (prefixes []netip.Prefix, err error) {
 }
 
 func parseUsers(usersRaw []string) ([]*user.User, error) {
-	provisionUsers := make([]*user.User, 0)
+	users := make([]*user.User, 0)
 	for _, userLine := range usersRaw {
 		parts := strings.Split(userLine, ":")
 		if len(parts) != 3 {
@@ -548,19 +555,19 @@ func parseUsers(usersRaw []string) ([]*user.User, error) {
 		} else if !user.AllowedRole(role) {
 			return nil, fmt.Errorf("invalid auth-users: %s, role %s is not allowed, allowed roles are 'admin' or 'user'", userLine, role)
 		}
-		provisionUsers = append(provisionUsers, &user.User{
+		users = append(users, &user.User{
 			Name:        username,
 			Hash:        passwordHash,
 			Role:        role,
 			Provisioned: true,
 		})
 	}
-	return provisionUsers, nil
+	return users, nil
 }
 
-func parseAccess(provisionUsers []*user.User, provisionAccessRaw []string) (map[string][]*user.Grant, error) {
+func parseAccess(users []*user.User, accessRaw []string) (map[string][]*user.Grant, error) {
 	access := make(map[string][]*user.Grant)
-	for _, accessLine := range provisionAccessRaw {
+	for _, accessLine := range accessRaw {
 		parts := strings.Split(accessLine, ":")
 		if len(parts) != 3 {
 			return nil, fmt.Errorf("invalid auth-access: %s, expected format: 'user:topic:permission'", accessLine)
@@ -569,7 +576,7 @@ func parseAccess(provisionUsers []*user.User, provisionAccessRaw []string) (map[
 		if username == userEveryone {
 			username = user.Everyone
 		}
-		provisionUser, exists := util.Find(provisionUsers, func(u *user.User) bool {
+		u, exists := util.Find(users, func(u *user.User) bool {
 			return u.Name == username
 		})
 		if username != user.Everyone {
@@ -577,7 +584,7 @@ func parseAccess(provisionUsers []*user.User, provisionAccessRaw []string) (map[
 				return nil, fmt.Errorf("invalid auth-access: %s, user %s is not provisioned", accessLine, username)
 			} else if !user.AllowedUsername(username) {
 				return nil, fmt.Errorf("invalid auth-access: %s, username %s invalid", accessLine, username)
-			} else if provisionUser.Role != user.RoleUser {
+			} else if u.Role != user.RoleUser {
 				return nil, fmt.Errorf("invalid auth-access: %s, user %s is not a regular user, only regular users can have ACL entries", accessLine, username)
 			}
 		}
@@ -599,6 +606,41 @@ func parseAccess(provisionUsers []*user.User, provisionAccessRaw []string) (map[
 		})
 	}
 	return access, nil
+}
+
+func parseTokens(users []*user.User, tokensRaw []string) (map[string][]*user.Token, error) {
+	tokens := make(map[string][]*user.Token)
+	for _, tokenLine := range tokensRaw {
+		parts := strings.Split(tokenLine, ":")
+		if len(parts) < 2 || len(parts) > 3 {
+			return nil, fmt.Errorf("invalid auth-tokens: %s, expected format: 'user:token[:label]'", tokenLine)
+		}
+		username := strings.TrimSpace(parts[0])
+		_, exists := util.Find(users, func(u *user.User) bool {
+			return u.Name == username
+		})
+		if !exists {
+			return nil, fmt.Errorf("invalid auth-tokens: %s, user %s is not provisioned", tokenLine, username)
+		} else if !user.AllowedUsername(username) {
+			return nil, fmt.Errorf("invalid auth-tokens: %s, username %s invalid", tokenLine, username)
+		}
+		token := strings.TrimSpace(parts[1])
+		if !user.AllowedToken(token) {
+			return nil, fmt.Errorf("invalid auth-tokens: %s, token %s invalid, use 'ntfy token generate' to generate a random token", tokenLine, token)
+		}
+		var label string
+		if len(parts) > 2 {
+			label = parts[2]
+		}
+		if _, exists := tokens[username]; !exists {
+			tokens[username] = make([]*user.Token, 0)
+		}
+		tokens[username] = append(tokens[username], &user.Token{
+			Value: token,
+			Label: label,
+		})
+	}
+	return tokens, nil
 }
 
 func reloadLogLevel(inputSource altsrc.InputSourceContext) error {

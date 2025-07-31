@@ -86,6 +86,8 @@
 #   Each entry is in the format "<username>:<password-hash>:<role>", e.g. "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:user"
 # - auth-access is a list of access control entries that are automatically created when the server starts.
 #   Each entry is in the format "<username>:<topic-pattern>:<access>", e.g. "phil:mytopic:rw" or "phil:phil-*:rw".
+# - auth-tokens is a list of access tokens that are automatically created when the server starts.
+#   Each entry is in the format "<username>:<token>[:<label>]", e.g. "phil:tk_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef:My token".
 #
 # Debian/RPM package users:
 #   Use /var/lib/ntfy/user.db as user database to avoid permission issues. The package

@@ -194,7 +194,7 @@ func TestManager_MarkUserRemoved_RemoveDeletedUsers(t *testing.T) {
 	require.Nil(t, err)
 	require.False(t, u.Deleted)
 
-	token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified())
+	token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 
 	u, err = a.Authenticate("user", "pass")
@@ -241,7 +241,7 @@ func TestManager_CreateToken_Only_Lower(t *testing.T) {
 	u, err := a.User("user")
 	require.Nil(t, err)
 
-	token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified())
+	token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 	require.Equal(t, token.Value, strings.ToLower(token.Value))
 }
@@ -523,7 +523,7 @@ func TestManager_Token_Valid(t *testing.T) {
 	require.Nil(t, err)
 
 	// Create token for user
-	token, err := a.CreateToken(u.ID, "some label", time.Now().Add(72*time.Hour), netip.IPv4Unspecified())
+	token, err := a.CreateToken(u.ID, "some label", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 	require.NotEmpty(t, token.Value)
 	require.Equal(t, "some label", token.Label)
@@ -586,12 +586,12 @@ func TestManager_Token_Expire(t *testing.T) {
 	require.Nil(t, err)
 
 	// Create tokens for user
-	token1, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified())
+	token1, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 	require.NotEmpty(t, token1.Value)
 	require.True(t, time.Now().Add(71*time.Hour).Unix() < token1.Expires.Unix())
 
-	token2, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified())
+	token2, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 	require.NotEmpty(t, token2.Value)
 	require.NotEqual(t, token1.Value, token2.Value)
@@ -638,7 +638,7 @@ func TestManager_Token_Extend(t *testing.T) {
 	require.Equal(t, errNoTokenProvided, err)
 
 	// Create token for user
-	token, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified())
+	token, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 	require.NotEmpty(t, token.Value)
 
@@ -668,12 +668,12 @@ func TestManager_Token_MaxCount_AutoDelete(t *testing.T) {
 
 	// Create 2 tokens for phil
 	philTokens := make([]string, 0)
-	token, err := a.CreateToken(phil.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified())
+	token, err := a.CreateToken(phil.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 	require.NotEmpty(t, token.Value)
 	philTokens = append(philTokens, token.Value)
 
-	token, err = a.CreateToken(phil.ID, "", time.Unix(0, 0), netip.IPv4Unspecified())
+	token, err = a.CreateToken(phil.ID, "", time.Unix(0, 0), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 	require.NotEmpty(t, token.Value)
 	philTokens = append(philTokens, token.Value)
@@ -682,7 +682,7 @@ func TestManager_Token_MaxCount_AutoDelete(t *testing.T) {
 	baseTime := time.Now().Add(24 * time.Hour)
 	benTokens := make([]string, 0)
 	for i := 0; i < 62; i++ { //
-		token, err := a.CreateToken(ben.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified())
+		token, err := a.CreateToken(ben.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
 		require.Nil(t, err)
 		require.NotEmpty(t, token.Value)
 		benTokens = append(benTokens, token.Value)
@@ -795,7 +795,7 @@ func TestManager_EnqueueTokenUpdate(t *testing.T) {
 	u, err := a.User("ben")
 	require.Nil(t, err)
 
-	token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified())
+	token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 
 	// Queue token update
@@ -1112,6 +1112,11 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 				{TopicPattern: "secret", Permission: PermissionRead},
 			},
 		},
+		Tokens: map[string][]*Token{
+			"philuser": {
+				{Value: "tk_op56p8lz5bf3cxkz9je99v9oc37lo", Label: "Alerts token"},
+			},
+		},
 	}
 	a, err := NewManager(conf)
 	require.Nil(t, err)
@@ -1123,24 +1128,29 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	users, err := a.Users()
 	require.Nil(t, err)
 	require.Len(t, users, 4)
-
 	require.Equal(t, "philadmin", users[0].Name)
 	require.Equal(t, RoleAdmin, users[0].Role)
-
 	require.Equal(t, "philmanual", users[1].Name)
 	require.Equal(t, RoleUser, users[1].Role)
+	require.Equal(t, "philuser", users[2].Name)
+	require.Equal(t, RoleUser, users[2].Role)
+	require.Equal(t, "*", users[3].Name)
+	provisionedUserID := users[2].ID // "philuser" is the provisioned user
 
 	grants, err := a.Grants("philuser")
 	require.Nil(t, err)
-	require.Equal(t, "philuser", users[2].Name)
-	require.Equal(t, RoleUser, users[2].Role)
 	require.Equal(t, 2, len(grants))
 	require.Equal(t, "secret", grants[0].TopicPattern)
 	require.Equal(t, PermissionRead, grants[0].Permission)
 	require.Equal(t, "stats", grants[1].TopicPattern)
 	require.Equal(t, PermissionReadWrite, grants[1].Permission)
 
-	require.Equal(t, "*", users[3].Name)
+	tokens, err := a.Tokens(provisionedUserID)
+	require.Nil(t, err)
+	require.Equal(t, 1, len(tokens))
+	require.Equal(t, "tk_op56p8lz5bf3cxkz9je99v9oc37lo", tokens[0].Value)
+	require.Equal(t, "Alerts token", tokens[0].Label)
+	require.True(t, tokens[0].Provisioned)
 
 	// Re-open the DB (second app start)
 	require.Nil(t, a.db.Close())
@@ -1153,6 +1163,11 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 			{TopicPattern: "secret12", Permission: PermissionRead},
 		},
 	}
+	conf.Tokens = map[string][]*Token{
+		"philuser": {
+			{Value: "tk_op56p8lz5bf3cxkz9je99v9oc3XXX", Label: "Alerts token updated"},
+		},
+	}
 	a, err = NewManager(conf)
 	require.Nil(t, err)
 
@@ -1160,30 +1175,36 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	users, err = a.Users()
 	require.Nil(t, err)
 	require.Len(t, users, 3)
-
 	require.Equal(t, "philmanual", users[0].Name)
+	require.Equal(t, "philuser", users[1].Name)
+	require.Equal(t, RoleUser, users[1].Role)
 	require.Equal(t, RoleUser, users[0].Role)
+	require.Equal(t, "*", users[2].Name)
 
 	grants, err = a.Grants("philuser")
 	require.Nil(t, err)
-	require.Equal(t, "philuser", users[1].Name)
-	require.Equal(t, RoleUser, users[1].Role)
 	require.Equal(t, 2, len(grants))
 	require.Equal(t, "secret12", grants[0].TopicPattern)
 	require.Equal(t, PermissionRead, grants[0].Permission)
 	require.Equal(t, "stats12", grants[1].TopicPattern)
 	require.Equal(t, PermissionReadWrite, grants[1].Permission)
 
-	require.Equal(t, "*", users[2].Name)
+	tokens, err = a.Tokens(provisionedUserID)
+	require.Nil(t, err)
+	require.Equal(t, 1, len(tokens))
+	require.Equal(t, "tk_op56p8lz5bf3cxkz9je99v9oc3XXX", tokens[0].Value)
+	require.Equal(t, "Alerts token updated", tokens[0].Label)
+	require.True(t, tokens[0].Provisioned)
 
 	// Re-open the DB again (third app start)
 	require.Nil(t, a.db.Close())
 	conf.Users = []*User{}
 	conf.Access = map[string][]*Grant{}
+	conf.Tokens = map[string][]*Token{}
 	a, err = NewManager(conf)
 	require.Nil(t, err)
 
-	// Check that the provisioned users are there
+	// Check that the provisioned users are all gone
 	users, err = a.Users()
 	require.Nil(t, err)
 	require.Len(t, users, 2)
@@ -1191,6 +1212,14 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	require.Equal(t, "philmanual", users[0].Name)
 	require.Equal(t, RoleUser, users[0].Role)
 	require.Equal(t, "*", users[1].Name)
+
+	grants, err = a.Grants("philuser")
+	require.Nil(t, err)
+	require.Equal(t, 0, len(grants))
+
+	tokens, err = a.Tokens(provisionedUserID)
+	require.Nil(t, err)
+	require.Equal(t, 0, len(tokens))
 }
 
 func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {

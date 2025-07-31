@@ -234,7 +234,7 @@ func (s *Server) handleAccountTokenCreate(w http.ResponseWriter, r *http.Request
 			"token_expires": expires,
 		}).
 		Debug("Creating token for user %s", u.Name)
-	token, err := s.userManager.CreateToken(u.ID, label, expires, v.IP())
+	token, err := s.userManager.CreateToken(u.ID, label, expires, v.IP(), false)
 	if err != nil {
 		return err
 	}
