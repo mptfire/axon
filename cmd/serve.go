@@ -636,8 +636,9 @@ func parseTokens(users []*user.User, tokensRaw []string) (map[string][]*user.Tok
 			tokens[username] = make([]*user.Token, 0)
 		}
 		tokens[username] = append(tokens[username], &user.Token{
-			Value: token,
-			Label: label,
+			Value:       token,
+			Label:       label,
+			Provisioned: true,
 		})
 	}
 	return tokens, nil
