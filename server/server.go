@@ -196,7 +196,18 @@ func New(conf *Config) (*Server, error) {
 	}
 	var userManager *user.Manager
 	if conf.AuthFile != "" {
-		userManager, err = user.NewManager(conf.AuthFile, conf.AuthStartupQueries, conf.AuthDefault, conf.AuthBcryptCost, conf.AuthStatsQueueWriterInterval)
+		authConfig := &user.Config{
+			Filename:            conf.AuthFile,
+			StartupQueries:      conf.AuthStartupQueries,
+			DefaultAccess:       conf.AuthDefault,
+			ProvisionEnabled:    true, // Enable provisioning of users and access
+			Users:               conf.AuthUsers,
+			Access:              conf.AuthAccess,
+			Tokens:              conf.AuthTokens,
+			BcryptCost:          conf.AuthBcryptCost,
+			QueueWriterInterval: conf.AuthStatsQueueWriterInterval,
+		}
+		userManager, err = user.NewManager(authConfig)
 		if err != nil {
 			return nil, err
 		}

@@ -88,6 +88,7 @@ using Docker Compose (i.e. `docker-compose.yml`):
 	      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
 	      NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
 	      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+	      NTFY_AUTH_USERS: 'phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin'
 	      NTFY_BEHIND_PROXY: true
 	      NTFY_ATTACHMENT_CACHE_DIR: /var/lib/ntfy/attachments
 	      NTFY_ENABLE_LOGIN: true
@@ -188,19 +189,31 @@ ntfy's auth is implemented with a simple [SQLite](https://www.sqlite.org/)-based
 (`user` and `admin`) and per-topic `read` and `write` permissions using an [access control list (ACL)](https://en.wikipedia.org/wiki/Access-control_list). 
 Access control entries can be applied to users as well as the special everyone user (`*`), which represents anonymous API access. 
 
-To set up auth, simply **configure the following two options**:
+To set up auth, **configure the following options**:
 
 * `auth-file` is the user/access database; it is created automatically if it doesn't already exist; suggested 
   location `/var/lib/ntfy/user.db` (easiest if deb/rpm package is used)
 * `auth-default-access` defines the default/fallback access if no access control entry is found; it can be
-  set to `read-write` (default), `read-only`, `write-only` or `deny-all`.
+  set to `read-write` (default), `read-only`, `write-only` or `deny-all`. **If you are setting up a private instance,
+  you'll want to set this to `deny-all`** (see [private instance example](#example-private-instance)).
 
-Once configured, you can use the `ntfy user` command to [add or modify users](#users-and-roles), and the `ntfy access` command
-lets you [modify the access control list](#access-control-list-acl) for specific users and topic patterns. Both of these 
-commands **directly edit the auth database** (as defined in `auth-file`), so they only work on the server, and only if the user 
-accessing them has the right permissions.
+Once configured, you can use 
+
+- the `ntfy user` command and the `auth-users` config option to [add or modify users](#users-and-roles)
+- the `ntfy access` command and the `auth-access` option to [modify the access control list](#access-control-list-acl)
+and topic patterns, and
+- the `ntfy token` command and the `auth-tokens` config option to [manage access tokens](#access-tokens) for users.
+
+These commands **directly edit the auth database** (as defined in `auth-file`), so they only work on the server, 
+and only if the user accessing them has the right permissions.
 
 ### Users and roles
+Users can be added to the ntfy user database in two different ways
+
+* [Using the CLI](#users-via-the-cli): Using the `ntfy user` command, you can manually add/update/remove users.
+* [In the config](#users-via-the-config): You can provision users in the `server.yml` file via `auth-users` key.
+
+#### Users via the CLI
 The `ntfy user` command allows you to add/remove/change users in the ntfy user database, as well as change
 passwords or roles (`user` or `admin`). In practice, you'll often just create one admin 
 user with `ntfy user add --role=admin ...` and be done with all this (see [example below](#example-private-instance)).
@@ -221,12 +234,54 @@ ntfy user del phil                 # Delete user phil
 ntfy user change-pass phil         # Change password for user phil
 ntfy user change-role phil admin   # Make user phil an admin
 ntfy user change-tier phil pro     # Change phil's tier to "pro"
+ntfy user hash                     # Generate password hash, use with auth-users config option
 ```
+
+#### Users via the config
+As an alternative to manually creating users via the `ntfy user` CLI command, you can provision users declaratively in
+the `server.yml` file by adding them to the `auth-users` array. This is useful for general admins, or if you'd like to
+deploy your ntfy server via Docker/Ansible without manually editing the database.
+
+The `auth-users` option is a list of users that are automatically created/updated when the server starts. Users
+previously defined in the config but later removed will be deleted. Each entry is defined in the format `<username>:<password-hash>:<role>`.
+
+Here's an example with two users: `phil` is an admin, `ben` is a regular user.
+
+=== "Declarative users in /etc/ntfy/server.yml"
+    ``` yaml
+    auth-file: "/var/lib/ntfy/user.db"
+    auth-users:
+      - "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin"
+      - "ben:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user"
+    ```
+
+=== "Declarative users via env variables"
+    ```
+    # Comma-separated list, use single quotes to avoid issues with the bcrypt hash 
+    NTFY_AUTH_FILE='/var/lib/ntfy/user.db'
+    NTFY_AUTH_USERS='phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin,ben:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user'
+    ```
+
+The password hash can be created using `ntfy user hash` or an [online bcrypt generator](https://bcrypt-generator.com/) (though
+note that you're putting your password in an untrusted website).
+
+!!! important
+    Users added declaratively via the config file are marked in the database as "provisioned users". Removing users
+    from the config file will **delete them from the database** the next time ntfy is restarted.
+
+    Also, users that were originally manually created will be "upgraded" to be provisioned users if they are added to
+    the config. Adding a user manually, then adding it to the config, and then removing it from the config will hence
+    lead to the **deletion of that user**.
 
 ### Access control list (ACL)
 The access control list (ACL) **manages access to topics for non-admin users, and for anonymous access (`everyone`/`*`)**.
-Each entry represents the access permissions for a user to a specific topic or topic pattern. 
+Each entry represents the access permissions for a user to a specific topic or topic pattern. Entries can be created in
+two different ways:
 
+* [Using the CLI](#acl-entries-via-the-cli): Using the `ntfy access` command, you can manually edit the access control list.
+* [In the config](#acl-entries-via-the-config): You can provision ACL entries in the `server.yml` file via `auth-access` key.
+
+#### ACL entries via the CLI
 The ACL can be displayed or modified with the `ntfy access` command:
 
 ```
@@ -282,6 +337,51 @@ User `ben` has three topic-specific entries. He can read, but not write to topic
 to topic `garagedoor` and all topics starting with the word `alerts` (wildcards). Clients that are not authenticated
 (called `*`/`everyone`) only have read access to the `announcements` and `server-stats` topics.
 
+#### ACL entries via the config
+As an alternative to manually creating ACL entries via the `ntfy access` CLI command, you can provision access control
+entries declaratively in the `server.yml` file by adding them to the `auth-access` array, similar to the `auth-users` 
+option (see [users via the config](#users-via-the-config).
+
+The `auth-access` option is a list of access control entries that are automatically created/updated when the server starts.
+When entries are removed, they are deleted from the database. Each entry is defined in the format `<username>:<topic-pattern>:<access>`.
+
+The `<username>` can be any existing, provisioned user as defined in the `auth-users` section (see [users via the config](#users-via-the-config)),
+or `everyone`/`*` for anonymous access. The `<topic-pattern>` can be a specific topic name or a pattern with wildcards (`*`). The 
+`<access>` can be one of the following:
+
+* `read-write` or `rw`: Allows both publishing to and subscribing to the topic
+* `read-only`, `read`, or `ro`: Allows only subscribing to the topic
+* `write-only`, `write`, or `wo`: Allows only publishing to the topic
+* `deny-all`, `deny`, or `none`: Denies all access to the topic
+
+Here's an example with several ACL entries:
+
+=== "Declarative ACL entries in /etc/ntfy/server.yml"
+    ``` yaml
+    auth-file: "/var/lib/ntfy/user.db"
+    auth-users:
+      - "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:user"
+      - "ben:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user"
+    auth-access:
+      - "phil:mytopic:rw"
+      - "ben:alerts-*:rw"
+      - "ben:system-logs:ro"
+      - "*:announcements:ro" # or: "everyone:announcements,ro"
+    ```
+
+=== "Declarative ACL entries via env variables"
+    ```
+    # Comma-separated list
+    NTFY_AUTH_FILE='/var/lib/ntfy/user.db'
+    NTFY_AUTH_USERS='phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:user,ben:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user'
+    NTFY_AUTH_ACCESS='phil:mytopic:rw,ben:alerts-*:rw,ben:system-logs:ro,*:announcements:ro'
+    ```
+
+In this example, the `auth-users` section defines two users, `phil` and `ben`. The `auth-access` section defines
+access control entries for these users. `phil` has read-write access to the topic `mytopic`, while `ben` has read-write
+access to all topics starting with `alerts-` and read-only access to the topic `system-logs`. The last entry allows
+anonymous users (i.e. clients that do not authenticate) to read the `announcements` topic.
+
 ### Access tokens
 In addition to username/password auth, ntfy also provides authentication via access tokens. Access tokens are useful
 to avoid having to configure your password across multiple publishing/subscribing applications. For instance, you may
@@ -292,6 +392,12 @@ want to use a dedicated token to publish from your backup host, and one from you
     and deleting the account, every action can be performed with a token. Granular access tokens are on the roadmap,
     but not yet implemented.
 
+You can create access tokens in two different ways:
+
+* [Using the CLI](#tokens-via-the-cli): Using the `ntfy token` command, you can manually add/update/remove tokens.
+* [In the config](#tokens-via-the-config): You can provision access tokens in the `server.yml` file via `auth-tokens` key.
+
+#### Tokens via the CLI
 The `ntfy token` command can be used to manage access tokens for users. Tokens can have labels, and they can expire
 automatically (or never expire). Each user can have up to 60 tokens (hardcoded). 
 
@@ -302,6 +408,7 @@ ntfy token list phil                 # Shows list of tokens for user phil
 ntfy token add phil                  # Create token for user phil which never expires
 ntfy token add --expires=2d phil     # Create token for user phil which expires in 2 days
 ntfy token remove phil tk_th2sxr...  # Delete token
+ntfy token generate                  # Generate random token, can be used in auth-tokens config option
 ```
 
 **Creating an access token:**
@@ -309,32 +416,89 @@ ntfy token remove phil tk_th2sxr...  # Delete token
 $ ntfy token add --expires=30d --label="backups" phil
 $ ntfy token list
 user phil
-- tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2 (backups), expires 15 Mar 23 14:33 EDT, accessed from 0.0.0.0 at 13 Feb 23 13:33 EST
+- tk_7eevizlsiwf9yi4uxsrs83r4352o0 (backups), expires 15 Mar 23 14:33 EDT, accessed from 0.0.0.0 at 13 Feb 23 13:33 EST
 ```
 
 Once an access token is created, you can **use it to authenticate against the ntfy server, e.g. when you publish or
 subscribe to topics**. To learn how, check out [authenticate via access tokens](publish.md#access-tokens).
 
-### Example: Private instance
-The easiest way to configure a private instance is to set `auth-default-access` to `deny-all` in the `server.yml`:
+#### Tokens via the config
+Access tokens can be pre-provisioned in the `server.yml` configuration file using the `auth-tokens` config option.
+This is useful for automated setups, Docker environments, or when you want to define tokens declaratively.
 
-=== "/etc/ntfy/server.yml"
+The `auth-tokens` option is a list of access tokens that are automatically created/updated when the server starts.
+When entries are removed, they are deleted from the database. Each entry is defined in the format `<username>:<token>[:<label>]`.
+
+The `<username>` must be an existing, provisioned user, as defined in the `auth-users` section (see [users via the config](#users-via-the-config)).
+The `<token>` is a valid access token, which must start with `tk_` and be 32 characters long (including the prefix). You can generate
+random tokens using the `ntfy token generate` command. The optional `<label>` is a human-readable label for the token, 
+which can be used to identify it later.
+
+Once configured, these tokens can be used to authenticate API requests just like tokens created via the CLI.
+For usage examples, see [authenticate via access tokens](publish.md#access-tokens).
+
+Here's an example:
+
+=== "Declarative tokens in /etc/ntfy/server.yml"
+    ``` yaml
+    auth-file: "/var/lib/ntfy/user.db"
+    auth-users:
+      - "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin"
+      - "backup-service:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user"
+    auth-tokens:
+      - "phil:tk_3gd7d2yftt4b8ixyfe9mnmro88o76"
+      - "backup-service:tk_f099we8uzj7xi5qshzajwp6jffvkz:Backup script"
+    ```
+
+=== "Declarative tokens via env variables"
+    ```
+    # Comma-separated list
+    NTFY_AUTH_FILE='/var/lib/ntfy/user.db'
+    NTFY_AUTH_USERS='phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin,ben:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user'
+    NTFY_AUTH_TOKENS='phil:tk_3gd7d2yftt4b8ixyfe9mnmro88o76,backup-service:tk_f099we8uzj7xi5qshzajwp6jffvkz:Backup script'
+    ```
+
+In this example, the `auth-users` section defines two users, `phil` and `backup-service`. The `auth-tokens` section
+defines access tokens for these users. `phil` has a token `tk_3gd7d2yftt4b8ixyfe9mnmro88o76`, while `backup-service`
+has a token `tk_f099we8uzj7xi5qshzajwp6jffvkz` with the label "Backup script".
+
+### Example: Private instance
+The easiest way to configure a private instance is to set `auth-default-access` to `deny-all` in the `server.yml`,
+and to configure users in the `auth-users` section (see [users via the config](#users-via-the-config)), 
+access control entries in the `auth-access` section (see [ACL entries via the config](#acl-entries-via-the-config)),
+and access tokens in the `auth-tokens` section (see [access tokens via the config](#tokens-via-the-config)).
+
+Here's an example that defines a single admin user `phil` with the password `mypass`, and a regular user `backup-script`
+with the password `backup-script`. The admin user has full access to all topics, while regular user can only
+access the `backups` topic with read-write permissions. The `auth-default-access` is set to `deny-all`, which means
+that all other users and anonymous access are denied by default.
+
+=== "Config via /etc/ntfy/server.yml"
     ``` yaml
     auth-file: "/var/lib/ntfy/user.db"
     auth-default-access: "deny-all"
+    auth-users:
+      - "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin"
+      - "backup-script:$2a$10$/ehiQt.w7lhTmHXq.RNsOOkIwiPPeWFIzWYO3DRxNixnWKLX8.uj.:user"
+    auth-access:
+      - "backup-service:backups:rw"
+    auth-tokens:
+      - "phil:tk_3gd7d2yftt4b8ixyfe9mnmro88o76:My personal token"
     ```
 
-After that, simply create an `admin` user:
-
-```
-$ ntfy user add --role=admin phil
-password: mypass
-confirm: mypass
-user phil added with role admin 
-```
+=== "Config via env variables"
+    ``` yaml
+    NTFY_AUTH_FILE='/var/lib/ntfy/user.db'
+    NTFY_AUTH_DEFAULT_ACCESS='deny-all'
+    NTFY_AUTH_USERS='phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin,backup-script:$2a$10$/ehiQt.w7lhTmHXq.RNsOOkIwiPPeWFIzWYO3DRxNixnWKLX8.uj.:user'
+    NTFY_AUTH_ACCESS='backup-service:backups:rw'
+    NTFY_AUTH_TOKENS='phil:tk_3gd7d2yftt4b8ixyfe9mnmro88o76:My personal token'
+    ```
 
 Once you've done that, you can publish and subscribe using [Basic Auth](https://en.wikipedia.org/wiki/Basic_access_authentication) 
-with the given username/password. Be sure to use HTTPS to avoid eavesdropping and exposing your password. Here's a simple example:
+with the given username/password. Be sure to use HTTPS to avoid eavesdropping and exposing your password. 
+
+Here's a simple example (using the credentials of the `phil` user):
 
 === "Command line (curl)"
     ```

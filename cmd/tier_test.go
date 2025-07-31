@@ -12,21 +12,21 @@ func TestCLI_Tier_AddListChangeDelete(t *testing.T) {
 	s, conf, port := newTestServerWithAuth(t)
 	defer test.StopServer(t, s, port)
 
-	app, _, _, stderr := newTestApp()
+	app, _, stdout, _ := newTestApp()
 	require.Nil(t, runTierCommand(app, conf, "add", "--name", "Pro", "--message-limit", "1234", "pro"))
-	require.Contains(t, stderr.String(), "tier added\n\ntier pro (id: ti_")
+	require.Contains(t, stdout.String(), "tier added\n\ntier pro (id: ti_")
 
 	err := runTierCommand(app, conf, "add", "pro")
 	require.NotNil(t, err)
 	require.Equal(t, "tier pro already exists", err.Error())
 
-	app, _, _, stderr = newTestApp()
+	app, _, stdout, _ = newTestApp()
 	require.Nil(t, runTierCommand(app, conf, "list"))
-	require.Contains(t, stderr.String(), "tier pro (id: ti_")
-	require.Contains(t, stderr.String(), "- Name: Pro")
-	require.Contains(t, stderr.String(), "- Message limit: 1234")
+	require.Contains(t, stdout.String(), "tier pro (id: ti_")
+	require.Contains(t, stdout.String(), "- Name: Pro")
+	require.Contains(t, stdout.String(), "- Message limit: 1234")
 
-	app, _, _, stderr = newTestApp()
+	app, _, stdout, _ = newTestApp()
 	require.Nil(t, runTierCommand(app, conf, "change",
 		"--message-limit=999",
 		"--message-expiry-duration=2d",
@@ -40,18 +40,18 @@ func TestCLI_Tier_AddListChangeDelete(t *testing.T) {
 		"--stripe-yearly-price-id=price_992",
 		"pro",
 	))
-	require.Contains(t, stderr.String(), "- Message limit: 999")
-	require.Contains(t, stderr.String(), "- Message expiry duration: 48h")
-	require.Contains(t, stderr.String(), "- Email limit: 91")
-	require.Contains(t, stderr.String(), "- Reservation limit: 98")
-	require.Contains(t, stderr.String(), "- Attachment file size limit: 100.0 MB")
-	require.Contains(t, stderr.String(), "- Attachment expiry duration: 24h")
-	require.Contains(t, stderr.String(), "- Attachment total size limit: 10.0 GB")
-	require.Contains(t, stderr.String(), "- Stripe prices (monthly/yearly): price_991 / price_992")
+	require.Contains(t, stdout.String(), "- Message limit: 999")
+	require.Contains(t, stdout.String(), "- Message expiry duration: 48h")
+	require.Contains(t, stdout.String(), "- Email limit: 91")
+	require.Contains(t, stdout.String(), "- Reservation limit: 98")
+	require.Contains(t, stdout.String(), "- Attachment file size limit: 100.0 MB")
+	require.Contains(t, stdout.String(), "- Attachment expiry duration: 24h")
+	require.Contains(t, stdout.String(), "- Attachment total size limit: 10.0 GB")
+	require.Contains(t, stdout.String(), "- Stripe prices (monthly/yearly): price_991 / price_992")
 
-	app, _, _, stderr = newTestApp()
+	app, _, stdout, _ = newTestApp()
 	require.Nil(t, runTierCommand(app, conf, "remove", "pro"))
-	require.Contains(t, stderr.String(), "tier pro removed")
+	require.Contains(t, stdout.String(), "tier pro removed")
 }
 
 func runTierCommand(app *cli.App, conf *server.Config, args ...string) error {

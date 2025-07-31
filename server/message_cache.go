@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -286,6 +287,12 @@ type messageCache struct {
 
 // newSqliteCache creates a SQLite file-backed cache
 func newSqliteCache(filename, startupQueries string, cacheDuration time.Duration, batchSize int, batchTimeout time.Duration, nop bool) (*messageCache, error) {
+	// Check the parent directory of the database file (makes for friendly error messages)
+	parentDir := filepath.Dir(filename)
+	if !util.FileExists(parentDir) {
+		return nil, fmt.Errorf("cache database directory %s does not exist or is not accessible", parentDir)
+	}
+	// Open database
 	db, err := sql.Open("sqlite3", filename)
 	if err != nil {
 		return nil, err

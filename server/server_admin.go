@@ -25,7 +25,7 @@ func (s *Server) handleUsersGet(w http.ResponseWriter, r *http.Request, v *visit
 		for i, g := range grants[u.ID] {
 			userGrants[i] = &apiUserGrantResponse{
 				Topic:      g.TopicPattern,
-				Permission: g.Allow.String(),
+				Permission: g.Permission.String(),
 			}
 		}
 		usersResponse[i] = &apiUserResponse{

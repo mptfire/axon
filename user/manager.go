@@ -12,6 +12,8 @@ import (
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/util"
 	"net/netip"
+	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -75,6 +77,7 @@ const (
 			role TEXT CHECK (role IN ('anonymous', 'admin', 'user')) NOT NULL,
 			prefs JSON NOT NULL DEFAULT '{}',
 			sync_topic TEXT NOT NULL,
+			provisioned INT NOT NULL,
 			stats_messages INT NOT NULL DEFAULT (0),
 			stats_emails INT NOT NULL DEFAULT (0),
 			stats_calls INT NOT NULL DEFAULT (0),
@@ -97,6 +100,7 @@ const (
 			read INT NOT NULL,
 			write INT NOT NULL,
 			owner_user_id INT,
+			provisioned INT NOT NULL,
 			PRIMARY KEY (user_id, topic),
 			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE,
 		    FOREIGN KEY (owner_user_id) REFERENCES user (id) ON DELETE CASCADE
@@ -108,9 +112,11 @@ const (
 			last_access INT NOT NULL,
 			last_origin TEXT NOT NULL,
 			expires INT NOT NULL,
+			provisioned INT NOT NULL,
 			PRIMARY KEY (user_id, token),
 			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
 		);
+		CREATE UNIQUE INDEX idx_user_token ON user_token (token);
 		CREATE TABLE IF NOT EXISTS user_phone (
 			user_id TEXT NOT NULL,
 			phone_number TEXT NOT NULL,
@@ -121,8 +127,8 @@ const (
 			id INT PRIMARY KEY,
 			version INT NOT NULL
 		);
-		INSERT INTO user (id, user, pass, role, sync_topic, created)
-		VALUES ('` + everyoneID + `', '*', '', 'anonymous', '', UNIXEPOCH())
+		INSERT INTO user (id, user, pass, role, sync_topic, provisioned, created)
+		VALUES ('` + everyoneID + `', '*', '', 'anonymous', '', false, UNIXEPOCH())
 		ON CONFLICT (id) DO NOTHING;
 		COMMIT;
 	`
@@ -132,26 +138,26 @@ const (
 	`
 
 	selectUserByIDQuery = `
-		SELECT u.id, u.user, u.pass, u.role, u.prefs, u.sync_topic, u.stats_messages, u.stats_emails, u.stats_calls, u.stripe_customer_id, u.stripe_subscription_id, u.stripe_subscription_status, u.stripe_subscription_interval, u.stripe_subscription_paid_until, u.stripe_subscription_cancel_at, deleted, t.id, t.code, t.name, t.messages_limit, t.messages_expiry_duration, t.emails_limit, t.calls_limit, t.reservations_limit, t.attachment_file_size_limit, t.attachment_total_size_limit, t.attachment_expiry_duration, t.attachment_bandwidth_limit, t.stripe_monthly_price_id, t.stripe_yearly_price_id
+		SELECT u.id, u.user, u.pass, u.role, u.prefs, u.sync_topic, u.provisioned, u.stats_messages, u.stats_emails, u.stats_calls, u.stripe_customer_id, u.stripe_subscription_id, u.stripe_subscription_status, u.stripe_subscription_interval, u.stripe_subscription_paid_until, u.stripe_subscription_cancel_at, deleted, t.id, t.code, t.name, t.messages_limit, t.messages_expiry_duration, t.emails_limit, t.calls_limit, t.reservations_limit, t.attachment_file_size_limit, t.attachment_total_size_limit, t.attachment_expiry_duration, t.attachment_bandwidth_limit, t.stripe_monthly_price_id, t.stripe_yearly_price_id
 		FROM user u
 		LEFT JOIN tier t on t.id = u.tier_id
 		WHERE u.id = ?
 	`
 	selectUserByNameQuery = `
-		SELECT u.id, u.user, u.pass, u.role, u.prefs, u.sync_topic, u.stats_messages, u.stats_emails, u.stats_calls, u.stripe_customer_id, u.stripe_subscription_id, u.stripe_subscription_status, u.stripe_subscription_interval, u.stripe_subscription_paid_until, u.stripe_subscription_cancel_at, deleted, t.id, t.code, t.name, t.messages_limit, t.messages_expiry_duration, t.emails_limit, t.calls_limit, t.reservations_limit, t.attachment_file_size_limit, t.attachment_total_size_limit, t.attachment_expiry_duration, t.attachment_bandwidth_limit, t.stripe_monthly_price_id, t.stripe_yearly_price_id
+		SELECT u.id, u.user, u.pass, u.role, u.prefs, u.sync_topic, u.provisioned, u.stats_messages, u.stats_emails, u.stats_calls, u.stripe_customer_id, u.stripe_subscription_id, u.stripe_subscription_status, u.stripe_subscription_interval, u.stripe_subscription_paid_until, u.stripe_subscription_cancel_at, deleted, t.id, t.code, t.name, t.messages_limit, t.messages_expiry_duration, t.emails_limit, t.calls_limit, t.reservations_limit, t.attachment_file_size_limit, t.attachment_total_size_limit, t.attachment_expiry_duration, t.attachment_bandwidth_limit, t.stripe_monthly_price_id, t.stripe_yearly_price_id
 		FROM user u
 		LEFT JOIN tier t on t.id = u.tier_id
 		WHERE user = ?
 	`
 	selectUserByTokenQuery = `
-		SELECT u.id, u.user, u.pass, u.role, u.prefs, u.sync_topic, u.stats_messages, u.stats_emails, u.stats_calls, u.stripe_customer_id, u.stripe_subscription_id, u.stripe_subscription_status, u.stripe_subscription_interval, u.stripe_subscription_paid_until, u.stripe_subscription_cancel_at, deleted, t.id, t.code, t.name, t.messages_limit, t.messages_expiry_duration, t.emails_limit, t.calls_limit, t.reservations_limit, t.attachment_file_size_limit, t.attachment_total_size_limit, t.attachment_expiry_duration, t.attachment_bandwidth_limit, t.stripe_monthly_price_id, t.stripe_yearly_price_id
+		SELECT u.id, u.user, u.pass, u.role, u.prefs, u.sync_topic, u.provisioned, u.stats_messages, u.stats_emails, u.stats_calls, u.stripe_customer_id, u.stripe_subscription_id, u.stripe_subscription_status, u.stripe_subscription_interval, u.stripe_subscription_paid_until, u.stripe_subscription_cancel_at, deleted, t.id, t.code, t.name, t.messages_limit, t.messages_expiry_duration, t.emails_limit, t.calls_limit, t.reservations_limit, t.attachment_file_size_limit, t.attachment_total_size_limit, t.attachment_expiry_duration, t.attachment_bandwidth_limit, t.stripe_monthly_price_id, t.stripe_yearly_price_id
 		FROM user u
 		JOIN user_token tk on u.id = tk.user_id
 		LEFT JOIN tier t on t.id = u.tier_id
 		WHERE tk.token = ? AND (tk.expires = 0 OR tk.expires >= ?)
 	`
 	selectUserByStripeCustomerIDQuery = `
-		SELECT u.id, u.user, u.pass, u.role, u.prefs, u.sync_topic, u.stats_messages, u.stats_emails, u.stats_calls, u.stripe_customer_id, u.stripe_subscription_id, u.stripe_subscription_status, u.stripe_subscription_interval, u.stripe_subscription_paid_until, u.stripe_subscription_cancel_at, deleted, t.id, t.code, t.name, t.messages_limit, t.messages_expiry_duration, t.emails_limit, t.calls_limit, t.reservations_limit, t.attachment_file_size_limit, t.attachment_total_size_limit, t.attachment_expiry_duration, t.attachment_bandwidth_limit, t.stripe_monthly_price_id, t.stripe_yearly_price_id
+		SELECT u.id, u.user, u.pass, u.role, u.prefs, u.sync_topic, u.provisioned, u.stats_messages, u.stats_emails, u.stats_calls, u.stripe_customer_id, u.stripe_subscription_id, u.stripe_subscription_status, u.stripe_subscription_interval, u.stripe_subscription_paid_until, u.stripe_subscription_cancel_at, deleted, t.id, t.code, t.name, t.messages_limit, t.messages_expiry_duration, t.emails_limit, t.calls_limit, t.reservations_limit, t.attachment_file_size_limit, t.attachment_total_size_limit, t.attachment_expiry_duration, t.attachment_bandwidth_limit, t.stripe_monthly_price_id, t.stripe_yearly_price_id
 		FROM user u
 		LEFT JOIN tier t on t.id = u.tier_id
 		WHERE u.stripe_customer_id = ?
@@ -165,8 +171,8 @@ const (
 	`
 
 	insertUserQuery = `
-		INSERT INTO user (id, user, pass, role, sync_topic, created)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO user (id, user, pass, role, sync_topic, provisioned, created)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
 	selectUsernamesQuery = `
 		SELECT user
@@ -178,29 +184,31 @@ const (
 				ELSE 2
 			END, user
 	`
-	selectUserCountQuery         = `SELECT COUNT(*) FROM user`
-	updateUserPassQuery          = `UPDATE user SET pass = ? WHERE user = ?`
-	updateUserRoleQuery          = `UPDATE user SET role = ? WHERE user = ?`
-	updateUserPrefsQuery         = `UPDATE user SET prefs = ? WHERE id = ?`
-	updateUserStatsQuery         = `UPDATE user SET stats_messages = ?, stats_emails = ?, stats_calls = ? WHERE id = ?`
-	updateUserStatsResetAllQuery = `UPDATE user SET stats_messages = 0, stats_emails = 0, stats_calls = 0`
-	updateUserDeletedQuery       = `UPDATE user SET deleted = ? WHERE id = ?`
-	deleteUsersMarkedQuery       = `DELETE FROM user WHERE deleted < ?`
-	deleteUserQuery              = `DELETE FROM user WHERE user = ?`
+	selectUserCountQuery          = `SELECT COUNT(*) FROM user`
+	selectUserIDFromUsernameQuery = `SELECT id FROM user WHERE user = ?`
+	updateUserPassQuery           = `UPDATE user SET pass = ? WHERE user = ?`
+	updateUserRoleQuery           = `UPDATE user SET role = ? WHERE user = ?`
+	updateUserProvisionedQuery    = `UPDATE user SET provisioned = ? WHERE user = ?`
+	updateUserPrefsQuery          = `UPDATE user SET prefs = ? WHERE id = ?`
+	updateUserStatsQuery          = `UPDATE user SET stats_messages = ?, stats_emails = ?, stats_calls = ? WHERE id = ?`
+	updateUserStatsResetAllQuery  = `UPDATE user SET stats_messages = 0, stats_emails = 0, stats_calls = 0`
+	updateUserDeletedQuery        = `UPDATE user SET deleted = ? WHERE id = ?`
+	deleteUsersMarkedQuery        = `DELETE FROM user WHERE deleted < ?`
+	deleteUserQuery               = `DELETE FROM user WHERE user = ?`
 
 	upsertUserAccessQuery = `
-		INSERT INTO user_access (user_id, topic, read, write, owner_user_id)
-		VALUES ((SELECT id FROM user WHERE user = ?), ?, ?, ?, (SELECT IIF(?='',NULL,(SELECT id FROM user WHERE user=?))))
+		INSERT INTO user_access (user_id, topic, read, write, owner_user_id, provisioned)
+		VALUES ((SELECT id FROM user WHERE user = ?), ?, ?, ?, (SELECT IIF(?='',NULL,(SELECT id FROM user WHERE user=?))), ?)
 		ON CONFLICT (user_id, topic)
-		DO UPDATE SET read=excluded.read, write=excluded.write, owner_user_id=excluded.owner_user_id
+		DO UPDATE SET read=excluded.read, write=excluded.write, owner_user_id=excluded.owner_user_id, provisioned=excluded.provisioned
 	`
 	selectUserAllAccessQuery = `
-		SELECT user_id, topic, read, write
+		SELECT user_id, topic, read, write, provisioned
 		FROM user_access
 		ORDER BY LENGTH(topic) DESC, write DESC, read DESC, topic
 	`
 	selectUserAccessQuery = `
-		SELECT topic, read, write
+		SELECT topic, read, write, provisioned
 		FROM user_access
 		WHERE user_id = (SELECT id FROM user WHERE user = ?)
 		ORDER BY LENGTH(topic) DESC, write DESC, read DESC, topic
@@ -216,7 +224,7 @@ const (
 	selectUserReservationsCountQuery = `
 		SELECT COUNT(*)
 		FROM user_access
-		WHERE user_id = owner_user_id 
+		WHERE user_id = owner_user_id
 		  AND owner_user_id = (SELECT id FROM user WHERE user = ?)
 	`
 	selectUserReservationsOwnerQuery = `
@@ -244,23 +252,31 @@ const (
 		WHERE user_id = (SELECT id FROM user WHERE user = ?)
 		   OR owner_user_id = (SELECT id FROM user WHERE user = ?)
 	`
-	deleteTopicAccessQuery = `
+	deleteUserAccessProvisionedQuery = `DELETE FROM user_access WHERE provisioned = 1`
+	deleteTopicAccessQuery           = `
 		DELETE FROM user_access
 	   	WHERE (user_id = (SELECT id FROM user WHERE user = ?) OR owner_user_id = (SELECT id FROM user WHERE user = ?))
 	   	  AND topic = ?
   	`
 
-	selectTokenCountQuery      = `SELECT COUNT(*) FROM user_token WHERE user_id = ?`
-	selectTokensQuery          = `SELECT token, label, last_access, last_origin, expires FROM user_token WHERE user_id = ?`
-	selectTokenQuery           = `SELECT token, label, last_access, last_origin, expires FROM user_token WHERE user_id = ? AND token = ?`
-	insertTokenQuery           = `INSERT INTO user_token (user_id, token, label, last_access, last_origin, expires) VALUES (?, ?, ?, ?, ?, ?)`
-	updateTokenExpiryQuery     = `UPDATE user_token SET expires = ? WHERE user_id = ? AND token = ?`
-	updateTokenLabelQuery      = `UPDATE user_token SET label = ? WHERE user_id = ? AND token = ?`
-	updateTokenLastAccessQuery = `UPDATE user_token SET last_access = ?, last_origin = ? WHERE token = ?`
-	deleteTokenQuery           = `DELETE FROM user_token WHERE user_id = ? AND token = ?`
-	deleteAllTokenQuery        = `DELETE FROM user_token WHERE user_id = ?`
-	deleteExpiredTokensQuery   = `DELETE FROM user_token WHERE expires > 0 AND expires < ?`
-	deleteExcessTokensQuery    = `
+	selectTokenCountQuery           = `SELECT COUNT(*) FROM user_token WHERE user_id = ?`
+	selectTokensQuery               = `SELECT token, label, last_access, last_origin, expires, provisioned FROM user_token WHERE user_id = ?`
+	selectTokenQuery                = `SELECT token, label, last_access, last_origin, expires, provisioned FROM user_token WHERE user_id = ? AND token = ?`
+	selectAllProvisionedTokensQuery = `SELECT token, label, last_access, last_origin, expires, provisioned FROM user_token WHERE provisioned = 1`
+	upsertTokenQuery                = `
+		INSERT INTO user_token (user_id, token, label, last_access, last_origin, expires, provisioned)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (user_id, token)
+		DO UPDATE SET label = excluded.label, expires = excluded.expires, provisioned = excluded.provisioned;
+	`
+	updateTokenExpiryQuery      = `UPDATE user_token SET expires = ? WHERE user_id = ? AND token = ?`
+	updateTokenLabelQuery       = `UPDATE user_token SET label = ? WHERE user_id = ? AND token = ?`
+	updateTokenLastAccessQuery  = `UPDATE user_token SET last_access = ?, last_origin = ? WHERE token = ?`
+	deleteTokenQuery            = `DELETE FROM user_token WHERE user_id = ? AND token = ?`
+	deleteProvisionedTokenQuery = `DELETE FROM user_token WHERE token = ?`
+	deleteAllTokenQuery         = `DELETE FROM user_token WHERE user_id = ?`
+	deleteExpiredTokensQuery    = `DELETE FROM user_token WHERE expires > 0 AND expires < ?`
+	deleteExcessTokensQuery     = `
 		DELETE FROM user_token
 		WHERE user_id = ?
 		  AND (user_id, token) NOT IN (
@@ -312,7 +328,7 @@ const (
 
 // Schema management queries
 const (
-	currentSchemaVersion     = 5
+	currentSchemaVersion     = 6
 	insertSchemaVersion      = `INSERT INTO schemaVersion VALUES (1, ?)`
 	updateSchemaVersion      = `UPDATE schemaVersion SET version = ? WHERE id = 1`
 	selectSchemaVersionQuery = `SELECT version FROM schemaVersion WHERE id = 1`
@@ -427,6 +443,100 @@ const (
 	migrate4To5UpdateQueries = `
 		UPDATE user_access SET topic = REPLACE(topic, '_', '\_');
 	`
+
+	// 5 -> 6
+	migrate5To6UpdateQueries = `
+		PRAGMA foreign_keys=off;
+
+		-- Alter user table: Add provisioned column
+		ALTER TABLE user RENAME TO user_old;
+		CREATE TABLE IF NOT EXISTS user (
+		    id TEXT PRIMARY KEY,
+			tier_id TEXT,
+			user TEXT NOT NULL,
+			pass TEXT NOT NULL,
+			role TEXT CHECK (role IN ('anonymous', 'admin', 'user')) NOT NULL,
+			prefs JSON NOT NULL DEFAULT '{}',
+			sync_topic TEXT NOT NULL,
+			provisioned INT NOT NULL,
+			stats_messages INT NOT NULL DEFAULT (0),
+			stats_emails INT NOT NULL DEFAULT (0),
+			stats_calls INT NOT NULL DEFAULT (0),
+			stripe_customer_id TEXT,
+			stripe_subscription_id TEXT,
+			stripe_subscription_status TEXT,
+			stripe_subscription_interval TEXT,
+			stripe_subscription_paid_until INT,
+			stripe_subscription_cancel_at INT,
+			created INT NOT NULL,
+			deleted INT,
+		    FOREIGN KEY (tier_id) REFERENCES tier (id)
+		);
+		INSERT INTO user
+		SELECT
+		    id,
+		    tier_id,
+		    user,
+		    pass,
+		    role,
+		    prefs,
+		    sync_topic,
+		    0, -- provisioned
+		    stats_messages,
+		    stats_emails,
+		    stats_calls,
+		    stripe_customer_id,
+		    stripe_subscription_id,
+		    stripe_subscription_status,
+		    stripe_subscription_interval,
+		    stripe_subscription_paid_until,
+		    stripe_subscription_cancel_at,
+		    created,
+		    deleted
+		FROM user_old;
+		DROP TABLE user_old;
+
+		-- Alter user_access table: Add provisioned column
+		ALTER TABLE user_access RENAME TO user_access_old;
+		CREATE TABLE user_access (
+			user_id TEXT NOT NULL,
+			topic TEXT NOT NULL,
+			read INT NOT NULL,
+			write INT NOT NULL,
+			owner_user_id INT,
+			provisioned INTEGER NOT NULL,
+			PRIMARY KEY (user_id, topic),
+			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE,
+			FOREIGN KEY (owner_user_id) REFERENCES user (id) ON DELETE CASCADE
+		);
+		INSERT INTO user_access SELECT *, 0 FROM user_access_old;
+		DROP TABLE user_access_old;
+
+		-- Alter user_token table: Add provisioned column
+		ALTER TABLE user_token RENAME TO user_token_old;
+		CREATE TABLE IF NOT EXISTS user_token (
+			user_id TEXT NOT NULL,
+			token TEXT NOT NULL,
+			label TEXT NOT NULL,
+			last_access INT NOT NULL,
+			last_origin TEXT NOT NULL,
+			expires INT NOT NULL,
+			provisioned INT NOT NULL,
+			PRIMARY KEY (user_id, token),
+			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
+		);
+		INSERT INTO user_token SELECT *, 0 FROM user_token_old;
+		DROP TABLE user_token_old;
+
+		-- Recreate indices
+		CREATE UNIQUE INDEX idx_user ON user (user);
+		CREATE UNIQUE INDEX idx_user_stripe_customer_id ON user (stripe_customer_id);
+		CREATE UNIQUE INDEX idx_user_stripe_subscription_id ON user (stripe_subscription_id);
+		CREATE UNIQUE INDEX idx_user_token ON user_token (token);
+
+		-- Re-enable foreign keys
+		PRAGMA foreign_keys=on;
+	`
 )
 
 var (
@@ -435,42 +545,70 @@ var (
 		2: migrateFrom2,
 		3: migrateFrom3,
 		4: migrateFrom4,
+		5: migrateFrom5,
 	}
 )
 
 // Manager is an implementation of Manager. It stores users and access control list
 // in a SQLite database.
 type Manager struct {
-	db            *sql.DB
-	defaultAccess Permission              // Default permission if no ACL matches
-	statsQueue    map[string]*Stats       // "Queue" to asynchronously write user stats to the database (UserID -> Stats)
-	tokenQueue    map[string]*TokenUpdate // "Queue" to asynchronously write token access stats to the database (Token ID -> TokenUpdate)
-	bcryptCost    int                     // Makes testing easier
-	mu            sync.Mutex
+	config     *Config
+	db         *sql.DB
+	statsQueue map[string]*Stats       // "Queue" to asynchronously write user stats to the database (UserID -> Stats)
+	tokenQueue map[string]*TokenUpdate // "Queue" to asynchronously write token access stats to the database (Token ID -> TokenUpdate)
+	mu         sync.Mutex
+}
+
+// Config holds the configuration for the user Manager
+type Config struct {
+	Filename            string              // Database filename, e.g. "/var/lib/ntfy/user.db"
+	StartupQueries      string              // Queries to run on startup, e.g. to create initial users or tiers
+	DefaultAccess       Permission          // Default permission if no ACL matches
+	ProvisionEnabled    bool                // Hack: Enable auto-provisioning of users and access grants, disabled for "ntfy user" commands
+	Users               []*User             // Predefined users to create on startup
+	Access              map[string][]*Grant // Predefined access grants to create on startup (username -> []*Grant)
+	Tokens              map[string][]*Token // Predefined users to create on startup (username -> []*Token)
+	QueueWriterInterval time.Duration       // Interval for the async queue writer to flush stats and token updates to the database
+	BcryptCost          int                 // Cost of generated passwords; lowering makes testing faster
 }
 
 var _ Auther = (*Manager)(nil)
 
 // NewManager creates a new Manager instance
-func NewManager(filename, startupQueries string, defaultAccess Permission, bcryptCost int, queueWriterInterval time.Duration) (*Manager, error) {
-	db, err := sql.Open("sqlite3", filename)
+func NewManager(config *Config) (*Manager, error) {
+	// Set defaults
+	if config.BcryptCost <= 0 {
+		config.BcryptCost = DefaultUserPasswordBcryptCost
+	}
+	if config.QueueWriterInterval.Seconds() <= 0 {
+		config.QueueWriterInterval = DefaultUserStatsQueueWriterInterval
+	}
+	// Check the parent directory of the database file (makes for friendly error messages)
+	parentDir := filepath.Dir(config.Filename)
+	if !util.FileExists(parentDir) {
+		return nil, fmt.Errorf("user database directory %s does not exist or is not accessible", parentDir)
+	}
+	// Open DB and run setup queries
+	db, err := sql.Open("sqlite3", config.Filename)
 	if err != nil {
 		return nil, err
 	}
 	if err := setupDB(db); err != nil {
 		return nil, err
 	}
-	if err := runStartupQueries(db, startupQueries); err != nil {
+	if err := runStartupQueries(db, config.StartupQueries); err != nil {
 		return nil, err
 	}
 	manager := &Manager{
-		db:            db,
-		defaultAccess: defaultAccess,
-		statsQueue:    make(map[string]*Stats),
-		tokenQueue:    make(map[string]*TokenUpdate),
-		bcryptCost:    bcryptCost,
+		db:         db,
+		config:     config,
+		statsQueue: make(map[string]*Stats),
+		tokenQueue: make(map[string]*TokenUpdate),
 	}
-	go manager.asyncQueueWriter(queueWriterInterval)
+	if err := manager.maybeProvisionUsersAccessAndTokens(); err != nil {
+		return nil, err
+	}
+	go manager.asyncQueueWriter(config.QueueWriterInterval)
 	return manager, nil
 }
 
@@ -515,15 +653,15 @@ func (a *Manager) AuthenticateToken(token string) (*User, error) {
 // CreateToken generates a random token for the given user and returns it. The token expires
 // after a fixed duration unless ChangeToken is called. This function also prunes tokens for the
 // given user, if there are too many of them.
-func (a *Manager) CreateToken(userID, label string, expires time.Time, origin netip.Addr) (*Token, error) {
-	token := util.RandomLowerStringPrefix(tokenPrefix, tokenLength) // Lowercase only to support "<topic>+<token>@<domain>" email addresses
-	tx, err := a.db.Begin()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
+func (a *Manager) CreateToken(userID, label string, expires time.Time, origin netip.Addr, provisioned bool) (*Token, error) {
+	return queryTx(a.db, func(tx *sql.Tx) (*Token, error) {
+		return a.createTokenTx(tx, userID, GenerateToken(), label, expires, origin, provisioned)
+	})
+}
+
+func (a *Manager) createTokenTx(tx *sql.Tx, userID, token, label string, expires time.Time, origin netip.Addr, provisioned bool) (*Token, error) {
 	access := time.Now()
-	if _, err := tx.Exec(insertTokenQuery, userID, token, label, access.Unix(), origin.String(), expires.Unix()); err != nil {
+	if _, err := tx.Exec(upsertTokenQuery, userID, token, label, access.Unix(), origin.String(), expires.Unix(), provisioned); err != nil {
 		return nil, err
 	}
 	rows, err := tx.Query(selectTokenCountQuery, userID)
@@ -545,15 +683,13 @@ func (a *Manager) CreateToken(userID, label string, expires time.Time, origin ne
 			return nil, err
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
 	return &Token{
-		Value:      token,
-		Label:      label,
-		LastAccess: access,
-		LastOrigin: origin,
-		Expires:    expires,
+		Value:       token,
+		Label:       label,
+		LastAccess:  access,
+		LastOrigin:  origin,
+		Expires:     expires,
+		Provisioned: provisioned,
 	}, nil
 }
 
@@ -567,7 +703,26 @@ func (a *Manager) Tokens(userID string) ([]*Token, error) {
 	tokens := make([]*Token, 0)
 	for {
 		token, err := a.readToken(rows)
-		if err == ErrTokenNotFound {
+		if errors.Is(err, ErrTokenNotFound) {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens, nil
+}
+
+func (a *Manager) allProvisionedTokens() ([]*Token, error) {
+	rows, err := a.db.Query(selectAllProvisionedTokensQuery)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tokens := make([]*Token, 0)
+	for {
+		token, err := a.readToken(rows)
+		if errors.Is(err, ErrTokenNotFound) {
 			break
 		} else if err != nil {
 			return nil, err
@@ -590,10 +745,11 @@ func (a *Manager) Token(userID, token string) (*Token, error) {
 func (a *Manager) readToken(rows *sql.Rows) (*Token, error) {
 	var token, label, lastOrigin string
 	var lastAccess, expires int64
+	var provisioned bool
 	if !rows.Next() {
 		return nil, ErrTokenNotFound
 	}
-	if err := rows.Scan(&token, &label, &lastAccess, &lastOrigin, &expires); err != nil {
+	if err := rows.Scan(&token, &label, &lastAccess, &lastOrigin, &expires, &provisioned); err != nil {
 		return nil, err
 	} else if err := rows.Err(); err != nil {
 		return nil, err
@@ -603,11 +759,12 @@ func (a *Manager) readToken(rows *sql.Rows) (*Token, error) {
 		lastOriginIP = netip.IPv4Unspecified()
 	}
 	return &Token{
-		Value:      token,
-		Label:      label,
-		LastAccess: time.Unix(lastAccess, 0),
-		LastOrigin: lastOriginIP,
-		Expires:    time.Unix(expires, 0),
+		Value:       token,
+		Label:       label,
+		LastAccess:  time.Unix(lastAccess, 0),
+		LastOrigin:  lastOriginIP,
+		Expires:     time.Unix(expires, 0),
+		Provisioned: provisioned,
 	}, nil
 }
 
@@ -639,10 +796,16 @@ func (a *Manager) ChangeToken(userID, token string, label *string, expires *time
 
 // RemoveToken deletes the token defined in User.Token
 func (a *Manager) RemoveToken(userID, token string) error {
+	return execTx(a.db, func(tx *sql.Tx) error {
+		return a.removeTokenTx(tx, userID, token)
+	})
+}
+
+func (a *Manager) removeTokenTx(tx *sql.Tx, userID, token string) error {
 	if token == "" {
 		return errNoTokenProvided
 	}
-	if _, err := a.db.Exec(deleteTokenQuery, userID, token); err != nil {
+	if _, err := tx.Exec(deleteTokenQuery, userID, token); err != nil {
 		return err
 	}
 	return nil
@@ -666,7 +829,7 @@ func (a *Manager) PhoneNumbers(userID string) ([]string, error) {
 	phoneNumbers := make([]string, 0)
 	for {
 		phoneNumber, err := a.readPhoneNumber(rows)
-		if err == ErrPhoneNumberNotFound {
+		if errors.Is(err, ErrPhoneNumberNotFound) {
 			break
 		} else if err != nil {
 			return nil, err
@@ -816,11 +979,18 @@ func (a *Manager) writeTokenUpdateQueue() error {
 	log.Tag(tag).Debug("Writing token update queue for %d token(s)", len(tokenQueue))
 	for tokenID, update := range tokenQueue {
 		log.Tag(tag).Trace("Updating token %s with last access time %v", tokenID, update.LastAccess.Unix())
-		if _, err := tx.Exec(updateTokenLastAccessQuery, update.LastAccess.Unix(), update.LastOrigin.String(), tokenID); err != nil {
+		if err := a.updateTokenLastAccessTx(tx, tokenID, update.LastAccess.Unix(), update.LastOrigin.String()); err != nil {
 			return err
 		}
 	}
 	return tx.Commit()
+}
+
+func (a *Manager) updateTokenLastAccessTx(tx *sql.Tx, token string, lastAccess int64, lastOrigin string) error {
+	if _, err := tx.Exec(updateTokenLastAccessQuery, lastAccess, lastOrigin, token); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Authorize returns nil if the given user has access to the given topic using the desired
@@ -843,7 +1013,7 @@ func (a *Manager) Authorize(user *User, topic string, perm Permission) error {
 	}
 	defer rows.Close()
 	if !rows.Next() {
-		return a.resolvePerms(a.defaultAccess, perm)
+		return a.resolvePerms(a.config.DefaultAccess, perm)
 	}
 	var read, write bool
 	if err := rows.Scan(&read, &write); err != nil {
@@ -865,23 +1035,33 @@ func (a *Manager) resolvePerms(base, perm Permission) error {
 
 // AddUser adds a user with the given username, password and role
 func (a *Manager) AddUser(username, password string, role Role, hashed bool) error {
+	return execTx(a.db, func(tx *sql.Tx) error {
+		return a.addUserTx(tx, username, password, role, hashed, false)
+	})
+}
+
+// AddUser adds a user with the given username, password and role
+func (a *Manager) addUserTx(tx *sql.Tx, username, password string, role Role, hashed, provisioned bool) error {
 	if !AllowedUsername(username) || !AllowedRole(role) {
 		return ErrInvalidArgument
 	}
-	var hash []byte
+	var hash string
 	var err error = nil
 	if hashed {
-		hash = []byte(password)
+		hash = password
+		if err := ValidPasswordHash(hash); err != nil {
+			return err
+		}
 	} else {
-		hash, err = bcrypt.GenerateFromPassword([]byte(password), a.bcryptCost)
+		hash, err = hashPassword(password, a.config.BcryptCost)
 		if err != nil {
 			return err
 		}
 	}
 	userID := util.RandomStringPrefix(userIDPrefix, userIDLength)
 	syncTopic, now := util.RandomStringPrefix(syncTopicPrefix, syncTopicLength), time.Now().Unix()
-	if _, err = a.db.Exec(insertUserQuery, userID, username, hash, role, syncTopic, now); err != nil {
-		if sqliteErr, ok := err.(sqlite3.Error); ok && sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
+	if _, err = tx.Exec(insertUserQuery, userID, username, hash, role, syncTopic, provisioned, now); err != nil {
+		if errors.Is(err, sqlite3.ErrConstraintUnique) {
 			return ErrUserExists
 		}
 		return err
@@ -892,11 +1072,17 @@ func (a *Manager) AddUser(username, password string, role Role, hashed bool) err
 // RemoveUser deletes the user with the given username. The function returns nil on success, even
 // if the user did not exist in the first place.
 func (a *Manager) RemoveUser(username string) error {
+	return execTx(a.db, func(tx *sql.Tx) error {
+		return a.removeUserTx(tx, username)
+	})
+}
+
+func (a *Manager) removeUserTx(tx *sql.Tx, username string) error {
 	if !AllowedUsername(username) {
 		return ErrInvalidArgument
 	}
 	// Rows in user_access, user_token, etc. are deleted via foreign keys
-	if _, err := a.db.Exec(deleteUserQuery, username); err != nil {
+	if _, err := tx.Exec(deleteUserQuery, username); err != nil {
 		return err
 	}
 	return nil
@@ -1010,24 +1196,26 @@ func (a *Manager) userByToken(token string) (*User, error) {
 func (a *Manager) readUser(rows *sql.Rows) (*User, error) {
 	defer rows.Close()
 	var id, username, hash, role, prefs, syncTopic string
+	var provisioned bool
 	var stripeCustomerID, stripeSubscriptionID, stripeSubscriptionStatus, stripeSubscriptionInterval, stripeMonthlyPriceID, stripeYearlyPriceID, tierID, tierCode, tierName sql.NullString
 	var messages, emails, calls int64
 	var messagesLimit, messagesExpiryDuration, emailsLimit, callsLimit, reservationsLimit, attachmentFileSizeLimit, attachmentTotalSizeLimit, attachmentExpiryDuration, attachmentBandwidthLimit, stripeSubscriptionPaidUntil, stripeSubscriptionCancelAt, deleted sql.NullInt64
 	if !rows.Next() {
 		return nil, ErrUserNotFound
 	}
-	if err := rows.Scan(&id, &username, &hash, &role, &prefs, &syncTopic, &messages, &emails, &calls, &stripeCustomerID, &stripeSubscriptionID, &stripeSubscriptionStatus, &stripeSubscriptionInterval, &stripeSubscriptionPaidUntil, &stripeSubscriptionCancelAt, &deleted, &tierID, &tierCode, &tierName, &messagesLimit, &messagesExpiryDuration, &emailsLimit, &callsLimit, &reservationsLimit, &attachmentFileSizeLimit, &attachmentTotalSizeLimit, &attachmentExpiryDuration, &attachmentBandwidthLimit, &stripeMonthlyPriceID, &stripeYearlyPriceID); err != nil {
+	if err := rows.Scan(&id, &username, &hash, &role, &prefs, &syncTopic, &provisioned, &messages, &emails, &calls, &stripeCustomerID, &stripeSubscriptionID, &stripeSubscriptionStatus, &stripeSubscriptionInterval, &stripeSubscriptionPaidUntil, &stripeSubscriptionCancelAt, &deleted, &tierID, &tierCode, &tierName, &messagesLimit, &messagesExpiryDuration, &emailsLimit, &callsLimit, &reservationsLimit, &attachmentFileSizeLimit, &attachmentTotalSizeLimit, &attachmentExpiryDuration, &attachmentBandwidthLimit, &stripeMonthlyPriceID, &stripeYearlyPriceID); err != nil {
 		return nil, err
 	} else if err := rows.Err(); err != nil {
 		return nil, err
 	}
 	user := &User{
-		ID:        id,
-		Name:      username,
-		Hash:      hash,
-		Role:      Role(role),
-		Prefs:     &Prefs{},
-		SyncTopic: syncTopic,
+		ID:          id,
+		Name:        username,
+		Hash:        hash,
+		Role:        Role(role),
+		Prefs:       &Prefs{},
+		SyncTopic:   syncTopic,
+		Provisioned: provisioned,
 		Stats: &Stats{
 			Messages: messages,
 			Emails:   emails,
@@ -1078,8 +1266,8 @@ func (a *Manager) AllGrants() (map[string][]Grant, error) {
 	grants := make(map[string][]Grant, 0)
 	for rows.Next() {
 		var userID, topic string
-		var read, write bool
-		if err := rows.Scan(&userID, &topic, &read, &write); err != nil {
+		var read, write, provisioned bool
+		if err := rows.Scan(&userID, &topic, &read, &write, &provisioned); err != nil {
 			return nil, err
 		} else if err := rows.Err(); err != nil {
 			return nil, err
@@ -1089,7 +1277,8 @@ func (a *Manager) AllGrants() (map[string][]Grant, error) {
 		}
 		grants[userID] = append(grants[userID], Grant{
 			TopicPattern: fromSQLWildcard(topic),
-			Allow:        NewPermission(read, write),
+			Permission:   NewPermission(read, write),
+			Provisioned:  provisioned,
 		})
 	}
 	return grants, nil
@@ -1105,15 +1294,16 @@ func (a *Manager) Grants(username string) ([]Grant, error) {
 	grants := make([]Grant, 0)
 	for rows.Next() {
 		var topic string
-		var read, write bool
-		if err := rows.Scan(&topic, &read, &write); err != nil {
+		var read, write, provisioned bool
+		if err := rows.Scan(&topic, &read, &write, &provisioned); err != nil {
 			return nil, err
 		} else if err := rows.Err(); err != nil {
 			return nil, err
 		}
 		grants = append(grants, Grant{
 			TopicPattern: fromSQLWildcard(topic),
-			Allow:        NewPermission(read, write),
+			Permission:   NewPermission(read, write),
+			Provisioned:  provisioned,
 		})
 	}
 	return grants, nil
@@ -1199,18 +1389,26 @@ func (a *Manager) ReservationOwner(topic string) (string, error) {
 
 // ChangePassword changes a user's password
 func (a *Manager) ChangePassword(username, password string, hashed bool) error {
-	var hash []byte
-	var err error
+	return execTx(a.db, func(tx *sql.Tx) error {
+		return a.changePasswordTx(tx, username, password, hashed)
+	})
+}
 
+func (a *Manager) changePasswordTx(tx *sql.Tx, username, password string, hashed bool) error {
+	var hash string
+	var err error
 	if hashed {
-		hash = []byte(password)
+		hash = password
+		if err := ValidPasswordHash(hash); err != nil {
+			return err
+		}
 	} else {
-		hash, err = bcrypt.GenerateFromPassword([]byte(password), a.bcryptCost)
+		hash, err = hashPassword(password, a.config.BcryptCost)
 		if err != nil {
 			return err
 		}
 	}
-	if _, err := a.db.Exec(updateUserPassQuery, hash, username); err != nil {
+	if _, err := tx.Exec(updateUserPassQuery, hash, username); err != nil {
 		return err
 	}
 	return nil
@@ -1219,16 +1417,37 @@ func (a *Manager) ChangePassword(username, password string, hashed bool) error {
 // ChangeRole changes a user's role. When a role is changed from RoleUser to RoleAdmin,
 // all existing access control entries (Grant) are removed, since they are no longer needed.
 func (a *Manager) ChangeRole(username string, role Role) error {
+	return execTx(a.db, func(tx *sql.Tx) error {
+		return a.changeRoleTx(tx, username, role)
+	})
+}
+
+func (a *Manager) changeRoleTx(tx *sql.Tx, username string, role Role) error {
 	if !AllowedUsername(username) || !AllowedRole(role) {
 		return ErrInvalidArgument
 	}
-	if _, err := a.db.Exec(updateUserRoleQuery, string(role), username); err != nil {
+	if _, err := tx.Exec(updateUserRoleQuery, string(role), username); err != nil {
 		return err
 	}
 	if role == RoleAdmin {
-		if _, err := a.db.Exec(deleteUserAccessQuery, username, username); err != nil {
+		if _, err := tx.Exec(deleteUserAccessQuery, username, username); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// ChangeProvisioned changes the provisioned status of a user. This is used to mark users as
+// provisioned. A provisioned user is a user defined in the config file.
+func (a *Manager) ChangeProvisioned(username string, provisioned bool) error {
+	return execTx(a.db, func(tx *sql.Tx) error {
+		return a.changeProvisionedTx(tx, username, provisioned)
+	})
+}
+
+func (a *Manager) changeProvisionedTx(tx *sql.Tx, username string, provisioned bool) error {
+	if _, err := tx.Exec(updateUserProvisionedQuery, provisioned, username); err != nil {
+		return err
 	}
 	return nil
 }
@@ -1306,13 +1525,19 @@ func (a *Manager) AllowReservation(username string, topic string) error {
 // read/write access to a topic. The parameter topicPattern may include wildcards (*). The ACL entry
 // owner may either be a user (username), or the system (empty).
 func (a *Manager) AllowAccess(username string, topicPattern string, permission Permission) error {
+	return execTx(a.db, func(tx *sql.Tx) error {
+		return a.allowAccessTx(tx, username, topicPattern, permission, false)
+	})
+}
+
+func (a *Manager) allowAccessTx(tx *sql.Tx, username string, topicPattern string, permission Permission, provisioned bool) error {
 	if !AllowedUsername(username) && username != Everyone {
 		return ErrInvalidArgument
 	} else if !AllowedTopicPattern(topicPattern) {
 		return ErrInvalidArgument
 	}
 	owner := ""
-	if _, err := a.db.Exec(upsertUserAccessQuery, username, toSQLWildcard(topicPattern), permission.IsRead(), permission.IsWrite(), owner, owner); err != nil {
+	if _, err := tx.Exec(upsertUserAccessQuery, username, toSQLWildcard(topicPattern), permission.IsRead(), permission.IsWrite(), owner, owner, provisioned); err != nil {
 		return err
 	}
 	return nil
@@ -1321,19 +1546,25 @@ func (a *Manager) AllowAccess(username string, topicPattern string, permission P
 // ResetAccess removes an access control list entry for a specific username/topic, or (if topic is
 // empty) for an entire user. The parameter topicPattern may include wildcards (*).
 func (a *Manager) ResetAccess(username string, topicPattern string) error {
+	return execTx(a.db, func(tx *sql.Tx) error {
+		return a.resetAccessTx(tx, username, topicPattern)
+	})
+}
+
+func (a *Manager) resetAccessTx(tx *sql.Tx, username string, topicPattern string) error {
 	if !AllowedUsername(username) && username != Everyone && username != "" {
 		return ErrInvalidArgument
 	} else if !AllowedTopicPattern(topicPattern) && topicPattern != "" {
 		return ErrInvalidArgument
 	}
 	if username == "" && topicPattern == "" {
-		_, err := a.db.Exec(deleteAllAccessQuery, username)
+		_, err := tx.Exec(deleteAllAccessQuery, username)
 		return err
 	} else if topicPattern == "" {
-		_, err := a.db.Exec(deleteUserAccessQuery, username, username)
+		_, err := tx.Exec(deleteUserAccessQuery, username, username)
 		return err
 	}
-	_, err := a.db.Exec(deleteTopicAccessQuery, username, username, toSQLWildcard(topicPattern))
+	_, err := tx.Exec(deleteTopicAccessQuery, username, username, toSQLWildcard(topicPattern))
 	return err
 }
 
@@ -1349,10 +1580,10 @@ func (a *Manager) AddReservation(username string, topic string, everyone Permiss
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(upsertUserAccessQuery, username, escapeUnderscore(topic), true, true, username, username); err != nil {
+	if _, err := tx.Exec(upsertUserAccessQuery, username, escapeUnderscore(topic), true, true, username, username, false); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(upsertUserAccessQuery, Everyone, escapeUnderscore(topic), everyone.IsRead(), everyone.IsWrite(), username, username); err != nil {
+	if _, err := tx.Exec(upsertUserAccessQuery, Everyone, escapeUnderscore(topic), everyone.IsRead(), everyone.IsWrite(), username, username, false); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -1387,7 +1618,7 @@ func (a *Manager) RemoveReservations(username string, topics ...string) error {
 
 // DefaultAccess returns the default read/write access if no access control entry matches
 func (a *Manager) DefaultAccess() Permission {
-	return a.defaultAccess
+	return a.config.DefaultAccess
 }
 
 // AddTier creates a new tier in the database
@@ -1503,6 +1734,147 @@ func (a *Manager) readTier(rows *sql.Rows) (*Tier, error) {
 // Close closes the underlying database
 func (a *Manager) Close() error {
 	return a.db.Close()
+}
+
+// maybeProvisionUsersAccessAndTokens provisions users, access control entries, and tokens based on the config.
+func (a *Manager) maybeProvisionUsersAccessAndTokens() error {
+	if !a.config.ProvisionEnabled {
+		return nil
+	}
+	existingUsers, err := a.Users()
+	if err != nil {
+		return err
+	}
+	provisionUsernames := util.Map(a.config.Users, func(u *User) string {
+		return u.Name
+	})
+	return execTx(a.db, func(tx *sql.Tx) error {
+		if err := a.maybeProvisionUsers(tx, provisionUsernames, existingUsers); err != nil {
+			return fmt.Errorf("failed to provision users: %v", err)
+		}
+		if err := a.maybeProvisionGrants(tx); err != nil {
+			return fmt.Errorf("failed to provision grants: %v", err)
+		}
+		if err := a.maybeProvisionTokens(tx, provisionUsernames); err != nil {
+			return fmt.Errorf("failed to provision tokens: %v", err)
+		}
+		return nil
+	})
+}
+
+// maybeProvisionUsers checks if the users in the config are provisioned, and adds or updates them.
+// It also removes users that are provisioned, but not in the config anymore.
+func (a *Manager) maybeProvisionUsers(tx *sql.Tx, provisionUsernames []string, existingUsers []*User) error {
+	// Remove users that are provisioned, but not in the config anymore
+	for _, user := range existingUsers {
+		if user.Name == Everyone {
+			continue
+		} else if user.Provisioned && !util.Contains(provisionUsernames, user.Name) {
+			if err := a.removeUserTx(tx, user.Name); err != nil {
+				return fmt.Errorf("failed to remove provisioned user %s: %v", user.Name, err)
+			}
+		}
+	}
+	// Add or update provisioned users
+	for _, user := range a.config.Users {
+		if user.Name == Everyone {
+			continue
+		}
+		existingUser, exists := util.Find(existingUsers, func(u *User) bool {
+			return u.Name == user.Name
+		})
+		if !exists {
+			if err := a.addUserTx(tx, user.Name, user.Hash, user.Role, true, true); err != nil && !errors.Is(err, ErrUserExists) {
+				return fmt.Errorf("failed to add provisioned user %s: %v", user.Name, err)
+			}
+		} else {
+			if !existingUser.Provisioned {
+				if err := a.changeProvisionedTx(tx, user.Name, true); err != nil {
+					return fmt.Errorf("failed to change provisioned status for user %s: %v", user.Name, err)
+				}
+			}
+			if existingUser.Hash != user.Hash {
+				if err := a.changePasswordTx(tx, user.Name, user.Hash, true); err != nil {
+					return fmt.Errorf("failed to change password for provisioned user %s: %v", user.Name, err)
+				}
+			}
+			if existingUser.Role != user.Role {
+				if err := a.changeRoleTx(tx, user.Name, user.Role); err != nil {
+					return fmt.Errorf("failed to change role for provisioned user %s: %v", user.Name, err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// maybyProvisionGrants removes all provisioned grants, and (re-)adds the grants from the config.
+//
+// Unlike users and tokens, grants can be just re-added, because they do not carry any state (such as last
+// access time) or do not have dependent resources (such as grants or tokens).
+func (a *Manager) maybeProvisionGrants(tx *sql.Tx) error {
+	// Remove all provisioned grants
+	if _, err := tx.Exec(deleteUserAccessProvisionedQuery); err != nil {
+		return err
+	}
+	// (Re-)add provisioned grants
+	for username, grants := range a.config.Access {
+		user, exists := util.Find(a.config.Users, func(u *User) bool {
+			return u.Name == username
+		})
+		if !exists && username != Everyone {
+			return fmt.Errorf("user %s is not a provisioned user, refusing to add ACL entry", username)
+		} else if user != nil && user.Role == RoleAdmin {
+			return fmt.Errorf("adding access control entries is not allowed for admin roles for user %s", username)
+		}
+		for _, grant := range grants {
+			if err := a.resetAccessTx(tx, username, grant.TopicPattern); err != nil {
+				return fmt.Errorf("failed to reset access for user %s and topic %s: %v", username, grant.TopicPattern, err)
+			}
+			if err := a.allowAccessTx(tx, username, grant.TopicPattern, grant.Permission, true); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (a *Manager) maybeProvisionTokens(tx *sql.Tx, provisionUsernames []string) error {
+	// Remove tokens that are provisioned, but not in the config anymore
+	existingTokens, err := a.allProvisionedTokens()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve existing provisioned tokens: %v", err)
+	}
+	var provisionTokens []string
+	for _, userTokens := range a.config.Tokens {
+		for _, token := range userTokens {
+			provisionTokens = append(provisionTokens, token.Value)
+		}
+	}
+	for _, existingToken := range existingTokens {
+		if !slices.Contains(provisionTokens, existingToken.Value) {
+			if _, err := tx.Exec(deleteProvisionedTokenQuery, existingToken.Value); err != nil {
+				return fmt.Errorf("failed to remove provisioned token %s: %v", existingToken.Value, err)
+			}
+		}
+	}
+	// (Re-)add provisioned tokens
+	for username, tokens := range a.config.Tokens {
+		if !slices.Contains(provisionUsernames, username) && username != Everyone {
+			return fmt.Errorf("user %s is not a provisioned user, refusing to add tokens", username)
+		}
+		var userID string
+		row := tx.QueryRow(selectUserIDFromUsernameQuery, username)
+		if err := row.Scan(&userID); err != nil {
+			return fmt.Errorf("failed to find provisioned user %s for provisioned tokens", username)
+		}
+		for _, token := range tokens {
+			if _, err := a.createTokenTx(tx, userID, token.Value, token.Label, time.Unix(0, 0), netip.IPv4Unspecified(), true); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // toSQLWildcard converts a wildcard string to a SQL wildcard string. It only allows '*' as wildcards,
@@ -1676,6 +2048,22 @@ func migrateFrom4(db *sql.DB) error {
 	return tx.Commit()
 }
 
+func migrateFrom5(db *sql.DB) error {
+	log.Tag(tag).Info("Migrating user database schema: from 5 to 6")
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(migrate5To6UpdateQueries); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(updateSchemaVersion, 6); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func nullString(s string) sql.NullString {
 	if s == "" {
 		return sql.NullString{}
@@ -1688,4 +2076,36 @@ func nullInt64(v int64) sql.NullInt64 {
 		return sql.NullInt64{}
 	}
 	return sql.NullInt64{Int64: v, Valid: true}
+}
+
+// execTx executes a function in a transaction. If the function returns an error, the transaction is rolled back.
+func execTx(db *sql.DB, f func(tx *sql.Tx) error) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := f(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// queryTx executes a function in a transaction and returns the result. If the function
+// returns an error, the transaction is rolled back.
+func queryTx[T any](db *sql.DB, f func(tx *sql.Tx) (T, error)) (T, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	defer tx.Rollback()
+	t, err := f(tx)
+	if err != nil {
+		return t, err
+	}
+	if err := tx.Commit(); err != nil {
+		return t, err
+	}
+	return t, nil
 }

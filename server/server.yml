@@ -82,6 +82,14 @@
 #   set to "read-write" (default), "read-only", "write-only" or "deny-all".
 # - auth-startup-queries allows you to run commands when the database is initialized, e.g. to enable
 #   WAL mode. This is similar to cache-startup-queries. See above for details.
+# - auth-users is a list of users that are automatically created when the server starts.
+#   Each entry is in the format "<username>:<password-hash>:<role>", e.g. "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:user"
+#   Use 'ntfy user hash' to generate the password hash from a password.
+# - auth-access is a list of access control entries that are automatically created when the server starts.
+#   Each entry is in the format "<username>:<topic-pattern>:<access>", e.g. "phil:mytopic:rw" or "phil:phil-*:rw".
+# - auth-tokens is a list of access tokens that are automatically created when the server starts.
+#   Each entry is in the format "<username>:<token>[:<label>]", e.g. "phil:tk_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef:My token".
+#   Use 'ntfy token generate' to generate a new access token.
 #
 # Debian/RPM package users:
 #   Use /var/lib/ntfy/user.db as user database to avoid permission issues. The package
@@ -94,6 +102,9 @@
 # auth-file: <filename>
 # auth-default-access: "read-write"
 # auth-startup-queries:
+# auth-users:
+# auth-access:
+# auth-tokens:
 
 # If set, the X-Forwarded-For header (or whatever is configured in proxy-forwarded-header) is used to determine
 # the visitor IP address instead of the remote address of the connection.
