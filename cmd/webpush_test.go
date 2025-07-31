@@ -10,17 +10,17 @@ import (
 )
 
 func TestCLI_WebPush_GenerateKeys(t *testing.T) {
-	app, _, _, stderr := newTestApp()
+	app, _, stdout, _ := newTestApp()
 	require.Nil(t, runWebPushCommand(app, server.NewConfig(), "keys"))
-	require.Contains(t, stderr.String(), "Web Push keys generated.")
+	require.Contains(t, stdout.String(), "Web Push keys generated.")
 }
 
 func TestCLI_WebPush_WriteKeysToFile(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Chdir(tempDir)
-	app, _, _, stderr := newTestApp()
+	app, _, stdout, _ := newTestApp()
 	require.Nil(t, runWebPushCommand(app, server.NewConfig(), "keys", "--output-file=key-file.yaml"))
-	require.Contains(t, stderr.String(), "Web Push keys written to key-file.yaml")
+	require.Contains(t, stdout.String(), "Web Push keys written to key-file.yaml")
 	require.FileExists(t, filepath.Join(tempDir, "key-file.yaml"))
 }
 
