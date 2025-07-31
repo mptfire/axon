@@ -53,9 +53,9 @@ web-push-private-key: %s
 		if err != nil {
 			return err
 		}
-		_, err = fmt.Fprintf(c.App.ErrWriter, "Web Push keys written to %s.\n", outputFile)
+		_, err = fmt.Fprintf(c.App.Writer, "Web Push keys written to %s.\n", outputFile)
 	} else {
-		_, err = fmt.Fprintf(c.App.ErrWriter, `Web Push keys generated. Add the following lines to your config file:
+		_, err = fmt.Fprintf(c.App.Writer, `Web Push keys generated. Add the following lines to your config file:
 
 web-push-public-key: %s
 web-push-private-key: %s

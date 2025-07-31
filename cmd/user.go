@@ -211,7 +211,7 @@ func execUserAdd(c *cli.Context) error {
 	}
 	if user, _ := manager.User(username); user != nil {
 		if c.Bool("ignore-exists") {
-			fmt.Fprintf(c.App.ErrWriter, "user %s already exists (exited successfully)\n", username)
+			fmt.Fprintf(c.App.Writer, "user %s already exists (exited successfully)\n", username)
 			return nil
 		}
 		return fmt.Errorf("user %s already exists", username)
@@ -226,7 +226,7 @@ func execUserAdd(c *cli.Context) error {
 	if err := manager.AddUser(username, password, role, hashed); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.App.ErrWriter, "user %s added with role %s\n", username, role)
+	fmt.Fprintf(c.App.Writer, "user %s added with role %s\n", username, role)
 	return nil
 }
 
@@ -247,7 +247,7 @@ func execUserDel(c *cli.Context) error {
 	if err := manager.RemoveUser(username); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.App.ErrWriter, "user %s removed\n", username)
+	fmt.Fprintf(c.App.Writer, "user %s removed\n", username)
 	return nil
 }
 
@@ -279,7 +279,7 @@ func execUserChangePass(c *cli.Context) error {
 	if err := manager.ChangePassword(username, password, hashed); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.App.ErrWriter, "changed password for user %s\n", username)
+	fmt.Fprintf(c.App.Writer, "changed password for user %s\n", username)
 	return nil
 }
 
@@ -301,7 +301,7 @@ func execUserChangeRole(c *cli.Context) error {
 	if err := manager.ChangeRole(username, role); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.App.ErrWriter, "changed role for user %s to %s\n", username, role)
+	fmt.Fprintf(c.App.Writer, "changed role for user %s to %s\n", username, role)
 	return nil
 }
 
@@ -339,12 +339,12 @@ func execUserChangeTier(c *cli.Context) error {
 		if err := manager.ResetTier(username); err != nil {
 			return err
 		}
-		fmt.Fprintf(c.App.ErrWriter, "removed tier from user %s\n", username)
+		fmt.Fprintf(c.App.Writer, "removed tier from user %s\n", username)
 	} else {
 		if err := manager.ChangeTier(username, tier); err != nil {
 			return err
 		}
-		fmt.Fprintf(c.App.ErrWriter, "changed tier for user %s to %s\n", username, tier)
+		fmt.Fprintf(c.App.Writer, "changed tier for user %s to %s\n", username, tier)
 	}
 	return nil
 }
