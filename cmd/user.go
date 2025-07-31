@@ -143,7 +143,7 @@ Example:
 			Description: `Asks for a password and creates a bcrypt password hash.
 
 This command is useful to create a password hash for a user, which can then be used
-for predefined users in the server config file, in auth-provision-users.
+for predefined users in the server config file, in auth-users.
 
 Example:
   $ ntfy user hash
