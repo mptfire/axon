@@ -1152,6 +1152,14 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	require.Equal(t, "Alerts token", tokens[0].Label)
 	require.True(t, tokens[0].Provisioned)
 
+	// Update the token last access time and origin (so we can check that it is persisted)
+	lastAccessTime := time.Now().Add(time.Hour)
+	lastOrigin := netip.MustParseAddr("1.1.9.9")
+	err = execTx(a.db, func(tx *sql.Tx) error {
+		return a.updateTokenLastAccessTx(tx, tokens[0].Value, lastAccessTime.Unix(), lastOrigin.String())
+	})
+	require.Nil(t, err)
+
 	// Re-open the DB (second app start)
 	require.Nil(t, a.db.Close())
 	conf.Users = []*User{
@@ -1165,7 +1173,8 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	}
 	conf.Tokens = map[string][]*Token{
 		"philuser": {
-			{Value: "tk_op56p8lz5bf3cxkz9je99v9oc3XXX", Label: "Alerts token updated"},
+			{Value: "tk_op56p8lz5bf3cxkz9je99v9oc37lo", Label: "Alerts token updated"},
+			{Value: "tk_u48wqendnkx9er21pqqcadlytbutx", Label: "Another token"},
 		},
 	}
 	a, err = NewManager(conf)
@@ -1191,10 +1200,14 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 
 	tokens, err = a.Tokens(provisionedUserID)
 	require.Nil(t, err)
-	require.Equal(t, 1, len(tokens))
-	require.Equal(t, "tk_op56p8lz5bf3cxkz9je99v9oc3XXX", tokens[0].Value)
+	require.Equal(t, 2, len(tokens))
+	require.Equal(t, "tk_op56p8lz5bf3cxkz9je99v9oc37lo", tokens[0].Value)
 	require.Equal(t, "Alerts token updated", tokens[0].Label)
+	require.Equal(t, lastAccessTime.Unix(), tokens[0].LastAccess.Unix())
+	require.Equal(t, lastOrigin, tokens[0].LastOrigin)
 	require.True(t, tokens[0].Provisioned)
+	require.Equal(t, "tk_u48wqendnkx9er21pqqcadlytbutx", tokens[1].Value)
+	require.Equal(t, "Another token", tokens[1].Label)
 
 	// Re-open the DB again (third app start)
 	require.Nil(t, a.db.Close())
@@ -1220,6 +1233,13 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	tokens, err = a.Tokens(provisionedUserID)
 	require.Nil(t, err)
 	require.Equal(t, 0, len(tokens))
+
+	var count int
+	a.db.QueryRow("SELECT COUNT(*) FROM user WHERE provisioned = 1").Scan(&count)
+	require.Equal(t, 0, count)
+	a.db.QueryRow("SELECT COUNT(*) FROM user_grant WHERE provisioned = 1").Scan(&count)
+	require.Equal(t, 0, count)
+	a.db.QueryRow("SELECT COUNT(*) FROM user_token WHERE provisioned = 1").Scan(&count)
 }
 
 func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
