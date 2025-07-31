@@ -222,6 +222,6 @@ func execTokenList(c *cli.Context) error {
 }
 
 func execTokenGenerate(c *cli.Context) error {
-	fmt.Println(user.GenerateToken())
+	fmt.Fprintln(c.App.Writer, user.GenerateToken())
 	return nil
 }

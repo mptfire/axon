@@ -306,19 +306,15 @@ func execUserChangeRole(c *cli.Context) error {
 }
 
 func execUserHash(c *cli.Context) error {
-	manager, err := createUserManager(c)
-	if err != nil {
-		return err
-	}
 	password, err := readPasswordAndConfirm(c)
 	if err != nil {
 		return err
 	}
-	hash, err := manager.HashPassword(password)
+	hash, err := user.HashPassword(password)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
-	fmt.Fprintf(c.App.Writer, "%s\n", string(hash))
+	fmt.Fprintln(c.App.Writer, hash)
 	return nil
 }
 

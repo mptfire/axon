@@ -550,7 +550,7 @@ func parseUsers(usersRaw []string) ([]*user.User, error) {
 		role := user.Role(strings.TrimSpace(parts[2]))
 		if !user.AllowedUsername(username) {
 			return nil, fmt.Errorf("invalid auth-users: %s, username invalid", userLine)
-		} else if err := user.AllowedPasswordHash(passwordHash); err != nil {
+		} else if err := user.ValidPasswordHash(passwordHash); err != nil {
 			return nil, fmt.Errorf("invalid auth-users: %s, %s", userLine, err.Error())
 		} else if !user.AllowedRole(role) {
 			return nil, fmt.Errorf("invalid auth-users: %s, role %s is not allowed, allowed roles are 'admin' or 'user'", userLine, role)
@@ -625,7 +625,7 @@ func parseTokens(users []*user.User, tokensRaw []string) (map[string][]*user.Tok
 			return nil, fmt.Errorf("invalid auth-tokens: %s, username %s invalid", tokenLine, username)
 		}
 		token := strings.TrimSpace(parts[1])
-		if !user.AllowedToken(token) {
+		if !user.ValidToken(token) {
 			return nil, fmt.Errorf("invalid auth-tokens: %s, token %s invalid, use 'ntfy token generate' to generate a random token", tokenLine, token)
 		}
 		var label string

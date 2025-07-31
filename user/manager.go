@@ -1015,11 +1015,11 @@ func (a *Manager) addUserTx(tx *sql.Tx, username, password string, role Role, ha
 	var err error = nil
 	if hashed {
 		hash = password
-		if err := AllowedPasswordHash(hash); err != nil {
+		if err := ValidPasswordHash(hash); err != nil {
 			return err
 		}
 	} else {
-		hash, err = a.HashPassword(password)
+		hash, err = hashPassword(password, a.config.BcryptCost)
 		if err != nil {
 			return err
 		}
@@ -1365,11 +1365,11 @@ func (a *Manager) changePasswordTx(tx *sql.Tx, username, password string, hashed
 	var err error
 	if hashed {
 		hash = password
-		if err := AllowedPasswordHash(hash); err != nil {
+		if err := ValidPasswordHash(hash); err != nil {
 			return err
 		}
 	} else {
-		hash, err = a.HashPassword(password)
+		hash, err = hashPassword(password, a.config.BcryptCost)
 		if err != nil {
 			return err
 		}
@@ -1695,15 +1695,6 @@ func (a *Manager) readTier(rows *sql.Rows) (*Tier, error) {
 		StripeMonthlyPriceID:     stripeMonthlyPriceID.String, // May be empty
 		StripeYearlyPriceID:      stripeYearlyPriceID.String,  // May be empty
 	}, nil
-}
-
-// HashPassword hashes the given password using bcrypt with the configured cost
-func (a *Manager) HashPassword(password string) (string, error) {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), a.config.BcryptCost)
-	if err != nil {
-		return "", err
-	}
-	return string(hash), nil
 }
 
 // Close closes the underlying database
