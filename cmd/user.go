@@ -378,7 +378,7 @@ func createUserManager(c *cli.Context) (*user.Manager, error) {
 		Filename:            authFile,
 		StartupQueries:      authStartupQueries,
 		DefaultAccess:       authDefault,
-		ProvisionEnabled:    false, // Do not re-provision users on manager initialization
+		ProvisionEnabled:    false, // Hack: Do not re-provision users on manager initialization
 		BcryptCost:          user.DefaultUserPasswordBcryptCost,
 		QueueWriterInterval: user.DefaultUserStatsQueueWriterInterval,
 	}

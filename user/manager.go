@@ -564,7 +564,7 @@ type Config struct {
 	Filename            string              // Database filename, e.g. "/var/lib/ntfy/user.db"
 	StartupQueries      string              // Queries to run on startup, e.g. to create initial users or tiers
 	DefaultAccess       Permission          // Default permission if no ACL matches
-	ProvisionEnabled    bool                // Enable auto-provisioning of users and access grants, disabled for "ntfy user" commands
+	ProvisionEnabled    bool                // Hack: Enable auto-provisioning of users and access grants, disabled for "ntfy user" commands
 	Users               []*User             // Predefined users to create on startup
 	Access              map[string][]*Grant // Predefined access grants to create on startup (username -> []*Grant)
 	Tokens              map[string][]*Token // Predefined users to create on startup (username -> []*Token)
@@ -605,7 +605,7 @@ func NewManager(config *Config) (*Manager, error) {
 		statsQueue: make(map[string]*Stats),
 		tokenQueue: make(map[string]*TokenUpdate),
 	}
-	if err := manager.maybeProvisionUsersAndAccess(); err != nil {
+	if err := manager.maybeProvisionUsersAccessAndTokens(); err != nil {
 		return nil, err
 	}
 	go manager.asyncQueueWriter(config.QueueWriterInterval)
@@ -1736,7 +1736,8 @@ func (a *Manager) Close() error {
 	return a.db.Close()
 }
 
-func (a *Manager) maybeProvisionUsersAndAccess() error {
+// maybeProvisionUsersAccessAndTokens provisions users, access control entries, and tokens based on the config.
+func (a *Manager) maybeProvisionUsersAccessAndTokens() error {
 	if !a.config.ProvisionEnabled {
 		return nil
 	}
