@@ -194,16 +194,17 @@ To set up auth, **configure the following options**:
 * `auth-file` is the user/access database; it is created automatically if it doesn't already exist; suggested 
   location `/var/lib/ntfy/user.db` (easiest if deb/rpm package is used)
 * `auth-default-access` defines the default/fallback access if no access control entry is found; it can be
-  set to `read-write` (default), `read-only`, `write-only` or `deny-all`.
+  set to `read-write` (default), `read-only`, `write-only` or `deny-all`. **If you are setting up a private instance,
+  you'll want to set this to `deny-all`** (see [private instance example](#example-private-instance)).
 
 Once configured, you can use 
 
-- the `ntfy user` command and the `auth-users` config option to [add or modify users](#users-and-roles).
-- the `ntfy access` command and the `auth-access` option let you [modify the access control list](#access-control-list-acl) for specific users
-and topic patterns.
+- the `ntfy user` command and the `auth-users` config option to [add or modify users](#users-and-roles)
+- the `ntfy access` command and the `auth-access` option to [modify the access control list](#access-control-list-acl)
+and topic patterns, and
 - the `ntfy token` command and the `auth-tokens` config option to [manage access tokens](#access-tokens) for users.
 
-Both of these commands **directly edit the auth database** (as defined in `auth-file`), so they only work on the server, 
+These commands **directly edit the auth database** (as defined in `auth-file`), so they only work on the server, 
 and only if the user accessing them has the right permissions.
 
 ### Users and roles
@@ -233,15 +234,16 @@ ntfy user del phil                 # Delete user phil
 ntfy user change-pass phil         # Change password for user phil
 ntfy user change-role phil admin   # Make user phil an admin
 ntfy user change-tier phil pro     # Change phil's tier to "pro"
+ntfy user hash                     # Generate password hash, use with auth-users config option
 ```
 
 #### Users via the config
 As an alternative to manually creating users via the `ntfy user` CLI command, you can provision users declaratively in
 the `server.yml` file by adding them to the `auth-users` array. This is useful for general admins, or if you'd like to
-deploy your ntfy server via Ansible without manually editing the database.
+deploy your ntfy server via Docker/Ansible without manually editing the database.
 
-The `auth-users` option is a list of users that are automatically created when the server starts. Each entry is defined 
-in the format `<username>:<password-hash>:<role>`.
+The `auth-users` option is a list of users that are automatically created/updated when the server starts. Users
+previously defined in the config but later removed will be deleted. Each entry is defined in the format `<username>:<password-hash>:<role>`.
 
 Here's an example with two users: `phil` is an admin, `ben` is a regular user.
 
@@ -260,7 +262,7 @@ Here's an example with two users: `phil` is an admin, `ben` is a regular user.
     NTFY_AUTH_USERS='phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin,ben:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user'
     ```
 
-The bcrypt hash can be created using `ntfy user hash` or an [online bcrypt generator](https://bcrypt-generator.com/) (though
+The password hash can be created using `ntfy user hash` or an [online bcrypt generator](https://bcrypt-generator.com/) (though
 note that you're putting your password in an untrusted website).
 
 !!! important
@@ -273,7 +275,8 @@ note that you're putting your password in an untrusted website).
 
 ### Access control list (ACL)
 The access control list (ACL) **manages access to topics for non-admin users, and for anonymous access (`everyone`/`*`)**.
-Each entry represents the access permissions for a user to a specific topic or topic pattern. 
+Each entry represents the access permissions for a user to a specific topic or topic pattern. Entries can be created in
+two different ways:
 
 * [Using the CLI](#acl-entries-via-the-cli): Using the `ntfy access` command, you can manually edit the access control list.
 * [In the config](#acl-entries-via-the-config): You can provision ACL entries in the `server.yml` file via `auth-access` key.
@@ -389,6 +392,8 @@ want to use a dedicated token to publish from your backup host, and one from you
     and deleting the account, every action can be performed with a token. Granular access tokens are on the roadmap,
     but not yet implemented.
 
+You can create access tokens in two different ways:
+
 * [Using the CLI](#tokens-via-the-cli): Using the `ntfy token` command, you can manually add/update/remove tokens.
 * [In the config](#tokens-via-the-config): You can provision access tokens in the `server.yml` file via `auth-tokens` key.
 
@@ -403,6 +408,7 @@ ntfy token list phil                 # Shows list of tokens for user phil
 ntfy token add phil                  # Create token for user phil which never expires
 ntfy token add --expires=2d phil     # Create token for user phil which expires in 2 days
 ntfy token remove phil tk_th2sxr...  # Delete token
+ntfy token generate                  # Generate random token, can be used in auth-tokens config option
 ```
 
 **Creating an access token:**
@@ -423,7 +429,7 @@ This is useful for automated setups, Docker environments, or when you want to de
 The `auth-tokens` option is a list of access tokens that are automatically created/updated when the server starts.
 When entries are removed, they are deleted from the database. Each entry is defined in the format `<username>:<token>[:<label>]`.
 
-he `<username>` must be an existing, provisioned user, as defined in the `auth-users` section (see [users via the config](#users-via-the-config)).
+The `<username>` must be an existing, provisioned user, as defined in the `auth-users` section (see [users via the config](#users-via-the-config)).
 The `<token>` is a valid access token, which must start with `tk_` and be 32 characters long (including the prefix). You can generate
 random tokens using the `ntfy token generate` command. The optional `<label>` is a human-readable label for the token, 
 which can be used to identify it later.
@@ -437,8 +443,8 @@ Here's an example:
     ``` yaml
     auth-file: "/var/lib/ntfy/user.db"
     auth-users:
-    - "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin"
-    - "backup-service:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user"
+      - "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin"
+      - "backup-service:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user"
     auth-tokens:
       - "phil:tk_3gd7d2yftt4b8ixyfe9mnmro88o76"
       - "backup-service:tk_f099we8uzj7xi5qshzajwp6jffvkz:Backup script"
