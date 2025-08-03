@@ -1389,6 +1389,14 @@ func (a *Manager) ReservationOwner(topic string) (string, error) {
 
 // ChangePassword changes a user's password
 func (a *Manager) ChangePassword(username, password string, hashed bool) error {
+	user, err := a.User(username)
+	if err != nil {
+		return err
+	}
+	if user.Provisioned {
+		return ErrProvisionedUserPasswordChange
+	}
+
 	return execTx(a.db, func(tx *sql.Tx) error {
 		return a.changePasswordTx(tx, username, password, hashed)
 	})
