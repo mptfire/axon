@@ -174,6 +174,12 @@ func (s *Server) handleAccountDelete(w http.ResponseWriter, r *http.Request, v *
 	if _, err := s.userManager.Authenticate(u.Name, req.Password); err != nil {
 		return errHTTPBadRequestIncorrectPasswordConfirmation
 	}
+	if err := s.userManager.CanChangeUser(u.Name); err != nil {
+		if errors.Is(err, user.ErrProvisionedUserChange) {
+			return errHTTPConflictProvisionedUserChange
+		}
+		return err
+	}
 	if s.webPush != nil && u.ID != "" {
 		if err := s.webPush.RemoveSubscriptionsByUserID(u.ID); err != nil {
 			logvr(v, r).Err(err).Warn("Error removing web push subscriptions for %s", u.Name)
@@ -208,8 +214,8 @@ func (s *Server) handleAccountPasswordChange(w http.ResponseWriter, r *http.Requ
 	}
 	logvr(v, r).Tag(tagAccount).Debug("Changing password for user %s", u.Name)
 	if err := s.userManager.ChangePassword(u.Name, req.NewPassword, false); err != nil {
-		if errors.Is(err, user.ErrProvisionedUserPasswordChange) {
-			return errHTTPConflictProvisionedUserPasswordChange
+		if errors.Is(err, user.ErrProvisionedUserChange) {
+			return errHTTPConflictProvisionedUserChange
 		}
 		return err
 	}
@@ -277,6 +283,9 @@ func (s *Server) handleAccountTokenUpdate(w http.ResponseWriter, r *http.Request
 		Debug("Updating token for user %s as deleted", u.Name)
 	token, err := s.userManager.ChangeToken(u.ID, req.Token, req.Label, expires)
 	if err != nil {
+		if errors.Is(err, user.ErrProvisionedTokenChange) {
+			return errHTTPConflictProvisionedTokenChange
+		}
 		return err
 	}
 	response := &apiAccountTokenResponse{
@@ -299,6 +308,9 @@ func (s *Server) handleAccountTokenDelete(w http.ResponseWriter, r *http.Request
 		}
 	}
 	if err := s.userManager.RemoveToken(u.ID, token); err != nil {
+		if errors.Is(err, user.ErrProvisionedTokenChange) {
+			return errHTTPConflictProvisionedTokenChange
+		}
 		return err
 	}
 	logvr(v, r).
