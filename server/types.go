@@ -360,11 +360,12 @@ type apiAccountTokenUpdateRequest struct {
 }
 
 type apiAccountTokenResponse struct {
-	Token      string `json:"token"`
-	Label      string `json:"label,omitempty"`
-	LastAccess int64  `json:"last_access,omitempty"`
-	LastOrigin string `json:"last_origin,omitempty"`
-	Expires    int64  `json:"expires,omitempty"` // Unix timestamp
+	Token       string `json:"token"`
+	Label       string `json:"label,omitempty"`
+	LastAccess  int64  `json:"last_access,omitempty"`
+	LastOrigin  string `json:"last_origin,omitempty"`
+	Expires     int64  `json:"expires,omitempty"`     // Unix timestamp
+	Provisioned bool   `json:"provisioned,omitempty"` // True if this token was provisioned by the server config
 }
 
 type apiAccountPhoneNumberVerifyRequest struct {
@@ -426,6 +427,7 @@ type apiAccountResponse struct {
 	Username      string                     `json:"username"`
 	Role          string                     `json:"role,omitempty"`
 	SyncTopic     string                     `json:"sync_topic,omitempty"`
+	Provisioned   bool                       `json:"provisioned,omitempty"`
 	Language      string                     `json:"language,omitempty"`
 	Notification  *user.NotificationPrefs    `json:"notification,omitempty"`
 	Subscriptions []*user.Subscription       `json:"subscriptions,omitempty"`

@@ -1209,6 +1209,9 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	require.Equal(t, "tk_u48wqendnkx9er21pqqcadlytbutx", tokens[1].Value)
 	require.Equal(t, "Another token", tokens[1].Label)
 
+	// Try changing provisioned user's password
+	require.Error(t, a.ChangePassword("philuser", "new-pass", false))
+
 	// Re-open the DB again (third app start)
 	require.Nil(t, a.db.Close())
 	conf.Users = []*User{}

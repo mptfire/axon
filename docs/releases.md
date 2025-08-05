@@ -2,6 +2,22 @@
 Binaries for all releases can be found on the GitHub releases pages for the [ntfy server](https://github.com/binwiederhier/ntfy/releases)
 and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/releases).
 
+### ntfy server v2.14.0
+Released August 5, 2025
+
+This release adds support for [declarative users](config.md#users-via-the-config), [declarative ACL entries](config.md#acl-entries-via-the-config) and [declarative tokens](config.md#tokens-via-the-config). This allows you to define users, ACL entries and tokens in the config file, which is useful for static deployments or deployments that use a configuration management system.
+
+It also adds support for [pre-defined templates](publish.md#pre-defined-templates) and [custom templates](publish.md#custom-templates) for enhanced JSON webhook support, as well as advanced [template functions](publish.md#template-functions) based on the [Sprig](https://github.com/Masterminds/sprig) functions.
+
+❤️ If you like ntfy, **please consider sponsoring me** via [GitHub Sponsors](https://github.com/sponsors/binwiederhier), [Liberapay](https://en.liberapay.com/ntfy/), Bitcoin (`1626wjrw3uWk9adyjCfYwafw4sQWujyjn8`), or by buying a [paid plan via the web app](https://ntfy.sh/app). ntfy
+will always remain open source.
+
+**Features:**
+
+* [Declarative users](config.md#users-via-the-config), [declarative ACL entries](config.md#acl-entries-via-the-config) and [declarative tokens](config.md#tokens-via-the-config) ([#464](https://github.com/binwiederhier/ntfy/issues/464), [#1384](https://github.com/binwiederhier/ntfy/pull/1384), [#1413](https://github.com/binwiederhier/ntfy/pull/1413), thanks to [pinpox](https://github.com/pinpox) for reporting, to [@wunter8](https://github.com/wunter8) for reviewing and implementing parts of it)
+* [Pre-defined templates](publish.md#pre-defined-templates) and [custom templates](publish.md#custom-templates) for enhanced JSON webhook support ([#1390](https://github.com/binwiederhier/ntfy/pull/1390))
+* Support of advanced [template functions](publish.md#template-functions) based on the [Sprig](https://github.com/Masterminds/sprig) library ([#1121](https://github.com/binwiederhier/ntfy/issues/1121), thanks to [@davidatkinsondoyle](https://github.com/davidatkinsondoyle) for reporting, to [@wunter8](https://github.com/wunter8) for implementing, and to the Sprig team for their work)
+
 ### ntfy server v2.13.0
 Released July 10, 2025
 
@@ -1451,14 +1467,6 @@ For older releases, check out the GitHub releases pages for the [ntfy server](ht
 and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/releases).
 
 ## Not released yet
-
-### ntfy server v2.14.0 (UNRELEASED)
-
-**Features:**
-
-* [Declarative users](config.md#users-via-the-config), [declarative ACL entries](config.md#acl-entries-via-the-config) and [declarative tokens](config.md#tokens-via-the-config) ([#464](https://github.com/binwiederhier/ntfy/issues/464), [#1384](https://github.com/binwiederhier/ntfy/pull/1384), thanks to [pinpox](https://github.com/pinpox) for reporting, to [@wunter8](https://github.com/wunter8) for reviewing)
-* [Pre-defined templates](publish.md#pre-defined-templates) and [custom templates](publish.md#custom-templates) for enhanced JSON webhook support ([#1390](https://github.com/binwiederhier/ntfy/pull/1390))
-* Support of advanced [template functions](publish.md#template-functions) based on the [Sprig](https://github.com/Masterminds/sprig) library ([#1121](https://github.com/binwiederhier/ntfy/issues/1121), thanks to [@davidatkinsondoyle](https://github.com/davidatkinsondoyle) for reporting, to [@wunter8](https://github.com/wunter8) for implementing, and to the Sprig team for their work)
 
 ### ntfy Android app v1.16.1 (UNRELEASED)
 

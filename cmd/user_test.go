@@ -60,6 +60,9 @@ func TestCLI_User_Add_Password_Mismatch(t *testing.T) {
 
 func TestCLI_User_ChangePass(t *testing.T) {
 	s, conf, port := newTestServerWithAuth(t)
+	conf.AuthUsers = []*user.User{
+		{Name: "philuser", Hash: "$2a$10$U4WSIYY6evyGmZaraavM2e2JeVG6EMGUKN1uUwufUeeRd4Jpg6cGC", Role: user.RoleUser}, // philuser:philpass
+	}
 	defer test.StopServer(t, s, port)
 
 	// Add user
@@ -73,6 +76,11 @@ func TestCLI_User_ChangePass(t *testing.T) {
 	stdin.WriteString("newpass\nnewpass")
 	require.Nil(t, runUserCommand(app, conf, "change-pass", "phil"))
 	require.Contains(t, stdout.String(), "changed password for user phil")
+
+	// Cannot change provisioned user's pass
+	app, stdin, _, _ = newTestApp()
+	stdin.WriteString("newpass\nnewpass")
+	require.Error(t, runUserCommand(app, conf, "change-pass", "philuser"))
 }
 
 func TestCLI_User_ChangeRole(t *testing.T) {
