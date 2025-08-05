@@ -31,14 +31,6 @@ export class TopicReservedError extends Error {
   }
 }
 
-export class ProvisionedUserPasswordError extends Error {
-  static CODE = 40905; // errHTTPConflictTopicReserved
-
-  constructor() {
-    super("Cannot change the password of a provisioned user");
-  }
-}
-
 export class AccountCreateLimitReachedError extends Error {
   static CODE = 42906; // errHTTPTooManyRequestsLimitAccountCreation
 

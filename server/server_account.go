@@ -85,6 +85,7 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 		response.Username = u.Name
 		response.Role = string(u.Role)
 		response.SyncTopic = u.SyncTopic
+		response.Provisioned = u.Provisioned
 		if u.Prefs != nil {
 			if u.Prefs.Language != nil {
 				response.Language = *u.Prefs.Language
@@ -139,11 +140,12 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 					lastOrigin = t.LastOrigin.String()
 				}
 				response.Tokens = append(response.Tokens, &apiAccountTokenResponse{
-					Token:      t.Value,
-					Label:      t.Label,
-					LastAccess: t.LastAccess.Unix(),
-					LastOrigin: lastOrigin,
-					Expires:    t.Expires.Unix(),
+					Token:       t.Value,
+					Label:       t.Label,
+					LastAccess:  t.LastAccess.Unix(),
+					LastOrigin:  lastOrigin,
+					Expires:     t.Expires.Unix(),
+					Provisioned: t.Provisioned,
 				})
 			}
 		}
