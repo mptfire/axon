@@ -1106,7 +1106,7 @@ Which will result in a notification that looks like this:
 When `X-Template: yes` (aliases: `Template: yes`, `Tpl: yes`) or `?template=yes` is set, you can use Go templates in the `message` and `title` fields of your
 webhook payload. 
 
-Inline templates are most useful for templated one-off messages, of if you do not control the ntfy server (e.g., if you're using ntfy.sh).
+Inline templates are most useful for templated one-off messages, or if you do not control the ntfy server (e.g., if you're using ntfy.sh).
 Consider using [pre-defined templates](#pre-defined-templates) or [custom templates](#custom-templates) instead, 
 if you control the ntfy server, as templates are much easier to maintain.
 
