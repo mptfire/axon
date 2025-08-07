@@ -7,9 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mattn/go-sqlite3"
-	"github.com/stripe/stripe-go/v74"
 	"golang.org/x/crypto/bcrypt"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/util"
 	"net/netip"
 	"path/filepath"
@@ -1242,12 +1242,12 @@ func (a *Manager) readUser(rows *sql.Rows) (*User, error) {
 			Calls:    calls,
 		},
 		Billing: &Billing{
-			StripeCustomerID:            stripeCustomerID.String,                                          // May be empty
-			StripeSubscriptionID:        stripeSubscriptionID.String,                                      // May be empty
-			StripeSubscriptionStatus:    stripe.SubscriptionStatus(stripeSubscriptionStatus.String),       // May be empty
-			StripeSubscriptionInterval:  stripe.PriceRecurringInterval(stripeSubscriptionInterval.String), // May be empty
-			StripeSubscriptionPaidUntil: time.Unix(stripeSubscriptionPaidUntil.Int64, 0),                  // May be zero
-			StripeSubscriptionCancelAt:  time.Unix(stripeSubscriptionCancelAt.Int64, 0),                   // May be zero
+			StripeCustomerID:            stripeCustomerID.String,                                            // May be empty
+			StripeSubscriptionID:        stripeSubscriptionID.String,                                        // May be empty
+			StripeSubscriptionStatus:    payments.SubscriptionStatus(stripeSubscriptionStatus.String),       // May be empty
+			StripeSubscriptionInterval:  payments.PriceRecurringInterval(stripeSubscriptionInterval.String), // May be empty
+			StripeSubscriptionPaidUntil: time.Unix(stripeSubscriptionPaidUntil.Int64, 0),                    // May be zero
+			StripeSubscriptionCancelAt:  time.Unix(stripeSubscriptionCancelAt.Int64, 0),                     // May be zero
 		},
 		Deleted: deleted.Valid,
 	}

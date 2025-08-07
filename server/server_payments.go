@@ -14,6 +14,7 @@ import (
 	"github.com/stripe/stripe-go/v74/subscription"
 	"github.com/stripe/stripe-go/v74/webhook"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 	"io"
@@ -43,8 +44,6 @@ import (
 //      Whenever a subscription changes (updated, deleted), Stripe sends us a request via a webhook.
 //      This is used to keep the local user database fields up to date. Stripe is the source of truth.
 //      What Stripe says is mirrored and not questioned.
-
-const hasStripe = true
 
 var (
 	errNotAPaidTier                 = errors.New("tier does not have billing price identifier")
@@ -468,8 +467,8 @@ func (s *Server) updateSubscriptionAndTier(r *http.Request, v *visitor, u *user.
 	billing := &user.Billing{
 		StripeCustomerID:            customerID,
 		StripeSubscriptionID:        subscriptionID,
-		StripeSubscriptionStatus:    stripe.SubscriptionStatus(status),
-		StripeSubscriptionInterval:  stripe.PriceRecurringInterval(interval),
+		StripeSubscriptionStatus:    payments.SubscriptionStatus(status),
+		StripeSubscriptionInterval:  payments.PriceRecurringInterval(interval),
 		StripeSubscriptionPaidUntil: time.Unix(paidUntil, 0),
 		StripeSubscriptionCancelAt:  time.Unix(cancelAt, 0),
 	}

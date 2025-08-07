@@ -16,10 +16,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/stripe/stripe-go/v74"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/server"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
@@ -320,6 +320,8 @@ func execServe(c *cli.Context) error {
 		return errors.New("cannot set enable-signup, enable-login, enable-reserve-topics, or stripe-secret-key if auth-file is not set")
 	} else if enableSignup && !enableLogin {
 		return errors.New("cannot set enable-signup without also setting enable-login")
+	} else if !payments.Available && (stripeSecretKey != "" || stripeWebhookKey != "") {
+		return errors.New("cannot set stripe-secret-key or stripe-webhook-key, support for payments is not available in this build (nopayments)")
 	} else if stripeSecretKey != "" && (stripeWebhookKey == "" || baseURL == "") {
 		return errors.New("if stripe-secret-key is set, stripe-webhook-key and base-url must also be set")
 	} else if twilioAccount != "" && (twilioAuthToken == "" || twilioPhoneNumber == "" || twilioVerifyService == "" || baseURL == "" || authFile == "") {
@@ -396,8 +398,7 @@ func execServe(c *cli.Context) error {
 
 	// Stripe things
 	if stripeSecretKey != "" {
-		stripe.EnableTelemetry = false // Whoa!
-		stripe.Key = stripeSecretKey
+		payments.Setup(stripeSecretKey)
 	}
 
 	// Add default forbidden topics
