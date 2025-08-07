@@ -5,6 +5,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/SherClockHolmes/webpush-go"
 	"github.com/stretchr/testify/require"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -22,6 +24,28 @@ const (
 	testWebPushEndpoint = "https://updates.push.services.mozilla.com/wpush/v1/AAABBCCCDDEEEFFF"
 )
 
+func TestServer_WebPush_Enabled(t *testing.T) {
+	conf := newTestConfig(t)
+	conf.WebRoot = "" // Disable web app
+	s := newTestServer(t, conf)
+
+	rr := request(t, s, "GET", "/manifest.webmanifest", "", nil)
+	require.Equal(t, 404, rr.Code)
+
+	conf2 := newTestConfig(t)
+	s2 := newTestServer(t, conf2)
+
+	rr = request(t, s2, "GET", "/manifest.webmanifest", "", nil)
+	require.Equal(t, 404, rr.Code)
+
+	conf3 := newTestConfigWithWebPush(t)
+	s3 := newTestServer(t, conf3)
+
+	rr = request(t, s3, "GET", "/manifest.webmanifest", "", nil)
+	require.Equal(t, 200, rr.Code)
+	require.Equal(t, "application/manifest+json", rr.Header().Get("Content-Type"))
+
+}
 func TestServer_WebPush_Disabled(t *testing.T) {
 	s := newTestServer(t, newTestConfig(t))
 
@@ -255,4 +279,15 @@ func requireSubscriptionCount(t *testing.T, s *Server, topic string, expectedLen
 	subs, err := s.webPush.SubscriptionsForTopic(topic)
 	require.Nil(t, err)
 	require.Len(t, subs, expectedLength)
+}
+
+func newTestConfigWithWebPush(t *testing.T) *Config {
+	conf := newTestConfig(t)
+	privateKey, publicKey, err := webpush.GenerateVAPIDKeys()
+	require.Nil(t, err)
+	conf.WebPushFile = filepath.Join(t.TempDir(), "webpush.db")
+	conf.WebPushEmailAddress = "testing@example.com"
+	conf.WebPushPrivateKey = privateKey
+	conf.WebPushPublicKey = publicKey
+	return conf
 }
