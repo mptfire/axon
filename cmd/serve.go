@@ -279,6 +279,8 @@ func execServe(c *cli.Context) error {
 	// Check values
 	if firebaseKeyFile != "" && !util.FileExists(firebaseKeyFile) {
 		return errors.New("if set, FCM key file must exist")
+	} else if firebaseKeyFile != "" && !server.FirebaseAvailable {
+		return errors.New("cannot set firebase-key-file, support for Firebase is not available (nofirebase)")
 	} else if webPushPublicKey != "" && (webPushPrivateKey == "" || webPushFile == "" || webPushEmailAddress == "" || baseURL == "") {
 		return errors.New("if web push is enabled, web-push-private-key, web-push-public-key, web-push-file, web-push-email-address, and base-url should be set. run 'ntfy webpush keys' to generate keys")
 	} else if keepaliveInterval < 5*time.Second {

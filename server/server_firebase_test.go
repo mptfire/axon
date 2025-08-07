@@ -1,3 +1,5 @@
+//go:build !nofirebase
+
 package server
 
 import (
