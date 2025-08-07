@@ -182,7 +182,7 @@ func execTierAdd(c *cli.Context) error {
 	}
 	if tier, _ := manager.Tier(code); tier != nil {
 		if c.Bool("ignore-exists") {
-			fmt.Fprintf(c.App.ErrWriter, "tier %s already exists (exited successfully)\n", code)
+			fmt.Fprintf(c.App.Writer, "tier %s already exists (exited successfully)\n", code)
 			return nil
 		}
 		return fmt.Errorf("tier %s already exists", code)
@@ -234,7 +234,7 @@ func execTierAdd(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(c.App.ErrWriter, "tier added\n\n")
+	fmt.Fprintf(c.App.Writer, "tier added\n\n")
 	printTier(c, tier)
 	return nil
 }
@@ -315,7 +315,7 @@ func execTierChange(c *cli.Context) error {
 	if err := manager.UpdateTier(tier); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.App.ErrWriter, "tier updated\n\n")
+	fmt.Fprintf(c.App.Writer, "tier updated\n\n")
 	printTier(c, tier)
 	return nil
 }
@@ -335,7 +335,7 @@ func execTierDel(c *cli.Context) error {
 	if err := manager.RemoveTier(code); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.App.ErrWriter, "tier %s removed\n", code)
+	fmt.Fprintf(c.App.Writer, "tier %s removed\n", code)
 	return nil
 }
 
@@ -359,16 +359,16 @@ func printTier(c *cli.Context, tier *user.Tier) {
 	if tier.StripeMonthlyPriceID != "" && tier.StripeYearlyPriceID != "" {
 		prices = fmt.Sprintf("%s / %s", tier.StripeMonthlyPriceID, tier.StripeYearlyPriceID)
 	}
-	fmt.Fprintf(c.App.ErrWriter, "tier %s (id: %s)\n", tier.Code, tier.ID)
-	fmt.Fprintf(c.App.ErrWriter, "- Name: %s\n", tier.Name)
-	fmt.Fprintf(c.App.ErrWriter, "- Message limit: %d\n", tier.MessageLimit)
-	fmt.Fprintf(c.App.ErrWriter, "- Message expiry duration: %s (%d seconds)\n", tier.MessageExpiryDuration.String(), int64(tier.MessageExpiryDuration.Seconds()))
-	fmt.Fprintf(c.App.ErrWriter, "- Email limit: %d\n", tier.EmailLimit)
-	fmt.Fprintf(c.App.ErrWriter, "- Phone call limit: %d\n", tier.CallLimit)
-	fmt.Fprintf(c.App.ErrWriter, "- Reservation limit: %d\n", tier.ReservationLimit)
-	fmt.Fprintf(c.App.ErrWriter, "- Attachment file size limit: %s\n", util.FormatSizeHuman(tier.AttachmentFileSizeLimit))
-	fmt.Fprintf(c.App.ErrWriter, "- Attachment total size limit: %s\n", util.FormatSizeHuman(tier.AttachmentTotalSizeLimit))
-	fmt.Fprintf(c.App.ErrWriter, "- Attachment expiry duration: %s (%d seconds)\n", tier.AttachmentExpiryDuration.String(), int64(tier.AttachmentExpiryDuration.Seconds()))
-	fmt.Fprintf(c.App.ErrWriter, "- Attachment daily bandwidth limit: %s\n", util.FormatSizeHuman(tier.AttachmentBandwidthLimit))
-	fmt.Fprintf(c.App.ErrWriter, "- Stripe prices (monthly/yearly): %s\n", prices)
+	fmt.Fprintf(c.App.Writer, "tier %s (id: %s)\n", tier.Code, tier.ID)
+	fmt.Fprintf(c.App.Writer, "- Name: %s\n", tier.Name)
+	fmt.Fprintf(c.App.Writer, "- Message limit: %d\n", tier.MessageLimit)
+	fmt.Fprintf(c.App.Writer, "- Message expiry duration: %s (%d seconds)\n", tier.MessageExpiryDuration.String(), int64(tier.MessageExpiryDuration.Seconds()))
+	fmt.Fprintf(c.App.Writer, "- Email limit: %d\n", tier.EmailLimit)
+	fmt.Fprintf(c.App.Writer, "- Phone call limit: %d\n", tier.CallLimit)
+	fmt.Fprintf(c.App.Writer, "- Reservation limit: %d\n", tier.ReservationLimit)
+	fmt.Fprintf(c.App.Writer, "- Attachment file size limit: %s\n", util.FormatSizeHuman(tier.AttachmentFileSizeLimit))
+	fmt.Fprintf(c.App.Writer, "- Attachment total size limit: %s\n", util.FormatSizeHuman(tier.AttachmentTotalSizeLimit))
+	fmt.Fprintf(c.App.Writer, "- Attachment expiry duration: %s (%d seconds)\n", tier.AttachmentExpiryDuration.String(), int64(tier.AttachmentExpiryDuration.Seconds()))
+	fmt.Fprintf(c.App.Writer, "- Attachment daily bandwidth limit: %s\n", util.FormatSizeHuman(tier.AttachmentBandwidthLimit))
+	fmt.Fprintf(c.App.Writer, "- Stripe prices (monthly/yearly): %s\n", prices)
 }

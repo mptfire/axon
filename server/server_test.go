@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
+	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -1169,7 +1170,7 @@ func (t *testMailer) Count() int {
 	return t.count
 }
 
-func TestServer_PublishTooRequests_Defaults(t *testing.T) {
+func TestServer_PublishTooManyRequests_Defaults(t *testing.T) {
 	s := newTestServer(t, newTestConfig(t))
 	for i := 0; i < 60; i++ {
 		response := request(t, s, "PUT", "/mytopic", fmt.Sprintf("message %d", i), nil)
@@ -1179,10 +1180,53 @@ func TestServer_PublishTooRequests_Defaults(t *testing.T) {
 	require.Equal(t, 429, response.Code)
 }
 
-func TestServer_PublishTooRequests_Defaults_ExemptHosts(t *testing.T) {
+func TestServer_PublishTooManyRequests_Defaults_IPv6(t *testing.T) {
+	s := newTestServer(t, newTestConfig(t))
+	overrideRemoteAddr1 := func(r *http.Request) {
+		r.RemoteAddr = "[2001:db8:9999:8888:1::1]:1234"
+	}
+	overrideRemoteAddr2 := func(r *http.Request) {
+		r.RemoteAddr = "[2001:db8:9999:8888:2::1]:1234" // Same /64
+	}
+	for i := 0; i < 30; i++ {
+		response := request(t, s, "PUT", "/mytopic", fmt.Sprintf("message %d", i), nil, overrideRemoteAddr1)
+		require.Equal(t, 200, response.Code)
+	}
+	for i := 0; i < 30; i++ {
+		response := request(t, s, "PUT", "/mytopic", fmt.Sprintf("message %d", i), nil, overrideRemoteAddr2)
+		require.Equal(t, 200, response.Code)
+	}
+	response := request(t, s, "PUT", "/mytopic", "message", nil, overrideRemoteAddr1)
+	require.Equal(t, 429, response.Code)
+}
+
+func TestServer_PublishTooManyRequests_IPv6_Slash48(t *testing.T) {
+	c := newTestConfig(t)
+	c.VisitorRequestLimitBurst = 6
+	c.VisitorPrefixBitsIPv6 = 48 // Use /48 for IPv6 prefixes
+	s := newTestServer(t, c)
+	overrideRemoteAddr1 := func(r *http.Request) {
+		r.RemoteAddr = "[2001:db8:9999::1]:1234"
+	}
+	overrideRemoteAddr2 := func(r *http.Request) {
+		r.RemoteAddr = "[2001:db8:9999::2]:1234" // Same /48
+	}
+	for i := 0; i < 3; i++ {
+		response := request(t, s, "PUT", "/mytopic", fmt.Sprintf("message %d", i), nil, overrideRemoteAddr1)
+		require.Equal(t, 200, response.Code)
+	}
+	for i := 0; i < 3; i++ {
+		response := request(t, s, "PUT", "/mytopic", fmt.Sprintf("message %d", i), nil, overrideRemoteAddr2)
+		require.Equal(t, 200, response.Code)
+	}
+	response := request(t, s, "PUT", "/mytopic", "message", nil, overrideRemoteAddr1)
+	require.Equal(t, 429, response.Code)
+}
+
+func TestServer_PublishTooManyRequests_Defaults_ExemptHosts(t *testing.T) {
 	c := newTestConfig(t)
 	c.VisitorRequestLimitBurst = 3
-	c.VisitorRequestExemptIPAddrs = []netip.Prefix{netip.MustParsePrefix("9.9.9.9/32")} // see request()
+	c.VisitorRequestExemptPrefixes = []netip.Prefix{netip.MustParsePrefix("9.9.9.9/32")} // see request()
 	s := newTestServer(t, c)
 	for i := 0; i < 5; i++ { // > 3
 		response := request(t, s, "PUT", "/mytopic", fmt.Sprintf("message %d", i), nil)
@@ -1190,11 +1234,25 @@ func TestServer_PublishTooRequests_Defaults_ExemptHosts(t *testing.T) {
 	}
 }
 
-func TestServer_PublishTooRequests_Defaults_ExemptHosts_MessageDailyLimit(t *testing.T) {
+func TestServer_PublishTooManyRequests_Defaults_ExemptHosts_IPv6(t *testing.T) {
+	c := newTestConfig(t)
+	c.VisitorRequestLimitBurst = 3
+	c.VisitorRequestExemptPrefixes = []netip.Prefix{netip.MustParsePrefix("2001:db8:9999::/48")}
+	s := newTestServer(t, c)
+	overrideRemoteAddr := func(r *http.Request) {
+		r.RemoteAddr = "[2001:db8:9999::1]:1234"
+	}
+	for i := 0; i < 5; i++ { // > 3
+		response := request(t, s, "PUT", "/mytopic", fmt.Sprintf("message %d", i), nil, overrideRemoteAddr)
+		require.Equal(t, 200, response.Code)
+	}
+}
+
+func TestServer_PublishTooManyRequests_Defaults_ExemptHosts_MessageDailyLimit(t *testing.T) {
 	c := newTestConfig(t)
 	c.VisitorRequestLimitBurst = 10
 	c.VisitorMessageDailyLimit = 4
-	c.VisitorRequestExemptIPAddrs = []netip.Prefix{netip.MustParsePrefix("9.9.9.9/32")} // see request()
+	c.VisitorRequestExemptPrefixes = []netip.Prefix{netip.MustParsePrefix("9.9.9.9/32")} // see request()
 	s := newTestServer(t, c)
 	for i := 0; i < 8; i++ { // 4
 		response := request(t, s, "PUT", "/mytopic", "message", nil)
@@ -1202,7 +1260,7 @@ func TestServer_PublishTooRequests_Defaults_ExemptHosts_MessageDailyLimit(t *tes
 	}
 }
 
-func TestServer_PublishTooRequests_ShortReplenish(t *testing.T) {
+func TestServer_PublishTooManyRequests_ShortReplenish(t *testing.T) {
 	t.Parallel()
 	c := newTestConfig(t)
 	c.VisitorRequestLimitBurst = 60
@@ -2244,11 +2302,24 @@ func TestServer_Visitor_Custom_ClientIP_Header(t *testing.T) {
 	require.Equal(t, "1.2.3.4", v.ip.String())
 }
 
+func TestServer_Visitor_Custom_ClientIP_Header_IPv6(t *testing.T) {
+	c := newTestConfig(t)
+	c.BehindProxy = true
+	c.ProxyForwardedHeader = "X-Client-IP"
+	s := newTestServer(t, c)
+	r, _ := http.NewRequest("GET", "/bla", nil)
+	r.RemoteAddr = "[2001:db8:9999::1]:1234"
+	r.Header.Set("X-Client-IP", "2001:db8:7777::1")
+	v, err := s.maybeAuthenticate(r)
+	require.Nil(t, err)
+	require.Equal(t, "2001:db8:7777::1", v.ip.String())
+}
+
 func TestServer_Visitor_Custom_Forwarded_Header(t *testing.T) {
 	c := newTestConfig(t)
 	c.BehindProxy = true
 	c.ProxyForwardedHeader = "Forwarded"
-	c.ProxyTrustedAddresses = []string{"1.2.3.4"}
+	c.ProxyTrustedPrefixes = []netip.Prefix{netip.MustParsePrefix("1.2.3.0/24")}
 	s := newTestServer(t, c)
 	r, _ := http.NewRequest("GET", "/bla", nil)
 	r.RemoteAddr = "8.9.10.11:1234"
@@ -2256,6 +2327,20 @@ func TestServer_Visitor_Custom_Forwarded_Header(t *testing.T) {
 	v, err := s.maybeAuthenticate(r)
 	require.Nil(t, err)
 	require.Equal(t, "5.6.7.8", v.ip.String())
+}
+
+func TestServer_Visitor_Custom_Forwarded_Header_IPv6(t *testing.T) {
+	c := newTestConfig(t)
+	c.BehindProxy = true
+	c.ProxyForwardedHeader = "Forwarded"
+	c.ProxyTrustedPrefixes = []netip.Prefix{netip.MustParsePrefix("2001:db8:1111::/64")}
+	s := newTestServer(t, c)
+	r, _ := http.NewRequest("GET", "/bla", nil)
+	r.RemoteAddr = "[2001:db8:2222::1]:1234"
+	r.Header.Set("Forwarded", " for=[2001:db8:1111::1], by=example.com;for=[2001:db8:3333::1]")
+	v, err := s.maybeAuthenticate(r)
+	require.Nil(t, err)
+	require.Equal(t, "2001:db8:3333::1", v.ip.String())
 }
 
 func TestServer_PublishWhileUpdatingStatsWithLotsOfMessages(t *testing.T) {
@@ -2833,7 +2918,7 @@ func TestServer_MessageTemplate_Range(t *testing.T) {
 
 	require.Equal(t, 200, response.Code)
 	m := toMessage(t, response.Body.String())
-	require.Equal(t, "Severe URLs:\n- https://severe1.com\n- https://severe2.com\n", m.Message)
+	require.Equal(t, "Severe URLs:\n- https://severe1.com\n- https://severe2.com", m.Message)
 }
 
 func TestServer_MessageTemplate_ExceedMessageSize_TemplatedMessageOK(t *testing.T) {
@@ -2886,8 +2971,7 @@ Labels:
 Annotations:
  - summary = 15m load average too high
 Source: localhost:3000/alerting/grafana/NW9oDw-4z/view
-Silence: localhost:3000/alerting/silence/new?alertmanager=grafana&matcher=alertname%3DLoad+avg+15m+too+high&matcher=grafana_folder%3DNode+alerts&matcher=instance%3D10.108.0.2%3A9100&matcher=job%3Dnode-exporter
-`, m.Message)
+Silence: localhost:3000/alerting/silence/new?alertmanager=grafana&matcher=alertname%3DLoad+avg+15m+too+high&matcher=grafana_folder%3DNode+alerts&matcher=instance%3D10.108.0.2%3A9100&matcher=job%3Dnode-exporter`, m.Message)
 }
 
 func TestServer_MessageTemplate_GitHub(t *testing.T) {
@@ -2940,12 +3024,223 @@ template ""}}`,
 	}
 }
 
+func TestServer_MessageTemplate_SprigFunctions(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	bodies := []string{
+		`{"foo":"bar","nested":{"title":"here"}}`,
+		`{"topic":"ntfy-test"}`,
+		`{"topic":"another-topic"}`,
+	}
+	templates := []string{
+		`{{.foo | upper}} is {{.nested.title | repeat 3}}`,
+		`{{if hasPrefix "ntfy-" .topic}}Topic: {{trimPrefix "ntfy-" .topic}}{{ else }}Topic: {{.topic}}{{end}}`,
+		`{{if hasPrefix "ntfy-" .topic}}Topic: {{trimPrefix "ntfy-" .topic}}{{ else }}Topic: {{.topic}}{{end}}`,
+	}
+	targets := []string{
+		`BAR is hereherehere`,
+		`Topic: test`,
+		`Topic: another-topic`,
+	}
+	for i, body := range bodies {
+		template := templates[i]
+		target := targets[i]
+		t.Run(template, func(t *testing.T) {
+			response := request(t, s, "PUT", `/mytopic`, body, map[string]string{
+				"Template": "yes",
+				"Message":  template,
+			})
+			require.Equal(t, 200, response.Code)
+			m := toMessage(t, response.Body.String())
+			require.Equal(t, target, m.Message)
+		})
+	}
+}
+
+func TestServer_MessageTemplate_UnsafeSprigFunctions(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
+		"X-Message":  `{{ env "PATH" }}`,
+		"X-Template": "1",
+	})
+
+	require.Equal(t, 400, response.Code)
+	require.Equal(t, 40043, toHTTPError(t, response.Body.String()).Code)
+}
+
+func TestServer_MessageTemplate_InlineNewlines(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	response := request(t, s, "PUT", "/mytopic", `{}`, map[string]string{
+		"X-Message":  `{{"New\nlines"}}`,
+		"X-Title":    `{{"New\nlines"}}`,
+		"X-Template": "1",
+	})
+
+	require.Equal(t, 200, response.Code)
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, `New
+lines`, m.Message)
+	require.Equal(t, `New
+lines`, m.Title)
+}
+
+func TestServer_MessageTemplate_InlineNewlinesOutsideOfTemplate(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	response := request(t, s, "PUT", "/mytopic", `{"foo":"bar","food":"bag"}`, map[string]string{
+		"X-Message":  `{{.foo}}{{"\n"}}{{.food}}`,
+		"X-Title":    `{{.food}}{{"\n"}}{{.foo}}`,
+		"X-Template": "1",
+	})
+
+	require.Equal(t, 200, response.Code)
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, `bar
+bag`, m.Message)
+	require.Equal(t, `bag
+bar`, m.Title)
+}
+
+func TestServer_MessageTemplate_TemplateFileNewlines(t *testing.T) {
+	t.Parallel()
+	c := newTestConfig(t)
+	c.TemplateDir = t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(c.TemplateDir, "newline.yml"), []byte(`
+title: |
+  {{.food}}{{"\n"}}{{.foo}}
+message: |
+  {{.foo}}{{"\n"}}{{.food}}
+`), 0644))
+	s := newTestServer(t, c)
+	response := request(t, s, "POST", "/mytopic?template=newline", `{"foo":"bar","food":"bag"}`, nil)
+	fmt.Println(response.Body.String())
+	require.Equal(t, 200, response.Code)
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, `bar
+bag`, m.Message)
+	require.Equal(t, `bag
+bar`, m.Title)
+}
+
+var (
+	//go:embed testdata/webhook_github_comment_created.json
+	githubCommentCreatedJSON string
+
+	//go:embed testdata/webhook_github_issue_opened.json
+	githubIssueOpenedJSON string
+)
+
+func TestServer_MessageTemplate_FromNamedTemplate_GitHubCommentCreated(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	response := request(t, s, "POST", "/mytopic?template=github", githubCommentCreatedJSON, nil)
+	require.Equal(t, 200, response.Code)
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, "💬 New comment on issue #1389 instant alerts without Pull to refresh", m.Title)
+	require.Equal(t, `Commenter: https://github.com/wunter8
+Repository: https://github.com/binwiederhier/ntfy
+Comment link: https://github.com/binwiederhier/ntfy/issues/1389#issuecomment-3078214289
+
+Comment:
+These are the things you need to do to get iOS push notifications to work:
+1. open a browser to the web app of your ntfy instance and copy the URL (including "http://" or "https://", your domain or IP address, and any ports, and excluding any trailing slashes)
+2. put the URL you copied in the ntfy `+"`"+`base-url`+"`"+` config in server.yml or NTFY_BASE_URL in env variables
+3. put the URL you copied in the default server URL setting in the iOS ntfy app
+4. set `+"`"+`upstream-base-url`+"`"+` in server.yml or NTFY_UPSTREAM_BASE_URL in env variables to "https://ntfy.sh" (without a trailing slash)`, m.Message)
+}
+
+func TestServer_MessageTemplate_FromNamedTemplate_GitHubIssueOpened(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	response := request(t, s, "POST", "/mytopic?template=github", githubIssueOpenedJSON, nil)
+	require.Equal(t, 200, response.Code)
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, "🐛 Issue opened: #1391 http 500 error (ntfy error 50001)", m.Title)
+	require.Equal(t, `Opened by: https://github.com/TheUser-dev
+Repository: https://github.com/binwiederhier/ntfy
+Issue link: https://github.com/binwiederhier/ntfy/issues/1391
+Labels: 🪲 bug 
+
+Description:
+:lady_beetle: **Describe the bug**
+When sending a notification (especially when it happens with multiple requests) this error occurs
+
+:computer: **Components impacted**
+ntfy server 2.13.0 in docker, debian 12 arm64
+
+:bulb: **Screenshots and/or logs**
+`+"```"+`
+closed with HTTP 500 (ntfy error 50001) (error=database table is locked, http_method=POST, http_path=/_matrix/push/v1/notify, tag=http, visitor_auth_limiter_limit=0.016666666666666666, visitor_auth_limiter_tokens=30, visitor_id=ip:<edited>, visitor_ip=<edited>, visitor_messages=448, visitor_messages_limit=17280, visitor_messages_remaining=16832, visitor_request_limiter_limit=0.2, visitor_request_limiter_tokens=57.049697891799994, visitor_seen=2025-07-16T15:06:35.429Z)
+`+"```"+`
+
+:crystal_ball: **Additional context**
+Looks like this has already been fixed by #498, regression?`, m.Message)
+}
+
+func TestServer_MessageTemplate_FromNamedTemplate_GitHubIssueOpened_OverrideConfigTemplate(t *testing.T) {
+	t.Parallel()
+	c := newTestConfig(t)
+	c.TemplateDir = t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(c.TemplateDir, "github.yml"), []byte(`
+title: |
+  Custom title: action={{ .action }} trunctitle={{ .issue.title | trunc 10 }}
+message: |
+  Custom message {{ .issue.number }}
+`), 0644))
+	s := newTestServer(t, c)
+	response := request(t, s, "POST", "/mytopic?template=github", githubIssueOpenedJSON, nil)
+	fmt.Println(response.Body.String())
+	require.Equal(t, 200, response.Code)
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, "Custom title: action=opened trunctitle=http 500 e", m.Title)
+	require.Equal(t, "Custom message 1391", m.Message)
+}
+
+func TestServer_MessageTemplate_Repeat9999_TooLarge(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
+		"X-Message":  `{{ repeat 9999 "mystring" }}`,
+		"X-Template": "1",
+	})
+	require.Equal(t, 400, response.Code)
+	require.Equal(t, 40041, toHTTPError(t, response.Body.String()).Code)
+	require.Contains(t, toHTTPError(t, response.Body.String()).Message, "message or title is too large after replacing template")
+}
+
+func TestServer_MessageTemplate_Repeat10001_TooLarge(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
+		"X-Message":  `{{ repeat 10001 "mystring" }}`,
+		"X-Template": "1",
+	})
+	require.Equal(t, 400, response.Code)
+	require.Equal(t, 40045, toHTTPError(t, response.Body.String()).Code)
+	require.Contains(t, toHTTPError(t, response.Body.String()).Message, "repeat count 10001 exceeds limit of 10000")
+}
+
+func TestServer_MessageTemplate_Until100_000(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
+		"X-Message":  `{{ range $i, $e := until 100_000 }}{{end}}`,
+		"X-Template": "1",
+	})
+	require.Equal(t, 400, response.Code)
+	require.Equal(t, 40045, toHTTPError(t, response.Body.String()).Code)
+	require.Contains(t, toHTTPError(t, response.Body.String()).Message, "too many iterations")
+}
+
 func newTestConfig(t *testing.T) *Config {
 	conf := NewConfig()
 	conf.BaseURL = "http://127.0.0.1:12345"
 	conf.CacheFile = filepath.Join(t.TempDir(), "cache.db")
 	conf.CacheStartupQueries = "pragma journal_mode = WAL; pragma synchronous = normal; pragma temp_store = memory;"
 	conf.AttachmentCacheDir = t.TempDir()
+	conf.TemplateDir = t.TempDir()
 	return conf
 }
 

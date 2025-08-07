@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gopkg.in/yaml.v2"
 	"io"
 	"net"
 	"net/http"
@@ -34,6 +35,7 @@ import (
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
+	"heckel.io/ntfy/v2/util/sprig"
 )
 
 // Server is the main server, providing the UI and API for ntfy
@@ -120,6 +122,15 @@ var (
 	//go:embed docs
 	docsStaticFs     embed.FS
 	docsStaticCached = &util.CachingEmbedFS{ModTime: time.Now(), FS: docsStaticFs}
+
+	//go:embed templates
+	templatesFs  embed.FS // Contains template config files (e.g. grafana.yml, github.yml, ...)
+	templatesDir = "templates"
+
+	// templateDisallowedRegex tests a template for disallowed expressions. While not really dangerous, they
+	// are not useful, and seem potentially troublesome.
+	templateDisallowedRegex = regexp.MustCompile(`(?m)\{\{-?\s*(call|template|define)\b`)
+	templateNameRegex       = regexp.MustCompile(`^[-_A-Za-z0-9]+$`)
 )
 
 const (
@@ -129,17 +140,13 @@ const (
 	newMessageBody           = "New message"             // Used in poll requests as generic message
 	defaultAttachmentMessage = "You received a file: %s" // Used if message body is empty, and there is an attachment
 	encodingBase64           = "base64"                  // Used mainly for binary UnifiedPush messages
-	jsonBodyBytesLimit       = 32768                     // Max number of bytes for a request bodys (unless MessageLimit is higher)
+	jsonBodyBytesLimit       = 131072                    // Max number of bytes for a request bodys (unless MessageLimit is higher)
 	unifiedPushTopicPrefix   = "up"                      // Temporarily, we rate limit all "up*" topics based on the subscriber
 	unifiedPushTopicLength   = 14                        // Length of UnifiedPush topics, including the "up" part
 	messagesHistoryMax       = 10                        // Number of message count values to keep in memory
-	templateMaxExecutionTime = 100 * time.Millisecond
-)
-
-var (
-	// templateDisallowedRegex tests a template for disallowed expressions. While not really dangerous, they
-	// are not useful, and seem potentially troublesome.
-	templateDisallowedRegex = regexp.MustCompile(`(?m)\{\{-?\s*(call|template|define)\b`)
+	templateMaxExecutionTime = 100 * time.Millisecond    // Maximum time a template can take to execute, used to prevent DoS attacks
+	templateMaxOutputBytes   = 1024 * 1024               // Maximum number of bytes a template can output, used to prevent DoS attacks
+	templateFileExtension    = ".yml"                    // Template files must end with this extension
 )
 
 // WebSocket constants
@@ -189,7 +196,18 @@ func New(conf *Config) (*Server, error) {
 	}
 	var userManager *user.Manager
 	if conf.AuthFile != "" {
-		userManager, err = user.NewManager(conf.AuthFile, conf.AuthStartupQueries, conf.AuthDefault, conf.AuthBcryptCost, conf.AuthStatsQueueWriterInterval)
+		authConfig := &user.Config{
+			Filename:            conf.AuthFile,
+			StartupQueries:      conf.AuthStartupQueries,
+			DefaultAccess:       conf.AuthDefault,
+			ProvisionEnabled:    true, // Enable provisioning of users and access
+			Users:               conf.AuthUsers,
+			Access:              conf.AuthAccess,
+			Tokens:              conf.AuthTokens,
+			BcryptCost:          conf.AuthBcryptCost,
+			QueueWriterInterval: conf.AuthStatsQueueWriterInterval,
+		}
+		userManager, err = user.NewManager(authConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -760,7 +778,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*message, e
 		// the subscription as invalid if any 400-499 code (except 429/408) is returned.
 		// See https://github.com/mastodon/mastodon/blob/730bb3e211a84a2f30e3e2bbeae3f77149824a68/app/workers/web/push_notification_worker.rb#L35-L46
 		return nil, errHTTPInsufficientStorageUnifiedPush.With(t)
-	} else if !util.ContainsIP(s.config.VisitorRequestExemptIPAddrs, v.ip) && !vrate.MessageAllowed() {
+	} else if !util.ContainsIP(s.config.VisitorRequestExemptPrefixes, v.ip) && !vrate.MessageAllowed() {
 		return nil, errHTTPTooManyRequestsLimitMessages.With(t)
 	} else if email != "" && !vrate.EmailAllowed() {
 		return nil, errHTTPTooManyRequestsLimitEmails.With(t)
@@ -936,7 +954,7 @@ func (s *Server) forwardPollRequest(v *visitor, m *message) {
 	}
 }
 
-func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, firebase bool, email, call string, template bool, unifiedpush bool, err *errHTTP) {
+func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, firebase bool, email, call string, template templateMode, unifiedpush bool, err *errHTTP) {
 	cache = readBoolParam(r, true, "x-cache", "cache")
 	firebase = readBoolParam(r, true, "x-firebase", "firebase")
 	m.Title = readParam(r, "x-title", "title", "t")
@@ -952,7 +970,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 	}
 	if attach != "" {
 		if !urlRegex.MatchString(attach) {
-			return false, false, "", "", false, false, errHTTPBadRequestAttachmentURLInvalid
+			return false, false, "", "", "", false, errHTTPBadRequestAttachmentURLInvalid
 		}
 		m.Attachment.URL = attach
 		if m.Attachment.Name == "" {
@@ -970,48 +988,53 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 	}
 	if icon != "" {
 		if !urlRegex.MatchString(icon) {
-			return false, false, "", "", false, false, errHTTPBadRequestIconURLInvalid
+			return false, false, "", "", "", false, errHTTPBadRequestIconURLInvalid
 		}
 		m.Icon = icon
 	}
 	email = readParam(r, "x-email", "x-e-mail", "email", "e-mail", "mail", "e")
 	if s.smtpSender == nil && email != "" {
-		return false, false, "", "", false, false, errHTTPBadRequestEmailDisabled
+		return false, false, "", "", "", false, errHTTPBadRequestEmailDisabled
 	}
 	call = readParam(r, "x-call", "call")
 	if call != "" && (s.config.TwilioAccount == "" || s.userManager == nil) {
-		return false, false, "", "", false, false, errHTTPBadRequestPhoneCallsDisabled
+		return false, false, "", "", "", false, errHTTPBadRequestPhoneCallsDisabled
 	} else if call != "" && !isBoolValue(call) && !phoneNumberRegex.MatchString(call) {
-		return false, false, "", "", false, false, errHTTPBadRequestPhoneNumberInvalid
+		return false, false, "", "", "", false, errHTTPBadRequestPhoneNumberInvalid
 	}
-	messageStr := strings.ReplaceAll(readParam(r, "x-message", "message", "m"), "\\n", "\n")
+	template = templateMode(readParam(r, "x-template", "template", "tpl"))
+	messageStr := readParam(r, "x-message", "message", "m")
+	if !template.InlineMode() {
+		// Convert "\n" to literal newline everything but inline mode
+		messageStr = strings.ReplaceAll(messageStr, "\\n", "\n")
+	}
 	if messageStr != "" {
 		m.Message = messageStr
 	}
 	var e error
 	m.Priority, e = util.ParsePriority(readParam(r, "x-priority", "priority", "prio", "p"))
 	if e != nil {
-		return false, false, "", "", false, false, errHTTPBadRequestPriorityInvalid
+		return false, false, "", "", "", false, errHTTPBadRequestPriorityInvalid
 	}
 	m.Tags = readCommaSeparatedParam(r, "x-tags", "tags", "tag", "ta")
 	delayStr := readParam(r, "x-delay", "delay", "x-at", "at", "x-in", "in")
 	if delayStr != "" {
 		if !cache {
-			return false, false, "", "", false, false, errHTTPBadRequestDelayNoCache
+			return false, false, "", "", "", false, errHTTPBadRequestDelayNoCache
 		}
 		if email != "" {
-			return false, false, "", "", false, false, errHTTPBadRequestDelayNoEmail // we cannot store the email address (yet)
+			return false, false, "", "", "", false, errHTTPBadRequestDelayNoEmail // we cannot store the email address (yet)
 		}
 		if call != "" {
-			return false, false, "", "", false, false, errHTTPBadRequestDelayNoCall // we cannot store the phone number (yet)
+			return false, false, "", "", "", false, errHTTPBadRequestDelayNoCall // we cannot store the phone number (yet)
 		}
 		delay, err := util.ParseFutureTime(delayStr, time.Now())
 		if err != nil {
-			return false, false, "", "", false, false, errHTTPBadRequestDelayCannotParse
+			return false, false, "", "", "", false, errHTTPBadRequestDelayCannotParse
 		} else if delay.Unix() < time.Now().Add(s.config.MessageDelayMin).Unix() {
-			return false, false, "", "", false, false, errHTTPBadRequestDelayTooSmall
+			return false, false, "", "", "", false, errHTTPBadRequestDelayTooSmall
 		} else if delay.Unix() > time.Now().Add(s.config.MessageDelayMax).Unix() {
-			return false, false, "", "", false, false, errHTTPBadRequestDelayTooLarge
+			return false, false, "", "", "", false, errHTTPBadRequestDelayTooLarge
 		}
 		m.Time = delay.Unix()
 	}
@@ -1019,14 +1042,13 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 	if actionsStr != "" {
 		m.Actions, e = parseActions(actionsStr)
 		if e != nil {
-			return false, false, "", "", false, false, errHTTPBadRequestActionsInvalid.Wrap("%s", e.Error())
+			return false, false, "", "", "", false, errHTTPBadRequestActionsInvalid.Wrap("%s", e.Error())
 		}
 	}
 	contentType, markdown := readParam(r, "content-type", "content_type"), readBoolParam(r, false, "x-markdown", "markdown", "md")
 	if markdown || strings.ToLower(contentType) == "text/markdown" {
 		m.ContentType = "text/markdown"
 	}
-	template = readBoolParam(r, false, "x-template", "template", "tpl")
 	unifiedpush = readBoolParam(r, false, "x-unifiedpush", "unifiedpush", "up") // see GET too!
 	contentEncoding := readParam(r, "content-encoding")
 	if unifiedpush || contentEncoding == "aes128gcm" {
@@ -1058,7 +1080,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 //     If file.txt is <= 4096 (message limit) and valid UTF-8, treat it as a message
 //  7. curl -T file.txt ntfy.sh/mytopic
 //     In all other cases, mostly if file.txt is > message limit, treat it as an attachment
-func (s *Server) handlePublishBody(r *http.Request, v *visitor, m *message, body *util.PeekedReadCloser, template, unifiedpush bool) error {
+func (s *Server) handlePublishBody(r *http.Request, v *visitor, m *message, body *util.PeekedReadCloser, template templateMode, unifiedpush bool) error {
 	if m.Event == pollRequestEvent { // Case 1
 		return s.handleBodyDiscard(body)
 	} else if unifiedpush {
@@ -1067,8 +1089,8 @@ func (s *Server) handlePublishBody(r *http.Request, v *visitor, m *message, body
 		return s.handleBodyAsTextMessage(m, body) // Case 3
 	} else if m.Attachment != nil && m.Attachment.Name != "" {
 		return s.handleBodyAsAttachment(r, v, m, body) // Case 4
-	} else if template {
-		return s.handleBodyAsTemplatedTextMessage(m, body) // Case 5
+	} else if template.Enabled() {
+		return s.handleBodyAsTemplatedTextMessage(m, template, body) // Case 5
 	} else if !body.LimitReached && utf8.Valid(body.PeekedBytes) {
 		return s.handleBodyAsTextMessage(m, body) // Case 6
 	}
@@ -1104,7 +1126,7 @@ func (s *Server) handleBodyAsTextMessage(m *message, body *util.PeekedReadCloser
 	return nil
 }
 
-func (s *Server) handleBodyAsTemplatedTextMessage(m *message, body *util.PeekedReadCloser) error {
+func (s *Server) handleBodyAsTemplatedTextMessage(m *message, template templateMode, body *util.PeekedReadCloser) error {
 	body, err := util.Peek(body, max(s.config.MessageSizeLimit, jsonBodyBytesLimit))
 	if err != nil {
 		return err
@@ -1112,19 +1134,69 @@ func (s *Server) handleBodyAsTemplatedTextMessage(m *message, body *util.PeekedR
 		return errHTTPEntityTooLargeJSONBody
 	}
 	peekedBody := strings.TrimSpace(string(body.PeekedBytes))
-	if m.Message, err = replaceTemplate(m.Message, peekedBody); err != nil {
-		return err
+	if template.FileMode() {
+		if err := s.renderTemplateFromFile(m, template.FileName(), peekedBody); err != nil {
+			return err
+		}
+	} else {
+		if err := s.renderTemplateFromParams(m, peekedBody); err != nil {
+			return err
+		}
 	}
-	if m.Title, err = replaceTemplate(m.Title, peekedBody); err != nil {
-		return err
-	}
-	if len(m.Message) > s.config.MessageSizeLimit {
+	if len(m.Title) > s.config.MessageSizeLimit || len(m.Message) > s.config.MessageSizeLimit {
 		return errHTTPBadRequestTemplateMessageTooLarge
 	}
 	return nil
 }
 
-func replaceTemplate(tpl string, source string) (string, error) {
+// renderTemplateFromFile transforms the JSON message body according to a template from the filesystem.
+// The template file must be in the templates directory, or in the configured template directory.
+func (s *Server) renderTemplateFromFile(m *message, templateName, peekedBody string) error {
+	if !templateNameRegex.MatchString(templateName) {
+		return errHTTPBadRequestTemplateFileNotFound
+	}
+	templateContent, _ := templatesFs.ReadFile(filepath.Join(templatesDir, templateName+templateFileExtension)) // Read from the embedded filesystem first
+	if s.config.TemplateDir != "" {
+		if b, _ := os.ReadFile(filepath.Join(s.config.TemplateDir, templateName+templateFileExtension)); len(b) > 0 {
+			templateContent = b
+		}
+	}
+	if len(templateContent) == 0 {
+		return errHTTPBadRequestTemplateFileNotFound
+	}
+	var tpl templateFile
+	if err := yaml.Unmarshal(templateContent, &tpl); err != nil {
+		return errHTTPBadRequestTemplateFileInvalid
+	}
+	var err error
+	if tpl.Message != nil {
+		if m.Message, err = s.renderTemplate(*tpl.Message, peekedBody); err != nil {
+			return err
+		}
+	}
+	if tpl.Title != nil {
+		if m.Title, err = s.renderTemplate(*tpl.Title, peekedBody); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// renderTemplateFromParams transforms the JSON message body according to the inline template in the
+// message and title parameters.
+func (s *Server) renderTemplateFromParams(m *message, peekedBody string) error {
+	var err error
+	if m.Message, err = s.renderTemplate(m.Message, peekedBody); err != nil {
+		return err
+	}
+	if m.Title, err = s.renderTemplate(m.Title, peekedBody); err != nil {
+		return err
+	}
+	return nil
+}
+
+// renderTemplate renders a template with the given JSON source data.
+func (s *Server) renderTemplate(tpl string, source string) (string, error) {
 	if templateDisallowedRegex.MatchString(tpl) {
 		return "", errHTTPBadRequestTemplateDisallowedFunctionCalls
 	}
@@ -1132,15 +1204,16 @@ func replaceTemplate(tpl string, source string) (string, error) {
 	if err := json.Unmarshal([]byte(source), &data); err != nil {
 		return "", errHTTPBadRequestTemplateMessageNotJSON
 	}
-	t, err := template.New("").Parse(tpl)
+	t, err := template.New("").Funcs(sprig.TxtFuncMap()).Parse(tpl)
 	if err != nil {
-		return "", errHTTPBadRequestTemplateInvalid
+		return "", errHTTPBadRequestTemplateInvalid.Wrap("%s", err.Error())
 	}
 	var buf bytes.Buffer
-	if err := t.Execute(util.NewTimeoutWriter(&buf, templateMaxExecutionTime), data); err != nil {
-		return "", errHTTPBadRequestTemplateExecuteFailed
+	limitWriter := util.NewLimitWriter(util.NewTimeoutWriter(&buf, templateMaxExecutionTime), util.NewFixedLimiter(templateMaxOutputBytes))
+	if err := t.Execute(limitWriter, data); err != nil {
+		return "", errHTTPBadRequestTemplateExecuteFailed.Wrap("%s", err.Error())
 	}
-	return buf.String(), nil
+	return strings.TrimSpace(strings.ReplaceAll(buf.String(), "\\n", "\n")), nil // replace any remaining "\n" (those outside of template curly braces) with newlines
 }
 
 func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *message, body *util.PeekedReadCloser) error {
@@ -1937,7 +2010,7 @@ func (s *Server) authorizeTopic(next handleFunc, perm user.Permission) handleFun
 // that subsequent logging calls still have a visitor context.
 func (s *Server) maybeAuthenticate(r *http.Request) (*visitor, error) {
 	// Read the "Authorization" header value and exit out early if it's not set
-	ip := extractIPAddress(r, s.config.BehindProxy, s.config.ProxyForwardedHeader, s.config.ProxyTrustedAddresses)
+	ip := extractIPAddress(r, s.config.BehindProxy, s.config.ProxyForwardedHeader, s.config.ProxyTrustedPrefixes)
 	vip := s.visitor(ip, nil)
 	if s.userManager == nil {
 		return vip, nil
@@ -2012,7 +2085,7 @@ func (s *Server) authenticateBearerAuth(r *http.Request, token string) (*user.Us
 	if err != nil {
 		return nil, err
 	}
-	ip := extractIPAddress(r, s.config.BehindProxy, s.config.ProxyForwardedHeader, s.config.ProxyTrustedAddresses)
+	ip := extractIPAddress(r, s.config.BehindProxy, s.config.ProxyForwardedHeader, s.config.ProxyTrustedPrefixes)
 	go s.userManager.EnqueueTokenUpdate(token, &user.TokenUpdate{
 		LastAccess: time.Now(),
 		LastOrigin: ip,
@@ -2023,7 +2096,7 @@ func (s *Server) authenticateBearerAuth(r *http.Request, token string) (*user.Us
 func (s *Server) visitor(ip netip.Addr, user *user.User) *visitor {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id := visitorID(ip, user)
+	id := visitorID(ip, user, s.config)
 	v, exists := s.visitors[id]
 	if !exists {
 		s.visitors[id] = newVisitor(s.config, s.messageCache, s.userManager, ip, user)

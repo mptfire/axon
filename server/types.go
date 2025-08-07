@@ -7,7 +7,6 @@ import (
 
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/user"
-
 	"heckel.io/ntfy/v2/util"
 )
 
@@ -246,6 +245,51 @@ func (q *queryFilter) Pass(msg *message) bool {
 	return true
 }
 
+// templateMode represents the mode in which templates are used
+//
+// It can be
+// - empty: templating is disabled
+// - a boolean string (yes/1/true/no/0/false): inline-templating mode
+// - a filename (e.g. grafana): template mode with a file
+type templateMode string
+
+// Enabled returns true if templating is enabled
+func (t templateMode) Enabled() bool {
+	return t != ""
+}
+
+// InlineMode returns true if inline-templating mode is enabled
+func (t templateMode) InlineMode() bool {
+	return t.Enabled() && isBoolValue(string(t))
+}
+
+// FileMode returns true if file-templating mode is enabled
+func (t templateMode) FileMode() bool {
+	return t.Enabled() && !isBoolValue(string(t))
+}
+
+// FileName returns the filename if file-templating mode is enabled, or an empty string otherwise
+func (t templateMode) FileName() string {
+	if t.FileMode() {
+		return string(t)
+	}
+	return ""
+}
+
+// templateFile represents a template file with title and message
+// It is used for file-based templates, e.g. grafana, influxdb, etc.
+//
+// Example YAML:
+//
+//	  title: "Alert: {{ .Title }}"
+//	  message: |
+//		   This is a {{ .Type }} alert.
+//		   It can be multiline.
+type templateFile struct {
+	Title   *string `yaml:"title"`
+	Message *string `yaml:"message"`
+}
+
 type apiHealthResponse struct {
 	Healthy bool `json:"healthy"`
 }
@@ -316,11 +360,12 @@ type apiAccountTokenUpdateRequest struct {
 }
 
 type apiAccountTokenResponse struct {
-	Token      string `json:"token"`
-	Label      string `json:"label,omitempty"`
-	LastAccess int64  `json:"last_access,omitempty"`
-	LastOrigin string `json:"last_origin,omitempty"`
-	Expires    int64  `json:"expires,omitempty"` // Unix timestamp
+	Token       string `json:"token"`
+	Label       string `json:"label,omitempty"`
+	LastAccess  int64  `json:"last_access,omitempty"`
+	LastOrigin  string `json:"last_origin,omitempty"`
+	Expires     int64  `json:"expires,omitempty"`     // Unix timestamp
+	Provisioned bool   `json:"provisioned,omitempty"` // True if this token was provisioned by the server config
 }
 
 type apiAccountPhoneNumberVerifyRequest struct {
@@ -382,6 +427,7 @@ type apiAccountResponse struct {
 	Username      string                     `json:"username"`
 	Role          string                     `json:"role,omitempty"`
 	SyncTopic     string                     `json:"sync_topic,omitempty"`
+	Provisioned   bool                       `json:"provisioned,omitempty"`
 	Language      string                     `json:"language,omitempty"`
 	Notification  *user.NotificationPrefs    `json:"notification,omitempty"`
 	Subscriptions []*user.Subscription       `json:"subscriptions,omitempty"`

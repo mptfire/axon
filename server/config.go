@@ -11,6 +11,8 @@ import (
 // Defines default config settings (excluding limits, see below)
 const (
 	DefaultListenHTTP                           = ":80"
+	DefaultConfigFile                           = "/etc/ntfy/server.yml"
+	DefaultTemplateDir                          = "/etc/ntfy/templates"
 	DefaultCacheDuration                        = 12 * time.Hour
 	DefaultCacheBatchTimeout                    = time.Duration(0)
 	DefaultKeepaliveInterval                    = 45 * time.Second // Not too frequently to save battery (Android read timeout used to be 77s!)
@@ -61,6 +63,8 @@ const (
 	DefaultVisitorAuthFailureLimitReplenish     = time.Minute
 	DefaultVisitorAttachmentTotalSizeLimit      = 100 * 1024 * 1024 // 100 MB
 	DefaultVisitorAttachmentDailyBandwidthLimit = 500 * 1024 * 1024 // 500 MB
+	DefaultVisitorPrefixBitsIPv4                = 32                // Use the entire IPv4 address for rate limiting
+	DefaultVisitorPrefixBitsIPv6                = 64                // Use /64 for IPv6 rate limiting
 )
 
 var (
@@ -91,12 +95,16 @@ type Config struct {
 	AuthFile                             string
 	AuthStartupQueries                   string
 	AuthDefault                          user.Permission
+	AuthUsers                            []*user.User
+	AuthAccess                           map[string][]*user.Grant
+	AuthTokens                           map[string][]*user.Token
 	AuthBcryptCost                       int
 	AuthStatsQueueWriterInterval         time.Duration
 	AttachmentCacheDir                   string
 	AttachmentTotalSizeLimit             int64
 	AttachmentFileSizeLimit              int64
 	AttachmentExpiryDuration             time.Duration
+	TemplateDir                          string // Directory to load named templates from
 	KeepaliveInterval                    time.Duration
 	ManagerInterval                      time.Duration
 	DisallowedTopics                     []string
@@ -133,7 +141,7 @@ type Config struct {
 	VisitorAttachmentDailyBandwidthLimit int64
 	VisitorRequestLimitBurst             int
 	VisitorRequestLimitReplenish         time.Duration
-	VisitorRequestExemptIPAddrs          []netip.Prefix
+	VisitorRequestExemptPrefixes         []netip.Prefix
 	VisitorMessageDailyLimit             int
 	VisitorEmailLimitBurst               int
 	VisitorEmailLimitReplenish           time.Duration
@@ -141,11 +149,13 @@ type Config struct {
 	VisitorAccountCreationLimitReplenish time.Duration
 	VisitorAuthFailureLimitBurst         int
 	VisitorAuthFailureLimitReplenish     time.Duration
-	VisitorStatsResetTime                time.Time // Time of the day at which to reset visitor stats
-	VisitorSubscriberRateLimiting        bool      // Enable subscriber-based rate limiting for UnifiedPush topics
-	BehindProxy                          bool      // If true, the server will trust the proxy client IP header to determine the client IP address
-	ProxyForwardedHeader                 string    // The header field to read the real/client IP address from, if BehindProxy is true, defaults to "X-Forwarded-For"
-	ProxyTrustedAddresses                []string  // List of trusted proxy addresses that will be stripped from the Forwarded header if BehindProxy is true
+	VisitorStatsResetTime                time.Time      // Time of the day at which to reset visitor stats
+	VisitorSubscriberRateLimiting        bool           // Enable subscriber-based rate limiting for UnifiedPush topics
+	VisitorPrefixBitsIPv4                int            // Number of bits for IPv4 rate limiting (default: 32)
+	VisitorPrefixBitsIPv6                int            // Number of bits for IPv6 rate limiting (default: 64)
+	BehindProxy                          bool           // If true, the server will trust the proxy client IP header to determine the client IP address (IPv4 and IPv6 supported)
+	ProxyForwardedHeader                 string         // The header field to read the real/client IP address from, if BehindProxy is true, defaults to "X-Forwarded-For" (IPv4 and IPv6 supported)
+	ProxyTrustedPrefixes                 []netip.Prefix // List of trusted proxy networks (IPv4 or IPv6) that will be stripped from the Forwarded header if BehindProxy is true
 	StripeSecretKey                      string
 	StripeWebhookKey                     string
 	StripePriceCacheDuration             time.Duration
@@ -155,7 +165,6 @@ type Config struct {
 	EnableReservations                   bool // Allow users with role "user" to own/reserve topics
 	EnableMetrics                        bool
 	AccessControlAllowOrigin             string // CORS header field to restrict access from web clients
-	Version                              string // injected by App
 	WebPushPrivateKey                    string
 	WebPushPublicKey                     string
 	WebPushFile                          string
@@ -163,12 +172,13 @@ type Config struct {
 	WebPushStartupQueries                string
 	WebPushExpiryDuration                time.Duration
 	WebPushExpiryWarningDuration         time.Duration
+	Version                              string // injected by App
 }
 
 // NewConfig instantiates a default new server config
 func NewConfig() *Config {
 	return &Config{
-		File:                                 "", // Only used for testing
+		File:                                 DefaultConfigFile, // Only used for testing
 		BaseURL:                              "",
 		ListenHTTP:                           DefaultListenHTTP,
 		ListenHTTPS:                          "",
@@ -191,6 +201,7 @@ func NewConfig() *Config {
 		AttachmentTotalSizeLimit:             DefaultAttachmentTotalSizeLimit,
 		AttachmentFileSizeLimit:              DefaultAttachmentFileSizeLimit,
 		AttachmentExpiryDuration:             DefaultAttachmentExpiryDuration,
+		TemplateDir:                          DefaultTemplateDir,
 		KeepaliveInterval:                    DefaultKeepaliveInterval,
 		ManagerInterval:                      DefaultManagerInterval,
 		DisallowedTopics:                     DefaultDisallowedTopics,
@@ -220,11 +231,12 @@ func NewConfig() *Config {
 		TotalTopicLimit:                      DefaultTotalTopicLimit,
 		TotalAttachmentSizeLimit:             0,
 		VisitorSubscriptionLimit:             DefaultVisitorSubscriptionLimit,
+		VisitorSubscriberRateLimiting:        false,
 		VisitorAttachmentTotalSizeLimit:      DefaultVisitorAttachmentTotalSizeLimit,
 		VisitorAttachmentDailyBandwidthLimit: DefaultVisitorAttachmentDailyBandwidthLimit,
 		VisitorRequestLimitBurst:             DefaultVisitorRequestLimitBurst,
 		VisitorRequestLimitReplenish:         DefaultVisitorRequestLimitReplenish,
-		VisitorRequestExemptIPAddrs:          make([]netip.Prefix, 0),
+		VisitorRequestExemptPrefixes:         make([]netip.Prefix, 0),
 		VisitorMessageDailyLimit:             DefaultVisitorMessageDailyLimit,
 		VisitorEmailLimitBurst:               DefaultVisitorEmailLimitBurst,
 		VisitorEmailLimitReplenish:           DefaultVisitorEmailLimitReplenish,
@@ -233,9 +245,10 @@ func NewConfig() *Config {
 		VisitorAuthFailureLimitBurst:         DefaultVisitorAuthFailureLimitBurst,
 		VisitorAuthFailureLimitReplenish:     DefaultVisitorAuthFailureLimitReplenish,
 		VisitorStatsResetTime:                DefaultVisitorStatsResetTime,
-		VisitorSubscriberRateLimiting:        false,
-		BehindProxy:                          false,             // If true, the server will trust the proxy client IP header to determine the client IP address
-		ProxyForwardedHeader:                 "X-Forwarded-For", // Default header for reverse proxy client IPs
+		VisitorPrefixBitsIPv4:                DefaultVisitorPrefixBitsIPv4, // Default: use full IPv4 address
+		VisitorPrefixBitsIPv6:                DefaultVisitorPrefixBitsIPv6, // Default: use /64 for IPv6
+		BehindProxy:                          false,                        // If true, the server will trust the proxy client IP header to determine the client IP address
+		ProxyForwardedHeader:                 "X-Forwarded-For",            // Default header for reverse proxy client IPs
 		StripeSecretKey:                      "",
 		StripeWebhookKey:                     "",
 		StripePriceCacheDuration:             DefaultStripePriceCacheDuration,

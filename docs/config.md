@@ -18,8 +18,8 @@ get a list of [command line options](#command-line-options).
 
 ## Example config
 !!! info
-    Definitely check out the **[server.yml](https://github.com/binwiederhier/ntfy/blob/main/server/server.yml)** file.
-    It contains examples and detailed descriptions of all the settings.
+    Definitely check out the **[server.yml](https://github.com/binwiederhier/ntfy/blob/main/server/server.yml)** file. It contains examples and detailed descriptions of all the settings.
+    You may also want to look at how ntfy.sh is configured in the [ntfy-ansible](https://github.com/binwiederhier/ntfy-ansible) repository.
 
 The most basic settings are `base-url` (the external URL of the ntfy server), the HTTP/HTTPS listen address (`listen-http`
 and `listen-https`), and socket path (`listen-unix`). All the other things are additional features.
@@ -79,7 +79,6 @@ using Docker Compose (i.e. `docker-compose.yml`):
 
 === "Docker Compose (w/ auth, cache, attachments)"
     ``` yaml
-	version: '3'
 	services:
 	  ntfy:
 	    image: binwiederhier/ntfy
@@ -89,6 +88,7 @@ using Docker Compose (i.e. `docker-compose.yml`):
 	      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
 	      NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
 	      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+	      NTFY_AUTH_USERS: 'phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin'
 	      NTFY_BEHIND_PROXY: true
 	      NTFY_ATTACHMENT_CACHE_DIR: /var/lib/ntfy/attachments
 	      NTFY_ENABLE_LOGIN: true
@@ -101,7 +101,6 @@ using Docker Compose (i.e. `docker-compose.yml`):
 
 === "Docker Compose (w/ auth, cache, web push, iOS)"
     ``` yaml
-	version: '3'
 	services:
 	  ntfy:
 	    image: binwiederhier/ntfy
@@ -190,19 +189,31 @@ ntfy's auth is implemented with a simple [SQLite](https://www.sqlite.org/)-based
 (`user` and `admin`) and per-topic `read` and `write` permissions using an [access control list (ACL)](https://en.wikipedia.org/wiki/Access-control_list). 
 Access control entries can be applied to users as well as the special everyone user (`*`), which represents anonymous API access. 
 
-To set up auth, simply **configure the following two options**:
+To set up auth, **configure the following options**:
 
 * `auth-file` is the user/access database; it is created automatically if it doesn't already exist; suggested 
   location `/var/lib/ntfy/user.db` (easiest if deb/rpm package is used)
 * `auth-default-access` defines the default/fallback access if no access control entry is found; it can be
-  set to `read-write` (default), `read-only`, `write-only` or `deny-all`.
+  set to `read-write` (default), `read-only`, `write-only` or `deny-all`. **If you are setting up a private instance,
+  you'll want to set this to `deny-all`** (see [private instance example](#example-private-instance)).
 
-Once configured, you can use the `ntfy user` command to [add or modify users](#users-and-roles), and the `ntfy access` command
-lets you [modify the access control list](#access-control-list-acl) for specific users and topic patterns. Both of these 
-commands **directly edit the auth database** (as defined in `auth-file`), so they only work on the server, and only if the user 
-accessing them has the right permissions.
+Once configured, you can use 
+
+- the `ntfy user` command and the `auth-users` config option to [add or modify users](#users-and-roles)
+- the `ntfy access` command and the `auth-access` option to [modify the access control list](#access-control-list-acl)
+and topic patterns, and
+- the `ntfy token` command and the `auth-tokens` config option to [manage access tokens](#access-tokens) for users.
+
+These commands **directly edit the auth database** (as defined in `auth-file`), so they only work on the server, 
+and only if the user accessing them has the right permissions.
 
 ### Users and roles
+Users can be added to the ntfy user database in two different ways
+
+* [Using the CLI](#users-via-the-cli): Using the `ntfy user` command, you can manually add/update/remove users.
+* [In the config](#users-via-the-config): You can provision users in the `server.yml` file via `auth-users` key.
+
+#### Users via the CLI
 The `ntfy user` command allows you to add/remove/change users in the ntfy user database, as well as change
 passwords or roles (`user` or `admin`). In practice, you'll often just create one admin 
 user with `ntfy user add --role=admin ...` and be done with all this (see [example below](#example-private-instance)).
@@ -223,12 +234,54 @@ ntfy user del phil                 # Delete user phil
 ntfy user change-pass phil         # Change password for user phil
 ntfy user change-role phil admin   # Make user phil an admin
 ntfy user change-tier phil pro     # Change phil's tier to "pro"
+ntfy user hash                     # Generate password hash, use with auth-users config option
 ```
+
+#### Users via the config
+As an alternative to manually creating users via the `ntfy user` CLI command, you can provision users declaratively in
+the `server.yml` file by adding them to the `auth-users` array. This is useful for general admins, or if you'd like to
+deploy your ntfy server via Docker/Ansible without manually editing the database.
+
+The `auth-users` option is a list of users that are automatically created/updated when the server starts. Users
+previously defined in the config but later removed will be deleted. Each entry is defined in the format `<username>:<password-hash>:<role>`.
+
+Here's an example with two users: `phil` is an admin, `ben` is a regular user.
+
+=== "Declarative users in /etc/ntfy/server.yml"
+    ``` yaml
+    auth-file: "/var/lib/ntfy/user.db"
+    auth-users:
+      - "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin"
+      - "ben:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user"
+    ```
+
+=== "Declarative users via env variables"
+    ```
+    # Comma-separated list, use single quotes to avoid issues with the bcrypt hash 
+    NTFY_AUTH_FILE='/var/lib/ntfy/user.db'
+    NTFY_AUTH_USERS='phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin,ben:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user'
+    ```
+
+The password hash can be created using `ntfy user hash` or an [online bcrypt generator](https://bcrypt-generator.com/) (though
+note that you're putting your password in an untrusted website).
+
+!!! important
+    Users added declaratively via the config file are marked in the database as "provisioned users". Removing users
+    from the config file will **delete them from the database** the next time ntfy is restarted.
+
+    Also, users that were originally manually created will be "upgraded" to be provisioned users if they are added to
+    the config. Adding a user manually, then adding it to the config, and then removing it from the config will hence
+    lead to the **deletion of that user**.
 
 ### Access control list (ACL)
 The access control list (ACL) **manages access to topics for non-admin users, and for anonymous access (`everyone`/`*`)**.
-Each entry represents the access permissions for a user to a specific topic or topic pattern. 
+Each entry represents the access permissions for a user to a specific topic or topic pattern. Entries can be created in
+two different ways:
 
+* [Using the CLI](#acl-entries-via-the-cli): Using the `ntfy access` command, you can manually edit the access control list.
+* [In the config](#acl-entries-via-the-config): You can provision ACL entries in the `server.yml` file via `auth-access` key.
+
+#### ACL entries via the CLI
 The ACL can be displayed or modified with the `ntfy access` command:
 
 ```
@@ -284,6 +337,51 @@ User `ben` has three topic-specific entries. He can read, but not write to topic
 to topic `garagedoor` and all topics starting with the word `alerts` (wildcards). Clients that are not authenticated
 (called `*`/`everyone`) only have read access to the `announcements` and `server-stats` topics.
 
+#### ACL entries via the config
+As an alternative to manually creating ACL entries via the `ntfy access` CLI command, you can provision access control
+entries declaratively in the `server.yml` file by adding them to the `auth-access` array, similar to the `auth-users` 
+option (see [users via the config](#users-via-the-config).
+
+The `auth-access` option is a list of access control entries that are automatically created/updated when the server starts.
+When entries are removed, they are deleted from the database. Each entry is defined in the format `<username>:<topic-pattern>:<access>`.
+
+The `<username>` can be any existing, provisioned user as defined in the `auth-users` section (see [users via the config](#users-via-the-config)),
+or `everyone`/`*` for anonymous access. The `<topic-pattern>` can be a specific topic name or a pattern with wildcards (`*`). The 
+`<access>` can be one of the following:
+
+* `read-write` or `rw`: Allows both publishing to and subscribing to the topic
+* `read-only`, `read`, or `ro`: Allows only subscribing to the topic
+* `write-only`, `write`, or `wo`: Allows only publishing to the topic
+* `deny-all`, `deny`, or `none`: Denies all access to the topic
+
+Here's an example with several ACL entries:
+
+=== "Declarative ACL entries in /etc/ntfy/server.yml"
+    ``` yaml
+    auth-file: "/var/lib/ntfy/user.db"
+    auth-users:
+      - "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:user"
+      - "ben:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user"
+    auth-access:
+      - "phil:mytopic:rw"
+      - "ben:alerts-*:rw"
+      - "ben:system-logs:ro"
+      - "*:announcements:ro" # or: "everyone:announcements,ro"
+    ```
+
+=== "Declarative ACL entries via env variables"
+    ```
+    # Comma-separated list
+    NTFY_AUTH_FILE='/var/lib/ntfy/user.db'
+    NTFY_AUTH_USERS='phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:user,ben:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user'
+    NTFY_AUTH_ACCESS='phil:mytopic:rw,ben:alerts-*:rw,ben:system-logs:ro,*:announcements:ro'
+    ```
+
+In this example, the `auth-users` section defines two users, `phil` and `ben`. The `auth-access` section defines
+access control entries for these users. `phil` has read-write access to the topic `mytopic`, while `ben` has read-write
+access to all topics starting with `alerts-` and read-only access to the topic `system-logs`. The last entry allows
+anonymous users (i.e. clients that do not authenticate) to read the `announcements` topic.
+
 ### Access tokens
 In addition to username/password auth, ntfy also provides authentication via access tokens. Access tokens are useful
 to avoid having to configure your password across multiple publishing/subscribing applications. For instance, you may
@@ -294,6 +392,12 @@ want to use a dedicated token to publish from your backup host, and one from you
     and deleting the account, every action can be performed with a token. Granular access tokens are on the roadmap,
     but not yet implemented.
 
+You can create access tokens in two different ways:
+
+* [Using the CLI](#tokens-via-the-cli): Using the `ntfy token` command, you can manually add/update/remove tokens.
+* [In the config](#tokens-via-the-config): You can provision access tokens in the `server.yml` file via `auth-tokens` key.
+
+#### Tokens via the CLI
 The `ntfy token` command can be used to manage access tokens for users. Tokens can have labels, and they can expire
 automatically (or never expire). Each user can have up to 60 tokens (hardcoded). 
 
@@ -304,6 +408,7 @@ ntfy token list phil                 # Shows list of tokens for user phil
 ntfy token add phil                  # Create token for user phil which never expires
 ntfy token add --expires=2d phil     # Create token for user phil which expires in 2 days
 ntfy token remove phil tk_th2sxr...  # Delete token
+ntfy token generate                  # Generate random token, can be used in auth-tokens config option
 ```
 
 **Creating an access token:**
@@ -311,32 +416,89 @@ ntfy token remove phil tk_th2sxr...  # Delete token
 $ ntfy token add --expires=30d --label="backups" phil
 $ ntfy token list
 user phil
-- tk_AgQdq7mVBoFD37zQVN29RhuMzNIz2 (backups), expires 15 Mar 23 14:33 EDT, accessed from 0.0.0.0 at 13 Feb 23 13:33 EST
+- tk_7eevizlsiwf9yi4uxsrs83r4352o0 (backups), expires 15 Mar 23 14:33 EDT, accessed from 0.0.0.0 at 13 Feb 23 13:33 EST
 ```
 
 Once an access token is created, you can **use it to authenticate against the ntfy server, e.g. when you publish or
 subscribe to topics**. To learn how, check out [authenticate via access tokens](publish.md#access-tokens).
 
-### Example: Private instance
-The easiest way to configure a private instance is to set `auth-default-access` to `deny-all` in the `server.yml`:
+#### Tokens via the config
+Access tokens can be pre-provisioned in the `server.yml` configuration file using the `auth-tokens` config option.
+This is useful for automated setups, Docker environments, or when you want to define tokens declaratively.
 
-=== "/etc/ntfy/server.yml"
+The `auth-tokens` option is a list of access tokens that are automatically created/updated when the server starts.
+When entries are removed, they are deleted from the database. Each entry is defined in the format `<username>:<token>[:<label>]`.
+
+The `<username>` must be an existing, provisioned user, as defined in the `auth-users` section (see [users via the config](#users-via-the-config)).
+The `<token>` is a valid access token, which must start with `tk_` and be 32 characters long (including the prefix). You can generate
+random tokens using the `ntfy token generate` command. The optional `<label>` is a human-readable label for the token, 
+which can be used to identify it later.
+
+Once configured, these tokens can be used to authenticate API requests just like tokens created via the CLI.
+For usage examples, see [authenticate via access tokens](publish.md#access-tokens).
+
+Here's an example:
+
+=== "Declarative tokens in /etc/ntfy/server.yml"
+    ``` yaml
+    auth-file: "/var/lib/ntfy/user.db"
+    auth-users:
+      - "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin"
+      - "backup-service:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user"
+    auth-tokens:
+      - "phil:tk_3gd7d2yftt4b8ixyfe9mnmro88o76"
+      - "backup-service:tk_f099we8uzj7xi5qshzajwp6jffvkz:Backup script"
+    ```
+
+=== "Declarative tokens via env variables"
+    ```
+    # Comma-separated list
+    NTFY_AUTH_FILE='/var/lib/ntfy/user.db'
+    NTFY_AUTH_USERS='phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin,ben:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user'
+    NTFY_AUTH_TOKENS='phil:tk_3gd7d2yftt4b8ixyfe9mnmro88o76,backup-service:tk_f099we8uzj7xi5qshzajwp6jffvkz:Backup script'
+    ```
+
+In this example, the `auth-users` section defines two users, `phil` and `backup-service`. The `auth-tokens` section
+defines access tokens for these users. `phil` has a token `tk_3gd7d2yftt4b8ixyfe9mnmro88o76`, while `backup-service`
+has a token `tk_f099we8uzj7xi5qshzajwp6jffvkz` with the label "Backup script".
+
+### Example: Private instance
+The easiest way to configure a private instance is to set `auth-default-access` to `deny-all` in the `server.yml`,
+and to configure users in the `auth-users` section (see [users via the config](#users-via-the-config)), 
+access control entries in the `auth-access` section (see [ACL entries via the config](#acl-entries-via-the-config)),
+and access tokens in the `auth-tokens` section (see [access tokens via the config](#tokens-via-the-config)).
+
+Here's an example that defines a single admin user `phil` with the password `mypass`, and a regular user `backup-script`
+with the password `backup-script`. The admin user has full access to all topics, while regular user can only
+access the `backups` topic with read-write permissions. The `auth-default-access` is set to `deny-all`, which means
+that all other users and anonymous access are denied by default.
+
+=== "Config via /etc/ntfy/server.yml"
     ``` yaml
     auth-file: "/var/lib/ntfy/user.db"
     auth-default-access: "deny-all"
+    auth-users:
+      - "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin"
+      - "backup-script:$2a$10$/ehiQt.w7lhTmHXq.RNsOOkIwiPPeWFIzWYO3DRxNixnWKLX8.uj.:user"
+    auth-access:
+      - "backup-service:backups:rw"
+    auth-tokens:
+      - "phil:tk_3gd7d2yftt4b8ixyfe9mnmro88o76:My personal token"
     ```
 
-After that, simply create an `admin` user:
-
-```
-$ ntfy user add --role=admin phil
-password: mypass
-confirm: mypass
-user phil added with role admin 
-```
+=== "Config via env variables"
+    ``` yaml
+    NTFY_AUTH_FILE='/var/lib/ntfy/user.db'
+    NTFY_AUTH_DEFAULT_ACCESS='deny-all'
+    NTFY_AUTH_USERS='phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin,backup-script:$2a$10$/ehiQt.w7lhTmHXq.RNsOOkIwiPPeWFIzWYO3DRxNixnWKLX8.uj.:user'
+    NTFY_AUTH_ACCESS='backup-service:backups:rw'
+    NTFY_AUTH_TOKENS='phil:tk_3gd7d2yftt4b8ixyfe9mnmro88o76:My personal token'
+    ```
 
 Once you've done that, you can publish and subscribe using [Basic Auth](https://en.wikipedia.org/wiki/Basic_access_authentication) 
-with the given username/password. Be sure to use HTTPS to avoid eavesdropping and exposing your password. Here's a simple example:
+with the given username/password. Be sure to use HTTPS to avoid eavesdropping and exposing your password. 
+
+Here's a simple example (using the credentials of the `phil` user):
 
 === "Command line (curl)"
     ```
@@ -559,7 +721,7 @@ If you are running ntfy behind a proxy, you should set the `behind-proxy` flag. 
 as the primary identifier for a visitor, as opposed to the remote IP address. 
 
 If the `behind-proxy` flag is not set, all visitors will be counted as one, because from the perspective of the
-ntfy server, they all share the proxy's IP address. 
+ntfy server, they all share the proxy's IP address.
 
 Relevant flags to consider:
 
@@ -568,9 +730,17 @@ Relevant flags to consider:
 * `proxy-forwarded-header` is the header to use to identify visitors (default: `X-Forwarded-For`). It may be a single IP address (e.g. `1.2.3.4`),
   a comma-separated list of IP addresses (e.g. `1.2.3.4, 5.6.7.8`), or an [RFC 7239](https://datatracker.ietf.org/doc/html/rfc7239)-style
  header (e.g. `for=1.2.3.4;by=proxy.example.com, for=5.6.7.8`).
-* `proxy-trusted-addresses` is a comma-separated list of IP addresses that are removed from the forwarded header 
+* `proxy-trusted-hosts` is a comma-separated list of IP addresses, hosts or CIDRs that are removed from the forwarded header 
   to determine the real IP address. This is only useful if there are multiple proxies involved that add themselves to
   the forwarded header (default: empty).
+* `visitor-prefix-bits-ipv4` is the number of bits of the IPv4 address to use for rate limiting (default is `32`, which is the entire
+  IP address). In IPv4 environments, by default, a visitor's **full IPv4 address** is used as-is for rate limiting. This means that
+  if someone publishes messages from multiple IP addresses, they will be counted as separate visitors. You can adjust this by setting the `visitor-prefix-bits-ipv4` config option. To group visitors in a /24 subnet and count them as one, for instance,
+  set it to `24`. In that case, `1.2.3.4` and `1.2.3.99` are treated as the same visitor.
+* `visitor-prefix-bits-ipv6` is the number of bits of the IPv6 address to use for rate limiting (default is `64`, which is a /64 subnet). 
+  In IPv6 environments, by default, a visitor's IP address is **truncated to the /64 subnet**, meaning that `2001:db8:25:86:1::1` and 
+  `2001:db8:25:86:2::1` are treated as the same visitor. Use the `visitor-prefix-bits-ipv6` config option to adjust this behavior.
+  See [IPv6 considerations](#ipv6-considerations) for more details.
 
 === "/etc/ntfy/server.yml (behind a proxy)"
     ``` yaml
@@ -613,7 +783,21 @@ Relevant flags to consider:
     #          the visitor IP will be 9.9.9.9 (right-most unknown address).
     #
     behind-proxy: true
-    proxy-trusted-addresses: "1.2.3.4, 1.2.3.5"
+    proxy-trusted-hosts: "1.2.3.0/24, 1.2.2.2, 2001:db8::/64"
+    ```
+
+=== "/etc/ntfy/server.yml (adjusted IPv4/IPv6 prefixes proxies)"
+    ``` yaml
+    # Tell ntfy to treat visitors as being in a /24 subnet (IPv4) or /48 subnet (IPv6)
+    # as one visitor, so that they are counted as one for rate limiting.
+    #
+    # Example 1: If 1.2.3.4 and 1.2.3.5 publish a message, the visitor 1.2.3.0 will have
+    #            used 2 messages.
+    # Example 2: If 2001:db8:2500:1::1 and 2001:db8:2500:2::1 publish a message, the visitor
+    #            2001:db8:2500:: will have used 2 messages.
+    #
+    visitor-prefix-bits-ipv4: 24
+    visitor-prefix-bits-ipv6: 48
     ```
 
 ### TLS/SSL
@@ -1138,6 +1322,18 @@ If this ever happens, there will be a log message that looks something like this
 WARN Firebase quota exceeded (likely for topic), temporarily denying Firebase access to visitor
 ```
 
+### IPv6 considerations
+By default, rate limiting for IPv6 is done using the `/64` subnet of the visitor's IPv6 address. This means that all visitors
+in the same `/64` subnet are treated as one visitor. This is done to prevent abuse, as IPv6 subnet assignments are typically
+much larger than IPv4 subnets (and much cheaper), and it is common for ISPs to assign large subnets to their customers.
+
+Other than that, rate limiting for IPv6 is done the same way as for IPv4, using the visitor's IP address or subnet to identify them.
+
+There are two options to configure the number of bits used for rate limiting (for IPv4 and IPv6):
+
+- `visitor-prefix-bits-ipv4` is number of bits of the IPv4 address to use for rate limiting (default: 32, full address)
+- `visitor-prefix-bits-ipv6` is number of bits of the IPv6 address to use for rate limiting (default: 64, /64 subnet)
+
 ### Subscriber-based rate limiting
 By default, ntfy puts almost all rate limits on the message publisher, e.g. number of messages, requests, and attachment
 size are all based on the visitor who publishes a message. **Subscriber-based rate limiting is a way to use the rate limits
@@ -1302,6 +1498,25 @@ Note that if you run nginx in a container, append `, chain=DOCKER-USER` to the j
 is `INPUT`, but `FORWARD` is used when using docker networks. `DOCKER-USER`, available when using docker, is part of the `FORWARD`
 chain.
 
+The official ntfy.sh server uses fail2ban to ban IPs. Check out ntfy.sh's [Ansible fail2ban role](https://github.com/binwiederhier/ntfy-ansible/tree/main/roles/fail2ban) for details. Ban actors are banned for 1 hour initially, and up to
+4 hours at a time for repeated offenses. IPv4 addresses are banned individually, while IPv6 addresses are banned by their `/56` prefix.
+
+## IPv6 support
+ntfy fully supports IPv6, though there are a few things to keep in mind.
+
+- **Listening on an IPv6 address**: By default, ntfy listens on `:80` (IPv4-only). If you want to listen on an IPv6 address, you need to
+  explicitly set the `listen-http` and/or `listen-https` options in your `server.yml` file to an IPv6 address, e.g. `[::]:80`. To listen on
+  IPv4 and IPv6, you must run ntfy behind a reverse proxy, e.g. `listen :80; listen [::]:80;` in nginx.
+- **Rate limiting:** By default, ntfy uses the `/64` subnet of the visitor's IPv6 address for rate limiting. This means that all visitors in the same `/64`
+  subnet are treated as one visitor. If you want to change this, you can set the `visitor-prefix-bits-ipv6` option in your `server.yml` file to a different
+  value (e.g. `48` for `/48` subnets). See [IPv6 considerations](#ipv6-considerations) and [IP-based rate limiting](#ip-based-rate-limiting) for more details.
+- **Banning IPs with fail2ban:** By default, if you're using the `iptables-multiport` action, fail2ban bans individual IPv4 and IPv6 addresses via `iptables` and `ip6tables`. While this behavior is fine for IPv4, it is not for IPv6, because every host can technically have up to 2^64 addresses. Please ensure that your `actionban` and `actionunban` commands
+  support IPv6 and also ban the entire prefix (e.g. `/48`). See [Banning bad actors](#banning-bad-actors-fail2ban) for details.
+
+!!! info
+    The official ntfy.sh server supports IPv6. Check out ntfy.sh's [Ansible repository](https://github.com/binwiederhier/ntfy-ansible) for examples of how to
+    configure [ntfy](https://github.com/binwiederhier/ntfy-ansible/tree/main/roles/ntfy), [nginx](https://github.com/binwiederhier/ntfy-ansible/tree/main/roles/nginx) and [fail2ban](https://github.com/binwiederhier/ntfy-ansible/tree/main/roles/fail2ban).
+
 ## Health checks
 A preliminary health check API endpoint is exposed at `/v1/health`. The endpoint returns a `json` response in the format shown below.
 If a non-200 HTTP status code is returned or if the returned `healthy` field is `false` the ntfy service should be considered as unhealthy.
@@ -1444,7 +1659,7 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `auth-default-access`                      | `NTFY_AUTH_DEFAULT_ACCESS`                      | `read-write`, `read-only`, `write-only`, `deny-all` | `read-write`      | Default permissions if no matching entries in the auth database are found. Default is `read-write`.                                                                                                                             |
 | `behind-proxy`                             | `NTFY_BEHIND_PROXY`                             | *bool*                                              | false             | If set, use forwarded header (e.g. X-Forwarded-For, X-Client-IP) to determine visitor IP address (for rate limiting)                                                                                                            |
 | `proxy-forwarded-header`                   | `NTFY_PROXY_FORWARDED_HEADER`                   | *string*                                            | `X-Forwarded-For` | Use specified header to determine visitor IP address (for rate limiting)                                                                                                                                                        |
-| `proxy-trusted-addresses`                  | `NTFY_PROXY_TRUSTED_ADDRESSES`                  | *comma-separated list of IPs*                       | -                 | Comma-separated list of trusted IP addresses to remove from forwarded header                                                                                                                                                    |
+| `proxy-trusted-hosts`                      | `NTFY_PROXY_TRUSTED_HOSTS`                      | *comma-separated host/IP/CIDR list*                 | -                 | Comma-separated list of trusted IP addresses, hosts, or CIDRs to remove from forwarded header                                                                                                                                   |
 | `attachment-cache-dir`                     | `NTFY_ATTACHMENT_CACHE_DIR`                     | *directory*                                         | -                 | Cache directory for attached files. To enable attachments, this has to be set.                                                                                                                                                  |
 | `attachment-total-size-limit`              | `NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT`              | *size*                                              | 5G                | Limit of the on-disk attachment cache directory. If the limits is exceeded, new attachments will be rejected.                                                                                                                   |
 | `attachment-file-size-limit`               | `NTFY_ATTACHMENT_FILE_SIZE_LIMIT`               | *size*                                              | 15M               | Per-file attachment size limit (e.g. 300k, 2M, 100M). Larger attachment will be rejected.                                                                                                                                       |
@@ -1474,9 +1689,11 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `visitor-message-daily-limit`              | `NTFY_VISITOR_MESSAGE_DAILY_LIMIT`              | *number*                                            | -                 | Rate limiting: Allowed number of messages per day per visitor, reset every day at midnight (UTC). By default, this value is unset.                                                                                              |
 | `visitor-request-limit-burst`              | `NTFY_VISITOR_REQUEST_LIMIT_BURST`              | *number*                                            | 60                | Rate limiting: Allowed GET/PUT/POST requests per second, per visitor. This setting is the initial bucket of requests each visitor has                                                                                           |
 | `visitor-request-limit-replenish`          | `NTFY_VISITOR_REQUEST_LIMIT_REPLENISH`          | *duration*                                          | 5s                | Rate limiting: Strongly related to `visitor-request-limit-burst`: The rate at which the bucket is refilled                                                                                                                      |
-| `visitor-request-limit-exempt-hosts`       | `NTFY_VISITOR_REQUEST_LIMIT_EXEMPT_HOSTS`       | *comma-separated host/IP list*                      | -                 | Rate limiting: List of hostnames and IPs to be exempt from request rate limiting                                                                                                                                                |
+| `visitor-request-limit-exempt-hosts`       | `NTFY_VISITOR_REQUEST_LIMIT_EXEMPT_HOSTS`       | *comma-separated host/IP/CIDR list*                 | -                 | Rate limiting: List of hostnames and IPs to be exempt from request rate limiting                                                                                                                                                |
 | `visitor-subscription-limit`               | `NTFY_VISITOR_SUBSCRIPTION_LIMIT`               | *number*                                            | 30                | Rate limiting: Number of subscriptions per visitor (IP address)                                                                                                                                                                 |
 | `visitor-subscriber-rate-limiting`         | `NTFY_VISITOR_SUBSCRIBER_RATE_LIMITING`         | *bool*                                              | `false`           | Rate limiting: Enables subscriber-based rate limiting                                                                                                                                                                           |
+| `visitor-prefix-bits-ipv4`                 | `NTFY_VISITOR_PREFIX_BITS_IPV4`                 | *number*                                            | 32                | Rate limiting: Number of bits to use for IPv4 visitor prefix, e.g. 24 for /24                                                                                                                                                   |
+| `visitor-prefix-bits-ipv6`                 | `NTFY_VISITOR_PREFIX_BITS_IPV6`                 | *number*                                            | 64                | Rate limiting: Number of bits to use for IPv6 visitor prefix, e.g. 48 for /48                                                                                                                                                   |
 | `web-root`                                 | `NTFY_WEB_ROOT`                                 | *path*, e.g. `/` or `/app`, or `disable`            | `/`               | Sets root of the web app (e.g. /, or /app), or disables it entirely (disable)                                                                                                                                                   |
 | `enable-signup`                            | `NTFY_ENABLE_SIGNUP`                            | *boolean* (`true` or `false`)                       | `false`           | Allows users to sign up via the web app, or API                                                                                                                                                                                 |
 | `enable-login`                             | `NTFY_ENABLE_LOGIN`                             | *boolean* (`true` or `false`)                       | `false`           | Allows users to log in via the web app, or API                                                                                                                                                                                  |
@@ -1572,6 +1789,7 @@ OPTIONS:
    --message-delay-limit value, --message_delay_limit value                                                               max duration a message can be scheduled into the future (default: "3d") [$NTFY_MESSAGE_DELAY_LIMIT]
    --global-topic-limit value, --global_topic_limit value, -T value                                                       total number of topics allowed (default: 15000) [$NTFY_GLOBAL_TOPIC_LIMIT]
    --visitor-subscription-limit value, --visitor_subscription_limit value                                                 number of subscriptions per visitor (default: 30) [$NTFY_VISITOR_SUBSCRIPTION_LIMIT]
+   --visitor-subscriber-rate-limiting, --visitor_subscriber_rate_limiting                                                 enables subscriber-based rate limiting (default: false) [$NTFY_VISITOR_SUBSCRIBER_RATE_LIMITING]
    --visitor-attachment-total-size-limit value, --visitor_attachment_total_size_limit value                               total storage limit used for attachments per visitor (default: "100M") [$NTFY_VISITOR_ATTACHMENT_TOTAL_SIZE_LIMIT]
    --visitor-attachment-daily-bandwidth-limit value, --visitor_attachment_daily_bandwidth_limit value                     total daily attachment download/upload bandwidth limit per visitor (default: "500M") [$NTFY_VISITOR_ATTACHMENT_DAILY_BANDWIDTH_LIMIT]
    --visitor-request-limit-burst value, --visitor_request_limit_burst value                                               initial limit of requests per visitor (default: 60) [$NTFY_VISITOR_REQUEST_LIMIT_BURST]
@@ -1580,8 +1798,11 @@ OPTIONS:
    --visitor-message-daily-limit value, --visitor_message_daily_limit value                                               max messages per visitor per day, derived from request limit if unset (default: 0) [$NTFY_VISITOR_MESSAGE_DAILY_LIMIT]
    --visitor-email-limit-burst value, --visitor_email_limit_burst value                                                   initial limit of e-mails per visitor (default: 16) [$NTFY_VISITOR_EMAIL_LIMIT_BURST]
    --visitor-email-limit-replenish value, --visitor_email_limit_replenish value                                           interval at which burst limit is replenished (one per x) (default: "1h") [$NTFY_VISITOR_EMAIL_LIMIT_REPLENISH]
-   --visitor-subscriber-rate-limiting, --visitor_subscriber_rate_limiting                                                 enables subscriber-based rate limiting (default: false) [$NTFY_VISITOR_SUBSCRIBER_RATE_LIMITING]
-   --behind-proxy, --behind_proxy, -P                                                                                     if set, use X-Forwarded-For header to determine visitor IP address (for rate limiting) (default: false) [$NTFY_BEHIND_PROXY]
+   --visitor-prefix-bits-ipv4 value, --visitor_prefix_bits_ipv4 value                                                     number of bits of the IPv4 address to use for rate limiting (default: 32, full address) (default: 32) [$NTFY_VISITOR_PREFIX_BITS_IPV4]
+   --visitor-prefix-bits-ipv6 value, --visitor_prefix_bits_ipv6 value                                                     number of bits of the IPv6 address to use for rate limiting (default: 64, /64 subnet) (default: 64) [$NTFY_VISITOR_PREFIX_BITS_IPV6]
+   --behind-proxy, --behind_proxy, -P                                                                                     if set, use forwarded header (e.g. X-Forwarded-For, X-Client-IP) to determine visitor IP address (for rate limiting) (default: false) [$NTFY_BEHIND_PROXY]
+   --proxy-forwarded-header value, --proxy_forwarded_header value                                                         use specified header to determine visitor IP address (for rate limiting) (default: "X-Forwarded-For") [$NTFY_PROXY_FORWARDED_HEADER]
+   --proxy-trusted-hosts value, --proxy_trusted_hosts value                                                               comma-separated list of trusted IP addresses, hosts, or CIDRs to remove from forwarded header [$NTFY_PROXY_TRUSTED_HOSTS]
    --stripe-secret-key value, --stripe_secret_key value                                                                   key used for the Stripe API communication, this enables payments [$NTFY_STRIPE_SECRET_KEY]
    --stripe-webhook-key value, --stripe_webhook_key value                                                                 key required to validate the authenticity of incoming webhooks from Stripe [$NTFY_STRIPE_WEBHOOK_KEY]
    --billing-contact value, --billing_contact value                                                                       e-mail or website to display in upgrade dialog (only if payments are enabled) [$NTFY_BILLING_CONTACT]
@@ -1595,5 +1816,5 @@ OPTIONS:
    --web-push-startup-queries value, --web_push_startup_queries value                                                     queries run when the web push database is initialized [$NTFY_WEB_PUSH_STARTUP_QUERIES]
    --web-push-expiry-duration value, --web_push_expiry_duration value                                                     automatically expire unused subscriptions after this time (default: "60d") [$NTFY_WEB_PUSH_EXPIRY_DURATION]
    --web-push-expiry-warning-duration value, --web_push_expiry_warning_duration value                                     send web push warning notification after this time before expiring unused subscriptions (default: "55d") [$NTFY_WEB_PUSH_EXPIRY_WARNING_DURATION]
-   --help, -h                                                                                                             show help
+   --help, -h 
 ```

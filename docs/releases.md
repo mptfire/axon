@@ -2,6 +2,41 @@
 Binaries for all releases can be found on the GitHub releases pages for the [ntfy server](https://github.com/binwiederhier/ntfy/releases)
 and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/releases).
 
+### ntfy server v2.14.0
+Released August 5, 2025
+
+This release adds support for [declarative users](config.md#users-via-the-config), [declarative ACL entries](config.md#acl-entries-via-the-config) and [declarative tokens](config.md#tokens-via-the-config). This allows you to define users, ACL entries and tokens in the config file, which is useful for static deployments or deployments that use a configuration management system.
+
+It also adds support for [pre-defined templates](publish.md#pre-defined-templates) and [custom templates](publish.md#custom-templates) for enhanced JSON webhook support, as well as advanced [template functions](publish.md#template-functions) based on the [Sprig](https://github.com/Masterminds/sprig) functions.
+
+❤️ If you like ntfy, **please consider sponsoring me** via [GitHub Sponsors](https://github.com/sponsors/binwiederhier), [Liberapay](https://en.liberapay.com/ntfy/), Bitcoin (`1626wjrw3uWk9adyjCfYwafw4sQWujyjn8`), or by buying a [paid plan via the web app](https://ntfy.sh/app). ntfy
+will always remain open source.
+
+**Features:**
+
+* [Declarative users](config.md#users-via-the-config), [declarative ACL entries](config.md#acl-entries-via-the-config) and [declarative tokens](config.md#tokens-via-the-config) ([#464](https://github.com/binwiederhier/ntfy/issues/464), [#1384](https://github.com/binwiederhier/ntfy/pull/1384), [#1413](https://github.com/binwiederhier/ntfy/pull/1413), thanks to [pinpox](https://github.com/pinpox) for reporting, to [@wunter8](https://github.com/wunter8) for reviewing and implementing parts of it)
+* [Pre-defined templates](publish.md#pre-defined-templates) and [custom templates](publish.md#custom-templates) for enhanced JSON webhook support ([#1390](https://github.com/binwiederhier/ntfy/pull/1390))
+* Support of advanced [template functions](publish.md#template-functions) based on the [Sprig](https://github.com/Masterminds/sprig) library ([#1121](https://github.com/binwiederhier/ntfy/issues/1121), thanks to [@davidatkinsondoyle](https://github.com/davidatkinsondoyle) for reporting, to [@wunter8](https://github.com/wunter8) for implementing, and to the Sprig team for their work)
+
+### ntfy server v2.13.0
+Released July 10, 2025
+
+This is a relatively small release, mainly to support IPv6 and to add more sophisticated
+proxy header support. Quick reminder that if you like ntfy, **please consider sponsoring us**
+via [GitHub Sponsors](https://github.com/sponsors/binwiederhier) and [Liberapay](https://en.liberapay.com/ntfy/), or buying a [paid plan via the web app](https://ntfy.sh/app).
+ntfy will always remain open source.
+
+**Features:**
+
+* Full [IPv6 support](config.md#ipv6-support) for ntfy and the official ntfy.sh server ([#519](https://github.com/binwiederhier/ntfy/issues/519)/[#1380](https://github.com/binwiederhier/ntfy/pull/1380)/[ansible#4](https://github.com/binwiederhier/ntfy-ansible/pull/4))
+* Support `X-Client-IP`, `X-Real-IP`, `Forwarded` headers for [rate limiting](config.md#ip-based-rate-limiting) via `proxy-forwarded-header` and `proxy-trusted-hosts` ([#1360](https://github.com/binwiederhier/ntfy/pull/1360)/[#1252](https://github.com/binwiederhier/ntfy/pull/1252), thanks to [@pixitha](https://github.com/pixitha))
+* Add STDIN support for `ntfy publish` ([#1382](https://github.com/binwiederhier/ntfy/pull/1382), thanks to [@srevn](https://github.com/srevn))
+
+**Languages**
+
+* Update new languages from Weblate. Thanks to all the contributors!
+* Added Estonian (Esti), Galician (Galego), Romanian (Română), Slovak (Slovenčina) as new languages to the web app
+
 ### ntfy server v2.12.0
 Released May 29, 2025
 
@@ -1432,12 +1467,6 @@ For older releases, check out the GitHub releases pages for the [ntfy server](ht
 and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/releases).
 
 ## Not released yet
-
-### ntfy server v2.13.0 (UNRELEASED)
-
-**Features:**
-
-* Support `X-Client-IP`, `X-Real-IP`, `Forwarded` headers for [rate limiting](config.md#ip-based-rate-limiting) via `proxy-forwarded-header` and `proxy-trusted-addresses` ([#1360](https://github.com/binwiederhier/ntfy/pull/1360)/[#1252](https://github.com/binwiederhier/ntfy/pull/1252), thanks to [@pixitha](https://github.com/pixitha)) 
 
 ### ntfy Android app v1.16.1 (UNRELEASED)
 

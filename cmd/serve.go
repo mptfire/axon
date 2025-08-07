@@ -5,13 +5,6 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"github.com/stripe/stripe-go/v74"
-	"github.com/urfave/cli/v2"
-	"github.com/urfave/cli/v2/altsrc"
-	"heckel.io/ntfy/v2/log"
-	"heckel.io/ntfy/v2/server"
-	"heckel.io/ntfy/v2/user"
-	"heckel.io/ntfy/v2/util"
 	"io/fs"
 	"math"
 	"net"
@@ -22,19 +15,23 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/stripe/stripe-go/v74"
+	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v2/altsrc"
+	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/server"
+	"heckel.io/ntfy/v2/user"
+	"heckel.io/ntfy/v2/util"
 )
 
 func init() {
 	commands = append(commands, cmdServe)
 }
 
-const (
-	defaultServerConfigFile = "/etc/ntfy/server.yml"
-)
-
 var flagsServe = append(
 	append([]cli.Flag{}, flagsDefault...),
-	&cli.StringFlag{Name: "config", Aliases: []string{"c"}, EnvVars: []string{"NTFY_CONFIG_FILE"}, Value: defaultServerConfigFile, Usage: "config file"},
+	&cli.StringFlag{Name: "config", Aliases: []string{"c"}, EnvVars: []string{"NTFY_CONFIG_FILE"}, Value: server.DefaultConfigFile, Usage: "config file"},
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "base-url", Aliases: []string{"base_url", "B"}, EnvVars: []string{"NTFY_BASE_URL"}, Usage: "externally visible base URL for this host (e.g. https://ntfy.sh)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "listen-http", Aliases: []string{"listen_http", "l"}, EnvVars: []string{"NTFY_LISTEN_HTTP"}, Value: server.DefaultListenHTTP, Usage: "ip:port used as HTTP listen address"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "listen-https", Aliases: []string{"listen_https", "L"}, EnvVars: []string{"NTFY_LISTEN_HTTPS"}, Usage: "ip:port used as HTTPS listen address"}),
@@ -51,10 +48,14 @@ var flagsServe = append(
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "auth-file", Aliases: []string{"auth_file", "H"}, EnvVars: []string{"NTFY_AUTH_FILE"}, Usage: "auth database file used for access control"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "auth-startup-queries", Aliases: []string{"auth_startup_queries"}, EnvVars: []string{"NTFY_AUTH_STARTUP_QUERIES"}, Usage: "queries run when the auth database is initialized"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "auth-default-access", Aliases: []string{"auth_default_access", "p"}, EnvVars: []string{"NTFY_AUTH_DEFAULT_ACCESS"}, Value: "read-write", Usage: "default permissions if no matching entries in the auth database are found"}),
+	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "auth-users", Aliases: []string{"auth_users"}, EnvVars: []string{"NTFY_AUTH_USERS"}, Usage: "pre-provisioned declarative users"}),
+	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "auth-access", Aliases: []string{"auth_access"}, EnvVars: []string{"NTFY_AUTH_ACCESS"}, Usage: "pre-provisioned declarative access control entries"}),
+	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "auth-tokens", Aliases: []string{"auth_tokens"}, EnvVars: []string{"NTFY_AUTH_TOKENS"}, Usage: "pre-provisioned declarative access tokens"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-cache-dir", Aliases: []string{"attachment_cache_dir"}, EnvVars: []string{"NTFY_ATTACHMENT_CACHE_DIR"}, Usage: "cache directory for attached files"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-total-size-limit", Aliases: []string{"attachment_total_size_limit", "A"}, EnvVars: []string{"NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT"}, Value: util.FormatSize(server.DefaultAttachmentTotalSizeLimit), Usage: "limit of the on-disk attachment cache"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-file-size-limit", Aliases: []string{"attachment_file_size_limit", "Y"}, EnvVars: []string{"NTFY_ATTACHMENT_FILE_SIZE_LIMIT"}, Value: util.FormatSize(server.DefaultAttachmentFileSizeLimit), Usage: "per-file attachment size limit (e.g. 300k, 2M, 100M)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-expiry-duration", Aliases: []string{"attachment_expiry_duration", "X"}, EnvVars: []string{"NTFY_ATTACHMENT_EXPIRY_DURATION"}, Value: util.FormatDuration(server.DefaultAttachmentExpiryDuration), Usage: "duration after which uploaded attachments will be deleted (e.g. 3h, 20h)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "template-dir", Aliases: []string{"template_dir"}, EnvVars: []string{"NTFY_TEMPLATE_DIR"}, Value: server.DefaultTemplateDir, Usage: "directory to load named message templates from"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "keepalive-interval", Aliases: []string{"keepalive_interval", "k"}, EnvVars: []string{"NTFY_KEEPALIVE_INTERVAL"}, Value: util.FormatDuration(server.DefaultKeepaliveInterval), Usage: "interval of keepalive messages"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "manager-interval", Aliases: []string{"manager_interval", "m"}, EnvVars: []string{"NTFY_MANAGER_INTERVAL"}, Value: util.FormatDuration(server.DefaultManagerInterval), Usage: "interval of for message pruning and stats printing"}),
 	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "disallowed-topics", Aliases: []string{"disallowed_topics"}, EnvVars: []string{"NTFY_DISALLOWED_TOPICS"}, Usage: "topics that are not allowed to be used"}),
@@ -79,6 +80,7 @@ var flagsServe = append(
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "message-delay-limit", Aliases: []string{"message_delay_limit"}, EnvVars: []string{"NTFY_MESSAGE_DELAY_LIMIT"}, Value: util.FormatDuration(server.DefaultMessageDelayMax), Usage: "max duration a message can be scheduled into the future"}),
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "global-topic-limit", Aliases: []string{"global_topic_limit", "T"}, EnvVars: []string{"NTFY_GLOBAL_TOPIC_LIMIT"}, Value: server.DefaultTotalTopicLimit, Usage: "total number of topics allowed"}),
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-subscription-limit", Aliases: []string{"visitor_subscription_limit"}, EnvVars: []string{"NTFY_VISITOR_SUBSCRIPTION_LIMIT"}, Value: server.DefaultVisitorSubscriptionLimit, Usage: "number of subscriptions per visitor"}),
+	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "visitor-subscriber-rate-limiting", Aliases: []string{"visitor_subscriber_rate_limiting"}, EnvVars: []string{"NTFY_VISITOR_SUBSCRIBER_RATE_LIMITING"}, Value: false, Usage: "enables subscriber-based rate limiting"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "visitor-attachment-total-size-limit", Aliases: []string{"visitor_attachment_total_size_limit"}, EnvVars: []string{"NTFY_VISITOR_ATTACHMENT_TOTAL_SIZE_LIMIT"}, Value: util.FormatSize(server.DefaultVisitorAttachmentTotalSizeLimit), Usage: "total storage limit used for attachments per visitor"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "visitor-attachment-daily-bandwidth-limit", Aliases: []string{"visitor_attachment_daily_bandwidth_limit"}, EnvVars: []string{"NTFY_VISITOR_ATTACHMENT_DAILY_BANDWIDTH_LIMIT"}, Value: "500M", Usage: "total daily attachment download/upload bandwidth limit per visitor"}),
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-request-limit-burst", Aliases: []string{"visitor_request_limit_burst"}, EnvVars: []string{"NTFY_VISITOR_REQUEST_LIMIT_BURST"}, Value: server.DefaultVisitorRequestLimitBurst, Usage: "initial limit of requests per visitor"}),
@@ -87,10 +89,11 @@ var flagsServe = append(
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-message-daily-limit", Aliases: []string{"visitor_message_daily_limit"}, EnvVars: []string{"NTFY_VISITOR_MESSAGE_DAILY_LIMIT"}, Value: server.DefaultVisitorMessageDailyLimit, Usage: "max messages per visitor per day, derived from request limit if unset"}),
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-email-limit-burst", Aliases: []string{"visitor_email_limit_burst"}, EnvVars: []string{"NTFY_VISITOR_EMAIL_LIMIT_BURST"}, Value: server.DefaultVisitorEmailLimitBurst, Usage: "initial limit of e-mails per visitor"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "visitor-email-limit-replenish", Aliases: []string{"visitor_email_limit_replenish"}, EnvVars: []string{"NTFY_VISITOR_EMAIL_LIMIT_REPLENISH"}, Value: util.FormatDuration(server.DefaultVisitorEmailLimitReplenish), Usage: "interval at which burst limit is replenished (one per x)"}),
-	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "visitor-subscriber-rate-limiting", Aliases: []string{"visitor_subscriber_rate_limiting"}, EnvVars: []string{"NTFY_VISITOR_SUBSCRIBER_RATE_LIMITING"}, Value: false, Usage: "enables subscriber-based rate limiting"}),
+	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-prefix-bits-ipv4", Aliases: []string{"visitor_prefix_bits_ipv4"}, EnvVars: []string{"NTFY_VISITOR_PREFIX_BITS_IPV4"}, Value: server.DefaultVisitorPrefixBitsIPv4, Usage: "number of bits of the IPv4 address to use for rate limiting (default: 32, full address)"}),
+	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-prefix-bits-ipv6", Aliases: []string{"visitor_prefix_bits_ipv6"}, EnvVars: []string{"NTFY_VISITOR_PREFIX_BITS_IPV6"}, Value: server.DefaultVisitorPrefixBitsIPv6, Usage: "number of bits of the IPv6 address to use for rate limiting (default: 64, /64 subnet)"}),
 	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "behind-proxy", Aliases: []string{"behind_proxy", "P"}, EnvVars: []string{"NTFY_BEHIND_PROXY"}, Value: false, Usage: "if set, use forwarded header (e.g. X-Forwarded-For, X-Client-IP) to determine visitor IP address (for rate limiting)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "proxy-forwarded-header", Aliases: []string{"proxy_forwarded_header"}, EnvVars: []string{"NTFY_PROXY_FORWARDED_HEADER"}, Value: "X-Forwarded-For", Usage: "use specified header to determine visitor IP address (for rate limiting)"}),
-	altsrc.NewStringFlag(&cli.StringFlag{Name: "proxy-trusted-addresses", Aliases: []string{"proxy_trusted_addresses"}, EnvVars: []string{"NTFY_PROXY_TRUSTED_ADDRESSES"}, Value: "", Usage: "comma-separated list of trusted IP addresses to remove from forwarded header"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "proxy-trusted-hosts", Aliases: []string{"proxy_trusted_hosts"}, EnvVars: []string{"NTFY_PROXY_TRUSTED_HOSTS"}, Value: "", Usage: "comma-separated list of trusted IP addresses, hosts, or CIDRs to remove from forwarded header"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "stripe-secret-key", Aliases: []string{"stripe_secret_key"}, EnvVars: []string{"NTFY_STRIPE_SECRET_KEY"}, Value: "", Usage: "key used for the Stripe API communication, this enables payments"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "stripe-webhook-key", Aliases: []string{"stripe_webhook_key"}, EnvVars: []string{"NTFY_STRIPE_WEBHOOK_KEY"}, Value: "", Usage: "key required to validate the authenticity of incoming webhooks from Stripe"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "billing-contact", Aliases: []string{"billing_contact"}, EnvVars: []string{"NTFY_BILLING_CONTACT"}, Value: "", Usage: "e-mail or website to display in upgrade dialog (only if payments are enabled)"}),
@@ -154,10 +157,14 @@ func execServe(c *cli.Context) error {
 	authFile := c.String("auth-file")
 	authStartupQueries := c.String("auth-startup-queries")
 	authDefaultAccess := c.String("auth-default-access")
+	authUsersRaw := c.StringSlice("auth-users")
+	authAccessRaw := c.StringSlice("auth-access")
+	authTokensRaw := c.StringSlice("auth-tokens")
 	attachmentCacheDir := c.String("attachment-cache-dir")
 	attachmentTotalSizeLimitStr := c.String("attachment-total-size-limit")
 	attachmentFileSizeLimitStr := c.String("attachment-file-size-limit")
 	attachmentExpiryDurationStr := c.String("attachment-expiry-duration")
+	templateDir := c.String("template-dir")
 	keepaliveIntervalStr := c.String("keepalive-interval")
 	managerIntervalStr := c.String("manager-interval")
 	disallowedTopics := c.StringSlice("disallowed-topics")
@@ -191,9 +198,11 @@ func execServe(c *cli.Context) error {
 	visitorMessageDailyLimit := c.Int("visitor-message-daily-limit")
 	visitorEmailLimitBurst := c.Int("visitor-email-limit-burst")
 	visitorEmailLimitReplenishStr := c.String("visitor-email-limit-replenish")
+	visitorPrefixBitsIPv4 := c.Int("visitor-prefix-bits-ipv4")
+	visitorPrefixBitsIPv6 := c.Int("visitor-prefix-bits-ipv6")
 	behindProxy := c.Bool("behind-proxy")
 	proxyForwardedHeader := c.String("proxy-forwarded-header")
-	proxyTrustedAddresses := util.SplitNoEmpty(c.String("proxy-trusted-addresses"), ",")
+	proxyTrustedHosts := util.SplitNoEmpty(c.String("proxy-trusted-hosts"), ",")
 	stripeSecretKey := c.String("stripe-secret-key")
 	stripeWebhookKey := c.String("stripe-webhook-key")
 	billingContact := c.String("billing-contact")
@@ -324,6 +333,10 @@ func execServe(c *cli.Context) error {
 		return errors.New("web push expiry warning duration cannot be higher than web push expiry duration")
 	} else if behindProxy && proxyForwardedHeader == "" {
 		return errors.New("if behind-proxy is set, proxy-forwarded-header must also be set")
+	} else if visitorPrefixBitsIPv4 < 1 || visitorPrefixBitsIPv4 > 32 {
+		return errors.New("visitor-prefix-bits-ipv4 must be between 1 and 32")
+	} else if visitorPrefixBitsIPv6 < 1 || visitorPrefixBitsIPv6 > 128 {
+		return errors.New("visitor-prefix-bits-ipv6 must be between 1 and 128")
 	}
 
 	// Backwards compatibility
@@ -337,10 +350,22 @@ func execServe(c *cli.Context) error {
 		webRoot = "/" + webRoot
 	}
 
-	// Default auth permissions
+	// Convert default auth permission, read provisioned users
 	authDefault, err := user.ParsePermission(authDefaultAccess)
 	if err != nil {
 		return errors.New("if set, auth-default-access must start set to 'read-write', 'read-only', 'write-only' or 'deny-all'")
+	}
+	authUsers, err := parseUsers(authUsersRaw)
+	if err != nil {
+		return err
+	}
+	authAccess, err := parseAccess(authUsers, authAccessRaw)
+	if err != nil {
+		return err
+	}
+	authTokens, err := parseTokens(authUsers, authTokensRaw)
+	if err != nil {
+		return err
 	}
 
 	// Special case: Unset default
@@ -349,14 +374,24 @@ func execServe(c *cli.Context) error {
 	}
 
 	// Resolve hosts
-	visitorRequestLimitExemptIPs := make([]netip.Prefix, 0)
+	visitorRequestLimitExemptPrefixes := make([]netip.Prefix, 0)
 	for _, host := range visitorRequestLimitExemptHosts {
-		ips, err := parseIPHostPrefix(host)
+		prefixes, err := parseIPHostPrefix(host)
 		if err != nil {
 			log.Warn("cannot resolve host %s: %s, ignoring visitor request exemption", host, err.Error())
 			continue
 		}
-		visitorRequestLimitExemptIPs = append(visitorRequestLimitExemptIPs, ips...)
+		visitorRequestLimitExemptPrefixes = append(visitorRequestLimitExemptPrefixes, prefixes...)
+	}
+
+	// Parse trusted prefixes
+	trustedProxyPrefixes := make([]netip.Prefix, 0)
+	for _, host := range proxyTrustedHosts {
+		prefixes, err := parseIPHostPrefix(host)
+		if err != nil {
+			return fmt.Errorf("cannot resolve trusted proxy host %s: %s", host, err.Error())
+		}
+		trustedProxyPrefixes = append(trustedProxyPrefixes, prefixes...)
 	}
 
 	// Stripe things
@@ -387,10 +422,14 @@ func execServe(c *cli.Context) error {
 	conf.AuthFile = authFile
 	conf.AuthStartupQueries = authStartupQueries
 	conf.AuthDefault = authDefault
+	conf.AuthUsers = authUsers
+	conf.AuthAccess = authAccess
+	conf.AuthTokens = authTokens
 	conf.AttachmentCacheDir = attachmentCacheDir
 	conf.AttachmentTotalSizeLimit = attachmentTotalSizeLimit
 	conf.AttachmentFileSizeLimit = attachmentFileSizeLimit
 	conf.AttachmentExpiryDuration = attachmentExpiryDuration
+	conf.TemplateDir = templateDir
 	conf.KeepaliveInterval = keepaliveInterval
 	conf.ManagerInterval = managerInterval
 	conf.DisallowedTopics = disallowedTopics
@@ -412,18 +451,20 @@ func execServe(c *cli.Context) error {
 	conf.MessageDelayMax = messageDelayLimit
 	conf.TotalTopicLimit = totalTopicLimit
 	conf.VisitorSubscriptionLimit = visitorSubscriptionLimit
+	conf.VisitorSubscriberRateLimiting = visitorSubscriberRateLimiting
 	conf.VisitorAttachmentTotalSizeLimit = visitorAttachmentTotalSizeLimit
 	conf.VisitorAttachmentDailyBandwidthLimit = visitorAttachmentDailyBandwidthLimit
 	conf.VisitorRequestLimitBurst = visitorRequestLimitBurst
 	conf.VisitorRequestLimitReplenish = visitorRequestLimitReplenish
-	conf.VisitorRequestExemptIPAddrs = visitorRequestLimitExemptIPs
+	conf.VisitorRequestExemptPrefixes = visitorRequestLimitExemptPrefixes
 	conf.VisitorMessageDailyLimit = visitorMessageDailyLimit
 	conf.VisitorEmailLimitBurst = visitorEmailLimitBurst
 	conf.VisitorEmailLimitReplenish = visitorEmailLimitReplenish
-	conf.VisitorSubscriberRateLimiting = visitorSubscriberRateLimiting
+	conf.VisitorPrefixBitsIPv4 = visitorPrefixBitsIPv4
+	conf.VisitorPrefixBitsIPv6 = visitorPrefixBitsIPv6
 	conf.BehindProxy = behindProxy
 	conf.ProxyForwardedHeader = proxyForwardedHeader
-	conf.ProxyTrustedAddresses = proxyTrustedAddresses
+	conf.ProxyTrustedPrefixes = trustedProxyPrefixes
 	conf.StripeSecretKey = stripeSecretKey
 	conf.StripeWebhookKey = stripeWebhookKey
 	conf.BillingContact = billingContact
@@ -433,7 +474,6 @@ func execServe(c *cli.Context) error {
 	conf.EnableMetrics = enableMetrics
 	conf.MetricsListenHTTP = metricsListenHTTP
 	conf.ProfileListenHTTP = profileListenHTTP
-	conf.Version = c.App.Version
 	conf.WebPushPrivateKey = webPushPrivateKey
 	conf.WebPushPublicKey = webPushPublicKey
 	conf.WebPushFile = webPushFile
@@ -441,6 +481,7 @@ func execServe(c *cli.Context) error {
 	conf.WebPushStartupQueries = webPushStartupQueries
 	conf.WebPushExpiryDuration = webPushExpiryDuration
 	conf.WebPushExpiryWarningDuration = webPushExpiryWarningDuration
+	conf.Version = c.App.Version
 
 	// Set up hot-reloading of config
 	go sigHandlerConfigReload(config)
@@ -473,7 +514,7 @@ func sigHandlerConfigReload(config string) {
 }
 
 func parseIPHostPrefix(host string) (prefixes []netip.Prefix, err error) {
-	// Try parsing as prefix, e.g. 10.0.1.0/24
+	// Try parsing as prefix, e.g. 10.0.1.0/24 or 2001:db8::/32
 	prefix, err := netip.ParsePrefix(host)
 	if err == nil {
 		prefixes = append(prefixes, prefix.Masked())
@@ -495,6 +536,112 @@ func parseIPHostPrefix(host string) (prefixes []netip.Prefix, err error) {
 		}
 	}
 	return
+}
+
+func parseUsers(usersRaw []string) ([]*user.User, error) {
+	users := make([]*user.User, 0)
+	for _, userLine := range usersRaw {
+		parts := strings.Split(userLine, ":")
+		if len(parts) != 3 {
+			return nil, fmt.Errorf("invalid auth-users: %s, expected format: 'name:hash:role'", userLine)
+		}
+		username := strings.TrimSpace(parts[0])
+		passwordHash := strings.TrimSpace(parts[1])
+		role := user.Role(strings.TrimSpace(parts[2]))
+		if !user.AllowedUsername(username) {
+			return nil, fmt.Errorf("invalid auth-users: %s, username invalid", userLine)
+		} else if err := user.ValidPasswordHash(passwordHash); err != nil {
+			return nil, fmt.Errorf("invalid auth-users: %s, %s", userLine, err.Error())
+		} else if !user.AllowedRole(role) {
+			return nil, fmt.Errorf("invalid auth-users: %s, role %s is not allowed, allowed roles are 'admin' or 'user'", userLine, role)
+		}
+		users = append(users, &user.User{
+			Name:        username,
+			Hash:        passwordHash,
+			Role:        role,
+			Provisioned: true,
+		})
+	}
+	return users, nil
+}
+
+func parseAccess(users []*user.User, accessRaw []string) (map[string][]*user.Grant, error) {
+	access := make(map[string][]*user.Grant)
+	for _, accessLine := range accessRaw {
+		parts := strings.Split(accessLine, ":")
+		if len(parts) != 3 {
+			return nil, fmt.Errorf("invalid auth-access: %s, expected format: 'user:topic:permission'", accessLine)
+		}
+		username := strings.TrimSpace(parts[0])
+		if username == userEveryone {
+			username = user.Everyone
+		}
+		u, exists := util.Find(users, func(u *user.User) bool {
+			return u.Name == username
+		})
+		if username != user.Everyone {
+			if !exists {
+				return nil, fmt.Errorf("invalid auth-access: %s, user %s is not provisioned", accessLine, username)
+			} else if !user.AllowedUsername(username) {
+				return nil, fmt.Errorf("invalid auth-access: %s, username %s invalid", accessLine, username)
+			} else if u.Role != user.RoleUser {
+				return nil, fmt.Errorf("invalid auth-access: %s, user %s is not a regular user, only regular users can have ACL entries", accessLine, username)
+			}
+		}
+		topic := strings.TrimSpace(parts[1])
+		if !user.AllowedTopicPattern(topic) {
+			return nil, fmt.Errorf("invalid auth-access: %s, topic pattern %s invalid", accessLine, topic)
+		}
+		permission, err := user.ParsePermission(strings.TrimSpace(parts[2]))
+		if err != nil {
+			return nil, fmt.Errorf("invalid auth-access: %s, permission %s invalid, %s", accessLine, parts[2], err.Error())
+		}
+		if _, exists := access[username]; !exists {
+			access[username] = make([]*user.Grant, 0)
+		}
+		access[username] = append(access[username], &user.Grant{
+			TopicPattern: topic,
+			Permission:   permission,
+			Provisioned:  true,
+		})
+	}
+	return access, nil
+}
+
+func parseTokens(users []*user.User, tokensRaw []string) (map[string][]*user.Token, error) {
+	tokens := make(map[string][]*user.Token)
+	for _, tokenLine := range tokensRaw {
+		parts := strings.Split(tokenLine, ":")
+		if len(parts) < 2 || len(parts) > 3 {
+			return nil, fmt.Errorf("invalid auth-tokens: %s, expected format: 'user:token[:label]'", tokenLine)
+		}
+		username := strings.TrimSpace(parts[0])
+		_, exists := util.Find(users, func(u *user.User) bool {
+			return u.Name == username
+		})
+		if !exists {
+			return nil, fmt.Errorf("invalid auth-tokens: %s, user %s is not provisioned", tokenLine, username)
+		} else if !user.AllowedUsername(username) {
+			return nil, fmt.Errorf("invalid auth-tokens: %s, username %s invalid", tokenLine, username)
+		}
+		token := strings.TrimSpace(parts[1])
+		if !user.ValidToken(token) {
+			return nil, fmt.Errorf("invalid auth-tokens: %s, token %s invalid, use 'ntfy token generate' to generate a random token", tokenLine, token)
+		}
+		var label string
+		if len(parts) > 2 {
+			label = parts[2]
+		}
+		if _, exists := tokens[username]; !exists {
+			tokens[username] = make([]*user.Token, 0)
+		}
+		tokens[username] = append(tokens[username], &user.Token{
+			Value:       token,
+			Label:       label,
+			Provisioned: true,
+		})
+	}
+	return tokens, nil
 }
 
 func reloadLogLevel(inputSource altsrc.InputSourceContext) error {

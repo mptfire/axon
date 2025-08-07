@@ -72,6 +72,15 @@ Example:
 This is a server-only command. It directly reads from user.db as defined in the server config
 file server.yml. The command only works if 'auth-file' is properly defined.`,
 		},
+		{
+			Name:   "generate",
+			Usage:  "Generates a random token",
+			Action: execTokenGenerate,
+			Description: `Randomly generate a token to be used in provisioned tokens.
+
+This command only generates the token value, but does not persist it anywhere.
+The output can be used in the 'auth-tokens' config option.`,
+		},
 	},
 	Description: `Manage access tokens for individual users.
 
@@ -112,19 +121,19 @@ func execTokenAdd(c *cli.Context) error {
 		return err
 	}
 	u, err := manager.User(username)
-	if err == user.ErrUserNotFound {
+	if errors.Is(err, user.ErrUserNotFound) {
 		return fmt.Errorf("user %s does not exist", username)
 	} else if err != nil {
 		return err
 	}
-	token, err := manager.CreateToken(u.ID, label, expires, netip.IPv4Unspecified())
+	token, err := manager.CreateToken(u.ID, label, expires, netip.IPv4Unspecified(), false)
 	if err != nil {
 		return err
 	}
 	if expires.Unix() == 0 {
-		fmt.Fprintf(c.App.ErrWriter, "token %s created for user %s, never expires\n", token.Value, u.Name)
+		fmt.Fprintf(c.App.Writer, "token %s created for user %s, never expires\n", token.Value, u.Name)
 	} else {
-		fmt.Fprintf(c.App.ErrWriter, "token %s created for user %s, expires %v\n", token.Value, u.Name, expires.Format(time.UnixDate))
+		fmt.Fprintf(c.App.Writer, "token %s created for user %s, expires %v\n", token.Value, u.Name, expires.Format(time.UnixDate))
 	}
 	return nil
 }
@@ -141,7 +150,7 @@ func execTokenDel(c *cli.Context) error {
 		return err
 	}
 	u, err := manager.User(username)
-	if err == user.ErrUserNotFound {
+	if errors.Is(err, user.ErrUserNotFound) {
 		return fmt.Errorf("user %s does not exist", username)
 	} else if err != nil {
 		return err
@@ -149,7 +158,7 @@ func execTokenDel(c *cli.Context) error {
 	if err := manager.RemoveToken(u.ID, token); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.App.ErrWriter, "token %s for user %s removed\n", token, username)
+	fmt.Fprintf(c.App.Writer, "token %s for user %s removed\n", token, username)
 	return nil
 }
 
@@ -165,7 +174,7 @@ func execTokenList(c *cli.Context) error {
 	var users []*user.User
 	if username != "" {
 		u, err := manager.User(username)
-		if err == user.ErrUserNotFound {
+		if errors.Is(err, user.ErrUserNotFound) {
 			return fmt.Errorf("user %s does not exist", username)
 		} else if err != nil {
 			return err
@@ -183,15 +192,15 @@ func execTokenList(c *cli.Context) error {
 		if err != nil {
 			return err
 		} else if len(tokens) == 0 && username != "" {
-			fmt.Fprintf(c.App.ErrWriter, "user %s has no access tokens\n", username)
+			fmt.Fprintf(c.App.Writer, "user %s has no access tokens\n", username)
 			return nil
 		} else if len(tokens) == 0 {
 			continue
 		}
 		usersWithTokens++
-		fmt.Fprintf(c.App.ErrWriter, "user %s\n", u.Name)
+		fmt.Fprintf(c.App.Writer, "user %s\n", u.Name)
 		for _, t := range tokens {
-			var label, expires string
+			var label, expires, provisioned string
 			if t.Label != "" {
 				label = fmt.Sprintf(" (%s)", t.Label)
 			}
@@ -200,11 +209,19 @@ func execTokenList(c *cli.Context) error {
 			} else {
 				expires = fmt.Sprintf("expires %s", t.Expires.Format(time.RFC822))
 			}
-			fmt.Fprintf(c.App.ErrWriter, "- %s%s, %s, accessed from %s at %s\n", t.Value, label, expires, t.LastOrigin.String(), t.LastAccess.Format(time.RFC822))
+			if t.Provisioned {
+				provisioned = " (server config)"
+			}
+			fmt.Fprintf(c.App.Writer, "- %s%s, %s, accessed from %s at %s%s\n", t.Value, label, expires, t.LastOrigin.String(), t.LastAccess.Format(time.RFC822), provisioned)
 		}
 	}
 	if usersWithTokens == 0 {
-		fmt.Fprintf(c.App.ErrWriter, "no users with tokens\n")
+		fmt.Fprintf(c.App.Writer, "no users with tokens\n")
 	}
+	return nil
+}
+
+func execTokenGenerate(c *cli.Context) error {
+	fmt.Fprintln(c.App.Writer, user.GenerateToken())
 	return nil
 }
