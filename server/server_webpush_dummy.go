@@ -6,6 +6,12 @@ import (
 	"net/http"
 )
 
+const (
+	// WebPushAvailable is a constant used to indicate that WebPush support is available.
+	// It can be disabled with the 'nowebpush' build tag.
+	WebPushAvailable = false
+)
+
 func (s *Server) handleWebPushUpdate(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	return errHTTPNotFound
 }

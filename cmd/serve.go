@@ -333,6 +333,8 @@ func execServe(c *cli.Context) error {
 		if messageSizeLimit > 5*1024*1024 {
 			return errors.New("message-size-limit cannot be higher than 5M")
 		}
+	} else if !server.WebPushAvailable && (webPushPrivateKey != "" || webPushPublicKey != "" || webPushFile != "") {
+		return errors.New("cannot enable WebPush, support is not available in this build (nowebpush)")
 	} else if webPushExpiryWarningDuration > 0 && webPushExpiryWarningDuration > webPushExpiryDuration {
 		return errors.New("web push expiry warning duration cannot be higher than web push expiry duration")
 	} else if behindProxy && proxyForwardedHeader == "" {
