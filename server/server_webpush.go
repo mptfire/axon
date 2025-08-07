@@ -1,3 +1,5 @@
+//go:build !nowebpush
+
 package server
 
 import (

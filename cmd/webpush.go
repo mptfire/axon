@@ -1,4 +1,4 @@
-//go:build !noserver
+//go:build !noserver && !nowebpush
 
 package cmd
 
