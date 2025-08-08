@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
-	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/util"
 	"net/netip"
 	"path/filepath"
@@ -164,8 +163,8 @@ func TestManager_AddUser_And_Query(t *testing.T) {
 	require.Nil(t, a.ChangeBilling("user", &Billing{
 		StripeCustomerID:            "acct_123",
 		StripeSubscriptionID:        "sub_123",
-		StripeSubscriptionStatus:    payments.SubscriptionStatusActive,
-		StripeSubscriptionInterval:  payments.PriceRecurringIntervalMonth,
+		StripeSubscriptionStatus:    "active",
+		StripeSubscriptionInterval:  "month",
 		StripeSubscriptionPaidUntil: time.Now().Add(time.Hour),
 		StripeSubscriptionCancelAt:  time.Unix(0, 0),
 	}))
