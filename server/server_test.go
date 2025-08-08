@@ -23,7 +23,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/SherClockHolmes/webpush-go"
 	"github.com/stretchr/testify/require"
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/util"
@@ -281,30 +280,6 @@ func TestServer_WebEnabled(t *testing.T) {
 	rr = request(t, s2, "GET", "/app.html", "", nil)
 	require.Equal(t, 200, rr.Code)
 }
-
-func TestServer_WebPushEnabled(t *testing.T) {
-	conf := newTestConfig(t)
-	conf.WebRoot = "" // Disable web app
-	s := newTestServer(t, conf)
-
-	rr := request(t, s, "GET", "/manifest.webmanifest", "", nil)
-	require.Equal(t, 404, rr.Code)
-
-	conf2 := newTestConfig(t)
-	s2 := newTestServer(t, conf2)
-
-	rr = request(t, s2, "GET", "/manifest.webmanifest", "", nil)
-	require.Equal(t, 404, rr.Code)
-
-	conf3 := newTestConfigWithWebPush(t)
-	s3 := newTestServer(t, conf3)
-
-	rr = request(t, s3, "GET", "/manifest.webmanifest", "", nil)
-	require.Equal(t, 200, rr.Code)
-	require.Equal(t, "application/manifest+json", rr.Header().Get("Content-Type"))
-
-}
-
 func TestServer_PublishLargeMessage(t *testing.T) {
 	c := newTestConfig(t)
 	c.AttachmentCacheDir = "" // Disable attachments
@@ -3254,17 +3229,6 @@ func configureAuth(t *testing.T, conf *Config) *Config {
 func newTestConfigWithAuthFile(t *testing.T) *Config {
 	conf := newTestConfig(t)
 	conf = configureAuth(t, conf)
-	return conf
-}
-
-func newTestConfigWithWebPush(t *testing.T) *Config {
-	conf := newTestConfig(t)
-	privateKey, publicKey, err := webpush.GenerateVAPIDKeys()
-	require.Nil(t, err)
-	conf.WebPushFile = filepath.Join(t.TempDir(), "webpush.db")
-	conf.WebPushEmailAddress = "testing@example.com"
-	conf.WebPushPrivateKey = privateKey
-	conf.WebPushPublicKey = publicKey
 	return conf
 }
 

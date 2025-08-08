@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"gopkg.in/yaml.v2"
+	"heckel.io/ntfy/v2/payments"
 	"io"
 	"net"
 	"net/http"
@@ -165,7 +166,7 @@ func New(conf *Config) (*Server, error) {
 		mailer = &smtpSender{config: conf}
 	}
 	var stripe stripeAPI
-	if conf.StripeSecretKey != "" {
+	if payments.Available && conf.StripeSecretKey != "" {
 		stripe = newStripeAPI()
 	}
 	messageCache, err := createMessageCache(conf)

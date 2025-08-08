@@ -1,3 +1,5 @@
+//go:build !nopayments
+
 package server
 
 import (
@@ -6,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v74"
 	"golang.org/x/time/rate"
+	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 	"io"
@@ -345,8 +348,8 @@ func TestPayments_Checkout_Success_And_Increase_Rate_Limits_Reset_Visitor(t *tes
 	require.Nil(t, u.Tier)
 	require.Equal(t, "", u.Billing.StripeCustomerID)
 	require.Equal(t, "", u.Billing.StripeSubscriptionID)
-	require.Equal(t, stripe.SubscriptionStatus(""), u.Billing.StripeSubscriptionStatus)
-	require.Equal(t, stripe.PriceRecurringInterval(""), u.Billing.StripeSubscriptionInterval)
+	require.Equal(t, payments.SubscriptionStatus(""), u.Billing.StripeSubscriptionStatus)
+	require.Equal(t, payments.PriceRecurringInterval(""), u.Billing.StripeSubscriptionInterval)
 	require.Equal(t, int64(0), u.Billing.StripeSubscriptionPaidUntil.Unix())
 	require.Equal(t, int64(0), u.Billing.StripeSubscriptionCancelAt.Unix())
 	require.Equal(t, int64(0), u.Stats.Messages) // Messages and emails are not persisted for no-tier users!
@@ -362,8 +365,8 @@ func TestPayments_Checkout_Success_And_Increase_Rate_Limits_Reset_Visitor(t *tes
 	require.Equal(t, "starter", u.Tier.Code) // Not "pro"
 	require.Equal(t, "acct_5555", u.Billing.StripeCustomerID)
 	require.Equal(t, "sub_1234", u.Billing.StripeSubscriptionID)
-	require.Equal(t, stripe.SubscriptionStatusActive, u.Billing.StripeSubscriptionStatus)
-	require.Equal(t, stripe.PriceRecurringIntervalMonth, u.Billing.StripeSubscriptionInterval)
+	require.Equal(t, payments.SubscriptionStatus(stripe.SubscriptionStatusActive), u.Billing.StripeSubscriptionStatus)
+	require.Equal(t, payments.PriceRecurringInterval(stripe.PriceRecurringIntervalMonth), u.Billing.StripeSubscriptionInterval)
 	require.Equal(t, int64(123456789), u.Billing.StripeSubscriptionPaidUntil.Unix())
 	require.Equal(t, int64(0), u.Billing.StripeSubscriptionCancelAt.Unix())
 	require.Equal(t, int64(0), u.Stats.Messages)
@@ -473,8 +476,8 @@ func TestPayments_Webhook_Subscription_Updated_Downgrade_From_PastDue_To_Active(
 	billing := &user.Billing{
 		StripeCustomerID:            "acct_5555",
 		StripeSubscriptionID:        "sub_1234",
-		StripeSubscriptionStatus:    stripe.SubscriptionStatusPastDue,
-		StripeSubscriptionInterval:  stripe.PriceRecurringIntervalMonth,
+		StripeSubscriptionStatus:    payments.SubscriptionStatus(stripe.SubscriptionStatusPastDue),
+		StripeSubscriptionInterval:  payments.PriceRecurringInterval(stripe.PriceRecurringIntervalMonth),
 		StripeSubscriptionPaidUntil: time.Unix(123, 0),
 		StripeSubscriptionCancelAt:  time.Unix(456, 0),
 	}
@@ -517,10 +520,10 @@ func TestPayments_Webhook_Subscription_Updated_Downgrade_From_PastDue_To_Active(
 	require.Equal(t, "starter", u.Tier.Code) // Not "pro"
 	require.Equal(t, "acct_5555", u.Billing.StripeCustomerID)
 	require.Equal(t, "sub_1234", u.Billing.StripeSubscriptionID)
-	require.Equal(t, stripe.SubscriptionStatusActive, u.Billing.StripeSubscriptionStatus)     // Not "past_due"
-	require.Equal(t, stripe.PriceRecurringIntervalYear, u.Billing.StripeSubscriptionInterval) // Not "month"
-	require.Equal(t, int64(1674268231), u.Billing.StripeSubscriptionPaidUntil.Unix())         // Updated
-	require.Equal(t, int64(1674299999), u.Billing.StripeSubscriptionCancelAt.Unix())          // Updated
+	require.Equal(t, payments.SubscriptionStatus(stripe.SubscriptionStatusActive), u.Billing.StripeSubscriptionStatus)         // Not "past_due"
+	require.Equal(t, payments.PriceRecurringInterval(stripe.PriceRecurringIntervalYear), u.Billing.StripeSubscriptionInterval) // Not "month"
+	require.Equal(t, int64(1674268231), u.Billing.StripeSubscriptionPaidUntil.Unix())                                          // Updated
+	require.Equal(t, int64(1674299999), u.Billing.StripeSubscriptionCancelAt.Unix())                                           // Updated
 
 	// Verify that reservations were deleted
 	r, err := s.userManager.Reservations("phil")
@@ -580,8 +583,8 @@ func TestPayments_Webhook_Subscription_Deleted(t *testing.T) {
 	require.Nil(t, s.userManager.ChangeBilling(u.Name, &user.Billing{
 		StripeCustomerID:            "acct_5555",
 		StripeSubscriptionID:        "sub_1234",
-		StripeSubscriptionStatus:    stripe.SubscriptionStatusPastDue,
-		StripeSubscriptionInterval:  stripe.PriceRecurringIntervalMonth,
+		StripeSubscriptionStatus:    payments.SubscriptionStatus(stripe.SubscriptionStatusPastDue),
+		StripeSubscriptionInterval:  payments.PriceRecurringInterval(stripe.PriceRecurringIntervalMonth),
 		StripeSubscriptionPaidUntil: time.Unix(123, 0),
 		StripeSubscriptionCancelAt:  time.Unix(0, 0),
 	}))
@@ -598,7 +601,7 @@ func TestPayments_Webhook_Subscription_Deleted(t *testing.T) {
 	require.Nil(t, u.Tier)
 	require.Equal(t, "acct_5555", u.Billing.StripeCustomerID)
 	require.Equal(t, "", u.Billing.StripeSubscriptionID)
-	require.Equal(t, stripe.SubscriptionStatus(""), u.Billing.StripeSubscriptionStatus)
+	require.Equal(t, payments.SubscriptionStatus(""), u.Billing.StripeSubscriptionStatus)
 	require.Equal(t, int64(0), u.Billing.StripeSubscriptionPaidUntil.Unix())
 	require.Equal(t, int64(0), u.Billing.StripeSubscriptionCancelAt.Unix())
 

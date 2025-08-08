@@ -2,8 +2,8 @@ package user
 
 import (
 	"errors"
-	"github.com/stripe/stripe-go/v74"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/payments"
 	"net/netip"
 	"strings"
 	"time"
@@ -140,8 +140,8 @@ type Stats struct {
 type Billing struct {
 	StripeCustomerID            string
 	StripeSubscriptionID        string
-	StripeSubscriptionStatus    stripe.SubscriptionStatus
-	StripeSubscriptionInterval  stripe.PriceRecurringInterval
+	StripeSubscriptionStatus    payments.SubscriptionStatus
+	StripeSubscriptionInterval  payments.PriceRecurringInterval
 	StripeSubscriptionPaidUntil time.Time
 	StripeSubscriptionCancelAt  time.Time
 }
