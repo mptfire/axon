@@ -176,6 +176,7 @@ I've added a ⭐ to projects or posts that have a significant following, or had 
 - [InvaderInformant](https://github.com/patricksthannon/InvaderInformant) - Script for Mac OS systems that monitors new or dropped connections to your network using ntfy (Shell)
 - [NtfyPwsh](https://github.com/ptmorris1/NtfyPwsh) - PowerShell module to help send messages to ntfy (PowerShell)
 - [ntfyrr](https://github.com/leukosaima/ntfyrr) - Currently an Overseerr webhook notification to ntfy helper service.
+- [ntfy for Sandstorm](https://apps.sandstorm.io/app/c6rk81r4qk6dm3k04x1kxmyccqewhh4npuxeyg1xrpfypn2ddy0h) - ntfy app for the Sandstorm platform
 
 ## Blog + forum posts
 
