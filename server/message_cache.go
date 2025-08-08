@@ -8,8 +8,8 @@ import (
 	"net/netip"
 	"path/filepath"
 	"strings"
-	"time"
 	"sync"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 	"heckel.io/ntfy/v2/log"
@@ -283,8 +283,8 @@ var (
 type messageCache struct {
 	db    *sql.DB
 	queue *util.BatchingQueue[*message]
-	mu    sync.Mutex
 	nop   bool
+	mu    sync.Mutex
 }
 
 // newSqliteCache creates a SQLite file-backed cache
