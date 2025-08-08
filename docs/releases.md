@@ -1468,6 +1468,13 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
+### ntfy server v2.15.0 (UNRELEASED)
+
+**Bug fixes + maintenance:**
+
+* Add build tags `nopayments`, `nofirebase` and `nowebpush` to allow excluding external dependencies, useful for 
+  packaging in Debian ([#1420](https://github.com/binwiederhier/ntfy/pull/1420), discussion in [#1258](https://github.com/binwiederhier/ntfy/issues/1258), thanks to [@thekhalifa](https://github.com/thekhalifa) for packaging ntfy for Debian/Ubuntu)
+
 ### ntfy Android app v1.16.1 (UNRELEASED)
 
 **Features:**
