@@ -1066,7 +1066,7 @@ func (a *Manager) addUserTx(tx *sql.Tx, username, password string, role Role, ha
 	var err error = nil
 	if hashed {
 		hash = password
-		if err := ValidPasswordHash(hash); err != nil {
+		if err := ValidPasswordHash(hash, a.config.BcryptCost); err != nil {
 			return err
 		}
 	} else {
@@ -1434,7 +1434,7 @@ func (a *Manager) changePasswordTx(tx *sql.Tx, username, password string, hashed
 	var err error
 	if hashed {
 		hash = password
-		if err := ValidPasswordHash(hash); err != nil {
+		if err := ValidPasswordHash(hash, a.config.BcryptCost); err != nil {
 			return err
 		}
 	} else {

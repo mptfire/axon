@@ -1162,7 +1162,7 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	// Re-open the DB (second app start)
 	require.Nil(t, a.db.Close())
 	conf.Users = []*User{
-		{Name: "philuser", Hash: "$2a$10$AAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
+		{Name: "philuser", Hash: "$2a$10$AAAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
 	}
 	conf.Access = map[string][]*Grant{
 		"philuser": {
@@ -1292,7 +1292,7 @@ func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
 	// Re-open the DB (second app start)
 	require.Nil(t, a.db.Close())
 	conf.Users = []*User{
-		{Name: "philuser", Hash: "$2a$10$AAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
+		{Name: "philuser", Hash: "$2a$10$AAAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
 	}
 	conf.Access = map[string][]*Grant{
 		"philuser": {
@@ -1308,7 +1308,7 @@ func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
 	require.Len(t, users, 2)
 	require.Equal(t, "philuser", users[0].Name)
 	require.Equal(t, RoleUser, users[0].Role)
-	require.Equal(t, "$2a$10$AAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", users[0].Hash)
+	require.Equal(t, "$2a$10$AAAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", users[0].Hash)
 	require.True(t, users[0].Provisioned) // Updated to provisioned!
 
 	grants, err = a.Grants("philuser")

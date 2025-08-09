@@ -41,14 +41,14 @@ func AllowedTier(tier string) bool {
 }
 
 // ValidPasswordHash checks if the given password hash is a valid bcrypt hash
-func ValidPasswordHash(hash string) error {
+func ValidPasswordHash(hash string, minCost int) error {
 	if !strings.HasPrefix(hash, "$2a$") && !strings.HasPrefix(hash, "$2b$") && !strings.HasPrefix(hash, "$2y$") {
 		return ErrPasswordHashInvalid
 	}
 	cost, err := bcrypt.Cost([]byte(hash))
-	if err != nil {
+	if err != nil { // Check if the hash is valid (length, format, etc.)
 		return err
-	} else if cost < DefaultUserPasswordBcryptCost {
+	} else if cost < minCost {
 		return ErrPasswordHashWeak
 	}
 	return nil
