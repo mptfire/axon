@@ -45,6 +45,12 @@ func ValidPasswordHash(hash string) error {
 	if !strings.HasPrefix(hash, "$2a$") && !strings.HasPrefix(hash, "$2b$") && !strings.HasPrefix(hash, "$2y$") {
 		return ErrPasswordHashInvalid
 	}
+	cost, err := bcrypt.Cost([]byte(hash))
+	if err != nil {
+		return err
+	} else if cost < DefaultUserPasswordBcryptCost {
+		return ErrPasswordHashWeak
+	}
 	return nil
 }
 

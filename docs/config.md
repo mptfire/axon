@@ -88,7 +88,7 @@ using Docker Compose (i.e. `docker-compose.yml`):
 	      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
 	      NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
 	      NTFY_AUTH_DEFAULT_ACCESS: deny-all
-	      NTFY_AUTH_USERS: 'phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin'
+	      NTFY_AUTH_USERS: 'phil:$$2a$$10$$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin' # Must escape '$' as '$$'
 	      NTFY_BEHIND_PROXY: true
 	      NTFY_ATTACHMENT_CACHE_DIR: /var/lib/ntfy/attachments
 	      NTFY_ENABLE_LOGIN: true
