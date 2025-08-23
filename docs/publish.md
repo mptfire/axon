@@ -3679,13 +3679,13 @@ authParam  = base64_raw(authHeader) // -> QmFzaWMgZEdWemRIVnpaWEk2Wm1GclpYQmhjM0
 The following command will generate the appropriate value for you on *nix systems:
 
 ```
-echo -n "Basic `echo -n 'testuser:fakepassword' | base64`" | base64 | tr -d '='
+echo -n "Basic `echo -n 'testuser:fakepassword' | base64 -w0`" | base64 -w0 | tr -d '='
 ```
 
 For access tokens, you can use this instead:
 
 ```
-echo -n "Bearer faketoken" | base64 | tr -d '='
+echo -n "Bearer faketoken" | base64 -w0 | tr -d '='
 ```
 
 ## Advanced features
