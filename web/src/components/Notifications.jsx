@@ -28,7 +28,13 @@ import { useRemark } from "react-remark";
 import styled from "@emotion/styled";
 import {
   copyToClipboard,
-  formatBytes, formatShortDateTime, maybeActionErrors, openUrl, shortUrl, topicShortUrl, unmatchedTags
+  formatBytes,
+  formatShortDateTime,
+  maybeActionErrors,
+  openUrl,
+  shortUrl,
+  topicShortUrl,
+  unmatchedTags,
 } from "../app/utils";
 import { formatMessage, formatTitle, isImage } from "../app/notificationUtils";
 import { LightboxBackdrop, Paragraph, VerticallyCenteredContainer } from "./styles";

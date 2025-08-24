@@ -6,9 +6,10 @@
 // During web development, you may change values here for rapid testing.
 
 var config = {
-  base_url: window.location.origin, // Change to test against a different server
+  base_url: "http://localhost:8080", // window.location.origin, // Change to test against a different server
   app_root: "/",
   enable_login: true,
+  require_login: true,
   enable_signup: true,
   enable_payments: false,
   enable_reservations: true,
