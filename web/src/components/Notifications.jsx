@@ -26,7 +26,10 @@ import { Trans, useTranslation } from "react-i18next";
 import { useOutletContext } from "react-router-dom";
 import { useRemark } from "react-remark";
 import styled from "@emotion/styled";
-import { formatBytes, formatShortDateTime, maybeActionErrors, openUrl, shortUrl, topicShortUrl, unmatchedTags } from "../app/utils";
+import {
+  copyToClipboard,
+  formatBytes, formatShortDateTime, maybeActionErrors, openUrl, shortUrl, topicShortUrl, unmatchedTags
+} from "../app/utils";
 import { formatMessage, formatTitle, isImage } from "../app/notificationUtils";
 import { LightboxBackdrop, Paragraph, VerticallyCenteredContainer } from "./styles";
 import subscriptionManager from "../app/SubscriptionManager";
@@ -239,7 +242,7 @@ const NotificationItem = (props) => {
     await subscriptionManager.markNotificationRead(notification.id);
   };
   const handleCopy = (s) => {
-    navigator.clipboard.writeText(s);
+    copyToClipboard(s);
     props.onShowSnack();
   };
   const expired = attachment && attachment.expires && attachment.expires < Date.now() / 1000;
