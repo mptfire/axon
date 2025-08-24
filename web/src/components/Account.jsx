@@ -45,7 +45,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { ContentCopy, Public } from "@mui/icons-material";
 import AddIcon from "@mui/icons-material/Add";
 import routes from "./routes";
-import { formatBytes, formatShortDate, formatShortDateTime, openUrl } from "../app/utils";
+import { copyToClipboard, formatBytes, formatShortDate, formatShortDateTime, openUrl } from "../app/utils";
 import accountApi, { LimitBasis, Role, SubscriptionInterval, SubscriptionStatus } from "../app/AccountApi";
 import { Pref, PrefGroup } from "./Pref";
 import db from "../app/db";
@@ -370,7 +370,7 @@ const PhoneNumbers = () => {
   };
 
   const handleCopy = (phoneNumber) => {
-    navigator.clipboard.writeText(phoneNumber);
+    copyToClipboard(phoneNumber);
     setSnackOpen(true);
   };
 
@@ -841,7 +841,7 @@ const TokensTable = (props) => {
   };
 
   const handleCopy = async (token) => {
-    await navigator.clipboard.writeText(token);
+    copyToClipboard(token);
     setSnackOpen(true);
   };
 
