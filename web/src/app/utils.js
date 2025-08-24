@@ -277,17 +277,17 @@ export const urlB64ToUint8Array = (base64String) => {
 export const copyToClipboard = (text) => {
   if (navigator.clipboard && window.isSecureContext) {
     return navigator.clipboard.writeText(text);
-  } else {
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.setAttribute("readonly", ""); // Avoid mobile keyboards from popping up
-    textarea.style.position = "fixed"; // Avoid scroll jump
-    textarea.style.left = "-9999px";
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    document.execCommand("copy");
-    document.body.removeChild(textarea);
-    return Promise.resolve();
   }
+  // Fallback to the older method if clipboard API is not supported (or on HTTP)
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", ""); // Avoid mobile keyboards from popping up
+  textarea.style.position = "fixed"; // Avoid scroll jump
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  document.execCommand("copy");
+  document.body.removeChild(textarea);
+  return Promise.resolve();
 };
