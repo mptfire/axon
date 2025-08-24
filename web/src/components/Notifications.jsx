@@ -46,7 +46,6 @@ import priority5 from "../img/priority-5.svg";
 import logoOutline from "../img/ntfy-outline.svg";
 import AttachmentIcon from "./AttachmentIcon";
 import { useAutoSubscribe } from "./hooks";
-import session from "../app/Session";
 
 const priorityFiles = {
   1: priority1,
@@ -645,15 +644,11 @@ const NoSubscriptions = () => {
       <Typography variant="h5" align="center" sx={{ paddingBottom: 1 }}>
         <img src={logoOutline} height="64" width="64" alt={t("action_bar_logo_alt")} />
         <br />
-        {!session.exists() && !config.require_login && t("notifications_no_subscriptions_title")}
-        {!session.exists() && config.require_login && t("notifications_no_subscriptions_login_title")}
+        {t("notifications_no_subscriptions_title")}
       </Typography>
       <Paragraph>
-        {!session.exists() && !config.require_login && t("notifications_no_subscriptions_description", {
+        {t("notifications_no_subscriptions_description", {
           linktext: t("nav_button_subscribe"),
-        })}
-        {!session.exists() && config.require_login && t("notifications_no_subscriptions_login_description", {
-          linktext: t("action_bar_sign_in"),
         })}
       </Paragraph>
       <Paragraph>
