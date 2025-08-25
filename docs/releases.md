@@ -1470,6 +1470,10 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ### ntfy server v2.15.0 (UNRELEASED)
 
+**Features:**
+
+* Add `require-login` flag to redirect to login page if not logged in ([#1434](https://github.com/binwiederhier/ntfy/pull/1434)/[#238](https://github.com/binwiederhier/ntfy/issues/238)/[#1329](https://github.com/binwiederhier/ntfy/pull/1329), thanks to [@theatischbein](https://github.com/theatischbein) for implementing most of this)
+
 **Bug fixes + maintenance:**
 
 * Add mutex around message cache writes to avoid `database locked` errors ([#1397](https://github.com/binwiederhier/ntfy/pull/1397), [#1391](https://github.com/binwiederhier/ntfy/issues/1391), thanks to [@timofej673](https://github.com/timofej673))
