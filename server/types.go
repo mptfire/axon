@@ -449,6 +449,7 @@ type apiConfigResponse struct {
 	BaseURL            string   `json:"base_url"`
 	AppRoot            string   `json:"app_root"`
 	EnableLogin        bool     `json:"enable_login"`
+	RequireLogin       bool     `json:"require_login"`
 	EnableSignup       bool     `json:"enable_signup"`
 	EnablePayments     bool     `json:"enable_payments"`
 	EnableCalls        bool     `json:"enable_calls"`

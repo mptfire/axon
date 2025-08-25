@@ -162,6 +162,7 @@ type Config struct {
 	BillingContact                       string
 	EnableSignup                         bool // Enable creation of accounts via API and UI
 	EnableLogin                          bool
+	RequireLogin                         bool
 	EnableReservations                   bool // Allow users with role "user" to own/reserve topics
 	EnableMetrics                        bool
 	AccessControlAllowOrigin             string // CORS header field to restrict access from web clients
@@ -256,6 +257,7 @@ func NewConfig() *Config {
 		EnableSignup:                         false,
 		EnableLogin:                          false,
 		EnableReservations:                   false,
+		RequireLogin:                         false,
 		AccessControlAllowOrigin:             "*",
 		Version:                              "",
 		WebPushPrivateKey:                    "",

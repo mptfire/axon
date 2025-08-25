@@ -9,8 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gopkg.in/yaml.v2"
-	"heckel.io/ntfy/v2/payments"
 	"io"
 	"net"
 	"net/http"
@@ -33,7 +31,9 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
+	"gopkg.in/yaml.v2"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 	"heckel.io/ntfy/v2/util/sprig"
@@ -600,6 +600,7 @@ func (s *Server) handleWebConfig(w http.ResponseWriter, _ *http.Request, _ *visi
 		BaseURL:            "", // Will translate to window.location.origin
 		AppRoot:            s.config.WebRoot,
 		EnableLogin:        s.config.EnableLogin,
+		RequireLogin:       s.config.RequireLogin,
 		EnableSignup:       s.config.EnableSignup,
 		EnablePayments:     s.config.StripeSecretKey != "",
 		EnableCalls:        s.config.TwilioAccount != "",

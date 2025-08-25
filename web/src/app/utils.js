@@ -79,7 +79,7 @@ export const maybeWithBearerAuth = (headers, token) => {
 
 export const withBasicAuth = (headers, username, password) => ({
   ...headers,
-  Authorization: basicAuth(username, password)
+  Authorization: basicAuth(username, password),
 });
 
 export const maybeWithAuth = (headers, user) => {
@@ -142,7 +142,7 @@ export const getKebabCaseLangStr = (language) => language.replace(/_/g, "-");
 export const formatShortDateTime = (timestamp, language) =>
   new Intl.DateTimeFormat(getKebabCaseLangStr(language), {
     dateStyle: "short",
-    timeStyle: "short"
+    timeStyle: "short",
   }).format(new Date(timestamp * 1000));
 
 export const formatShortDate = (timestamp, language) =>
@@ -181,32 +181,32 @@ export const openUrl = (url) => {
 export const sounds = {
   ding: {
     file: ding,
-    label: "Ding"
+    label: "Ding",
   },
   juntos: {
     file: juntos,
-    label: "Juntos"
+    label: "Juntos",
   },
   pristine: {
     file: pristine,
-    label: "Pristine"
+    label: "Pristine",
   },
   dadum: {
     file: dadum,
-    label: "Dadum"
+    label: "Dadum",
   },
   pop: {
     file: pop,
-    label: "Pop"
+    label: "Pop",
   },
   "pop-swoosh": {
     file: popSwoosh,
-    label: "Pop swoosh"
+    label: "Pop swoosh",
   },
   beep: {
     file: beep,
-    label: "Beep"
-  }
+    label: "Beep",
+  },
 };
 
 export const playSound = async (id) => {
@@ -219,7 +219,7 @@ export const playSound = async (id) => {
 export async function* fetchLinesIterator(fileURL, headers) {
   const utf8Decoder = new TextDecoder("utf-8");
   const response = await fetch(fileURL, {
-    headers
+    headers,
   });
   const reader = response.body.getReader();
   let { value: chunk, done: readerDone } = await reader.read();
@@ -228,7 +228,7 @@ export async function* fetchLinesIterator(fileURL, headers) {
   const re = /\n|\r|\r\n/gm;
   let startIndex = 0;
 
-  for (; ;) {
+  for (;;) {
     const result = re.exec(chunk);
     if (!result) {
       if (readerDone) {
@@ -277,17 +277,17 @@ export const urlB64ToUint8Array = (base64String) => {
 export const copyToClipboard = (text) => {
   if (navigator.clipboard && window.isSecureContext) {
     return navigator.clipboard.writeText(text);
-  } else {
-    const textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.setAttribute("readonly", ""); // Avoid mobile keyboards from popping up
-    textarea.style.position = "fixed"; // Avoid scroll jump
-    textarea.style.left = "-9999px";
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    document.execCommand("copy");
-    document.body.removeChild(textarea);
-    return Promise.resolve();
   }
+  // Fallback to the older method if clipboard API is not supported (or on HTTP)
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", ""); // Avoid mobile keyboards from popping up
+  textarea.style.position = "fixed"; // Avoid scroll jump
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  document.execCommand("copy");
+  document.body.removeChild(textarea);
+  return Promise.resolve();
 };

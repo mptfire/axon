@@ -63,6 +63,7 @@ var flagsServe = append(
 	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "enable-signup", Aliases: []string{"enable_signup"}, EnvVars: []string{"NTFY_ENABLE_SIGNUP"}, Value: false, Usage: "allows users to sign up via the web app, or API"}),
 	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "enable-login", Aliases: []string{"enable_login"}, EnvVars: []string{"NTFY_ENABLE_LOGIN"}, Value: false, Usage: "allows users to log in via the web app, or API"}),
 	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "enable-reservations", Aliases: []string{"enable_reservations"}, EnvVars: []string{"NTFY_ENABLE_RESERVATIONS"}, Value: false, Usage: "allows users to reserve topics (if their tier allows it)"}),
+	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "require-login", Aliases: []string{"require_login"}, EnvVars: []string{"NTFY_REQUIRE_LOGIN"}, Value: false, Usage: "all actions via the web app requires a login"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "upstream-base-url", Aliases: []string{"upstream_base_url"}, EnvVars: []string{"NTFY_UPSTREAM_BASE_URL"}, Value: "", Usage: "forward poll request to an upstream server, this is needed for iOS push notifications for self-hosted servers"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "upstream-access-token", Aliases: []string{"upstream_access_token"}, EnvVars: []string{"NTFY_UPSTREAM_ACCESS_TOKEN"}, Value: "", Usage: "access token to use for the upstream server; needed only if upstream rate limits are exceeded or upstream server requires auth"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-addr", Aliases: []string{"smtp_sender_addr"}, EnvVars: []string{"NTFY_SMTP_SENDER_ADDR"}, Usage: "SMTP server address (host:port) for outgoing emails"}),
@@ -171,6 +172,7 @@ func execServe(c *cli.Context) error {
 	webRoot := c.String("web-root")
 	enableSignup := c.Bool("enable-signup")
 	enableLogin := c.Bool("enable-login")
+	requireLogin := c.Bool("require-login")
 	enableReservations := c.Bool("enable-reservations")
 	upstreamBaseURL := c.String("upstream-base-url")
 	upstreamAccessToken := c.String("upstream-access-token")
@@ -318,10 +320,12 @@ func execServe(c *cli.Context) error {
 		return errors.New("if upstream-base-url is set, base-url must also be set")
 	} else if upstreamBaseURL != "" && baseURL != "" && baseURL == upstreamBaseURL {
 		return errors.New("base-url and upstream-base-url cannot be identical, you'll likely want to set upstream-base-url to https://ntfy.sh, see https://ntfy.sh/docs/config/#ios-instant-notifications")
-	} else if authFile == "" && (enableSignup || enableLogin || enableReservations || stripeSecretKey != "") {
-		return errors.New("cannot set enable-signup, enable-login, enable-reserve-topics, or stripe-secret-key if auth-file is not set")
+	} else if authFile == "" && (enableSignup || enableLogin || requireLogin || enableReservations || stripeSecretKey != "") {
+		return errors.New("cannot set enable-signup, enable-login, require-login, enable-reserve-topics, or stripe-secret-key if auth-file is not set")
 	} else if enableSignup && !enableLogin {
 		return errors.New("cannot set enable-signup without also setting enable-login")
+	} else if requireLogin && !enableLogin {
+		return errors.New("cannot set require-login without also setting enable-login")
 	} else if !payments.Available && (stripeSecretKey != "" || stripeWebhookKey != "") {
 		return errors.New("cannot set stripe-secret-key or stripe-webhook-key, support for payments is not available in this build (nopayments)")
 	} else if stripeSecretKey != "" && (stripeWebhookKey == "" || baseURL == "") {
@@ -475,6 +479,7 @@ func execServe(c *cli.Context) error {
 	conf.BillingContact = billingContact
 	conf.EnableSignup = enableSignup
 	conf.EnableLogin = enableLogin
+	conf.RequireLogin = requireLogin
 	conf.EnableReservations = enableReservations
 	conf.EnableMetrics = enableMetrics
 	conf.MetricsListenHTTP = metricsListenHTTP
