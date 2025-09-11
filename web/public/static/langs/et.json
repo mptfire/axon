@@ -304,5 +304,20 @@
     "account_tokens_dialog_expires_label": "Tunnusluba aegub",
     "account_tokens_dialog_button_update": "Uuenda tunnusluba",
     "account_tokens_dialog_button_create": "Loo tunnusluba",
-    "prefs_users_title": "Halda kasutajaid"
+    "prefs_users_title": "Halda kasutajaid",
+    "subscribe_dialog_subscribe_use_another_label": "Kasuta muud serverit",
+    "subscribe_dialog_subscribe_use_another_background_info": "Teavitused muudest serveritest ei toimi, kui veebirakendus pole avatud",
+    "subscribe_dialog_login_description": "See teema on kaitstud salasõnaga. Tellimiseks sisesta palun kasutajanimi ja salasõna.",
+    "subscribe_dialog_error_topic_already_reserved": "Teema on juba reserveeritud",
+    "account_delete_title": "Kustuta kasutajakonto",
+    "account_delete_description": "Kustuta oma kasutajakonto jäädavalt",
+    "account_delete_dialog_description": "Järgnevaga kustutad serverist lõplikult oma kasutajakonto ning kõik temaga seotud andmed. Peale kustutamist pole kasutajanimi saadaval 7 päeva jooksul. Kui sa tõesti soovid kustutamisega jätkata, siis palun sisesta alljärgnevasse kasti oma salasõna.",
+    "web_push_unknown_notification_title": "Serverist saabus tundmatu teavitus",
+    "web_push_subscription_expiring_body": "Kui soovid, et jätkuvalt saabuks teavitused, siis ava ntfy",
+    "web_push_subscription_expiring_title": "Teavitused on ajutiselt peatatud",
+    "error_boundary_unsupported_indexeddb_title": "Veebibrauseri privaatne režiim pole toetatud",
+    "error_boundary_button_reload_ntfy": "Laadi ntfy uuesti",
+    "error_boundary_button_copy_stack_trace": "Kopeeri pinujälg",
+    "error_boundary_stack_trace": "Pinujälg",
+    "error_boundary_gathering_info": "Kogu täiendavat teavet…"
 }
