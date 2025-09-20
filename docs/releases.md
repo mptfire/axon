@@ -1481,10 +1481,13 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
   packaging in Debian ([#1420](https://github.com/binwiederhier/ntfy/pull/1420), discussion in [#1258](https://github.com/binwiederhier/ntfy/issues/1258), thanks to [@thekhalifa](https://github.com/thekhalifa) for packaging ntfy for Debian/Ubuntu)
 * Make copying tokens, phone numbers, etc. possible on HTTP ([#1432](https://github.com/binwiederhier/ntfy/pull/1432)/[#1408](https://github.com/binwiederhier/ntfy/issues/1408)/[#1295](https://github.com/binwiederhier/ntfy/issues/1295), thanks to [@EdwinKM](https://github.com/EdwinKM), [@xxl6097](https://github.com/xxl6097) for reporting)
 
-### ntfy Android app v1.16.1 (UNRELEASED)
+### ntfy Android app v1.17.0 (UNRELEASED)
+
+This is largely a maintenance update to ensure the SDK is up-to-date.
 
 **Features:**
 
+* Markdown is now rendered if "Markdown: yes" was passed ([#310](https://github.com/binwiederhier/ntfy/issues/310), thanks to [@NiNiyas](https://github.com/NiNiyas) for reporting)
 * You can now disable UnifiedPush so ntfy does not act as a UnifiedPush distributor ([#646](https://github.com/binwiederhier/ntfy/issues/646), thanks to [@ollien](https://github.com/ollien) for reporting and to [@wunter8](https://github.com/wunter8) for implementing) 
 
 **Bug fixes + maintenance:**
@@ -1492,7 +1495,3 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 * UnifiedPush subscriptions now include the `Rate-Topics` header to facilitate subscriber-based billing ([#652](https://github.com/binwiederhier/ntfy/issues/652), thanks to [@wunter8](https://github.com/wunter8))
 * Subscriptions without icons no longer appear to use another subscription's icon ([#634](https://github.com/binwiederhier/ntfy/issues/634), thanks to [@topcaser](https://github.com/topcaser) for reporting and to [@wunter8](https://github.com/wunter8) for fixing)
 * Bumped all dependencies to the latest versions (no ticket)
-
-**Additional languages:**
-
-* Swedish (thanks to [@hellbown](https://hosted.weblate.org/user/hellbown/))
