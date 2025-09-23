@@ -178,6 +178,7 @@ I've added a ⭐ to projects or posts that have a significant following, or had 
 - [ntfyrr](https://github.com/leukosaima/ntfyrr) - Currently an Overseerr webhook notification to ntfy helper service.
 - [ntfy for Sandstorm](https://apps.sandstorm.io/app/c6rk81r4qk6dm3k04x1kxmyccqewhh4npuxeyg1xrpfypn2ddy0h) - ntfy app for the Sandstorm platform
 - [ntfy-heartbeat-monitor](https://codeberg.org/RockWolf/ntfy-heartbeat-monitor) - Application for implementing heartbeat monitoring/alerting by utilizing ntfy
+- [ntfy-bridge](https://github.com/AlexGaudon/ntfy-bridge) - An application to bridge Discord messages (or webhooks) to ntfy.
 
 ## Blog + forum posts
 
