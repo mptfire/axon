@@ -8,12 +8,17 @@ contribute, or [build your own](../develop.md).
 <a href="https://f-droid.org/en/packages/io.heckel.ntfy/"><img width="170" src="../../static/img/badge-fdroid.png"></a>
 <a href="https://apps.apple.com/us/app/ntfy/id1625396347"><img width="150" src="../../static/img/badge-appstore.png"></a>
 
-You can get the Android app from both [Google Play](https://play.google.com/store/apps/details?id=io.heckel.ntfy) and 
-from [F-Droid](https://f-droid.org/en/packages/io.heckel.ntfy/). Both are largely identical, with the one exception that
-the F-Droid flavor does not use Firebase. The iOS app can be downloaded from the [App Store](https://apps.apple.com/us/app/ntfy/id1625396347).
+You can get the Android app from [Google Play](https://play.google.com/store/apps/details?id=io.heckel.ntfy), 
+[F-Droid](https://f-droid.org/en/packages/io.heckel.ntfy/), or via the APKs from [GitHub Releases](https://github.com/binwiederhier/ntfy-android/releases).
+The Google Play and F-Droid releases are largely identical, with the one exception that the F-Droid flavor does not use Firebase. 
+The iOS app can be downloaded from the [App Store](https://apps.apple.com/us/app/ntfy/id1625396347).
 
 Alternatively, you may also want to consider using the **[progressive web app (PWA)](pwa.md)** instead of the native app.
 The PWA is a website that you can add to your home screen, and it will behave just like a native app.
+
+If you're downloading the APKs from [GitHub](https://github.com/binwiederhier/ntfy-android/releases), they are signed with
+a certificate with the following SHA-256 fingerprint: `6e145d7ae685eff75468e5067e03a6c3645453343e4e181dac8b6b17ff67489d`.
+You can also query the DNS TXT records for `ntfy.sh` to find this fingerprint.
 
 ## Overview
 A picture is worth a thousand words. Here are a few screenshots showing what the app looks like. It's all pretty
