@@ -65,15 +65,21 @@ deb/rpm packages.
     ```
 
 ## Debian/Ubuntu repository
-Installation via Debian repository:
+
+!!! info
+    As of September 2025, **the official ntfy.sh Debian/Ubuntu repository has moved to [archive.ntfy.sh](https://archive.ntfy.sh/apt)**.
+    The old repository [archive.heckel.io](https://archive.heckel.io/apt) is still available for now, but will likely
+    go away soon. I suspect I will phase it out some time in early 2026.
+
+Installation via Debian/Ubuntu repository (fingerprint `55BA 774A 6F5E E674 31E4  6B7C CFDB 962D 4F1E C4AF`):
 
 === "x86_64/amd64"
     ```bash
     sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://archive.heckel.io/apt/pubkey.txt | sudo gpg --dearmor -o /etc/apt/keyrings/archive.heckel.io.gpg
+    sudo curl -L -o /etc/apt/keyrings/ntfy.gpg https://archive.ntfy.sh/apt/keyring.gpg
     sudo apt install apt-transport-https
-    sudo sh -c "echo 'deb [arch=amd64 signed-by=/etc/apt/keyrings/archive.heckel.io.gpg] https://archive.heckel.io/apt debian main' \
-        > /etc/apt/sources.list.d/archive.heckel.io.list"  
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/ntfy.gpg] https://archive.ntfy.sh/apt stable main" \
+        | sudo tee /etc/apt/sources.list.d/ntfy.list
     sudo apt update
     sudo apt install ntfy
     sudo systemctl enable ntfy
@@ -83,10 +89,10 @@ Installation via Debian repository:
 === "armv7/armhf"
     ```bash
     sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://archive.heckel.io/apt/pubkey.txt | sudo gpg --dearmor -o /etc/apt/keyrings/archive.heckel.io.gpg
+    sudo curl -L -o /etc/apt/keyrings/ntfy.gpg https://archive.ntfy.sh/apt/keyring.gpg
     sudo apt install apt-transport-https
-    sudo sh -c "echo 'deb [arch=armhf signed-by=/etc/apt/keyrings/archive.heckel.io.gpg] https://archive.heckel.io/apt debian main' \
-        > /etc/apt/sources.list.d/archive.heckel.io.list"
+    echo "deb [arch=armhf signed-by=/etc/apt/keyrings/ntfy.gpg] https://archive.ntfy.sh/apt stable main" \
+        | sudo tee /etc/apt/sources.list.d/ntfy.list
     sudo apt update
     sudo apt install ntfy
     sudo systemctl enable ntfy
@@ -96,10 +102,10 @@ Installation via Debian repository:
 === "arm64"
     ```bash
     sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://archive.heckel.io/apt/pubkey.txt | sudo gpg --dearmor -o /etc/apt/keyrings/archive.heckel.io.gpg
+    sudo curl -L -o /etc/apt/keyrings/ntfy.gpg https://archive.ntfy.sh/apt/keyring.gpg
     sudo apt install apt-transport-https
-    sudo sh -c "echo 'deb [arch=arm64 signed-by=/etc/apt/keyrings/archive.heckel.io.gpg] https://archive.heckel.io/apt debian main' \
-        > /etc/apt/sources.list.d/archive.heckel.io.list"
+    echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/ntfy.gpg] https://archive.ntfy.sh/apt stable main" \
+        | sudo tee /etc/apt/sources.list.d/ntfy.list
     sudo apt update
     sudo apt install ntfy
     sudo systemctl enable ntfy
