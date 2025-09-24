@@ -2,6 +2,22 @@
 Binaries for all releases can be found on the GitHub releases pages for the [ntfy server](https://github.com/binwiederhier/ntfy/releases)
 and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/releases).
 
+### ntfy Android app v1.17.8
+Released September 23, 2025
+
+This is largely a maintenance update to ensure the SDK is up-to-date.
+
+**Features:**
+
+* Markdown is now rendered if "Markdown: yes" was passed ([#310](https://github.com/binwiederhier/ntfy/issues/310), thanks to [@NiNiyas](https://github.com/NiNiyas) for reporting)
+* You can now disable UnifiedPush so ntfy does not act as a UnifiedPush distributor ([#646](https://github.com/binwiederhier/ntfy/issues/646), thanks to [@ollien](https://github.com/ollien) for reporting and to [@wunter8](https://github.com/wunter8) for implementing)
+
+**Bug fixes + maintenance:**
+
+* UnifiedPush subscriptions now include the `Rate-Topics` header to facilitate subscriber-based billing ([#652](https://github.com/binwiederhier/ntfy/issues/652), thanks to [@wunter8](https://github.com/wunter8))
+* Subscriptions without icons no longer appear to use another subscription's icon ([#634](https://github.com/binwiederhier/ntfy/issues/634), thanks to [@topcaser](https://github.com/topcaser) for reporting and to [@wunter8](https://github.com/wunter8) for fixing)
+* Bumped all dependencies to the latest versions (no ticket)
+
 ### ntfy server v2.14.0
 Released August 5, 2025
 
@@ -1476,22 +1492,8 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 **Bug fixes + maintenance:**
 
+* The official ntfy.sh Debian/Ubuntu repository has moved to [archive.ntfy.sh](https://archive.ntfy.sh) ([#1357](https://github.com/binwiederhier/ntfy/issues/1357)/[#1401](https://github.com/binwiederhier/ntfy/issues/1401), thanks to [@skibbipl](https://github.com/skibbipl) and [@lduesing](https://github.com/lduesing) for reporting)
 * Add mutex around message cache writes to avoid `database locked` errors ([#1397](https://github.com/binwiederhier/ntfy/pull/1397), [#1391](https://github.com/binwiederhier/ntfy/issues/1391), thanks to [@timofej673](https://github.com/timofej673))
 * Add build tags `nopayments`, `nofirebase` and `nowebpush` to allow excluding external dependencies, useful for 
   packaging in Debian ([#1420](https://github.com/binwiederhier/ntfy/pull/1420), discussion in [#1258](https://github.com/binwiederhier/ntfy/issues/1258), thanks to [@thekhalifa](https://github.com/thekhalifa) for packaging ntfy for Debian/Ubuntu)
 * Make copying tokens, phone numbers, etc. possible on HTTP ([#1432](https://github.com/binwiederhier/ntfy/pull/1432)/[#1408](https://github.com/binwiederhier/ntfy/issues/1408)/[#1295](https://github.com/binwiederhier/ntfy/issues/1295), thanks to [@EdwinKM](https://github.com/EdwinKM), [@xxl6097](https://github.com/xxl6097) for reporting)
-
-### ntfy Android app v1.17.0 (UNRELEASED)
-
-This is largely a maintenance update to ensure the SDK is up-to-date.
-
-**Features:**
-
-* Markdown is now rendered if "Markdown: yes" was passed ([#310](https://github.com/binwiederhier/ntfy/issues/310), thanks to [@NiNiyas](https://github.com/NiNiyas) for reporting)
-* You can now disable UnifiedPush so ntfy does not act as a UnifiedPush distributor ([#646](https://github.com/binwiederhier/ntfy/issues/646), thanks to [@ollien](https://github.com/ollien) for reporting and to [@wunter8](https://github.com/wunter8) for implementing) 
-
-**Bug fixes + maintenance:**
-
-* UnifiedPush subscriptions now include the `Rate-Topics` header to facilitate subscriber-based billing ([#652](https://github.com/binwiederhier/ntfy/issues/652), thanks to [@wunter8](https://github.com/wunter8))
-* Subscriptions without icons no longer appear to use another subscription's icon ([#634](https://github.com/binwiederhier/ntfy/issues/634), thanks to [@topcaser](https://github.com/topcaser) for reporting and to [@wunter8](https://github.com/wunter8) for fixing)
-* Bumped all dependencies to the latest versions (no ticket)
