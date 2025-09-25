@@ -625,7 +625,7 @@ them with a comma, e.g. `tag1,tag2,tag3`.
     or `=?UTF-8?Q?=C3=84pfel?=,tag2` ([quoted-printable](https://en.wikipedia.org/wiki/Quoted-printable)).
 
 ## Markdown formatting
-_Supported on:_ :material-firefox:
+_Supported on:_ :material-android: :material-firefox:
 
 You can format messages using [Markdown](https://www.markdownguide.org/basic-syntax/) 🤩. That means you can use 
 **bold text**, *italicized text*, links, images, and more. Supported Markdown features (web app only for now):
