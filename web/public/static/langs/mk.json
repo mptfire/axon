@@ -1,1 +1,20 @@
-{}
+{
+    "common_cancel": "Откажи",
+    "common_save": "Зачувај",
+    "common_add": "Додади",
+    "common_back": "Назад",
+    "common_copy_to_clipboard": "Копирај",
+    "action_bar_profile_logout": "Одјави се",
+    "action_bar_sign_in": "Најави се",
+    "action_bar_sign_up": "Регистрирај се",
+    "message_bar_type_message": "Пишете порака тука",
+    "action_bar_profile_title": "Профил",
+    "action_bar_profile_settings": "Подесувања",
+    "signup_form_username": "Корисничко име",
+    "signup_form_password": "Лозинка",
+    "signup_form_confirm_password": "Повтори лозинка",
+    "login_form_button_submit": "Најави се",
+    "login_link_signup": "Регистрирај се",
+    "signup_form_button_submit": "Регистрирај се",
+    "action_bar_settings": "Подесувања"
+}
