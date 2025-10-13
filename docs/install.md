@@ -307,6 +307,7 @@ services:
         retries: 3
         start_period: 40s
     restart: unless-stopped
+    init: true # needed, if healthcheck is used. Prevents zombie processes
 ```
 
 If using a non-root user when running the docker version, be sure to chown the server.yml, user.db, and cache.db files and attachments directory to the same uid/gid.
