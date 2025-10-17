@@ -22,9 +22,11 @@ func TestMemCache_Messages(t *testing.T) {
 func testCacheMessages(t *testing.T, c *messageCache) {
 	m1 := newDefaultMessage("mytopic", "my message")
 	m1.Time = 1
+	m1.MTime = 1000
 
 	m2 := newDefaultMessage("mytopic", "my other message")
 	m2.Time = 2
+	m2.MTime = 2000
 
 	require.Nil(t, c.AddMessage(m1))
 	require.Nil(t, c.AddMessage(newDefaultMessage("example", "my example message")))
@@ -102,10 +104,13 @@ func testCacheMessagesScheduled(t *testing.T, c *messageCache) {
 	m1 := newDefaultMessage("mytopic", "message 1")
 	m2 := newDefaultMessage("mytopic", "message 2")
 	m2.Time = time.Now().Add(time.Hour).Unix()
+	m2.MTime = time.Now().Add(time.Hour).UnixMilli()
 	m3 := newDefaultMessage("mytopic", "message 3")
-	m3.Time = time.Now().Add(time.Minute).Unix() // earlier than m2!
+	m3.Time = time.Now().Add(time.Minute).Unix()       // earlier than m2!
+	m3.MTime = time.Now().Add(time.Minute).UnixMilli() // earlier than m2!
 	m4 := newDefaultMessage("mytopic2", "message 4")
 	m4.Time = time.Now().Add(time.Minute).Unix()
+	m4.MTime = time.Now().Add(time.Minute).UnixMilli()
 	require.Nil(t, c.AddMessage(m1))
 	require.Nil(t, c.AddMessage(m2))
 	require.Nil(t, c.AddMessage(m3))
@@ -179,18 +184,25 @@ func TestMemCache_MessagesSinceID(t *testing.T) {
 func testCacheMessagesSinceID(t *testing.T, c *messageCache) {
 	m1 := newDefaultMessage("mytopic", "message 1")
 	m1.Time = 100
+	m1.MTime = 100000
 	m2 := newDefaultMessage("mytopic", "message 2")
 	m2.Time = 200
+	m2.MTime = 200000
 	m3 := newDefaultMessage("mytopic", "message 3")
-	m3.Time = time.Now().Add(time.Hour).Unix() // Scheduled, in the future, later than m7 and m5
+	m3.Time = time.Now().Add(time.Hour).Unix()       // Scheduled, in the future, later than m7 and m5
+	m3.MTime = time.Now().Add(time.Hour).UnixMilli() // Scheduled, in the future, later than m7 and m5
 	m4 := newDefaultMessage("mytopic", "message 4")
 	m4.Time = 400
+	m4.MTime = 400000
 	m5 := newDefaultMessage("mytopic", "message 5")
-	m5.Time = time.Now().Add(time.Minute).Unix() // Scheduled, in the future, later than m7
+	m5.Time = time.Now().Add(time.Minute).Unix()       // Scheduled, in the future, later than m7
+	m5.MTime = time.Now().Add(time.Minute).UnixMilli() // Scheduled, in the future, later than m7
 	m6 := newDefaultMessage("mytopic", "message 6")
 	m6.Time = 600
+	m6.MTime = 600000
 	m7 := newDefaultMessage("mytopic", "message 7")
 	m7.Time = 700
+	m7.MTime = 700000
 
 	require.Nil(t, c.AddMessage(m1))
 	require.Nil(t, c.AddMessage(m2))
@@ -251,14 +263,17 @@ func testCachePrune(t *testing.T, c *messageCache) {
 
 	m1 := newDefaultMessage("mytopic", "my message")
 	m1.Time = now - 10
+	m1.MTime = (now - 10) * 1000
 	m1.Expires = now - 5
 
 	m2 := newDefaultMessage("mytopic", "my other message")
 	m2.Time = now - 5
+	m2.MTime = (now - 5) * 1000
 	m2.Expires = now + 5 // In the future
 
 	m3 := newDefaultMessage("another_topic", "and another one")
 	m3.Time = now - 12
+	m3.MTime = (now - 12) * 1000
 	m3.Expires = now - 2
 
 	require.Nil(t, c.AddMessage(m1))
@@ -297,6 +312,7 @@ func testCacheAttachments(t *testing.T, c *messageCache) {
 	expires1 := time.Now().Add(-4 * time.Hour).Unix() // Expired
 	m := newDefaultMessage("mytopic", "flower for you")
 	m.ID = "m1"
+	m.SID = "m1"
 	m.Sender = netip.MustParseAddr("1.2.3.4")
 	m.Attachment = &attachment{
 		Name:    "flower.jpg",
@@ -310,6 +326,7 @@ func testCacheAttachments(t *testing.T, c *messageCache) {
 	expires2 := time.Now().Add(2 * time.Hour).Unix() // Future
 	m = newDefaultMessage("mytopic", "sending you a car")
 	m.ID = "m2"
+	m.SID = "m2"
 	m.Sender = netip.MustParseAddr("1.2.3.4")
 	m.Attachment = &attachment{
 		Name:    "car.jpg",
@@ -323,6 +340,7 @@ func testCacheAttachments(t *testing.T, c *messageCache) {
 	expires3 := time.Now().Add(1 * time.Hour).Unix() // Future
 	m = newDefaultMessage("another-topic", "sending you another car")
 	m.ID = "m3"
+	m.SID = "m3"
 	m.User = "u_BAsbaAa"
 	m.Sender = netip.MustParseAddr("5.6.7.8")
 	m.Attachment = &attachment{
@@ -378,11 +396,13 @@ func TestMemCache_Attachments_Expired(t *testing.T) {
 func testCacheAttachmentsExpired(t *testing.T, c *messageCache) {
 	m := newDefaultMessage("mytopic", "flower for you")
 	m.ID = "m1"
+	m.SID = "m1"
 	m.Expires = time.Now().Add(time.Hour).Unix()
 	require.Nil(t, c.AddMessage(m))
 
 	m = newDefaultMessage("mytopic", "message with attachment")
 	m.ID = "m2"
+	m.SID = "m2"
 	m.Expires = time.Now().Add(2 * time.Hour).Unix()
 	m.Attachment = &attachment{
 		Name:    "car.jpg",
@@ -395,6 +415,7 @@ func testCacheAttachmentsExpired(t *testing.T, c *messageCache) {
 
 	m = newDefaultMessage("mytopic", "message with external attachment")
 	m.ID = "m3"
+	m.SID = "m3"
 	m.Expires = time.Now().Add(2 * time.Hour).Unix()
 	m.Attachment = &attachment{
 		Name:    "car.jpg",
@@ -406,6 +427,7 @@ func testCacheAttachmentsExpired(t *testing.T, c *messageCache) {
 
 	m = newDefaultMessage("mytopic2", "message with expired attachment")
 	m.ID = "m4"
+	m.SID = "m4"
 	m.Expires = time.Now().Add(2 * time.Hour).Unix()
 	m.Attachment = &attachment{
 		Name:    "expired-car.jpg",
@@ -502,6 +524,7 @@ func TestSqliteCache_Migration_From1(t *testing.T) {
 	// Add delayed message
 	delayedMessage := newDefaultMessage("mytopic", "some delayed message")
 	delayedMessage.Time = time.Now().Add(time.Minute).Unix()
+	delayedMessage.MTime = time.Now().Add(time.Minute).UnixMilli()
 	require.Nil(t, c.AddMessage(delayedMessage))
 
 	// 10, not 11!

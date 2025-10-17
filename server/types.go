@@ -25,7 +25,9 @@ const (
 // message represents a message published to a topic
 type message struct {
 	ID          string      `json:"id"`                // Random message ID
+	SID         string      `json:"sid"`               // Message sequence ID for updating message contents
 	Time        int64       `json:"time"`              // Unix time in seconds
+	MTime       int64       `json:"mtime"`             // Unix time in milliseconds
 	Expires     int64       `json:"expires,omitempty"` // Unix time in seconds (not required for open/keepalive)
 	Event       string      `json:"event"`             // One of the above
 	Topic       string      `json:"topic"`
@@ -42,13 +44,16 @@ type message struct {
 	Encoding    string      `json:"encoding,omitempty"`     // empty for raw UTF-8, or "base64" for encoded bytes
 	Sender      netip.Addr  `json:"-"`                      // IP address of uploader, used for rate limiting
 	User        string      `json:"-"`                      // UserID of the uploader, used to associated attachments
+	Deleted     int         `json:"deleted,omitempty"`
 }
 
 func (m *message) Context() log.Context {
 	fields := map[string]any{
 		"topic":             m.Topic,
 		"message_id":        m.ID,
+		"message_sid":       m.SID,
 		"message_time":      m.Time,
+		"message_mtime":     m.MTime,
 		"message_event":     m.Event,
 		"message_body_size": len(m.Message),
 	}
@@ -92,6 +97,7 @@ func newAction() *action {
 // publishMessage is used as input when publishing as JSON
 type publishMessage struct {
 	Topic    string   `json:"topic"`
+	SID      string   `json:"sid"`
 	Title    string   `json:"title"`
 	Message  string   `json:"message"`
 	Priority int      `json:"priority"`
@@ -117,6 +123,7 @@ func newMessage(event, topic, msg string) *message {
 	return &message{
 		ID:      util.RandomString(messageIDLength),
 		Time:    time.Now().Unix(),
+		MTime:   time.Now().UnixMilli(),
 		Event:   event,
 		Topic:   topic,
 		Message: msg,
@@ -155,7 +162,11 @@ type sinceMarker struct {
 }
 
 func newSinceTime(timestamp int64) sinceMarker {
-	return sinceMarker{time.Unix(timestamp, 0), ""}
+	return newSinceMTime(timestamp * 1000)
+}
+
+func newSinceMTime(mtimestamp int64) sinceMarker {
+	return sinceMarker{time.UnixMilli(mtimestamp), ""}
 }
 
 func newSinceID(id string) sinceMarker {
