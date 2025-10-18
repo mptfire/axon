@@ -53,6 +53,14 @@ export const badge = "/static/images/mask-icon.svg";
 export const toNotificationParams = ({ subscriptionId, message, defaultTitle, topicRoute }) => {
   const image = isImage(message.attachment) ? message.attachment.url : undefined;
 
+  let tag;
+
+  if (message.sid) {
+    tag = message.sid;
+  } else {
+    tag = subscriptionId;
+  }
+
   // https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API
   return [
     formatTitleWithDefault(message, defaultTitle),
@@ -61,8 +69,8 @@ export const toNotificationParams = ({ subscriptionId, message, defaultTitle, to
       badge,
       icon,
       image,
-      timestamp: message.time * 1_000,
-      tag: subscriptionId,
+      timestamp: message.mtime,
+      tag,
       renotify: true,
       silent: false,
       // This is used by the notification onclick event

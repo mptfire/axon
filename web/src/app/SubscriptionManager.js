@@ -156,18 +156,41 @@ class SubscriptionManager {
     // It's actually fine, because the reading and filtering is quite fast. The rendering is what's
     // killing performance. See  https://dexie.org/docs/Collection/Collection.offset()#a-better-paging-approach
 
-    return this.db.notifications
-      .orderBy("time") // Sort by time first
+    const notifications = await this.db.notifications
+      .orderBy("mtime") // Sort by time first
       .filter((n) => n.subscriptionId === subscriptionId)
       .reverse()
       .toArray();
+
+    return this.groupNotificationsBySID(notifications);
   }
 
   async getAllNotifications() {
-    return this.db.notifications
-      .orderBy("time") // Efficient, see docs
+    const notifications = await this.db.notifications
+      .orderBy("mtime") // Efficient, see docs
       .reverse()
       .toArray();
+
+    return this.groupNotificationsBySID(notifications);
+  }
+
+  // Collapse notification updates based on sids
+  groupNotificationsBySID(notifications) {
+    const results = {};
+    notifications.forEach((notification) => {
+      const key = `${notification.subscriptionId}:${notification.sid}`;
+      if (key in results) {
+        if ("history" in results[key]) {
+          results[key].history.push(notification);
+        } else {
+          results[key].history = [notification];
+        }
+      } else {
+        results[key] = notification;
+      }
+    });
+
+    return Object.values(results);
   }
 
   /** Adds notification, or returns false if it already exists */
@@ -177,9 +200,16 @@ class SubscriptionManager {
       return false;
     }
     try {
+      const populatedNotification = notification;
+      if (!("mtime" in populatedNotification)) {
+        populatedNotification.mtime = notification.time * 1000;
+      }
+      if (!("sid" in populatedNotification)) {
+        populatedNotification.sid = notification.id;
+      }
       // sw.js duplicates this logic, so if you change it here, change it there too
       await this.db.notifications.add({
-        ...notification,
+        ...populatedNotification,
         subscriptionId,
         // New marker (used for bubble indicator); cannot be boolean; Dexie index limitation
         new: 1,
@@ -195,7 +225,16 @@ class SubscriptionManager {
 
   /** Adds/replaces notifications, will not throw if they exist */
   async addNotifications(subscriptionId, notifications) {
-    const notificationsWithSubscriptionId = notifications.map((notification) => ({ ...notification, subscriptionId }));
+    const notificationsWithSubscriptionId = notifications.map((notification) => {
+      const populatedNotification = notification;
+      if (!("mtime" in populatedNotification)) {
+        populatedNotification.mtime = notification.time * 1000;
+      }
+      if (!("sid" in populatedNotification)) {
+        populatedNotification.sid = notification.id;
+      }
+      return { ...populatedNotification, subscriptionId };
+    });
     const lastNotificationId = notifications.at(-1).id;
     await this.db.notifications.bulkPut(notificationsWithSubscriptionId);
     await this.db.subscriptions.update(subscriptionId, {

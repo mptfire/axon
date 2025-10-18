@@ -233,10 +233,20 @@ const NotificationItem = (props) => {
   const handleDelete = async () => {
     console.log(`[Notifications] Deleting notification ${notification.id}`);
     await subscriptionManager.deleteNotification(notification.id);
+    notification.history?.forEach(async (revision) => {
+      console.log(`[Notifications] Deleting revision ${revision.id}`);
+      await subscriptionManager.deleteNotification(revision.id);
+    });
   };
   const handleMarkRead = async () => {
     console.log(`[Notifications] Marking notification ${notification.id} as read`);
     await subscriptionManager.markNotificationRead(notification.id);
+    notification.history
+      ?.filter((revision) => revision.new === 1)
+      .forEach(async (revision) => {
+        console.log(`[Notifications] Marking revision ${revision.id} as read`);
+        await subscriptionManager.markNotificationRead(revision.id);
+      });
   };
   const handleCopy = (s) => {
     navigator.clipboard.writeText(s);
@@ -247,6 +257,8 @@ const NotificationItem = (props) => {
   const hasClickAction = notification.click;
   const hasUserActions = notification.actions && notification.actions.length > 0;
   const showActions = hasAttachmentActions || hasClickAction || hasUserActions;
+
+  const showSid = notification.id !== notification.sid || notification.history;
 
   return (
     <Card sx={{ padding: 1 }} role="listitem" aria-label={t("notifications_list_item")}>
@@ -302,6 +314,16 @@ const NotificationItem = (props) => {
         {tags && (
           <Typography sx={{ fontSize: 14 }} color="text.secondary">
             {t("notifications_tags")}: {tags}
+          </Typography>
+        )}
+        {showSid && (
+          <Typography sx={{ fontSize: 14 }} color="text.secondary">
+            {t("notifications_sid")}: {notification.sid}
+          </Typography>
+        )}
+        {notification.history && (
+          <Typography sx={{ fontSize: 14 }} color="text.secondary">
+            {t("notifications_revisions")}: {notification.history.length + 1}
           </Typography>
         )}
       </CardContent>

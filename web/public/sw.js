@@ -23,9 +23,17 @@ const broadcastChannel = new BroadcastChannel("web-push-broadcast");
 
 const addNotification = async ({ subscriptionId, message }) => {
   const db = await dbAsync();
+  const populatedMessage = message;
+
+  if (!("mtime" in populatedMessage)) {
+    populatedMessage.mtime = message.time * 1000;
+  }
+  if (!("sid" in populatedMessage)) {
+    populatedMessage.sid = message.id;
+  }
 
   await db.notifications.add({
-    ...message,
+    ...populatedMessage,
     subscriptionId,
     // New marker (used for bubble indicator); cannot be boolean; Dexie index limitation
     new: 1,
