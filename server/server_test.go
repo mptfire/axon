@@ -703,6 +703,74 @@ func TestServer_PublishInvalidTopic(t *testing.T) {
 	require.Equal(t, 40010, toHTTPError(t, response.Body.String()).Code)
 }
 
+func TestServer_PublishWithSIDInPath(t *testing.T) {
+	s := newTestServer(t, newTestConfig(t))
+
+	response := request(t, s, "POST", "/mytopic/sid", "message", nil)
+	msg := toMessage(t, response.Body.String())
+	require.NotEmpty(t, msg.ID)
+	require.Equal(t, "sid", msg.SID)
+}
+
+func TestServer_PublishWithSIDInHeader(t *testing.T) {
+	s := newTestServer(t, newTestConfig(t))
+
+	response := request(t, s, "POST", "/mytopic", "message", map[string]string{
+		"sid": "sid",
+	})
+	msg := toMessage(t, response.Body.String())
+	require.NotEmpty(t, msg.ID)
+	require.Equal(t, "sid", msg.SID)
+}
+
+func TestServer_PublishWithSIDInPathAndHeader(t *testing.T) {
+	s := newTestServer(t, newTestConfig(t))
+
+	response := request(t, s, "PUT", "/mytopic/sid1", "message", map[string]string{
+		"sid": "sid2",
+	})
+	msg := toMessage(t, response.Body.String())
+	require.NotEmpty(t, msg.ID)
+	require.Equal(t, "sid1", msg.SID) // SID in path has priority over SID in header
+}
+
+func TestServer_PublishWithSIDInQuery(t *testing.T) {
+	s := newTestServer(t, newTestConfig(t))
+
+	response := request(t, s, "PUT", "/mytopic?sid=sid1", "message", nil)
+	msg := toMessage(t, response.Body.String())
+	require.NotEmpty(t, msg.ID)
+	require.Equal(t, "sid1", msg.SID)
+}
+
+func TestServer_PublishWithSIDViaGet(t *testing.T) {
+	s := newTestServer(t, newTestConfig(t))
+
+	response := request(t, s, "GET", "/mytopic/publish?sid=sid1", "message", nil)
+	msg := toMessage(t, response.Body.String())
+	require.NotEmpty(t, msg.ID)
+	require.Equal(t, "sid1", msg.SID)
+}
+
+func TestServer_PublishWithInvalidSIDInPath(t *testing.T) {
+	s := newTestServer(t, newTestConfig(t))
+
+	response := request(t, s, "POST", "/mytopic/.", "message", nil)
+
+	require.Equal(t, 404, response.Code)
+}
+
+func TestServer_PublishWithInvalidSIDInHeader(t *testing.T) {
+	s := newTestServer(t, newTestConfig(t))
+
+	response := request(t, s, "POST", "/mytopic", "message", map[string]string{
+		"X-Sequence-ID": "*&?",
+	})
+
+	require.Equal(t, 400, response.Code)
+	require.Equal(t, 40049, toHTTPError(t, response.Body.String()).Code)
+}
+
 func TestServer_PollWithQueryFilters(t *testing.T) {
 	s := newTestServer(t, newTestConfig(t))
 

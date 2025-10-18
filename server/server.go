@@ -79,6 +79,8 @@ var (
 	wsPathRegex            = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/ws$`)
 	authPathRegex          = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/auth$`)
 	publishPathRegex       = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/(publish|send|trigger)$`)
+	sidRegex               = topicRegex
+	updatePathRegex        = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/[-_A-Za-z0-9]{1,64}$`)
 
 	webConfigPath                                        = "/config.js"
 	webManifestPath                                      = "/manifest.webmanifest"
@@ -542,7 +544,7 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.transformBodyJSON(s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish)))(w, r, v)
 	} else if r.Method == http.MethodPost && r.URL.Path == matrixPushPath {
 		return s.transformMatrixJSON(s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublishMatrix)))(w, r, v)
-	} else if (r.Method == http.MethodPut || r.Method == http.MethodPost) && topicPathRegex.MatchString(r.URL.Path) {
+	} else if (r.Method == http.MethodPut || r.Method == http.MethodPost) && (topicPathRegex.MatchString(r.URL.Path) || updatePathRegex.MatchString(r.URL.Path)) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)
 	} else if r.Method == http.MethodGet && publishPathRegex.MatchString(r.URL.Path) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)
@@ -955,6 +957,24 @@ func (s *Server) forwardPollRequest(v *visitor, m *message) {
 }
 
 func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, firebase bool, email, call string, template templateMode, unifiedpush bool, err *errHTTP) {
+	if r.Method != http.MethodGet && updatePathRegex.MatchString(r.URL.Path) {
+		pathSID, err := s.sidFromPath(r.URL.Path)
+		if err != nil {
+			return false, false, "", "", "", false, err
+		}
+		m.SID = pathSID
+	} else {
+		sid := readParam(r, "x-sequence-id", "sequence-id", "sid")
+		if sid != "" {
+			if sidRegex.MatchString(sid) {
+				m.SID = sid
+			} else {
+				return false, false, "", "", "", false, errHTTPBadRequestSIDInvalid
+			}
+		} else {
+			m.SID = m.ID
+		}
+	}
 	cache = readBoolParam(r, true, "x-cache", "cache")
 	firebase = readBoolParam(r, true, "x-firebase", "firebase")
 	m.Title = readParam(r, "x-title", "title", "t")
@@ -1691,6 +1711,15 @@ func (s *Server) topicsFromPath(path string) ([]*topic, string, error) {
 		return nil, "", errHTTPBadRequestTopicInvalid
 	}
 	return topics, parts[1], nil
+}
+
+// sidFromPath returns the SID from a POST path like /mytopic/sidHere
+func (s *Server) sidFromPath(path string) (string, *errHTTP) {
+	parts := strings.Split(path, "/")
+	if len(parts) != 3 {
+		return "", errHTTPBadRequestSIDInvalid
+	}
+	return parts[2], nil
 }
 
 // topicsFromIDs returns the topics with the given IDs, creating them if they don't exist.
