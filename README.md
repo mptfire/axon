@@ -6,7 +6,7 @@
   <img alt="Warp sponsorship" width="400" src="https://raw.githubusercontent.com/warpdotdev/brand-assets/refs/heads/main/Github/Sponsor/Warp-Github-LG-02.png">
 </a>
 
-### [Warp, built for coding with multiple AI agents.](https://www.warp.dev/vim)
+### [Warp, built for coding with multiple AI agents.](https://www.warp.dev/ntfy)
 [Available for MacOS, Linux, & Windows](https://www.warp.dev/ntfy)<br>
 </div>
 <hr>
