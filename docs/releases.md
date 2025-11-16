@@ -2,7 +2,23 @@
 Binaries for all releases can be found on the GitHub releases pages for the [ntfy server](https://github.com/binwiederhier/ntfy/releases)
 and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/releases).
 
-### ntfy Android app v1.17.8
+## ntfy Android app v1.17.13
+Released October 21, 2025
+
+This release makes changes to comply with the Google Play policies. See [#1463](https://github.com/binwiederhier/ntfy/issues/1463)
+or [ef57cd1](https://github.com/binwiederhier/ntfy-android/commit/ef57cd1374118b3e4d7a7ab496afe337e714fff7) for details.
+
+The policies do not allow directly or indirectly linking to paid plans or donation links that do not go through Google Play.
+
+**Changes:**
+
+- Remove the "Donate" button from menu (all variants)
+- Change default display name from "ntfy.sh/mytopic" to "mytopic" (all variants)
+- Remove links to ntfy docs and issue tracker (Play variant only)
+- Remove how-to links to ntfy.sh in a few places (Play variant only)
+- Remove "Copy topic address" from subscription menu (Play variant only)
+
+## ntfy Android app v1.17.8
 Released September 23, 2025
 
 This is largely a maintenance update to ensure the SDK is up-to-date.
@@ -18,7 +34,7 @@ This is largely a maintenance update to ensure the SDK is up-to-date.
 * Subscriptions without icons no longer appear to use another subscription's icon ([#634](https://github.com/binwiederhier/ntfy/issues/634), thanks to [@topcaser](https://github.com/topcaser) for reporting and to [@wunter8](https://github.com/wunter8) for fixing)
 * Bumped all dependencies to the latest versions (no ticket)
 
-### ntfy server v2.14.0
+## ntfy server v2.14.0
 Released August 5, 2025
 
 This release adds support for [declarative users](config.md#users-via-the-config), [declarative ACL entries](config.md#acl-entries-via-the-config) and [declarative tokens](config.md#tokens-via-the-config). This allows you to define users, ACL entries and tokens in the config file, which is useful for static deployments or deployments that use a configuration management system.
@@ -34,7 +50,7 @@ will always remain open source.
 * [Pre-defined templates](publish.md#pre-defined-templates) and [custom templates](publish.md#custom-templates) for enhanced JSON webhook support ([#1390](https://github.com/binwiederhier/ntfy/pull/1390))
 * Support of advanced [template functions](publish.md#template-functions) based on the [Sprig](https://github.com/Masterminds/sprig) library ([#1121](https://github.com/binwiederhier/ntfy/issues/1121), thanks to [@davidatkinsondoyle](https://github.com/davidatkinsondoyle) for reporting, to [@wunter8](https://github.com/wunter8) for implementing, and to the Sprig team for their work)
 
-### ntfy server v2.13.0
+## ntfy server v2.13.0
 Released July 10, 2025
 
 This is a relatively small release, mainly to support IPv6 and to add more sophisticated
@@ -53,7 +69,7 @@ ntfy will always remain open source.
 * Update new languages from Weblate. Thanks to all the contributors!
 * Added Estonian (Esti), Galician (Galego), Romanian (Română), Slovak (Slovenčina) as new languages to the web app
 
-### ntfy server v2.12.0
+## ntfy server v2.12.0
 Released May 29, 2025
 
 This is mainly a maintenance release that updates dependencies, though since it's been over a year, there are a few
@@ -113,7 +129,7 @@ user support in Discord/Matrix/GitHub! You rock, man!
 * Update new languages from Weblate. Thanks to all the contributors!
 * Added Tamil (தமிழ்) as a new language to the web app
 
-### ntfy server v2.11.0
+## ntfy server v2.11.0
 Released May 13, 2024
 
 This is a tiny release that fixes a database index issue that caused performance issues on ntfy.sh. It also fixes a bug
@@ -128,7 +144,7 @@ and [Liberapay](https://en.liberapay.com/ntfy/), or buying a [paid plan via the 
 * Do not set rate visitor for non-eligible topics (no ticket)
 * Do not cache `config.js` ([#1098](https://github.com/binwiederhier/ntfy/pull/1098), thanks to [@wunter8](https://github.com/wunter8))
 
-### ntfy server v2.10.0
+## ntfy server v2.10.0
 Released Mar 27, 2024
 
 This release adds support for **message templating** in the ntfy server, which allows you to include a message and/or
@@ -139,7 +155,7 @@ This is great for services that let you specify a webhook URL but do not let you
 
 * [Message templating](publish.md#message-templating): You can now include a message and/or title template that will be filled with values from a JSON body ([#724](https://github.com/binwiederhier/ntfy/issues/724), thanks to [@wunter8](https://github.com/wunter8) for implementing)
 
-### ntfy server v2.9.0
+## ntfy server v2.9.0
 Released Mar 7, 2024
 
 A small release after a long pause (lots of day job work). This release adds for **larger messages** and **longer
