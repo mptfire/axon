@@ -37,5 +37,18 @@
     "nav_button_settings": "Подесувања",
     "nav_button_documentation": "Документација",
     "notifications_attachment_copy_url_button": "Копирај URL",
-    "publish_dialog_message_label": "Порака"
+    "publish_dialog_message_label": "Порака",
+    "action_bar_reservation_delete": "Отстрани резервација",
+    "action_bar_reservation_limit_reached": "Достигната е границата",
+    "action_bar_send_test_notification": "Испрати тест нотификација",
+    "action_bar_clear_notifications": "Исчисти ги сите нотификации",
+    "action_bar_mute_notifications": "Загуши ги нотификациите",
+    "action_bar_unsubscribe": "Отпиши се",
+    "action_bar_toggle_action_menu": "Отвори/затвори мени за акција",
+    "message_bar_error_publishing": "Грешки при публикација на нотификацијата",
+    "message_bar_show_dialog": "Покажи дијалог за публикација",
+    "nav_topics_title": "Претплатени теми",
+    "nav_button_all_notifications": "Сите нотификации",
+    "nav_button_publish_message": "Објави нотификација",
+    "nav_button_subscribe": "Претплати се на тема"
 }
