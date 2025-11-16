@@ -2,6 +2,24 @@
 Binaries for all releases can be found on the GitHub releases pages for the [ntfy server](https://github.com/binwiederhier/ntfy/releases)
 and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/releases).
 
+### ntfy server v2.15.0
+Released Nov 16, 2025
+
+This release adds a `require-login` flag to topics, which forces users to log in before they can
+use the web app. This is useful for self-hosters and will obviously not be enabled on ntfy.sh.
+
+**Features:**
+
+* Add `require-login` flag to redirect to login page if not logged in ([#1434](https://github.com/binwiederhier/ntfy/pull/1434)/[#238](https://github.com/binwiederhier/ntfy/issues/238)/[#1329](https://github.com/binwiederhier/ntfy/pull/1329), thanks to [@theatischbein](https://github.com/theatischbein) for implementing most of this)
+
+**Bug fixes + maintenance:**
+
+* The official ntfy.sh Debian/Ubuntu repository has moved to [archive.ntfy.sh](https://archive.ntfy.sh) ([#1357](https://github.com/binwiederhier/ntfy/issues/1357)/[#1401](https://github.com/binwiederhier/ntfy/issues/1401), thanks to [@skibbipl](https://github.com/skibbipl) and [@lduesing](https://github.com/lduesing) for reporting)
+* Add mutex around message cache writes to avoid `database locked` errors ([#1397](https://github.com/binwiederhier/ntfy/pull/1397), [#1391](https://github.com/binwiederhier/ntfy/issues/1391), thanks to [@timofej673](https://github.com/timofej673))
+* Add build tags `nopayments`, `nofirebase` and `nowebpush` to allow excluding external dependencies, useful for
+  packaging in Debian ([#1420](https://github.com/binwiederhier/ntfy/pull/1420), discussion in [#1258](https://github.com/binwiederhier/ntfy/issues/1258), thanks to [@thekhalifa](https://github.com/thekhalifa) for packaging ntfy for Debian/Ubuntu)
+* Make copying tokens, phone numbers, etc. possible on HTTP ([#1432](https://github.com/binwiederhier/ntfy/pull/1432)/[#1408](https://github.com/binwiederhier/ntfy/issues/1408)/[#1295](https://github.com/binwiederhier/ntfy/issues/1295), thanks to [@EdwinKM](https://github.com/EdwinKM), [@xxl6097](https://github.com/xxl6097) for reporting)
+
 ## ntfy Android app v1.17.13
 Released October 21, 2025
 
@@ -1500,16 +1518,4 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-### ntfy server v2.15.0 (UNRELEASED)
-
-**Features:**
-
-* Add `require-login` flag to redirect to login page if not logged in ([#1434](https://github.com/binwiederhier/ntfy/pull/1434)/[#238](https://github.com/binwiederhier/ntfy/issues/238)/[#1329](https://github.com/binwiederhier/ntfy/pull/1329), thanks to [@theatischbein](https://github.com/theatischbein) for implementing most of this)
-
-**Bug fixes + maintenance:**
-
-* The official ntfy.sh Debian/Ubuntu repository has moved to [archive.ntfy.sh](https://archive.ntfy.sh) ([#1357](https://github.com/binwiederhier/ntfy/issues/1357)/[#1401](https://github.com/binwiederhier/ntfy/issues/1401), thanks to [@skibbipl](https://github.com/skibbipl) and [@lduesing](https://github.com/lduesing) for reporting)
-* Add mutex around message cache writes to avoid `database locked` errors ([#1397](https://github.com/binwiederhier/ntfy/pull/1397), [#1391](https://github.com/binwiederhier/ntfy/issues/1391), thanks to [@timofej673](https://github.com/timofej673))
-* Add build tags `nopayments`, `nofirebase` and `nowebpush` to allow excluding external dependencies, useful for 
-  packaging in Debian ([#1420](https://github.com/binwiederhier/ntfy/pull/1420), discussion in [#1258](https://github.com/binwiederhier/ntfy/issues/1258), thanks to [@thekhalifa](https://github.com/thekhalifa) for packaging ntfy for Debian/Ubuntu)
-* Make copying tokens, phone numbers, etc. possible on HTTP ([#1432](https://github.com/binwiederhier/ntfy/pull/1432)/[#1408](https://github.com/binwiederhier/ntfy/issues/1408)/[#1295](https://github.com/binwiederhier/ntfy/issues/1295), thanks to [@EdwinKM](https://github.com/EdwinKM), [@xxl6097](https://github.com/xxl6097) for reporting)
+_Nothing to see, move along ..._
