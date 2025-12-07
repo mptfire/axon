@@ -1271,7 +1271,9 @@ func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *message,
 func (s *Server) handleSubscribeJSON(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	encoder := func(msg *message) (string, error) {
 		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(&msg); err != nil {
+		encoder := json.NewEncoder(&buf)
+		encoder.SetEscapeHTML(false)
+		if err := encoder.Encode(&msg); err != nil {
 			return "", err
 		}
 		return buf.String(), nil
@@ -1282,7 +1284,9 @@ func (s *Server) handleSubscribeJSON(w http.ResponseWriter, r *http.Request, v *
 func (s *Server) handleSubscribeSSE(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	encoder := func(msg *message) (string, error) {
 		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(&msg); err != nil {
+		encoder := json.NewEncoder(&buf)
+		encoder.SetEscapeHTML(false)
+		if err := encoder.Encode(&msg); err != nil {
 			return "", err
 		}
 		if msg.Event != messageEvent {
@@ -2116,7 +2120,9 @@ func (s *Server) writeJSON(w http.ResponseWriter, v any) error {
 func (s *Server) writeJSONWithContentType(w http.ResponseWriter, v any, contentType string) error {
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Access-Control-Allow-Origin", s.config.AccessControlAllowOrigin) // CORS, allow cross-origin requests
-	if err := json.NewEncoder(w).Encode(v); err != nil {
+	encoder := json.NewEncoder(w)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(v); err != nil {
 		return err
 	}
 	return nil
