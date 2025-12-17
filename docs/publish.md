@@ -705,8 +705,8 @@ As of today, **Markdown is only supported in the web app.** Here's an example of
 === "Python"
     ``` python
     requests.post("https://ntfy.sh/mytopic", 
-        data="Look ma, **bold text**, *italics*, ..."
-        headers={ "Markdown": "yes" }))
+        data="Look ma, **bold text**, *italics*, ...",
+        headers={ "Markdown": "yes" })
     ```
 
 === "PHP"
