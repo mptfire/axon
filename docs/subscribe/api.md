@@ -295,7 +295,7 @@ Available filters (all case-insensitive):
 | `message`       | `X-Message`, `m`          | `ntfy.sh/mytopic/json?message=lalala`         | Only return messages that match this exact message string               |
 | `title`         | `X-Title`, `t`            | `ntfy.sh/mytopic/json?title=some+title`       | Only return messages that match this exact title string                 |
 | `priority`      | `X-Priority`, `prio`, `p` | `ntfy.sh/mytopic/json?p=high,urgent`          | Only return messages that match *any priority listed* (comma-separated) |
-| `tags`          | `X-Tags`, `tag`, `ta`     | `ntfy.sh/mytopic?/jsontags=error,alert`       | Only return messages that match *all listed tags* (comma-separated)     |
+| `tags`          | `X-Tags`, `tag`, `ta`     | `ntfy.sh/mytopic/json?tags=error,alert`       | Only return messages that match *all listed tags* (comma-separated)     |
 
 ### Subscribe to multiple topics
 It's possible to subscribe to multiple topics in one HTTP call by providing a comma-separated list of topics 
