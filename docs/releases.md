@@ -2,7 +2,31 @@
 Binaries for all releases can be found on the GitHub releases pages for the [ntfy server](https://github.com/binwiederhier/ntfy/releases)
 and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/releases).
 
-### ntfy server v2.15.0
+## Current stable releases
+
+| Component        | Version | Release date |
+|------------------|---------|--------------|
+| ntfy server      | v2.15.0 | Nov 16, 2025 |
+| ntfy Android app | v1.18.0 | Dec 4, 2025  |
+| ntfy iOS app     | v1.3    | Nov 26, 2023 |
+
+Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+## ntfy Android app v1.18.0
+Released December 4, 2025
+
+**Features:**
+
+* Added GIF support for preview images ([ntfy-android#76](https://github.com/binwiederhier/ntfy-android/pull/76)/[#532](https://github.com/binwiederhier/ntfy/issues/532), thanks to [@MichaelArkh](https://github.com/MichaelArkh) and [@dimatx](https://github.com/dimatx) for reporting)
+* Added WebP support for preview images ([ntfy-android#81](https://github.com/binwiederhier/ntfy-android/pull/81)/[ntfy-android#80](https://github.com/binwiederhier/ntfy-android/issues/80), thanks to [@jokakilla](https://github.com/jokakilla))
+* Added UnifiedPush distributor selection support ([#137](https://github.com/binwiederhier/ntfy-android/pull/137), thanks to [@p1gp1g](https://github.com/p1gp1g))
+
+**Bug fixes + maintenance:**
+
+* Remove REQUEST_INSTALL_PACKAGES permission ([#684](https://github.com/binwiederhier/ntfy/issues/684))
+* Request to ignore battery optimizations before receiving subscription ([ntfy-android#97](https://github.com/binwiederhier/ntfy-android/pull/97), thanks to [@p1gp1g](https://github.com/p1gp1g))
+
+## ntfy server v2.15.0
 Released Nov 16, 2025
 
 This release adds a `require-login` flag to topics, which forces users to log in before they can
@@ -30,11 +54,11 @@ The policies do not allow directly or indirectly linking to paid plans or donati
 
 **Changes:**
 
-- Remove the "Donate" button from menu (all variants)
-- Change default display name from "ntfy.sh/mytopic" to "mytopic" (all variants)
-- Remove links to ntfy docs and issue tracker (Play variant only)
-- Remove how-to links to ntfy.sh in a few places (Play variant only)
-- Remove "Copy topic address" from subscription menu (Play variant only)
+* Remove the "Donate" button from menu (all variants)
+* Change default display name from "ntfy.sh/mytopic" to "mytopic" (all variants)
+* Remove links to ntfy docs and issue tracker (Play variant only)
+* Remove how-to links to ntfy.sh in a few places (Play variant only)
+* Remove "Copy topic address" from subscription menu (Play variant only)
 
 ## ntfy Android app v1.17.8
 Released September 23, 2025
@@ -1518,4 +1542,22 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-_Nothing to see, move along ..._
+### ntfy Android app v1.19.x
+
+This release upgrades the Android app to use [Material 3](https://m3.material.io/) design components and adds the
+ability to use [dynamic colors](https://developer.android.com/develop/ui/views/theming/dynamic-colors).
+**This was a lot of work** and I want to thank [@Bnyro](https://github.com/Bnyro) and [@cyb3rko](https://github.com/cyb3rko) for implementing this. You guys rock!
+
+**Features:**
+
+* Moved the user interface to Material 3 and added dynamic color support ([#580](https://github.com/binwiederhier/ntfy/issues/580),
+  [ntfy-android#56](https://github.com/binwiederhier/ntfy-android/pull/56), [ntfy-android#126](https://github.com/binwiederhier/ntfy-android/pull/126), 
+  [ntfy-android#135](https://github.com/binwiederhier/ntfy-android/pull/135), thanks to [@Bnyro](https://github.com/Bnyro)
+  and [@cyb3rko](https://github.com/cyb3rko) for the implementation, and to [@RokeJulianLockhart](https://github.com/RokeJulianLockhart) for reporting)
+
+### ntfy Android app v1.20.x
+
+**Bug fixes + maintenance:**
+
+* Updated dependencies, minimum SDK version to 26, clean up legacy code, upgrade Gradle ([ntfy-android#140](https://github.com/binwiederhier/ntfy-android/pull/140),
+  thanks to [@cyb3rko](https://github.com/cyb3rko) for the implementation)
