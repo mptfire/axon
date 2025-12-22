@@ -7,10 +7,24 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 | Component        | Version | Release date |
 |------------------|---------|--------------|
 | ntfy server      | v2.15.0 | Nov 16, 2025 |
-| ntfy Android app | v1.18.0 | Dec 4, 2025  |
+| ntfy Android app | v1.19.4 | Dec 21, 2025 |
 | ntfy iOS app     | v1.3    | Nov 26, 2023 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+### ntfy Android app v1.19.4
+Released December 21, 2025
+
+This release upgrades the Android app to use [Material 3](https://m3.material.io/) design components and adds the
+ability to use [dynamic colors](https://developer.android.com/develop/ui/views/theming/dynamic-colors).
+**This was a lot of work** and I want to thank [@Bnyro](https://github.com/Bnyro) and [@cyb3rko](https://github.com/cyb3rko) for implementing this. You guys rock!
+
+**Features:**
+
+* Moved the user interface to Material 3 and added dynamic color support ([#580](https://github.com/binwiederhier/ntfy/issues/580),
+  [ntfy-android#56](https://github.com/binwiederhier/ntfy-android/pull/56), [ntfy-android#126](https://github.com/binwiederhier/ntfy-android/pull/126),
+  [ntfy-android#135](https://github.com/binwiederhier/ntfy-android/pull/135), thanks to [@Bnyro](https://github.com/Bnyro)
+  and [@cyb3rko](https://github.com/cyb3rko) for the implementation, and to [@RokeJulianLockhart](https://github.com/RokeJulianLockhart) for reporting)
 
 ## ntfy Android app v1.18.0
 Released December 4, 2025
@@ -1541,19 +1555,6 @@ For older releases, check out the GitHub releases pages for the [ntfy server](ht
 and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/releases).
 
 ## Not released yet
-
-### ntfy Android app v1.19.x
-
-This release upgrades the Android app to use [Material 3](https://m3.material.io/) design components and adds the
-ability to use [dynamic colors](https://developer.android.com/develop/ui/views/theming/dynamic-colors).
-**This was a lot of work** and I want to thank [@Bnyro](https://github.com/Bnyro) and [@cyb3rko](https://github.com/cyb3rko) for implementing this. You guys rock!
-
-**Features:**
-
-* Moved the user interface to Material 3 and added dynamic color support ([#580](https://github.com/binwiederhier/ntfy/issues/580),
-  [ntfy-android#56](https://github.com/binwiederhier/ntfy-android/pull/56), [ntfy-android#126](https://github.com/binwiederhier/ntfy-android/pull/126), 
-  [ntfy-android#135](https://github.com/binwiederhier/ntfy-android/pull/135), thanks to [@Bnyro](https://github.com/Bnyro)
-  and [@cyb3rko](https://github.com/cyb3rko) for the implementation, and to [@RokeJulianLockhart](https://github.com/RokeJulianLockhart) for reporting)
 
 ### ntfy Android app v1.20.x
 
