@@ -26,7 +26,7 @@ func main() {
 		}
 		data[kv[0]] = kv[1]
 	}
-	fb, err := firebase.NewApp(context.Background(), nil, option.WithCredentialsFile(*conffile))
+	fb, err := firebase.NewApp(context.Background(), nil, option.WithAuthCredentialsFile(option.ServiceAccount, *conffile))
 	if err != nil {
 		fail(err.Error())
 	}

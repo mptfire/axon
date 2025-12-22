@@ -80,7 +80,7 @@ type firebaseSenderImpl struct {
 }
 
 func newFirebaseSender(credentialsFile string) (firebaseSender, error) {
-	fb, err := firebase.NewApp(context.Background(), nil, option.WithCredentialsFile(credentialsFile))
+	fb, err := firebase.NewApp(context.Background(), nil, option.WithAuthCredentialsFile(option.ServiceAccount, credentialsFile))
 	if err != nil {
 		return nil, err
 	}
