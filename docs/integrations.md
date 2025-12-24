@@ -42,6 +42,7 @@ I've added a ⭐ to projects or posts that have a significant following, or had 
 - [Monibot](https://monibot.io/) - Monibot monitors your websites, servers and applications and notifies you if something goes wrong.
 - [Miniflux](https://miniflux.app/docs/ntfy.html) - Minimalist and opinionated feed reader
 - [Beszel](https://beszel.dev/guide/notifications/ntfy) - Server monitoring platform
+- [Simple Observability](https://simpleobservability.com/docs/alerts/ntfy) - Server monitoring and observability platform
 
 ## Integration via HTTP/SMTP/etc.
 
