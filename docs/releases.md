@@ -1562,3 +1562,9 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 * Updated dependencies, minimum SDK version to 26, clean up legacy code, upgrade Gradle ([ntfy-android#140](https://github.com/binwiederhier/ntfy-android/pull/140),
   thanks to [@cyb3rko](https://github.com/cyb3rko) for the implementation)
+
+### ntfy Android app v1.21.x
+
+**Bug fixes + maintenance:**
+
+* Add support for (technically incorrect) 'image/jpg' MIME type ([ntfy-android#142](https://github.com/binwiederhier/ntfy-android/pull/142), thanks to [@Murilobeluco](https://github.com/Murilobeluco))
