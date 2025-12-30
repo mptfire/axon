@@ -1581,6 +1581,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 * Implement UnifiedPush "raise to foreground" requirement ([ntfy-android#98](https://github.com/binwiederhier/ntfy-android/pull/98), [ntfy-android#148](https://github.com/binwiederhier/ntfy-android/pull/148), thanks to [@p1gp1g](https://github.com/p1gp1g))
 * Language selector to allow overriding the system language ([#1508](https://github.com/binwiederhier/ntfy/issues/1508), [ntfy-android#145](https://github.com/binwiederhier/ntfy-android/pull/145), thanks to [@hudsonm62](https://github.com/hudsonm62) for reporting)
 * Highlight phone numbers and email addresses in notifications ([#957](https://github.com/binwiederhier/ntfy/issues/957), [ntfy-android#71](https://github.com/binwiederhier/ntfy-android/pull/71), thanks to [@brennenputh](https://github.com/brennenputh), and [@XylenSky](https://github.com/XylenSky) for reporting)
+* Support for port and display name in [ntfy://](subscribe/phone.md#ntfy-links) links ([ntfy-android#130](https://github.com/binwiederhier/ntfy-android/pull/130), thanks to [@godovski](https://github.com/godovski))
 
 **Bug fixes + maintenance:**
 
