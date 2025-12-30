@@ -4,15 +4,15 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Current stable releases
 
-| Component        | Version | Release date |
-|------------------|---------|--------------|
-| ntfy server      | v2.15.0 | Nov 16, 2025 |
-| ntfy Android app | v1.19.4 | Dec 21, 2025 |
-| ntfy iOS app     | v1.3    | Nov 26, 2023 |
+| Component                                | Version | Release date |
+|------------------------------------------|---------|--------------|
+| ntfy server                              | v2.15.0 | Nov 16, 2025 |
+| ntfy Android app (_is being rolled out_) | v1.20.0 | Dec 28, 2025 |
+| ntfy iOS app                             | v1.3    | Nov 26, 2023 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
 
-## ntfy Android app v1.20.x
+## ntfy Android app v1.20.0
 Released December 28, 2025
 
 This is the last pure maintenance release for now. It'll bring all dependencies and library version to the latest version,
@@ -1578,6 +1578,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 * Allow publishing messages through the message bar and publish dialog ([#98](https://github.com/binwiederhier/ntfy/issues/98), [ntfy-android#144](https://github.com/binwiederhier/ntfy-android/pull/144))
 * Define custom HTTP headers to support authenticated proxies, tunnels and SSO ([ntfy-android#116](https://github.com/binwiederhier/ntfy-android/issues/116), [#1018](https://github.com/binwiederhier/ntfy/issues/1018), [ntfy-android#132](https://github.com/binwiederhier/ntfy-android/pull/132), [ntfy-android#146](https://github.com/binwiederhier/ntfy-android/pull/146), thanks to [@CrazyWolf13](https://github.com/CrazyWolf13))
+* Implement UnifiedPush "raise to foreground" requirement ([ntfy-android#98](https://github.com/binwiederhier/ntfy-android/pull/98), [ntfy-android#148](https://github.com/binwiederhier/ntfy-android/pull/148), thanks to [@p1gp1g](https://github.com/p1gp1g))
 * Language selector to allow overriding the system language ([#1508](https://github.com/binwiederhier/ntfy/issues/1508), [ntfy-android#145](https://github.com/binwiederhier/ntfy-android/pull/145), thanks to [@hudsonm62](https://github.com/hudsonm62) for reporting)
 * Highlight phone numbers and email addresses in notifications ([#957](https://github.com/binwiederhier/ntfy/issues/957), [ntfy-android#71](https://github.com/binwiederhier/ntfy-android/pull/71), thanks to [@brennenputh](https://github.com/brennenputh), and [@XylenSky](https://github.com/XylenSky) for reporting)
 
