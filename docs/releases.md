@@ -1587,3 +1587,5 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 * Add support for (technically incorrect) 'image/jpg' MIME type ([ntfy-android#142](https://github.com/binwiederhier/ntfy-android/pull/142), thanks to [@Murilobeluco](https://github.com/Murilobeluco))
 * Unify "copy to clipboard" notifications, use Android 13 style ([ntfy-android#61](https://github.com/binwiederhier/ntfy-android/pull/61), thanks to [@thgoebel](https://github.com/thgoebel))
+* Fix crash in user add dialog (onAddUser)
+* Fix ForegroundServiceDidNotStartInTimeException (attempt 2, see [#1520](https://github.com/binwiederhier/ntfy/issues/1520))
