@@ -36,14 +36,6 @@ Found a typo? Want to improve the docs? Documentation contributions are very wel
 
 Please search existing issues before creating a new one to avoid duplicates.
 
-## Donations
-
-If you'd like to support ntfy financially, donations are gratefully accepted:
-
-- **GitHub Sponsors**: [github.com/sponsors/binwiederhier](https://github.com/sponsors/binwiederhier)
-
-Your support helps cover server costs and development time. Even small donations are very much appreciated!
-
 ## Code of Conduct
 
 Please be respectful and constructive in all interactions. See the 
