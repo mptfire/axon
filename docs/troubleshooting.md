@@ -1,7 +1,7 @@
 # Troubleshooting
 This page lists a few suggestions of what to do when things don't work as expected. This is not a complete list. 
-If this page does not help, feel free to drop by the [Discord](https://discord.gg/cT7ECsZj9w) or [Matrix](https://matrix.to/#/#ntfy:matrix.org)
-and ask there. We're happy to help.
+If this page does not help, feel free to reach out via one of the channels listed on the [contact page](contact.md).
+We're happy to help.
 
 ## ntfy server
 If you host your own ntfy server, and you're having issues with any component, it is always helpful to enable debugging/tracing

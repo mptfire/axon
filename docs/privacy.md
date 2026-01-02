@@ -189,11 +189,6 @@ For significant changes, we may provide additional notice on Discord/Matrix or t
 
 ## Contact
 
-If you have questions about this privacy policy or our data practices, you can reach us:
+For privacy-related inquiries, please email [privacy@mail.ntfy.sh](mailto:privacy@mail.ntfy.sh).
 
-- **GitHub Issues**: [github.com/binwiederhier/ntfy/issues](https://github.com/binwiederhier/ntfy/issues)
-- **Discord**: [discord.gg/cT7ECsZj9w](https://discord.gg/cT7ECsZj9w)
-- **Matrix**: [#ntfy:matrix.org](https://matrix.to/#/#ntfy:matrix.org)
-- **Email**: [privacy@mail.ntfy.sh](mailto:privacy@mail.ntfy.sh)
-
-For more information about ntfy, visit [ntfy.sh](https://ntfy.sh).
+For all other contact options, see the [contact page](contact.md).

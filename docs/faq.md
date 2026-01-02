@@ -94,11 +94,11 @@ I would be humbled if you helped me carry the server and developer account costs
 appreciated.
 
 ## Can I email you? Can I DM you on Discord/Matrix?
-While I love chatting on [Discord](https://discord.gg/cT7ECsZj9w), [Matrix](https://matrix.to/#/#ntfy-space:matrix.org), 
-[Lemmy](https://discuss.ntfy.sh/c/ntfy), or [GitHub](https://github.com/binwiederhier/ntfy/issues), I generally 
-**do not respond to emails about ntfy or direct messages** about ntfy, unless you are paying for a 
-[ntfy Pro](https://ntfy.sh/#pricing) plan, or you are inquiring about business opportunities. 
+For community support, please use the public channels listed on the [contact page](contact.md). I generally 
+**do not respond to direct messages** about ntfy, unless you are paying for a [ntfy Pro](https://ntfy.sh/#pricing) 
+plan (see [paid support](contact.md#paid-support-ntfy-pro-subscribers)), or you are inquiring about business 
+opportunities (see [general inquiries](contact.md#general-inquiries)).
 
 I am sorry, but answering individual questions about ntfy on a 1-on-1 basis is not scalable. Answering your questions 
-in the above-mentioned forums benefits others, since I can link to the discussion at a later point in time, or other users
+in public forums benefits others, since I can link to the discussion at a later point in time, or other users
 may be able to help out. I hope you understand.

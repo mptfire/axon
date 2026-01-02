@@ -1013,7 +1013,7 @@ or the root domain:
 === "caddy"
     ```
     # Note that this config is most certainly incomplete. Please help out and let me know what's missing
-    # via Discord/Matrix or in a GitHub issue.
+    # via the contact page (https://ntfy.sh/docs/contact/) or in a GitHub issue.
     # Note: Caddy automatically handles both HTTP and WebSockets with reverse_proxy 
 
     ntfy.sh, http://nfty.sh {
@@ -1034,7 +1034,7 @@ or the root domain:
     ``` kdl
     // /etc/ferron.kdl	
     // Note that this config is most certainly incomplete. Please help out and let me know what's missing
-    // via Discord/Matrix or in a GitHub issue.
+    // via the contact page (https://ntfy.sh/docs/contact/) or in a GitHub issue.
     // Note: Ferron automatically handles both HTTP and WebSockets with proxy 
 
     ntfy.sh {
