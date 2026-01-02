@@ -403,5 +403,7 @@
     "web_push_subscription_expiring_body": "開啟ntfy以繼續接收通知",
     "web_push_subscription_expiring_title": "通知會被暫停",
     "web_push_unknown_notification_body": "你可能需要開啟網頁來更新ntfy",
-    "web_push_unknown_notification_title": "接收到不明通知"
+    "web_push_unknown_notification_title": "接收到不明通知",
+    "account_basics_cannot_edit_or_delete_provisioned_user": "已佈建的使用者無法編輯或刪除",
+    "account_tokens_table_cannot_delete_or_edit_provisioned_token": "無法編輯或刪除已佈建的權杖"
 }
