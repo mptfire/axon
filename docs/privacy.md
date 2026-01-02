@@ -137,15 +137,15 @@ No cookies are used for tracking. The web app does not have a backend beyond the
 
 ## Data retention
 
-| Data type | Retention period |
-|-----------|------------------|
-| Messages | 12 hours (configurable by server operators) |
-| Attachments | 3 hours (configurable by server operators) |
-| User accounts | Until you delete your account |
-| Access tokens | Until you revoke them or delete your account |
-| Phone numbers | Until you remove them or delete your account |
+| Data type              | Retention period                                  |
+|------------------------|---------------------------------------------------|
+| Messages               | 12 hours (configurable by server operators)       |
+| Attachments            | 3 hours (configurable by server operators)        |
+| User accounts          | Until you delete your account                     |
+| Access tokens          | Until you revoke them or delete your account      |
+| Phone numbers          | Until you remove them or delete your account      |
 | Web push subscriptions | 60 days of inactivity, then automatically removed |
-| Server logs | Varies; debugging logs are typically temporary |
+| Server logs            | Varies; debugging logs are typically temporary    |
 
 ## Self-hosting
 
@@ -182,7 +182,10 @@ To delete your account, use the account settings in the web app or contact us.
 ## Changes to this policy
 
 We may update this privacy policy from time to time. Changes will be posted on this page with an updated 
-"Last updated" date. For significant changes, we may provide additional notice on Discord/Matrix or through the [announcements](https://ntfy.sh/announcements) ntfy topic.
+"Last updated" date. You may also review all changes in the [Git history](https://github.com/binwiederhier/ntfy/commits/main/docs/privacy.md). 
+
+For significant changes, we may provide additional notice on Discord/Matrix or through the
+[announcements](https://ntfy.sh/announcements) ntfy topic.
 
 ## Contact
 
