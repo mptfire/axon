@@ -3,7 +3,9 @@
 This service is run by [Philipp C. Heckel](https://heckel.io). There are several ways to get in touch with me and the 
 ntfy community. Please choose the appropriate channel based on your needs.
 
-## Community support (free)
+## Support
+
+### Community support
 
 For general questions, feature discussions, and community help, please use one of these public channels:
 
@@ -18,7 +20,7 @@ For general questions, feature discussions, and community help, please use one o
     Answering questions in public channels benefits the entire community. Other users can learn from the 
     discussion, and answers can be referenced later. This is much more scalable than 1-on-1 support.
 
-## Paid support
+### Paid support
 
 If you are subscribed to a [ntfy Pro](https://ntfy.sh/#pricing) plan, you are entitled to priority support 
 via the following channels:
@@ -31,7 +33,7 @@ via the following channels:
 
 Please include your ntfy.sh username when contacting support so we can verify your subscription status.
 
-### Security issues
+## Security issues
 
 If you discover a security vulnerability, please report it responsibly via [security@mail.ntfy.sh](mailto:security@mail.ntfy.sh). See also: [SECURITY.md](https://github.com/binwiederhier/ntfy/blob/main/SECURITY.md).
 
@@ -42,16 +44,3 @@ For questions about our [privacy policy](privacy.md), data handling, or to exerc
 
 For business inquiries, partnerships, press, or other general questions that don't fit the categories above, please
 use [contact@mail.ntfy.sh](mailto:contact@mail.ntfy.sh).
-
-## Announcements
-
-Stay up to date with ntfy news and releases:
-
-- **ntfy topic**: Subscribe to [ntfy.sh/announcements](https://ntfy.sh/announcements) for release announcements
-- **GitHub Releases**: [github.com/binwiederhier/ntfy/releases](https://github.com/binwiederhier/ntfy/releases)
-- **iOS TestFlight**: [Join TestFlight](https://testflight.apple.com/join/P1fFnAm9) for iOS beta testing
-
-## Contributing
-
-Want to contribute to ntfy? See the [contributing page](contributing.md) for details on how to help with 
-code, translations, documentation, or donations.
