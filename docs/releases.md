@@ -1572,7 +1572,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-### ntfy Android app v1.21.x
+### ntfy Android app v1.21.1-rc1 (IN TESTING)
 
 **Features:**
 
@@ -1589,3 +1589,4 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 * Unify "copy to clipboard" notifications, use Android 13 style ([ntfy-android#61](https://github.com/binwiederhier/ntfy-android/pull/61), thanks to [@thgoebel](https://github.com/thgoebel))
 * Fix crash in user add dialog (onAddUser)
 * Fix ForegroundServiceDidNotStartInTimeException (attempt 2, see [#1520](https://github.com/binwiederhier/ntfy/issues/1520))
+* Hide "Exact alarms" setting if battery optimization exemption has been granted ([#1456](https://github.com/binwiederhier/ntfy/issues/1456), thanks for reporting [@HappyLer](https://github.com/HappyLer))
