@@ -50,5 +50,8 @@
     "nav_topics_title": "Претплатени теми",
     "nav_button_all_notifications": "Сите нотификации",
     "nav_button_publish_message": "Објави нотификација",
-    "nav_button_subscribe": "Претплати се на тема"
+    "nav_button_subscribe": "Претплати се на тема",
+    "action_bar_unmute_notifications": "Одглуши ги нотификациите",
+    "action_bar_toggle_mute": "Заглуши/Загуши ги нотификациите",
+    "message_bar_publish": "Објави порака"
 }
