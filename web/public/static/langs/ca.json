@@ -3,5 +3,14 @@
     "action_bar_profile_title": "Perfil",
     "action_bar_settings": "Configuració",
     "action_bar_account": "Compte",
-    "common_add": "Afegir"
+    "common_add": "Afegir",
+    "common_cancel": "Cancel·la",
+    "common_save": "Desa",
+    "common_back": "Enrere",
+    "common_copy_to_clipboard": "Copia al portaretalls",
+    "signup_title": "Crea un compte ntfy",
+    "signup_form_username": "Nom d'usuari",
+    "signup_form_password": "Contrasenya",
+    "signup_form_confirm_password": "Confirma la contrasenya",
+    "signup_form_button_submit": "Dona't d'alta"
 }

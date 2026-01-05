@@ -7,9 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mattn/go-sqlite3"
-	"github.com/stripe/stripe-go/v74"
 	"golang.org/x/crypto/bcrypt"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/util"
 	"net/netip"
 	"path/filepath"
@@ -773,6 +773,9 @@ func (a *Manager) ChangeToken(userID, token string, label *string, expires *time
 	if token == "" {
 		return nil, errNoTokenProvided
 	}
+	if err := a.CanChangeToken(userID, token); err != nil {
+		return nil, err
+	}
 	tx, err := a.db.Begin()
 	if err != nil {
 		return nil, err
@@ -796,6 +799,9 @@ func (a *Manager) ChangeToken(userID, token string, label *string, expires *time
 
 // RemoveToken deletes the token defined in User.Token
 func (a *Manager) RemoveToken(userID, token string) error {
+	if err := a.CanChangeToken(userID, token); err != nil {
+		return err
+	}
 	return execTx(a.db, func(tx *sql.Tx) error {
 		return a.removeTokenTx(tx, userID, token)
 	})
@@ -807,6 +813,17 @@ func (a *Manager) removeTokenTx(tx *sql.Tx, userID, token string) error {
 	}
 	if _, err := tx.Exec(deleteTokenQuery, userID, token); err != nil {
 		return err
+	}
+	return nil
+}
+
+// CanChangeToken checks if the token can be changed. If the token is provisioned, it cannot be changed.
+func (a *Manager) CanChangeToken(userID, token string) error {
+	t, err := a.Token(userID, token)
+	if err != nil {
+		return err
+	} else if t.Provisioned {
+		return ErrProvisionedTokenChange
 	}
 	return nil
 }
@@ -1049,7 +1066,7 @@ func (a *Manager) addUserTx(tx *sql.Tx, username, password string, role Role, ha
 	var err error = nil
 	if hashed {
 		hash = password
-		if err := ValidPasswordHash(hash); err != nil {
+		if err := ValidPasswordHash(hash, a.config.BcryptCost); err != nil {
 			return err
 		}
 	} else {
@@ -1072,6 +1089,9 @@ func (a *Manager) addUserTx(tx *sql.Tx, username, password string, role Role, ha
 // RemoveUser deletes the user with the given username. The function returns nil on success, even
 // if the user did not exist in the first place.
 func (a *Manager) RemoveUser(username string) error {
+	if err := a.CanChangeUser(username); err != nil {
+		return err
+	}
 	return execTx(a.db, func(tx *sql.Tx) error {
 		return a.removeUserTx(tx, username)
 	})
@@ -1222,12 +1242,12 @@ func (a *Manager) readUser(rows *sql.Rows) (*User, error) {
 			Calls:    calls,
 		},
 		Billing: &Billing{
-			StripeCustomerID:            stripeCustomerID.String,                                          // May be empty
-			StripeSubscriptionID:        stripeSubscriptionID.String,                                      // May be empty
-			StripeSubscriptionStatus:    stripe.SubscriptionStatus(stripeSubscriptionStatus.String),       // May be empty
-			StripeSubscriptionInterval:  stripe.PriceRecurringInterval(stripeSubscriptionInterval.String), // May be empty
-			StripeSubscriptionPaidUntil: time.Unix(stripeSubscriptionPaidUntil.Int64, 0),                  // May be zero
-			StripeSubscriptionCancelAt:  time.Unix(stripeSubscriptionCancelAt.Int64, 0),                   // May be zero
+			StripeCustomerID:            stripeCustomerID.String,                                            // May be empty
+			StripeSubscriptionID:        stripeSubscriptionID.String,                                        // May be empty
+			StripeSubscriptionStatus:    payments.SubscriptionStatus(stripeSubscriptionStatus.String),       // May be empty
+			StripeSubscriptionInterval:  payments.PriceRecurringInterval(stripeSubscriptionInterval.String), // May be empty
+			StripeSubscriptionPaidUntil: time.Unix(stripeSubscriptionPaidUntil.Int64, 0),                    // May be zero
+			StripeSubscriptionCancelAt:  time.Unix(stripeSubscriptionCancelAt.Int64, 0),                     // May be zero
 		},
 		Deleted: deleted.Valid,
 	}
@@ -1389,9 +1409,24 @@ func (a *Manager) ReservationOwner(topic string) (string, error) {
 
 // ChangePassword changes a user's password
 func (a *Manager) ChangePassword(username, password string, hashed bool) error {
+	if err := a.CanChangeUser(username); err != nil {
+		return err
+	}
 	return execTx(a.db, func(tx *sql.Tx) error {
 		return a.changePasswordTx(tx, username, password, hashed)
 	})
+}
+
+// CanChangeUser checks if the user with the given username can be changed.
+// This is used to prevent changes to provisioned users, which are defined in the config file.
+func (a *Manager) CanChangeUser(username string) error {
+	user, err := a.User(username)
+	if err != nil {
+		return err
+	} else if user.Provisioned {
+		return ErrProvisionedUserChange
+	}
+	return nil
 }
 
 func (a *Manager) changePasswordTx(tx *sql.Tx, username, password string, hashed bool) error {
@@ -1399,7 +1434,7 @@ func (a *Manager) changePasswordTx(tx *sql.Tx, username, password string, hashed
 	var err error
 	if hashed {
 		hash = password
-		if err := ValidPasswordHash(hash); err != nil {
+		if err := ValidPasswordHash(hash, a.config.BcryptCost); err != nil {
 			return err
 		}
 	} else {
@@ -1417,6 +1452,9 @@ func (a *Manager) changePasswordTx(tx *sql.Tx, username, password string, hashed
 // ChangeRole changes a user's role. When a role is changed from RoleUser to RoleAdmin,
 // all existing access control entries (Grant) are removed, since they are no longer needed.
 func (a *Manager) ChangeRole(username string, role Role) error {
+	if err := a.CanChangeUser(username); err != nil {
+		return err
+	}
 	return execTx(a.db, func(tx *sql.Tx) error {
 		return a.changeRoleTx(tx, username, role)
 	})
@@ -1437,14 +1475,8 @@ func (a *Manager) changeRoleTx(tx *sql.Tx, username string, role Role) error {
 	return nil
 }
 
-// ChangeProvisioned changes the provisioned status of a user. This is used to mark users as
+// changeProvisionedTx changes the provisioned status of a user. This is used to mark users as
 // provisioned. A provisioned user is a user defined in the config file.
-func (a *Manager) ChangeProvisioned(username string, provisioned bool) error {
-	return execTx(a.db, func(tx *sql.Tx) error {
-		return a.changeProvisionedTx(tx, username, provisioned)
-	})
-}
-
 func (a *Manager) changeProvisionedTx(tx *sql.Tx, username string, provisioned bool) error {
 	if _, err := tx.Exec(updateUserProvisionedQuery, provisioned, username); err != nil {
 		return err
@@ -1670,7 +1702,7 @@ func (a *Manager) Tiers() ([]*Tier, error) {
 	tiers := make([]*Tier, 0)
 	for {
 		tier, err := a.readTier(rows)
-		if err == ErrTierNotFound {
+		if errors.Is(err, ErrTierNotFound) {
 			break
 		} else if err != nil {
 			return nil, err

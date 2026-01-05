@@ -99,6 +99,8 @@ nav:
       - "Known issues": known-issues.md
       - "Deprecation notices": deprecations.md
       - "Development": develop.md
+      - "Contributing": contributing.md
       - "Privacy policy": privacy.md
+      - "Contact": contact.md
 
 

@@ -17,6 +17,13 @@ const baseThemeOptions = {
         },
       },
     },
+    MuiCardActions: {
+      styleOverrides: {
+        root: {
+          overflowX: "auto",
+        },
+      },
+    },
   },
 };
 

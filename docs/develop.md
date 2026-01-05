@@ -2,7 +2,7 @@
 Hurray 🥳 🎉, you are interested in writing code for ntfy! **That's awesome.** 😎
 
 I tried my very best to write up detailed instructions, but if at any point in time you run into issues, don't 
-hesitate to **contact me on [Discord](https://discord.gg/cT7ECsZj9w) or [Matrix](https://matrix.to/#/#ntfy:matrix.org)**.
+hesitate to reach out via one of the channels listed on the [contact page](contact.md).
 
 ## ntfy server
 The ntfy server source code is available [on GitHub](https://github.com/binwiederhier/ntfy). The codebase for the

@@ -258,9 +258,11 @@
 #
 # - enable-signup allows users to sign up via the web app, or API
 # - enable-login allows users to log in via the web app, or API
+# - require-login redirects users to the login page if they are not logged in (disallows web app access without login)
 # - enable-reservations allows users to reserve topics (if their tier allows it)
 #
 # enable-signup: false
+# require-login: false
 # enable-login: false
 # enable-reservations: false
 

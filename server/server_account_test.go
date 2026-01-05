@@ -251,7 +251,11 @@ func TestAccount_Subscription_AddUpdateDelete(t *testing.T) {
 }
 
 func TestAccount_ChangePassword(t *testing.T) {
-	s := newTestServer(t, newTestConfigWithAuthFile(t))
+	conf := newTestConfigWithAuthFile(t)
+	conf.AuthUsers = []*user.User{
+		{Name: "philuser", Hash: "$2a$10$U4WSIYY6evyGmZaraavM2e2JeVG6EMGUKN1uUwufUeeRd4Jpg6cGC", Role: user.RoleUser}, // philuser:philpass
+	}
+	s := newTestServer(t, conf)
 	defer s.closeDatabases()
 
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
@@ -281,6 +285,12 @@ func TestAccount_ChangePassword(t *testing.T) {
 		"Authorization": util.BasicAuth("phil", "new password"),
 	})
 	require.Equal(t, 200, rr.Code)
+
+	// Cannot change password of provisioned user
+	rr = request(t, s, "POST", "/v1/account/password", `{"password": "philpass", "new_password": "new password"}`, map[string]string{
+		"Authorization": util.BasicAuth("philuser", "philpass"),
+	})
+	require.Equal(t, 409, rr.Code)
 }
 
 func TestAccount_ChangePassword_NoAccount(t *testing.T) {

@@ -1,3 +1,16 @@
+<div align="center" markdown="1">
+<sup>Special thanks to:</sup>
+<br>
+<br>
+<a href="https://go.warp.dev/ntfy">
+  <img alt="Warp sponsorship" width="400" src="https://raw.githubusercontent.com/warpdotdev/brand-assets/refs/heads/main/Github/Sponsor/Warp-Github-LG-02.png">
+</a>
+
+### [Warp, built for coding with multiple AI agents.](https://go.warp.dev/ntfy)
+[Available for MacOS, Linux, & Windows](https://go.warp.dev/ntfy)<br>
+</div>
+<hr>
+
 ![ntfy](web/public/static/images/ntfy.png)
 
 # ntfy.sh | Send push notifications to your phone or desktop via PUT/POST
@@ -66,6 +79,8 @@ Thank you to our commercial sponsors, who help keep the service running and the 
 <a href="https://m.do.co/c/442b929528db"><img src="https://opensource.nyc3.cdn.digitaloceanspaces.com/attribution/assets/SVG/DO_Logo_horizontal_blue.svg" width="201px"></a>
 
 <a href="https://www.magicbell.com/?utm_source=ntfy"><img src="assets/sponsors/magicbell.png" width="180px"></a>
+
+<a href="https://go.warp.dev/ntfy"><img src="https://raw.githubusercontent.com/warpdotdev/brand-assets/refs/heads/main/Logos/Warp-Wordmark-Black.png" width="160px"></a>
 
 And a big fat **Thank You** to the individuals who have sponsored ntfy in the past, or are still sponsoring ntfy:
 

@@ -2,6 +2,7 @@ import * as React from "react";
 import StackTrace from "stacktrace-js";
 import { CircularProgress, Link, Button } from "@mui/material";
 import { Trans, withTranslation } from "react-i18next";
+import { copyToClipboard } from "../app/utils";
 
 class ErrorBoundaryImpl extends React.Component {
   constructor(props) {
@@ -64,7 +65,7 @@ class ErrorBoundaryImpl extends React.Component {
       stack += `${this.state.niceStack}\n\n`;
     }
     stack += `${this.state.originalStack}\n`;
-    navigator.clipboard.writeText(stack);
+    copyToClipboard(stack);
   }
 
   renderUnsupportedIndexedDB() {

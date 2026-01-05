@@ -1,3 +1,5 @@
+//go:build !nofirebase
+
 package server
 
 import (
@@ -14,6 +16,10 @@ import (
 )
 
 const (
+	// FirebaseAvailable is a constant used to indicate that Firebase support is available.
+	// It can be disabled with the 'nofirebase' build tag.
+	FirebaseAvailable = true
+
 	fcmMessageLimit         = 4000
 	fcmApnsBodyMessageLimit = 100
 )
@@ -73,8 +79,8 @@ type firebaseSenderImpl struct {
 	client *messaging.Client
 }
 
-func newFirebaseSender(credentialsFile string) (*firebaseSenderImpl, error) {
-	fb, err := firebase.NewApp(context.Background(), nil, option.WithCredentialsFile(credentialsFile))
+func newFirebaseSender(credentialsFile string) (firebaseSender, error) {
+	fb, err := firebase.NewApp(context.Background(), nil, option.WithAuthCredentialsFile(option.ServiceAccount, credentialsFile))
 	if err != nil {
 		return nil, err
 	}

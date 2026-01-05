@@ -26,11 +26,11 @@ func TestParseUsers_Success(t *testing.T) {
 	}{
 		{
 			name:  "single user",
-			input: []string{"alice:$2a$10$abcdefghijklmnopqrstuvwxyz:user"},
+			input: []string{"alice:$2a$10$320YlQeaMghYZsvtu9jzfOQZS32FysWY/T9qu5NWqcIh.DN.u5P5S:user"},
 			expected: []*user.User{
 				{
 					Name:        "alice",
-					Hash:        "$2a$10$abcdefghijklmnopqrstuvwxyz",
+					Hash:        "$2a$10$320YlQeaMghYZsvtu9jzfOQZS32FysWY/T9qu5NWqcIh.DN.u5P5S",
 					Role:        user.RoleUser,
 					Provisioned: true,
 				},
@@ -39,19 +39,19 @@ func TestParseUsers_Success(t *testing.T) {
 		{
 			name: "multiple users with different roles",
 			input: []string{
-				"alice:$2a$10$abcdefghijklmnopqrstuvwxyz:user",
-				"bob:$2b$10$abcdefghijklmnopqrstuvwxyz:admin",
+				"alice:$2a$10$320YlQeaMghYZsvtu9jzfOQZS32FysWY/T9qu5NWqcIh.DN.u5P5S:user",
+				"bob:$2a$10$jIcuBWcbxd6oW1aPvoJ5iOShzu3/UJ2kSxKbTZtDypG06nBflQagq:admin",
 			},
 			expected: []*user.User{
 				{
 					Name:        "alice",
-					Hash:        "$2a$10$abcdefghijklmnopqrstuvwxyz",
+					Hash:        "$2a$10$320YlQeaMghYZsvtu9jzfOQZS32FysWY/T9qu5NWqcIh.DN.u5P5S",
 					Role:        user.RoleUser,
 					Provisioned: true,
 				},
 				{
 					Name:        "bob",
-					Hash:        "$2b$10$abcdefghijklmnopqrstuvwxyz",
+					Hash:        "$2a$10$jIcuBWcbxd6oW1aPvoJ5iOShzu3/UJ2kSxKbTZtDypG06nBflQagq",
 					Role:        user.RoleAdmin,
 					Provisioned: true,
 				},
@@ -64,11 +64,11 @@ func TestParseUsers_Success(t *testing.T) {
 		},
 		{
 			name:  "user with special characters in name",
-			input: []string{"alice.test+123@example.com:$2y$10$abcdefghijklmnopqrstuvwxyz:user"},
+			input: []string{"alice.test+123@example.com:$2a$10$RYUYAsl5zOnAIp6fH7BPX.Eug0rUfEUk92r8WiVusb0VK.vGojWBe:user"},
 			expected: []*user.User{
 				{
 					Name:        "alice.test+123@example.com",
-					Hash:        "$2y$10$abcdefghijklmnopqrstuvwxyz",
+					Hash:        "$2a$10$RYUYAsl5zOnAIp6fH7BPX.Eug0rUfEUk92r8WiVusb0VK.vGojWBe",
 					Role:        user.RoleUser,
 					Provisioned: true,
 				},
@@ -110,23 +110,23 @@ func TestParseUsers_Errors(t *testing.T) {
 		},
 		{
 			name:  "invalid username",
-			input: []string{"alice@#$%:$2a$10$abcdefghijklmnopqrstuvwxyz:user"},
-			error: "invalid auth-users: alice@#$%:$2a$10$abcdefghijklmnopqrstuvwxyz:user, username invalid",
+			input: []string{"alice@#$%:$2a$10$320YlQeaMghYZsvtu9jzfOQZS32FysWY/T9qu5NWqcIh.DN.u5P5S:user"},
+			error: "invalid auth-users: alice@#$%:$2a$10$320YlQeaMghYZsvtu9jzfOQZS32FysWY/T9qu5NWqcIh.DN.u5P5S:user, username invalid",
 		},
 		{
 			name:  "invalid password hash - wrong prefix",
 			input: []string{"alice:plaintext:user"},
-			error: "invalid auth-users: alice:plaintext:user, password hash but be a bcrypt hash, use 'ntfy user hash' to generate",
+			error: "invalid auth-users: alice:plaintext:user, password hash invalid, password hash must be a bcrypt hash, use 'ntfy user hash' to generate",
 		},
 		{
 			name:  "invalid role",
-			input: []string{"alice:$2a$10$abcdefghijklmnopqrstuvwxyz:invalid"},
-			error: "invalid auth-users: alice:$2a$10$abcdefghijklmnopqrstuvwxyz:invalid, role invalid is not allowed, allowed roles are 'admin' or 'user'",
+			input: []string{"alice:$2a$10$320YlQeaMghYZsvtu9jzfOQZS32FysWY/T9qu5NWqcIh.DN.u5P5S:invalid"},
+			error: "invalid auth-users: alice:$2a$10$320YlQeaMghYZsvtu9jzfOQZS32FysWY/T9qu5NWqcIh.DN.u5P5S:invalid, role invalid is not allowed, allowed roles are 'admin' or 'user'",
 		},
 		{
 			name:  "empty username",
-			input: []string{":$2a$10$abcdefghijklmnopqrstuvwxyz:user"},
-			error: "invalid auth-users: :$2a$10$abcdefghijklmnopqrstuvwxyz:user, username invalid",
+			input: []string{":$2a$10$320YlQeaMghYZsvtu9jzfOQZS32FysWY/T9qu5NWqcIh.DN.u5P5S:user"},
+			error: "invalid auth-users: :$2a$10$320YlQeaMghYZsvtu9jzfOQZS32FysWY/T9qu5NWqcIh.DN.u5P5S:user, username invalid",
 		},
 	}
 

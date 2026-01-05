@@ -45,7 +45,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import { ContentCopy, Public } from "@mui/icons-material";
 import AddIcon from "@mui/icons-material/Add";
 import routes from "./routes";
-import { formatBytes, formatShortDate, formatShortDateTime, openUrl } from "../app/utils";
+import { copyToClipboard, formatBytes, formatShortDate, formatShortDateTime, openUrl } from "../app/utils";
 import accountApi, { LimitBasis, Role, SubscriptionInterval, SubscriptionStatus } from "../app/AccountApi";
 import { Pref, PrefGroup } from "./Pref";
 import db from "../app/db";
@@ -100,15 +100,13 @@ const Username = () => {
     <Pref labelId={labelId} title={t("account_basics_username_title")} description={t("account_basics_username_description")}>
       <div aria-labelledby={labelId}>
         {session.username()}
-        {account?.role === Role.ADMIN ? (
+        {account?.role === Role.ADMIN && (
           <>
             {" "}
             <Tooltip title={t("account_basics_username_admin_tooltip")}>
               <span style={{ cursor: "default" }}>👑</span>
             </Tooltip>
           </>
-        ) : (
-          ""
         )}
       </div>
     </Pref>
@@ -119,6 +117,7 @@ const ChangePassword = () => {
   const { t } = useTranslation();
   const [dialogKey, setDialogKey] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const { account } = useContext(AccountContext);
   const labelId = "prefChangePassword";
 
   const handleDialogOpen = () => {
@@ -136,9 +135,19 @@ const ChangePassword = () => {
         <Typography color="gray" sx={{ float: "left", fontSize: "0.7rem", lineHeight: "3.5" }}>
           ⬤⬤⬤⬤⬤⬤⬤⬤⬤⬤
         </Typography>
-        <IconButton onClick={handleDialogOpen} aria-label={t("account_basics_password_description")}>
-          <EditIcon />
-        </IconButton>
+        {!account?.provisioned ? (
+          <IconButton onClick={handleDialogOpen} aria-label={t("account_basics_password_description")}>
+            <EditIcon />
+          </IconButton>
+        ) : (
+          <Tooltip title={t("account_basics_cannot_edit_or_delete_provisioned_user")}>
+            <span>
+              <IconButton disabled>
+                <EditIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
+        )}
       </div>
       <ChangePasswordDialog key={`changePasswordDialog${dialogKey}`} open={dialogOpen} onClose={handleDialogClose} />
     </Pref>
@@ -361,7 +370,7 @@ const PhoneNumbers = () => {
   };
 
   const handleCopy = (phoneNumber) => {
-    navigator.clipboard.writeText(phoneNumber);
+    copyToClipboard(phoneNumber);
     setSnackOpen(true);
   };
 
@@ -832,7 +841,7 @@ const TokensTable = (props) => {
   };
 
   const handleCopy = async (token) => {
-    await navigator.clipboard.writeText(token);
+    copyToClipboard(token);
     setSnackOpen(true);
   };
 
@@ -888,7 +897,7 @@ const TokensTable = (props) => {
               </div>
             </TableCell>
             <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
-              {token.token !== session.token() && (
+              {token.token !== session.token() && !token.provisioned && (
                 <>
                   <IconButton onClick={() => handleEditClick(token)} aria-label={t("account_tokens_dialog_title_edit")}>
                     <EditIcon />
@@ -900,6 +909,18 @@ const TokensTable = (props) => {
               )}
               {token.token === session.token() && (
                 <Tooltip title={t("account_tokens_table_cannot_delete_or_edit")}>
+                  <span>
+                    <IconButton disabled>
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton disabled>
+                      <CloseIcon />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              )}
+              {token.provisioned && (
+                <Tooltip title={t("account_tokens_table_cannot_delete_or_edit_provisioned_token")}>
                   <span>
                     <IconButton disabled>
                       <EditIcon />
@@ -1048,6 +1069,7 @@ const DeleteAccount = () => {
   const { t } = useTranslation();
   const [dialogKey, setDialogKey] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const { account } = useContext(AccountContext);
 
   const handleDialogOpen = () => {
     setDialogKey((prev) => prev + 1);
@@ -1061,9 +1083,19 @@ const DeleteAccount = () => {
   return (
     <Pref title={t("account_delete_title")} description={t("account_delete_description")}>
       <div>
-        <Button fullWidth={false} variant="outlined" color="error" startIcon={<DeleteOutlineIcon />} onClick={handleDialogOpen}>
-          {t("account_delete_title")}
-        </Button>
+        {!account?.provisioned ? (
+          <Button fullWidth={false} variant="outlined" color="error" startIcon={<DeleteOutlineIcon />} onClick={handleDialogOpen}>
+            {t("account_delete_title")}
+          </Button>
+        ) : (
+          <Tooltip title={t("account_basics_cannot_edit_or_delete_provisioned_user")}>
+            <span>
+              <Button fullWidth={false} variant="outlined" color="error" startIcon={<DeleteOutlineIcon />} disabled>
+                {t("account_delete_title")}
+              </Button>
+            </span>
+          </Tooltip>
+        )}
       </div>
       <DeleteAccountDialog key={`deleteAccountDialog${dialogKey}`} open={dialogOpen} onClose={handleDialogClose} />
     </Pref>

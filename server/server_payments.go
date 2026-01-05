@@ -1,3 +1,5 @@
+//go:build !nopayments
+
 package server
 
 import (
@@ -12,6 +14,7 @@ import (
 	"github.com/stripe/stripe-go/v74/subscription"
 	"github.com/stripe/stripe-go/v74/webhook"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 	"io"
@@ -22,7 +25,7 @@ import (
 
 // Payments in ntfy are done via Stripe.
 //
-// Pretty much all payments related things are in this file. The following processes
+// Pretty much all payments-related things are in this file. The following processes
 // handle payments:
 //
 // - Checkout:
@@ -464,8 +467,8 @@ func (s *Server) updateSubscriptionAndTier(r *http.Request, v *visitor, u *user.
 	billing := &user.Billing{
 		StripeCustomerID:            customerID,
 		StripeSubscriptionID:        subscriptionID,
-		StripeSubscriptionStatus:    stripe.SubscriptionStatus(status),
-		StripeSubscriptionInterval:  stripe.PriceRecurringInterval(interval),
+		StripeSubscriptionStatus:    payments.SubscriptionStatus(status),
+		StripeSubscriptionInterval:  payments.PriceRecurringInterval(interval),
 		StripeSubscriptionPaidUntil: time.Unix(paidUntil, 0),
 		StripeSubscriptionCancelAt:  time.Unix(cancelAt, 0),
 	}

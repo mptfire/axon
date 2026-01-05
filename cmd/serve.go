@@ -16,10 +16,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/stripe/stripe-go/v74"
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/server"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
@@ -63,6 +63,7 @@ var flagsServe = append(
 	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "enable-signup", Aliases: []string{"enable_signup"}, EnvVars: []string{"NTFY_ENABLE_SIGNUP"}, Value: false, Usage: "allows users to sign up via the web app, or API"}),
 	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "enable-login", Aliases: []string{"enable_login"}, EnvVars: []string{"NTFY_ENABLE_LOGIN"}, Value: false, Usage: "allows users to log in via the web app, or API"}),
 	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "enable-reservations", Aliases: []string{"enable_reservations"}, EnvVars: []string{"NTFY_ENABLE_RESERVATIONS"}, Value: false, Usage: "allows users to reserve topics (if their tier allows it)"}),
+	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "require-login", Aliases: []string{"require_login"}, EnvVars: []string{"NTFY_REQUIRE_LOGIN"}, Value: false, Usage: "all actions via the web app requires a login"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "upstream-base-url", Aliases: []string{"upstream_base_url"}, EnvVars: []string{"NTFY_UPSTREAM_BASE_URL"}, Value: "", Usage: "forward poll request to an upstream server, this is needed for iOS push notifications for self-hosted servers"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "upstream-access-token", Aliases: []string{"upstream_access_token"}, EnvVars: []string{"NTFY_UPSTREAM_ACCESS_TOKEN"}, Value: "", Usage: "access token to use for the upstream server; needed only if upstream rate limits are exceeded or upstream server requires auth"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-addr", Aliases: []string{"smtp_sender_addr"}, EnvVars: []string{"NTFY_SMTP_SENDER_ADDR"}, Usage: "SMTP server address (host:port) for outgoing emails"}),
@@ -171,6 +172,7 @@ func execServe(c *cli.Context) error {
 	webRoot := c.String("web-root")
 	enableSignup := c.Bool("enable-signup")
 	enableLogin := c.Bool("enable-login")
+	requireLogin := c.Bool("require-login")
 	enableReservations := c.Bool("enable-reservations")
 	upstreamBaseURL := c.String("upstream-base-url")
 	upstreamAccessToken := c.String("upstream-access-token")
@@ -279,6 +281,8 @@ func execServe(c *cli.Context) error {
 	// Check values
 	if firebaseKeyFile != "" && !util.FileExists(firebaseKeyFile) {
 		return errors.New("if set, FCM key file must exist")
+	} else if firebaseKeyFile != "" && !server.FirebaseAvailable {
+		return errors.New("cannot set firebase-key-file, support for Firebase is not available (nofirebase)")
 	} else if webPushPublicKey != "" && (webPushPrivateKey == "" || webPushFile == "" || webPushEmailAddress == "" || baseURL == "") {
 		return errors.New("if web push is enabled, web-push-private-key, web-push-public-key, web-push-file, web-push-email-address, and base-url should be set. run 'ntfy webpush keys' to generate keys")
 	} else if keepaliveInterval < 5*time.Second {
@@ -316,10 +320,14 @@ func execServe(c *cli.Context) error {
 		return errors.New("if upstream-base-url is set, base-url must also be set")
 	} else if upstreamBaseURL != "" && baseURL != "" && baseURL == upstreamBaseURL {
 		return errors.New("base-url and upstream-base-url cannot be identical, you'll likely want to set upstream-base-url to https://ntfy.sh, see https://ntfy.sh/docs/config/#ios-instant-notifications")
-	} else if authFile == "" && (enableSignup || enableLogin || enableReservations || stripeSecretKey != "") {
-		return errors.New("cannot set enable-signup, enable-login, enable-reserve-topics, or stripe-secret-key if auth-file is not set")
+	} else if authFile == "" && (enableSignup || enableLogin || requireLogin || enableReservations || stripeSecretKey != "") {
+		return errors.New("cannot set enable-signup, enable-login, require-login, enable-reserve-topics, or stripe-secret-key if auth-file is not set")
 	} else if enableSignup && !enableLogin {
 		return errors.New("cannot set enable-signup without also setting enable-login")
+	} else if requireLogin && !enableLogin {
+		return errors.New("cannot set require-login without also setting enable-login")
+	} else if !payments.Available && (stripeSecretKey != "" || stripeWebhookKey != "") {
+		return errors.New("cannot set stripe-secret-key or stripe-webhook-key, support for payments is not available in this build (nopayments)")
 	} else if stripeSecretKey != "" && (stripeWebhookKey == "" || baseURL == "") {
 		return errors.New("if stripe-secret-key is set, stripe-webhook-key and base-url must also be set")
 	} else if twilioAccount != "" && (twilioAuthToken == "" || twilioPhoneNumber == "" || twilioVerifyService == "" || baseURL == "" || authFile == "") {
@@ -329,6 +337,8 @@ func execServe(c *cli.Context) error {
 		if messageSizeLimit > 5*1024*1024 {
 			return errors.New("message-size-limit cannot be higher than 5M")
 		}
+	} else if !server.WebPushAvailable && (webPushPrivateKey != "" || webPushPublicKey != "" || webPushFile != "") {
+		return errors.New("cannot enable WebPush, support is not available in this build (nowebpush)")
 	} else if webPushExpiryWarningDuration > 0 && webPushExpiryWarningDuration > webPushExpiryDuration {
 		return errors.New("web push expiry warning duration cannot be higher than web push expiry duration")
 	} else if behindProxy && proxyForwardedHeader == "" {
@@ -396,8 +406,7 @@ func execServe(c *cli.Context) error {
 
 	// Stripe things
 	if stripeSecretKey != "" {
-		stripe.EnableTelemetry = false // Whoa!
-		stripe.Key = stripeSecretKey
+		payments.Setup(stripeSecretKey)
 	}
 
 	// Add default forbidden topics
@@ -470,6 +479,7 @@ func execServe(c *cli.Context) error {
 	conf.BillingContact = billingContact
 	conf.EnableSignup = enableSignup
 	conf.EnableLogin = enableLogin
+	conf.RequireLogin = requireLogin
 	conf.EnableReservations = enableReservations
 	conf.EnableMetrics = enableMetrics
 	conf.MetricsListenHTTP = metricsListenHTTP
@@ -550,8 +560,8 @@ func parseUsers(usersRaw []string) ([]*user.User, error) {
 		role := user.Role(strings.TrimSpace(parts[2]))
 		if !user.AllowedUsername(username) {
 			return nil, fmt.Errorf("invalid auth-users: %s, username invalid", userLine)
-		} else if err := user.ValidPasswordHash(passwordHash); err != nil {
-			return nil, fmt.Errorf("invalid auth-users: %s, %s", userLine, err.Error())
+		} else if err := user.ValidPasswordHash(passwordHash, user.DefaultUserPasswordBcryptCost); err != nil {
+			return nil, fmt.Errorf("invalid auth-users: %s, password hash invalid, %s", userLine, err.Error())
 		} else if !user.AllowedRole(role) {
 			return nil, fmt.Errorf("invalid auth-users: %s, role %s is not allowed, allowed roles are 'admin' or 'user'", userLine, role)
 		}

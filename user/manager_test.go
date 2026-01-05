@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/stretchr/testify/require"
-	"github.com/stripe/stripe-go/v74"
 	"golang.org/x/crypto/bcrypt"
 	"heckel.io/ntfy/v2/util"
 	"net/netip"
@@ -164,8 +163,8 @@ func TestManager_AddUser_And_Query(t *testing.T) {
 	require.Nil(t, a.ChangeBilling("user", &Billing{
 		StripeCustomerID:            "acct_123",
 		StripeSubscriptionID:        "sub_123",
-		StripeSubscriptionStatus:    stripe.SubscriptionStatusActive,
-		StripeSubscriptionInterval:  stripe.PriceRecurringIntervalMonth,
+		StripeSubscriptionStatus:    "active",
+		StripeSubscriptionInterval:  "month",
 		StripeSubscriptionPaidUntil: time.Now().Add(time.Hour),
 		StripeSubscriptionCancelAt:  time.Unix(0, 0),
 	}))
@@ -1163,7 +1162,7 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	// Re-open the DB (second app start)
 	require.Nil(t, a.db.Close())
 	conf.Users = []*User{
-		{Name: "philuser", Hash: "$2a$10$AAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
+		{Name: "philuser", Hash: "$2a$10$AAAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
 	}
 	conf.Access = map[string][]*Grant{
 		"philuser": {
@@ -1208,6 +1207,9 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	require.True(t, tokens[0].Provisioned)
 	require.Equal(t, "tk_u48wqendnkx9er21pqqcadlytbutx", tokens[1].Value)
 	require.Equal(t, "Another token", tokens[1].Label)
+
+	// Try changing provisioned user's password
+	require.Error(t, a.ChangePassword("philuser", "new-pass", false))
 
 	// Re-open the DB again (third app start)
 	require.Nil(t, a.db.Close())
@@ -1290,7 +1292,7 @@ func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
 	// Re-open the DB (second app start)
 	require.Nil(t, a.db.Close())
 	conf.Users = []*User{
-		{Name: "philuser", Hash: "$2a$10$AAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
+		{Name: "philuser", Hash: "$2a$10$AAAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
 	}
 	conf.Access = map[string][]*Grant{
 		"philuser": {
@@ -1306,7 +1308,7 @@ func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
 	require.Len(t, users, 2)
 	require.Equal(t, "philuser", users[0].Name)
 	require.Equal(t, RoleUser, users[0].Role)
-	require.Equal(t, "$2a$10$AAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", users[0].Hash)
+	require.Equal(t, "$2a$10$AAAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", users[0].Hash)
 	require.True(t, users[0].Provisioned) // Updated to provisioned!
 
 	grants, err = a.Grants("philuser")

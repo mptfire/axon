@@ -625,7 +625,7 @@ them with a comma, e.g. `tag1,tag2,tag3`.
     or `=?UTF-8?Q?=C3=84pfel?=,tag2` ([quoted-printable](https://en.wikipedia.org/wiki/Quoted-printable)).
 
 ## Markdown formatting
-_Supported on:_ :material-firefox:
+_Supported on:_ :material-android: :material-firefox:
 
 You can format messages using [Markdown](https://www.markdownguide.org/basic-syntax/) 🤩. That means you can use 
 **bold text**, *italicized text*, links, images, and more. Supported Markdown features (web app only for now):
@@ -705,8 +705,8 @@ As of today, **Markdown is only supported in the web app.** Here's an example of
 === "Python"
     ``` python
     requests.post("https://ntfy.sh/mytopic", 
-        data="Look ma, **bold text**, *italics*, ..."
-        headers={ "Markdown": "yes" }))
+        data="Look ma, **bold text**, *italics*, ...",
+        headers={ "Markdown": "yes" })
     ```
 
 === "PHP"
@@ -1106,7 +1106,7 @@ Which will result in a notification that looks like this:
 When `X-Template: yes` (aliases: `Template: yes`, `Tpl: yes`) or `?template=yes` is set, you can use Go templates in the `message` and `title` fields of your
 webhook payload. 
 
-Inline templates are most useful for templated one-off messages, of if you do not control the ntfy server (e.g., if you're using ntfy.sh).
+Inline templates are most useful for templated one-off messages, or if you do not control the ntfy server (e.g., if you're using ntfy.sh).
 Consider using [pre-defined templates](#pre-defined-templates) or [custom templates](#custom-templates) instead, 
 if you control the ntfy server, as templates are much easier to maintain.
 
@@ -3679,13 +3679,13 @@ authParam  = base64_raw(authHeader) // -> QmFzaWMgZEdWemRIVnpaWEk2Wm1GclpYQmhjM0
 The following command will generate the appropriate value for you on *nix systems:
 
 ```
-echo -n "Basic `echo -n 'testuser:fakepassword' | base64`" | base64 | tr -d '='
+echo -n "Basic `echo -n 'testuser:fakepassword' | base64 -w0`" | base64 -w0 | tr -d '='
 ```
 
 For access tokens, you can use this instead:
 
 ```
-echo -n "Bearer faketoken" | base64 | tr -d '='
+echo -n "Bearer faketoken" | base64 -w0 | tr -d '='
 ```
 
 ## Advanced features

@@ -1,3 +1,5 @@
+//go:build !nowebpush
+
 package server
 
 import (
@@ -13,6 +15,10 @@ import (
 )
 
 const (
+	// WebPushAvailable is a constant used to indicate that WebPush support is available.
+	// It can be disabled with the 'nowebpush' build tag.
+	WebPushAvailable = true
+
 	webPushTopicSubscribeLimit = 50
 )
 

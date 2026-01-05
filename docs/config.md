@@ -88,7 +88,7 @@ using Docker Compose (i.e. `docker-compose.yml`):
 	      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
 	      NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
 	      NTFY_AUTH_DEFAULT_ACCESS: deny-all
-	      NTFY_AUTH_USERS: 'phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin'
+	      NTFY_AUTH_USERS: 'phil:$$2a$$10$$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin' # Must escape '$' as '$$'
 	      NTFY_BEHIND_PROXY: true
 	      NTFY_ATTACHMENT_CACHE_DIR: /var/lib/ntfy/attachments
 	      NTFY_ENABLE_LOGIN: true
@@ -1013,7 +1013,7 @@ or the root domain:
 === "caddy"
     ```
     # Note that this config is most certainly incomplete. Please help out and let me know what's missing
-    # via Discord/Matrix or in a GitHub issue.
+    # via the contact page (https://ntfy.sh/docs/contact/) or in a GitHub issue.
     # Note: Caddy automatically handles both HTTP and WebSockets with reverse_proxy 
 
     ntfy.sh, http://nfty.sh {
@@ -1027,6 +1027,36 @@ or the root domain:
             path_regexp ^/([-_a-z0-9]{0,64}$|docs/|static/)
         }
         redir @httpget https://{host}{uri}
+    }
+    ```
+	
+=== "ferron"
+    ``` kdl
+    // /etc/ferron.kdl	
+    // Note that this config is most certainly incomplete. Please help out and let me know what's missing
+    // via the contact page (https://ntfy.sh/docs/contact/) or in a GitHub issue.
+    // Note: Ferron automatically handles both HTTP and WebSockets with proxy 
+
+    ntfy.sh {
+        auto_tls
+        auto_tls_letsencrypt_production
+        protocols "h1" "h2" "h3"
+
+        proxy "http://127.0.0.1:2586"
+
+        // Redirect HTTP to HTTPS, but only for GET topic addresses, since we want
+        // it to work with curl without the annoying https:// prefix
+
+        no_redirect_to_https #true
+
+        condition "is_get_topic" {
+            is_equal "{method}" "GET"
+            is_regex "{path}" "^/([-_a-z0-9]{0,64}$|docs/|static/)"
+        }
+
+        if "is_get_topic" {
+              no_redirect_to_https #false
+        }
     }
     ```
 
@@ -1531,7 +1561,7 @@ See [Installation for Docker](install.md#docker) for an example of how this coul
 If configured, ntfy can expose a `/metrics` endpoint for [Prometheus](https://prometheus.io/), which can then be used to
 create dashboards and alerts (e.g. via [Grafana](https://grafana.com/)).
 
-To configure the metrics endpoint, either set `enable-metrics` and/or set the `listen-metrics-http` option to a dedicated
+To configure the metrics endpoint, either set `enable-metrics` and/or set the `metrics-listen-http` option to a dedicated
 listen address. Metrics may be considered sensitive information, so before you enable them, be sure you know what you are
 doing, and/or secure access to the endpoint in your reverse proxy.
 
@@ -1698,6 +1728,7 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `enable-signup`                            | `NTFY_ENABLE_SIGNUP`                            | *boolean* (`true` or `false`)                       | `false`           | Allows users to sign up via the web app, or API                                                                                                                                                                                 |
 | `enable-login`                             | `NTFY_ENABLE_LOGIN`                             | *boolean* (`true` or `false`)                       | `false`           | Allows users to log in via the web app, or API                                                                                                                                                                                  |
 | `enable-reservations`                      | `NTFY_ENABLE_RESERVATIONS`                      | *boolean* (`true` or `false`)                       | `false`           | Allows users to reserve topics (if their tier allows it)                                                                                                                                                                        |
+| `require-login`                            | `NTFY_REQUIRE_LOGIN`                            | *boolean* (`true` or `false`)                       | `false`           | All actions via the web app require a login                                                                                                                                                                        |
 | `stripe-secret-key`                        | `NTFY_STRIPE_SECRET_KEY`                        | *string*                                            | -                 | Payments: Key used for the Stripe API communication, this enables payments                                                                                                                                                      |
 | `stripe-webhook-key`                       | `NTFY_STRIPE_WEBHOOK_KEY`                       | *string*                                            | -                 | Payments: Key required to validate the authenticity of incoming webhooks from Stripe                                                                                                                                            |
 | `billing-contact`                          | `NTFY_BILLING_CONTACT`                          | *email address* or *website*                        | -                 | Payments: Email or website displayed in Upgrade dialog as a billing contact                                                                                                                                                     |

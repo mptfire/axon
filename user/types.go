@@ -2,8 +2,8 @@ package user
 
 import (
 	"errors"
-	"github.com/stripe/stripe-go/v74"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/payments"
 	"net/netip"
 	"strings"
 	"time"
@@ -140,8 +140,8 @@ type Stats struct {
 type Billing struct {
 	StripeCustomerID            string
 	StripeSubscriptionID        string
-	StripeSubscriptionStatus    stripe.SubscriptionStatus
-	StripeSubscriptionInterval  stripe.PriceRecurringInterval
+	StripeSubscriptionStatus    payments.SubscriptionStatus
+	StripeSubscriptionInterval  payments.PriceRecurringInterval
 	StripeSubscriptionPaidUntil time.Time
 	StripeSubscriptionCancelAt  time.Time
 }
@@ -244,15 +244,18 @@ const (
 
 // Error constants used by the package
 var (
-	ErrUnauthenticated     = errors.New("unauthenticated")
-	ErrUnauthorized        = errors.New("unauthorized")
-	ErrInvalidArgument     = errors.New("invalid argument")
-	ErrUserNotFound        = errors.New("user not found")
-	ErrUserExists          = errors.New("user already exists")
-	ErrPasswordHashInvalid = errors.New("password hash but be a bcrypt hash, use 'ntfy user hash' to generate")
-	ErrTierNotFound        = errors.New("tier not found")
-	ErrTokenNotFound       = errors.New("token not found")
-	ErrPhoneNumberNotFound = errors.New("phone number not found")
-	ErrTooManyReservations = errors.New("new tier has lower reservation limit")
-	ErrPhoneNumberExists   = errors.New("phone number already exists")
+	ErrUnauthenticated        = errors.New("unauthenticated")
+	ErrUnauthorized           = errors.New("unauthorized")
+	ErrInvalidArgument        = errors.New("invalid argument")
+	ErrUserNotFound           = errors.New("user not found")
+	ErrUserExists             = errors.New("user already exists")
+	ErrPasswordHashInvalid    = errors.New("password hash must be a bcrypt hash, use 'ntfy user hash' to generate")
+	ErrPasswordHashWeak       = errors.New("password hash too weak, use 'ntfy user hash' to generate")
+	ErrTierNotFound           = errors.New("tier not found")
+	ErrTokenNotFound          = errors.New("token not found")
+	ErrPhoneNumberNotFound    = errors.New("phone number not found")
+	ErrTooManyReservations    = errors.New("new tier has lower reservation limit")
+	ErrPhoneNumberExists      = errors.New("phone number already exists")
+	ErrProvisionedUserChange  = errors.New("cannot change or delete provisioned user")
+	ErrProvisionedTokenChange = errors.New("cannot change or delete provisioned token")
 )
