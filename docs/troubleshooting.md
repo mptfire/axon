@@ -136,7 +136,8 @@ Sorry, there is no way to debug or get the logs from the iOS app (yet), outside 
 
 If all of your topics are showing as "Reconnecting" and notifications are taking a long time (30+ minutes) to come in, or if you're only getting new pushes with a manual refresh, double-check your configuration:
 
-* If ntfy is behind a reverse proxy, make sure `behind_proxy` is enabled.
-* If ntfy is behind Nginx, make sure WebSockets are enabled.
-* Make sure you have granted permission to access all of your topics, either to a logged-in user account or to `everyone`. All subscribed topics are joined into a single WebSocket/JSON, so a single topic that receives `403 Forbidden` will prevent the entire request from going through.
+* If ntfy is behind a reverse proxy (such as Nginx):
+  * Make sure `behind_proxy` is enabled in ntfy's config.
+  * Make sure WebSockets are enabled in the reverse proxy config.
+* Make sure you have granted permission to access all of your topics, either to a logged-in user account or to `everyone`. All subscribed topics are joined into a single WebSocket/JSON request, so a single topic that receives `403 Forbidden` will prevent the entire request from going through.
   * In particular, double-check that `everyone` has permission to write to `up*` and your user has permission to read `up*` if you are using UnifiedPush.
