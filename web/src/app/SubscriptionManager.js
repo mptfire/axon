@@ -157,7 +157,7 @@ class SubscriptionManager {
     // killing performance. See  https://dexie.org/docs/Collection/Collection.offset()#a-better-paging-approach
 
     const notifications = await this.db.notifications
-      .orderBy("mtime") // Sort by time first
+      .orderBy("time") // Sort by time
       .filter((n) => n.subscriptionId === subscriptionId)
       .reverse()
       .toArray();
@@ -167,30 +167,39 @@ class SubscriptionManager {
 
   async getAllNotifications() {
     const notifications = await this.db.notifications
-      .orderBy("mtime") // Efficient, see docs
+      .orderBy("time") // Efficient, see docs
       .reverse()
       .toArray();
 
     return this.groupNotificationsBySID(notifications);
   }
 
-  // Collapse notification updates based on sids
+  // Collapse notification updates based on sids, keeping only the latest version
+  // Also tracks the original time (earliest) for each sequence
   groupNotificationsBySID(notifications) {
-    const results = {};
+    const latestBySid = {};
+    const originalTimeBySid = {};
+
     notifications.forEach((notification) => {
       const key = `${notification.subscriptionId}:${notification.sid}`;
-      if (key in results) {
-        if ("history" in results[key]) {
-          results[key].history.push(notification);
-        } else {
-          results[key].history = [notification];
-        }
-      } else {
-        results[key] = notification;
+
+      // Track the latest notification for each sid (first one since sorted DESC)
+      if (!(key in latestBySid)) {
+        latestBySid[key] = notification;
+      }
+
+      // Track the original (earliest) time for each sid
+      const currentOriginal = originalTimeBySid[key];
+      if (currentOriginal === undefined || notification.time < currentOriginal) {
+        originalTimeBySid[key] = notification.time;
       }
     });
 
-    return Object.values(results);
+    // Return latest notifications with originalTime set
+    return Object.entries(latestBySid).map(([key, notification]) => ({
+      ...notification,
+      originalTime: originalTimeBySid[key],
+    }));
   }
 
   /** Adds notification, or returns false if it already exists */
@@ -201,9 +210,6 @@ class SubscriptionManager {
     }
     try {
       const populatedNotification = notification;
-      if (!("mtime" in populatedNotification)) {
-        populatedNotification.mtime = notification.time * 1000;
-      }
       if (!("sid" in populatedNotification)) {
         populatedNotification.sid = notification.id;
       }
@@ -227,9 +233,6 @@ class SubscriptionManager {
   async addNotifications(subscriptionId, notifications) {
     const notificationsWithSubscriptionId = notifications.map((notification) => {
       const populatedNotification = notification;
-      if (!("mtime" in populatedNotification)) {
-        populatedNotification.mtime = notification.time * 1000;
-      }
       if (!("sid" in populatedNotification)) {
         populatedNotification.sid = notification.id;
       }

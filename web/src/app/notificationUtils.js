@@ -69,7 +69,7 @@ export const toNotificationParams = ({ subscriptionId, message, defaultTitle, to
       badge,
       icon,
       image,
-      timestamp: message.mtime,
+      timestamp: message.time * 1000,
       tag,
       renotify: true,
       silent: false,

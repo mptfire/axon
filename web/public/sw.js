@@ -25,9 +25,6 @@ const addNotification = async ({ subscriptionId, message }) => {
   const db = await dbAsync();
   const populatedMessage = message;
 
-  if (!("mtime" in populatedMessage)) {
-    populatedMessage.mtime = message.time * 1000;
-  }
   if (!("sid" in populatedMessage)) {
     populatedMessage.sid = message.id;
   }

@@ -236,7 +236,9 @@ const NotificationItem = (props) => {
   const { t, i18n } = useTranslation();
   const { notification } = props;
   const { attachment } = notification;
-  const date = formatShortDateTime(notification.time, i18n.language);
+  const isModified = notification.originalTime && notification.originalTime !== notification.time;
+  const originalDate = formatShortDateTime(notification.originalTime || notification.time, i18n.language);
+  const modifiedDate = isModified ? formatShortDateTime(notification.time, i18n.language) : null;
   const otherTags = unmatchedTags(notification.tags);
   const tags = otherTags.length > 0 ? otherTags.join(", ") : null;
   const handleDelete = async () => {
@@ -267,8 +269,6 @@ const NotificationItem = (props) => {
   const hasUserActions = notification.actions && notification.actions.length > 0;
   const showActions = hasAttachmentActions || hasClickAction || hasUserActions;
 
-  const showSid = notification.id !== notification.sid || notification.history;
-
   return (
     <Card sx={{ padding: 1 }} role="listitem" aria-label={t("notifications_list_item")}>
       <CardContent>
@@ -289,7 +289,8 @@ const NotificationItem = (props) => {
           </Tooltip>
         )}
         <Typography sx={{ fontSize: 14 }} color="text.secondary">
-          {date}
+          {originalDate}
+          {modifiedDate && ` (${t("notifications_modified", { date: modifiedDate })})`}
           {[1, 2, 4, 5].includes(notification.priority) && (
             <img
               src={priorityFiles[notification.priority]}
@@ -323,16 +324,6 @@ const NotificationItem = (props) => {
         {tags && (
           <Typography sx={{ fontSize: 14 }} color="text.secondary">
             {t("notifications_tags")}: {tags}
-          </Typography>
-        )}
-        {showSid && (
-          <Typography sx={{ fontSize: 14 }} color="text.secondary">
-            {t("notifications_sid")}: {notification.sid}
-          </Typography>
-        )}
-        {notification.history && (
-          <Typography sx={{ fontSize: 14 }} color="text.secondary">
-            {t("notifications_revisions")}: {notification.history.length + 1}
           </Typography>
         )}
       </CardContent>

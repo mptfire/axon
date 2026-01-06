@@ -24,10 +24,9 @@ const (
 
 // message represents a message published to a topic
 type message struct {
-	ID          string      `json:"id"`                // Random message ID
-	SID         string      `json:"sid"`               // Message sequence ID for updating message contents
-	Time        int64       `json:"time"`              // Unix time in seconds
-	MTime       int64       `json:"mtime"`             // Unix time in milliseconds
+	ID          string      `json:"id"`                     // Random message ID
+	SID         string      `json:"sid,omitempty"`          // Message sequence ID for updating message contents (omitted if same as ID)
+	Time        int64       `json:"time"`                   // Unix time in seconds
 	Expires     int64       `json:"expires,omitempty"` // Unix time in seconds (not required for open/keepalive)
 	Event       string      `json:"event"`             // One of the above
 	Topic       string      `json:"topic"`
@@ -53,7 +52,6 @@ func (m *message) Context() log.Context {
 		"message_id":        m.ID,
 		"message_sid":       m.SID,
 		"message_time":      m.Time,
-		"message_mtime":     m.MTime,
 		"message_event":     m.Event,
 		"message_body_size": len(m.Message),
 	}
@@ -64,6 +62,16 @@ func (m *message) Context() log.Context {
 		fields["message_user"] = m.User
 	}
 	return fields
+}
+
+// forJSON returns a copy of the message prepared for JSON output.
+// It clears SID if it equals ID (to avoid redundant output).
+func (m *message) forJSON() *message {
+	msg := *m
+	if msg.SID == msg.ID {
+		msg.SID = "" // Will be omitted due to omitempty
+	}
+	return &msg
 }
 
 type attachment struct {
@@ -123,7 +131,6 @@ func newMessage(event, topic, msg string) *message {
 	return &message{
 		ID:      util.RandomString(messageIDLength),
 		Time:    time.Now().Unix(),
-		MTime:   time.Now().UnixMilli(),
 		Event:   event,
 		Topic:   topic,
 		Message: msg,
@@ -162,11 +169,7 @@ type sinceMarker struct {
 }
 
 func newSinceTime(timestamp int64) sinceMarker {
-	return newSinceMTime(timestamp * 1000)
-}
-
-func newSinceMTime(mtimestamp int64) sinceMarker {
-	return sinceMarker{time.UnixMilli(mtimestamp), ""}
+	return sinceMarker{time.Unix(timestamp, 0), ""}
 }
 
 func newSinceID(id string) sinceMarker {
@@ -557,7 +560,7 @@ func newWebPushPayload(subscriptionID string, message *message) *webPushPayload 
 	return &webPushPayload{
 		Event:          webPushMessageEvent,
 		SubscriptionID: subscriptionID,
-		Message:        message,
+		Message:        message.forJSON(),
 	}
 }
 
