@@ -139,7 +139,8 @@ var (
 const (
 	firebaseControlTopic     = "~control"                // See Android if changed
 	firebasePollTopic        = "~poll"                   // See iOS if changed (DISABLED for now)
-	emptyMessageBody         = "triggered"               // Used if message body is empty
+	emptyMessageBody         = "triggered"               // Used when a message body is empty
+	deletedMessageBody       = "deleted"                 // Used when a message is deleted
 	newMessageBody           = "New message"             // Used in poll requests as generic message
 	defaultAttachmentMessage = "You received a file: %s" // Used if message body is empty, and there is an attachment
 	encodingBase64           = "base64"                  // Used mainly for binary UnifiedPush messages
@@ -921,7 +922,7 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, v *visitor
 		return e.With(t)
 	}
 	// Create a delete message: empty body, same SID, deleted flag set
-	m := newDefaultMessage(t.ID, "")
+	m := newDefaultMessage(t.ID, deletedMessageBody)
 	m.SID = sid
 	m.Deleted = true
 	m.Sender = v.IP()

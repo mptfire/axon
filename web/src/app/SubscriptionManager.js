@@ -2,7 +2,7 @@ import api from "./Api";
 import notifier from "./Notifier";
 import prefs from "./Prefs";
 import db from "./db";
-import { topicUrl } from "./utils";
+import { messageWithSID, topicUrl } from "./utils";
 
 class SubscriptionManager {
   constructor(dbImpl) {
@@ -15,7 +15,7 @@ class SubscriptionManager {
     return Promise.all(
       subscriptions.map(async (s) => ({
         ...s,
-        new: await this.db.notifications.where({ subscriptionId: s.id, new: 1 }).count(),
+        new: await this.db.notifications.where({ subscriptionId: s.id, new: 1 }).count()
       }))
     );
   }
@@ -48,16 +48,17 @@ class SubscriptionManager {
   }
 
   async notify(subscriptionId, notification) {
+    if (notification.deleted) {
+      return;
+    }
     const subscription = await this.get(subscriptionId);
     if (subscription.mutedUntil > 0) {
       return;
     }
-
     const priority = notification.priority ?? 3;
     if (priority < (await prefs.minPriority())) {
       return;
     }
-
     await notifier.notify(subscription, notification);
   }
 
@@ -82,7 +83,7 @@ class SubscriptionManager {
       baseUrl,
       topic,
       mutedUntil: 0,
-      last: null,
+      last: null
     };
 
     await this.db.subscriptions.put(subscription);
@@ -100,7 +101,7 @@ class SubscriptionManager {
 
         const local = await this.add(remote.base_url, remote.topic, {
           displayName: remote.display_name, // May be undefined
-          reservation, // May be null!
+          reservation // May be null!
         });
 
         return local.id;
@@ -196,19 +197,20 @@ class SubscriptionManager {
       return false;
     }
     try {
-      const populatedNotification = notification;
-      if (!("sid" in populatedNotification)) {
-        populatedNotification.sid = notification.id;
-      }
-      // sw.js duplicates this logic, so if you change it here, change it there too
+      // Note: Service worker (sw.js) and addNotifications() duplicates this logic,
+      // so if you change it here, change it there too.
+
+      // Add notification to database
       await this.db.notifications.add({
-        ...populatedNotification,
+        ...messageWithSID(notification),
         subscriptionId,
-        // New marker (used for bubble indicator); cannot be boolean; Dexie index limitation
-        new: 1,
-      }); // FIXME consider put() for double tab
+        new: 1 // New marker (used for bubble indicator); cannot be boolean; Dexie index limitation
+      });
+
+      // FIXME consider put() for double tab
+      // Update subscription last message id (for ?since=... queries)
       await this.db.subscriptions.update(subscriptionId, {
-        last: notification.id,
+        last: notification.id
       });
     } catch (e) {
       console.error(`[SubscriptionManager] Error adding notification`, e);
@@ -219,16 +221,12 @@ class SubscriptionManager {
   /** Adds/replaces notifications, will not throw if they exist */
   async addNotifications(subscriptionId, notifications) {
     const notificationsWithSubscriptionId = notifications.map((notification) => {
-      const populatedNotification = notification;
-      if (!("sid" in populatedNotification)) {
-        populatedNotification.sid = notification.id;
-      }
-      return { ...populatedNotification, subscriptionId };
+      return { ...messageWithSID(notification), subscriptionId };
     });
     const lastNotificationId = notifications.at(-1).id;
     await this.db.notifications.bulkPut(notificationsWithSubscriptionId);
     await this.db.subscriptions.update(subscriptionId, {
-      last: lastNotificationId,
+      last: lastNotificationId
     });
   }
 
@@ -249,6 +247,10 @@ class SubscriptionManager {
     await this.db.notifications.delete(notificationId);
   }
 
+  async deleteNotificationBySid(subscriptionId, sid) {
+    await this.db.notifications.where({ subscriptionId, sid }).delete();
+  }
+
   async deleteNotifications(subscriptionId) {
     await this.db.notifications.where({ subscriptionId }).delete();
   }
@@ -257,25 +259,29 @@ class SubscriptionManager {
     await this.db.notifications.where({ id: notificationId }).modify({ new: 0 });
   }
 
+  async markNotificationReadBySid(subscriptionId, sid) {
+    await this.db.notifications.where({ subscriptionId, sid }).modify({ new: 0 });
+  }
+
   async markNotificationsRead(subscriptionId) {
     await this.db.notifications.where({ subscriptionId, new: 1 }).modify({ new: 0 });
   }
 
   async setMutedUntil(subscriptionId, mutedUntil) {
     await this.db.subscriptions.update(subscriptionId, {
-      mutedUntil,
+      mutedUntil
     });
   }
 
   async setDisplayName(subscriptionId, displayName) {
     await this.db.subscriptions.update(subscriptionId, {
-      displayName,
+      displayName
     });
   }
 
   async setReservation(subscriptionId, reservation) {
     await this.db.subscriptions.update(subscriptionId, {
-      reservation,
+      reservation
     });
   }
 

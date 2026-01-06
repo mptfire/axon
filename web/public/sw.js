@@ -8,6 +8,7 @@ import { dbAsync } from "../src/app/db";
 
 import { toNotificationParams, icon, badge } from "../src/app/notificationUtils";
 import initI18n from "../src/app/i18n";
+import { messageWithSID } from "../src/app/utils";
 
 /**
  * General docs for service workers and PWAs:
@@ -23,19 +24,17 @@ const broadcastChannel = new BroadcastChannel("web-push-broadcast");
 
 const addNotification = async ({ subscriptionId, message }) => {
   const db = await dbAsync();
-  const populatedMessage = message;
 
-  if (!("sid" in populatedMessage)) {
-    populatedMessage.sid = message.id;
-  }
+  // Note: SubscriptionManager duplicates this logic, so if you change it here, change it there too
 
+  // Add notification to database
   await db.notifications.add({
-    ...populatedMessage,
+    ...messageWithSID(message),
     subscriptionId,
-    // New marker (used for bubble indicator); cannot be boolean; Dexie index limitation
-    new: 1,
+    new: 1, // New marker (used for bubble indicator); cannot be boolean; Dexie index limitation
   });
 
+  // Update subscription last message id (for ?since=... queries)
   await db.subscriptions.update(subscriptionId, {
     last: message.id,
   });
@@ -54,14 +53,16 @@ const addNotification = async ({ subscriptionId, message }) => {
 const handlePushMessage = async (data) => {
   const { subscription_id: subscriptionId, message } = data;
 
-  broadcastChannel.postMessage(message); // To potentially play sound
-
+  // Add notification to database
   await addNotification({ subscriptionId, message });
 
   // Don't show a notification for deleted messages
   if (message.deleted) {
     return;
   }
+
+  // Broadcast the message to potentially play a sound
+  broadcastChannel.postMessage(message);
 
   await self.registration.showNotification(
     ...toNotificationParams({

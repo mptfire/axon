@@ -240,22 +240,22 @@ const NotificationItem = (props) => {
   const otherTags = unmatchedTags(notification.tags);
   const tags = otherTags.length > 0 ? otherTags.join(", ") : null;
   const handleDelete = async () => {
-    console.log(`[Notifications] Deleting notification ${notification.id}`);
-    await subscriptionManager.deleteNotification(notification.id);
-    notification.history?.forEach(async (revision) => {
-      console.log(`[Notifications] Deleting revision ${revision.id}`);
-      await subscriptionManager.deleteNotification(revision.id);
-    });
+    if (notification.sid) {
+      console.log(`[Notifications] Deleting all notifications with sid ${notification.sid}`);
+      await subscriptionManager.deleteNotificationBySid(notification.subscriptionId, notification.sid);
+    } else {
+      console.log(`[Notifications] Deleting notification ${notification.id}`);
+      await subscriptionManager.deleteNotification(notification.id);
+    }
   };
   const handleMarkRead = async () => {
-    console.log(`[Notifications] Marking notification ${notification.id} as read`);
-    await subscriptionManager.markNotificationRead(notification.id);
-    notification.history
-      ?.filter((revision) => revision.new === 1)
-      .forEach(async (revision) => {
-        console.log(`[Notifications] Marking revision ${revision.id} as read`);
-        await subscriptionManager.markNotificationRead(revision.id);
-      });
+    if (notification.sid) {
+      console.log(`[Notifications] Marking notification with sid ${notification.sid} as read`);
+      await subscriptionManager.markNotificationReadBySid(notification.subscriptionId, notification.sid);
+    } else {
+      console.log(`[Notifications] Marking notification ${notification.id} as read`);
+      await subscriptionManager.markNotificationRead(notification.id);
+    }
   };
   const handleCopy = (s) => {
     copyToClipboard(s);

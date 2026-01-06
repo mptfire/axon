@@ -11,16 +11,10 @@ const createDatabase = (username) => {
   const dbName = username ? `ntfy-${username}` : "ntfy"; // IndexedDB database is based on the logged-in user
   const db = new Dexie(dbName);
 
-  db.version(4).stores({
+  db.version(6).stores({
+    // FIXME Should be 3
     subscriptions: "&id,baseUrl,[baseUrl+mutedUntil]",
-    notifications: "&id,sid,subscriptionId,time,new,[subscriptionId+new]", // compound key for query performance
-    users: "&baseUrl,username",
-    prefs: "&key",
-  });
-
-  db.version(5).stores({
-    subscriptions: "&id,baseUrl,[baseUrl+mutedUntil]",
-    notifications: "&id,sid,subscriptionId,time,new,deleted,[subscriptionId+new]", // added deleted index
+    notifications: "&id,sid,subscriptionId,time,new,deleted,[subscriptionId+new],[subscriptionId+sid]",
     users: "&baseUrl,username",
     prefs: "&key",
   });

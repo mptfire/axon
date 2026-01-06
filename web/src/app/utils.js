@@ -103,6 +103,13 @@ export const maybeActionErrors = (notification) => {
   return actionErrors;
 };
 
+export const messageWithSID = (message) => {
+  if (!message.sid) {
+    message.sid = message.id;
+  }
+  return message;
+};
+
 export const shuffle = (arr) => {
   const returnArr = [...arr];
 

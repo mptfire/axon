@@ -50,10 +50,21 @@ export const useConnectionListeners = (account, subscriptions, users, webPushTop
       };
 
       const handleNotification = async (subscriptionId, notification) => {
+        if (notification.deleted && notification.sid) {
+          return handleDeletedNotification(subscriptionId, notification);
+        }
+        return handleNewOrUpdatedNotification(subscriptionId, notification);
+      };
+
+      const handleNewOrUpdatedNotification = async (subscriptionId, notification) => {
         const added = await subscriptionManager.addNotification(subscriptionId, notification);
         if (added) {
           await subscriptionManager.notify(subscriptionId, notification);
         }
+      };
+
+      const handleDeletedNotification = async (subscriptionId, notification) => {
+        await subscriptionManager.deleteNotificationBySid(subscriptionId, notification.sid);
       };
 
       const handleMessage = async (subscriptionId, message) => {
@@ -231,7 +242,9 @@ export const useIsLaunchedPWA = () => {
 
   useEffect(() => {
     if (isIOSStandalone) {
-      return () => {}; // No need to listen for events on iOS
+      return () => {
+        // No need to listen for events on iOS
+      };
     }
     const handler = (evt) => {
       console.log(`[useIsLaunchedPWA] App is now running ${evt.matches ? "standalone" : "in the browser"}`);
