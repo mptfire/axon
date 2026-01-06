@@ -236,9 +236,7 @@ const NotificationItem = (props) => {
   const { t, i18n } = useTranslation();
   const { notification } = props;
   const { attachment } = notification;
-  const isModified = notification.originalTime && notification.originalTime !== notification.time;
-  const originalDate = formatShortDateTime(notification.originalTime || notification.time, i18n.language);
-  const modifiedDate = isModified ? formatShortDateTime(notification.time, i18n.language) : null;
+  const date = formatShortDateTime(notification.time, i18n.language);
   const otherTags = unmatchedTags(notification.tags);
   const tags = otherTags.length > 0 ? otherTags.join(", ") : null;
   const handleDelete = async () => {
@@ -289,8 +287,7 @@ const NotificationItem = (props) => {
           </Tooltip>
         )}
         <Typography sx={{ fontSize: 14 }} color="text.secondary">
-          {originalDate}
-          {modifiedDate && ` (${t("notifications_modified", { date: modifiedDate })})`}
+          {date}
           {[1, 2, 4, 5].includes(notification.priority) && (
             <img
               src={priorityFiles[notification.priority]}

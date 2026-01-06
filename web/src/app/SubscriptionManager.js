@@ -175,31 +175,16 @@ class SubscriptionManager {
   }
 
   // Collapse notification updates based on sids, keeping only the latest version
-  // Also tracks the original time (earliest) for each sequence
   groupNotificationsBySID(notifications) {
     const latestBySid = {};
-    const originalTimeBySid = {};
-
     notifications.forEach((notification) => {
       const key = `${notification.subscriptionId}:${notification.sid}`;
-
-      // Track the latest notification for each sid (first one since sorted DESC)
+      // Keep only the first (latest by time) notification for each sid
       if (!(key in latestBySid)) {
         latestBySid[key] = notification;
       }
-
-      // Track the original (earliest) time for each sid
-      const currentOriginal = originalTimeBySid[key];
-      if (currentOriginal === undefined || notification.time < currentOriginal) {
-        originalTimeBySid[key] = notification.time;
-      }
     });
-
-    // Return latest notifications with originalTime set
-    return Object.entries(latestBySid).map(([key, notification]) => ({
-      ...notification,
-      originalTime: originalTimeBySid[key],
-    }));
+    return Object.values(latestBySid);
   }
 
   /** Adds notification, or returns false if it already exists */
