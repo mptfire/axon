@@ -547,6 +547,8 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.transformMatrixJSON(s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublishMatrix)))(w, r, v)
 	} else if (r.Method == http.MethodPut || r.Method == http.MethodPost) && (topicPathRegex.MatchString(r.URL.Path) || updatePathRegex.MatchString(r.URL.Path)) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)
+	} else if r.Method == http.MethodDelete && updatePathRegex.MatchString(r.URL.Path) {
+		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handleDelete))(w, r, v)
 	} else if r.Method == http.MethodGet && publishPathRegex.MatchString(r.URL.Path) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)
 	} else if r.Method == http.MethodGet && jsonPathRegex.MatchString(r.URL.Path) {
@@ -900,6 +902,52 @@ func (s *Server) handlePublishMatrix(w http.ResponseWriter, r *http.Request, v *
 	minc(metricMessagesPublishedSuccess)
 	minc(metricMatrixPublishedSuccess)
 	return writeMatrixSuccess(w)
+}
+
+func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	t, err := fromContext[*topic](r, contextTopic)
+	if err != nil {
+		return err
+	}
+	vrate, err := fromContext[*visitor](r, contextRateVisitor)
+	if err != nil {
+		return err
+	}
+	if !util.ContainsIP(s.config.VisitorRequestExemptPrefixes, v.ip) && !vrate.MessageAllowed() {
+		return errHTTPTooManyRequestsLimitMessages.With(t)
+	}
+	sid, e := s.sidFromPath(r.URL.Path)
+	if e != nil {
+		return e.With(t)
+	}
+	// Create a delete message: empty body, same SID, deleted flag set
+	m := newDefaultMessage(t.ID, "")
+	m.SID = sid
+	m.Deleted = true
+	m.Sender = v.IP()
+	m.User = v.MaybeUserID()
+	m.Expires = time.Unix(m.Time, 0).Add(v.Limits().MessageExpiryDuration).Unix()
+	// Publish to subscribers
+	if err := t.Publish(v, m); err != nil {
+		return err
+	}
+	// Send to Firebase for Android clients
+	if s.firebaseClient != nil {
+		go s.sendToFirebase(v, m)
+	}
+	// Send to web push endpoints
+	if s.config.WebPushPublicKey != "" {
+		go s.publishToWebPushEndpoints(v, m)
+	}
+	// Add to message cache
+	if err := s.messageCache.AddMessage(m); err != nil {
+		return err
+	}
+	logvrm(v, r, m).Tag(tagPublish).Debug("Deleted message with SID %s", sid)
+	s.mu.Lock()
+	s.messages++
+	s.mu.Unlock()
+	return s.writeJSON(w, m.forJSON())
 }
 
 func (s *Server) sendToFirebase(v *visitor, m *message) {

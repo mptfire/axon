@@ -57,6 +57,12 @@ const handlePushMessage = async (data) => {
   broadcastChannel.postMessage(message); // To potentially play sound
 
   await addNotification({ subscriptionId, message });
+
+  // Don't show a notification for deleted messages
+  if (message.deleted) {
+    return;
+  }
+
   await self.registration.showNotification(
     ...toNotificationParams({
       subscriptionId,

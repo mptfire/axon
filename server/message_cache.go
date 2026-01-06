@@ -75,7 +75,7 @@ const (
 	deleteMessageQuery                = `DELETE FROM messages WHERE mid = ?`
 	updateMessagesForTopicExpiryQuery = `UPDATE messages SET expires = ? WHERE topic = ?`
 	selectRowIDFromMessageID          = `SELECT id FROM messages WHERE mid = ?` // Do not include topic, see #336 and TestServer_PollSinceID_MultipleTopics
-	selectMessagesByIDQuery = `
+	selectMessagesByIDQuery           = `
 		SELECT mid, sid, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, deleted
 		FROM messages
 		WHERE mid = ?
@@ -431,7 +431,7 @@ func (c *messageCache) addMessages(ms []*message) error {
 			m.ContentType,
 			m.Encoding,
 			published,
-			0,
+			m.Deleted,
 		)
 		if err != nil {
 			return err
@@ -719,8 +719,9 @@ func readMessages(rows *sql.Rows) ([]*message, error) {
 
 func readMessage(rows *sql.Rows) (*message, error) {
 	var timestamp, expires, attachmentSize, attachmentExpires int64
-	var priority, deleted int
+	var priority int
 	var id, sid, topic, msg, title, tagsStr, click, icon, actionsStr, attachmentName, attachmentType, attachmentURL, sender, user, contentType, encoding string
+	var deleted bool
 	err := rows.Scan(
 		&id,
 		&sid,

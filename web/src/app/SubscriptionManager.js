@@ -175,6 +175,7 @@ class SubscriptionManager {
   }
 
   // Collapse notification updates based on sids, keeping only the latest version
+  // Filters out notifications where the latest in the sequence is deleted
   groupNotificationsBySID(notifications) {
     const latestBySid = {};
     notifications.forEach((notification) => {
@@ -184,7 +185,8 @@ class SubscriptionManager {
         latestBySid[key] = notification;
       }
     });
-    return Object.values(latestBySid);
+    // Filter out notifications where the latest is deleted
+    return Object.values(latestBySid).filter((n) => !n.deleted);
   }
 
   /** Adds notification, or returns false if it already exists */

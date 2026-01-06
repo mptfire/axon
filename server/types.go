@@ -24,14 +24,14 @@ const (
 
 // message represents a message published to a topic
 type message struct {
-	ID          string      `json:"id"`                     // Random message ID
-	SID         string      `json:"sid,omitempty"`          // Message sequence ID for updating message contents (omitted if same as ID)
-	Time        int64       `json:"time"`                   // Unix time in seconds
+	ID          string      `json:"id"`                // Random message ID
+	SID         string      `json:"sid,omitempty"`     // Message sequence ID for updating message contents (omitted if same as ID)
+	Time        int64       `json:"time"`              // Unix time in seconds
 	Expires     int64       `json:"expires,omitempty"` // Unix time in seconds (not required for open/keepalive)
 	Event       string      `json:"event"`             // One of the above
 	Topic       string      `json:"topic"`
 	Title       string      `json:"title,omitempty"`
-	Message     string      `json:"message,omitempty"`
+	Message     string      `json:"message"` // Allow empty message body
 	Priority    int         `json:"priority,omitempty"`
 	Tags        []string    `json:"tags,omitempty"`
 	Click       string      `json:"click,omitempty"`
@@ -40,10 +40,10 @@ type message struct {
 	Attachment  *attachment `json:"attachment,omitempty"`
 	PollID      string      `json:"poll_id,omitempty"`
 	ContentType string      `json:"content_type,omitempty"` // text/plain by default (if empty), or text/markdown
-	Encoding    string      `json:"encoding,omitempty"`     // empty for raw UTF-8, or "base64" for encoded bytes
+	Encoding    string      `json:"encoding,omitempty"`     // Empty for raw UTF-8, or "base64" for encoded bytes
+	Deleted     bool        `json:"deleted,omitempty"`      // True if message is marked as deleted
 	Sender      netip.Addr  `json:"-"`                      // IP address of uploader, used for rate limiting
 	User        string      `json:"-"`                      // UserID of the uploader, used to associated attachments
-	Deleted     int         `json:"deleted,omitempty"`
 }
 
 func (m *message) Context() log.Context {

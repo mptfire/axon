@@ -18,6 +18,13 @@ const createDatabase = (username) => {
     prefs: "&key",
   });
 
+  db.version(5).stores({
+    subscriptions: "&id,baseUrl,[baseUrl+mutedUntil]",
+    notifications: "&id,sid,subscriptionId,time,new,deleted,[subscriptionId+new]", // added deleted index
+    users: "&baseUrl,username",
+    prefs: "&key",
+  });
+
   return db;
 };
 
