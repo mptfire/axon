@@ -42,12 +42,22 @@ class Poller {
 
     const since = subscription.last;
     const notifications = await api.poll(subscription.baseUrl, subscription.topic, since);
-    if (!notifications || notifications.length === 0) {
-      console.log(`[Poller] No new notifications found for ${subscription.id}`);
-      return;
+    const deletedSids = this.deletedSids(notifications);
+    const newOrUpdatedNotifications = this.newOrUpdatedNotifications(notifications, deletedSids);
+
+    // Delete all existing notifications with a deleted sequence ID
+    if (deletedSids.length > 0) {
+      console.log(`[Poller] Deleting notifications with deleted sequence IDs for ${subscription.id}`);
+      await Promise.all(deletedSids.map((sid) => subscriptionManager.deleteNotificationBySid(subscription.id, sid)));
     }
-    console.log(`[Poller] Adding ${notifications.length} notification(s) for ${subscription.id}`);
-    await subscriptionManager.addNotifications(subscription.id, notifications);
+
+    // Add new or updated notifications
+    if (newOrUpdatedNotifications.length > 0) {
+      console.log(`[Poller] Adding ${notifications.length} notification(s) for ${subscription.id}`);
+      await subscriptionManager.addNotifications(subscription.id, notifications);
+    } else {
+      console.log(`[Poller] No new notifications found for ${subscription.id}`);
+    }
   }
 
   pollInBackground(subscription) {
@@ -58,6 +68,22 @@ class Poller {
         console.error(`[App] Error polling subscription ${subscription.id}`, e);
       }
     })();
+  }
+
+  deletedSids(notifications) {
+    return new Set(
+      notifications
+        .filter(n => n.sid && n.deleted)
+        .map(n => n.sid)
+    );
+  }
+
+  newOrUpdatedNotifications(notifications, deletedSids) {
+    return notifications
+      .filter((notification) => {
+        const sid = notification.sid || notification.id;
+        return !deletedSids.has(notification.id) && !deletedSids.has(sid) && !notification.deleted;
+      });
   }
 }
 

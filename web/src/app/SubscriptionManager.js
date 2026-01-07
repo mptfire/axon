@@ -193,7 +193,7 @@ class SubscriptionManager {
   /** Adds notification, or returns false if it already exists */
   async addNotification(subscriptionId, notification) {
     const exists = await this.db.notifications.get(notification.id);
-    if (exists) {
+    if (exists || notification.deleted) {
       return false;
     }
     try {
