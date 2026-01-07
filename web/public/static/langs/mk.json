@@ -53,5 +53,10 @@
     "nav_button_subscribe": "Претплати се на тема",
     "action_bar_unmute_notifications": "Одглуши ги нотификациите",
     "action_bar_toggle_mute": "Заглуши/Загуши ги нотификациите",
-    "message_bar_publish": "Објави порака"
+    "message_bar_publish": "Објави порака",
+    "nav_button_connecting": "се конектира",
+    "nav_upgrade_banner_label": "Надградете на ntfy Pro",
+    "nav_upgrade_banner_description": "Резервирајте теми, повеќе пораки и е-пораки и поголеми прилози",
+    "alert_notification_permission_required_title": "Известувањата се исклучени",
+    "alert_notification_permission_required_description": "Дајте му дозвола на вашиот прелистувач да прикажува известувања"
 }
