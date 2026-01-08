@@ -42,19 +42,22 @@ class Poller {
 
     const since = subscription.last;
     const notifications = await api.poll(subscription.baseUrl, subscription.topic, since);
-    const deletedSids = this.deletedSids(notifications);
-    const newOrUpdatedNotifications = this.newOrUpdatedNotifications(notifications, deletedSids);
+    const latestBySid = this.latestNotificationsBySid(notifications);
 
     // Delete all existing notifications with a deleted sequence ID
+    const deletedSids = Object.entries(latestBySid)
+      .filter(([, notification]) => notification.deleted)
+      .map(([sid]) => sid);
     if (deletedSids.length > 0) {
       console.log(`[Poller] Deleting notifications with deleted sequence IDs for ${subscription.id}`);
       await Promise.all(deletedSids.map((sid) => subscriptionManager.deleteNotificationBySid(subscription.id, sid)));
     }
 
-    // Add new or updated notifications
-    if (newOrUpdatedNotifications.length > 0) {
-      console.log(`[Poller] Adding ${notifications.length} notification(s) for ${subscription.id}`);
-      await subscriptionManager.addNotifications(subscription.id, notifications);
+    // Add only the latest notification for each non-deleted sequence
+    const notificationsToAdd = Object.values(latestBySid).filter((n) => !n.deleted);
+    if (notificationsToAdd.length > 0) {
+      console.log(`[Poller] Adding ${notificationsToAdd.length} notification(s) for ${subscription.id}`);
+      await subscriptionManager.addNotifications(subscription.id, notificationsToAdd);
     } else {
       console.log(`[Poller] No new notifications found for ${subscription.id}`);
     }
@@ -70,20 +73,19 @@ class Poller {
     })();
   }
 
-  deletedSids(notifications) {
-    return new Set(
-      notifications
-        .filter(n => n.sid && n.deleted)
-        .map(n => n.sid)
-    );
-  }
-
-  newOrUpdatedNotifications(notifications, deletedSids) {
-    return notifications
-      .filter((notification) => {
-        const sid = notification.sid || notification.id;
-        return !deletedSids.has(notification.id) && !deletedSids.has(sid) && !notification.deleted;
-      });
+  /**
+   * Groups notifications by sid and returns only the latest (highest time) for each sequence.
+   * Returns an object mapping sid -> latest notification.
+   */
+  latestNotificationsBySid(notifications) {
+    const latestBySid = {};
+    notifications.forEach((notification) => {
+      const sid = notification.sid || notification.id;
+      if (!(sid in latestBySid) || notification.time >= latestBySid[sid].time) {
+        latestBySid[sid] = notification;
+      }
+    });
+    return latestBySid;
   }
 }
 

@@ -27,6 +27,11 @@ const addNotification = async ({ subscriptionId, message }) => {
 
   // Note: SubscriptionManager duplicates this logic, so if you change it here, change it there too
 
+  // Delete existing notification with same SID (if any)
+  if (message.sid) {
+    await db.notifications.where({ subscriptionId, sid: message.sid }).delete();
+  }
+
   // Add notification to database
   await db.notifications.add({
     ...messageWithSID(message),

@@ -57,6 +57,11 @@ export const useConnectionListeners = (account, subscriptions, users, webPushTop
       };
 
       const handleNewOrUpdatedNotification = async (subscriptionId, notification) => {
+        // Delete existing notification with same sid, if any
+        if (notification.sid) {
+          await subscriptionManager.deleteNotificationBySid(subscriptionId, notification.sid);
+        }
+        // Add notification to database
         const added = await subscriptionManager.addNotification(subscriptionId, notification);
         if (added) {
           await subscriptionManager.notify(subscriptionId, notification);
