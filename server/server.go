@@ -2027,6 +2027,9 @@ func (s *Server) transformBodyJSON(next handleFunc) handleFunc {
 		if m.Firebase != "" {
 			r.Header.Set("X-Firebase", m.Firebase)
 		}
+		if m.SequenceID != "" {
+			r.Header.Set("X-Sequence-ID", m.SequenceID)
+		}
 		return next(w, r, v)
 	}
 }

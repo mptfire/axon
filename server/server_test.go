@@ -727,6 +727,18 @@ func TestServer_PublishWithSIDViaGet(t *testing.T) {
 	require.Equal(t, "sid1", msg.SequenceID)
 }
 
+func TestServer_PublishAsJSON_WithSequenceID(t *testing.T) {
+	s := newTestServer(t, newTestConfig(t))
+
+	body := `{"topic":"mytopic","message":"A message","sequence_id":"my-sequence-123"}`
+	response := request(t, s, "PUT", "/", body, nil)
+	require.Equal(t, 200, response.Code)
+
+	msg := toMessage(t, response.Body.String())
+	require.NotEmpty(t, msg.ID)
+	require.Equal(t, "my-sequence-123", msg.SequenceID)
+}
+
 func TestServer_PublishWithInvalidSIDInPath(t *testing.T) {
 	s := newTestServer(t, newTestConfig(t))
 
