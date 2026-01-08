@@ -773,6 +773,10 @@ func readMessage(rows *sql.Rows) (*message, error) {
 			URL:     attachmentURL,
 		}
 	}
+	// Clear SID if it equals ID (we do not want the SID in the message output)
+	if sid == id {
+		sid = ""
+	}
 	return &message{
 		ID:          id,
 		SID:         sid,

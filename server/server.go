@@ -877,7 +877,7 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request, v *visito
 		return err
 	}
 	minc(metricMessagesPublishedSuccess)
-	return s.writeJSON(w, m.forJSON())
+	return s.writeJSON(w, m)
 }
 
 func (s *Server) handlePublishMatrix(w http.ResponseWriter, r *http.Request, v *visitor) error {
@@ -948,7 +948,7 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, v *visitor
 	s.mu.Lock()
 	s.messages++
 	s.mu.Unlock()
-	return s.writeJSON(w, m.forJSON())
+	return s.writeJSON(w, m)
 }
 
 func (s *Server) sendToFirebase(v *visitor, m *message) {
@@ -1340,7 +1340,7 @@ func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *message,
 func (s *Server) handleSubscribeJSON(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	encoder := func(msg *message) (string, error) {
 		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(msg.forJSON()); err != nil {
+		if err := json.NewEncoder(&buf).Encode(msg); err != nil {
 			return "", err
 		}
 		return buf.String(), nil
@@ -1351,7 +1351,7 @@ func (s *Server) handleSubscribeJSON(w http.ResponseWriter, r *http.Request, v *
 func (s *Server) handleSubscribeSSE(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	encoder := func(msg *message) (string, error) {
 		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(msg.forJSON()); err != nil {
+		if err := json.NewEncoder(&buf).Encode(msg); err != nil {
 			return "", err
 		}
 		if msg.Event != messageEvent {

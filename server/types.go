@@ -64,16 +64,6 @@ func (m *message) Context() log.Context {
 	return fields
 }
 
-// forJSON returns a copy of the message prepared for JSON output.
-// It clears SID if it equals ID (to avoid redundant output).
-func (m *message) forJSON() *message {
-	msg := *m
-	if msg.SID == msg.ID {
-		msg.SID = "" // Will be omitted due to omitempty
-	}
-	return &msg
-}
-
 type attachment struct {
 	Name    string `json:"name"`
 	Type    string `json:"type,omitempty"`
@@ -560,7 +550,7 @@ func newWebPushPayload(subscriptionID string, message *message) *webPushPayload 
 	return &webPushPayload{
 		Event:          webPushMessageEvent,
 		SubscriptionID: subscriptionID,
-		Message:        message.forJSON(),
+		Message:        message,
 	}
 }
 
