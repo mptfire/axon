@@ -62,7 +62,7 @@ export const toNotificationParams = ({ subscriptionId, message, defaultTitle, to
       icon,
       image,
       timestamp: message.time * 1000,
-      tag: message.sid || message.id, // Update notification if there is a sequence ID
+      tag: message.sequence_id || message.id, // Update notification if there is a sequence ID
       renotify: true,
       silent: false,
       // This is used by the notification onclick event

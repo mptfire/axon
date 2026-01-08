@@ -917,13 +917,13 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, v *visitor
 	if !util.ContainsIP(s.config.VisitorRequestExemptPrefixes, v.ip) && !vrate.MessageAllowed() {
 		return errHTTPTooManyRequestsLimitMessages.With(t)
 	}
-	sid, e := s.sidFromPath(r.URL.Path)
+	sequenceID, e := s.sequenceIDFromPath(r.URL.Path)
 	if e != nil {
 		return e.With(t)
 	}
-	// Create a delete message: empty body, same SID, deleted flag set
+	// Create a delete message: empty body, same SequenceID, deleted flag set
 	m := newDefaultMessage(t.ID, deletedMessageBody)
-	m.SID = sid
+	m.SequenceID = sequenceID
 	m.Deleted = true
 	m.Sender = v.IP()
 	m.User = v.MaybeUserID()
@@ -944,7 +944,7 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, v *visitor
 	if err := s.messageCache.AddMessage(m); err != nil {
 		return err
 	}
-	logvrm(v, r, m).Tag(tagPublish).Debug("Deleted message with SID %s", sid)
+	logvrm(v, r, m).Tag(tagPublish).Debug("Deleted message with sequence ID %s", sequenceID)
 	s.mu.Lock()
 	s.messages++
 	s.mu.Unlock()
@@ -1009,21 +1009,21 @@ func (s *Server) forwardPollRequest(v *visitor, m *message) {
 
 func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, firebase bool, email, call string, template templateMode, unifiedpush bool, err *errHTTP) {
 	if r.Method != http.MethodGet && updatePathRegex.MatchString(r.URL.Path) {
-		pathSID, err := s.sidFromPath(r.URL.Path)
+		pathSequenceID, err := s.sequenceIDFromPath(r.URL.Path)
 		if err != nil {
 			return false, false, "", "", "", false, err
 		}
-		m.SID = pathSID
+		m.SequenceID = pathSequenceID
 	} else {
-		sid := readParam(r, "x-sequence-id", "sequence-id", "sid")
-		if sid != "" {
-			if sidRegex.MatchString(sid) {
-				m.SID = sid
+		sequenceID := readParam(r, "x-sequence-id", "sequence-id", "sid")
+		if sequenceID != "" {
+			if sidRegex.MatchString(sequenceID) {
+				m.SequenceID = sequenceID
 			} else {
 				return false, false, "", "", "", false, errHTTPBadRequestSIDInvalid
 			}
 		} else {
-			m.SID = m.ID
+			m.SequenceID = m.ID
 		}
 	}
 	cache = readBoolParam(r, true, "x-cache", "cache")
@@ -1764,8 +1764,8 @@ func (s *Server) topicsFromPath(path string) ([]*topic, string, error) {
 	return topics, parts[1], nil
 }
 
-// sidFromPath returns the SID from a POST path like /mytopic/sidHere
-func (s *Server) sidFromPath(path string) (string, *errHTTP) {
+// sequenceIDFromPath returns the sequence ID from a POST path like /mytopic/sequenceIdHere
+func (s *Server) sequenceIDFromPath(path string) (string, *errHTTP) {
 	parts := strings.Split(path, "/")
 	if len(parts) != 3 {
 		return "", errHTTPBadRequestSIDInvalid

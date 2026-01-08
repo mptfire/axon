@@ -11,12 +11,11 @@ const createDatabase = (username) => {
   const dbName = username ? `ntfy-${username}` : "ntfy"; // IndexedDB database is based on the logged-in user
   const db = new Dexie(dbName);
 
-  db.version(6).stores({
-    // FIXME Should be 3
+  db.version(3).stores({
     subscriptions: "&id,baseUrl,[baseUrl+mutedUntil]",
-    notifications: "&id,sid,subscriptionId,time,new,deleted,[subscriptionId+new],[subscriptionId+sid]",
+    notifications: "&id,sequenceId,subscriptionId,time,new,deleted,[subscriptionId+new],[subscriptionId+sequenceId]",
     users: "&baseUrl,username",
-    prefs: "&key",
+    prefs: "&key"
   });
 
   return db;

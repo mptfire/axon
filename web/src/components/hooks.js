@@ -53,9 +53,10 @@ export const useConnectionListeners = (account, subscriptions, users, webPushTop
         // Note: This logic is duplicated in the Android app in SubscriberService::onNotificationReceived()
         //       and FirebaseService::handleMessage().
 
-        // Delete existing notification with same sid, if any
-        if (notification.sid) {
-          await subscriptionManager.deleteNotificationBySid(subscriptionId, notification.sid);
+        // Delete existing notification with same sequenceId, if any
+        const sequenceId = notification.sequence_id || notification.id;
+        if (sequenceId) {
+          await subscriptionManager.deleteNotificationBySequenceId(subscriptionId, sequenceId);
         }
         // Add notification to database
         if (!notification.deleted) {

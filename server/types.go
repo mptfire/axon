@@ -24,11 +24,11 @@ const (
 
 // message represents a message published to a topic
 type message struct {
-	ID          string      `json:"id"`                // Random message ID
-	SID         string      `json:"sid,omitempty"`     // Message sequence ID for updating message contents (omitted if same as ID)
-	Time        int64       `json:"time"`              // Unix time in seconds
-	Expires     int64       `json:"expires,omitempty"` // Unix time in seconds (not required for open/keepalive)
-	Event       string      `json:"event"`             // One of the above
+	ID          string      `json:"id"`                    // Random message ID
+	SequenceID  string      `json:"sequence_id,omitempty"` // Message sequence ID for updating message contents (omitted if same as ID)
+	Time        int64       `json:"time"`                  // Unix time in seconds
+	Expires     int64       `json:"expires,omitempty"`     // Unix time in seconds (not required for open/keepalive)
+	Event       string      `json:"event"`                 // One of the above
 	Topic       string      `json:"topic"`
 	Title       string      `json:"title,omitempty"`
 	Message     string      `json:"message"` // Allow empty message body
@@ -48,12 +48,12 @@ type message struct {
 
 func (m *message) Context() log.Context {
 	fields := map[string]any{
-		"topic":             m.Topic,
-		"message_id":        m.ID,
-		"message_sid":       m.SID,
-		"message_time":      m.Time,
-		"message_event":     m.Event,
-		"message_body_size": len(m.Message),
+		"topic":               m.Topic,
+		"message_id":          m.ID,
+		"message_sequence_id": m.SequenceID,
+		"message_time":        m.Time,
+		"message_event":       m.Event,
+		"message_body_size":   len(m.Message),
 	}
 	if m.Sender.IsValid() {
 		fields["message_sender"] = m.Sender.String()
@@ -94,23 +94,23 @@ func newAction() *action {
 
 // publishMessage is used as input when publishing as JSON
 type publishMessage struct {
-	Topic    string   `json:"topic"`
-	SID      string   `json:"sid"`
-	Title    string   `json:"title"`
-	Message  string   `json:"message"`
-	Priority int      `json:"priority"`
-	Tags     []string `json:"tags"`
-	Click    string   `json:"click"`
-	Icon     string   `json:"icon"`
-	Actions  []action `json:"actions"`
-	Attach   string   `json:"attach"`
-	Markdown bool     `json:"markdown"`
-	Filename string   `json:"filename"`
-	Email    string   `json:"email"`
-	Call     string   `json:"call"`
-	Cache    string   `json:"cache"`    // use string as it defaults to true (or use &bool instead)
-	Firebase string   `json:"firebase"` // use string as it defaults to true (or use &bool instead)
-	Delay    string   `json:"delay"`
+	Topic      string   `json:"topic"`
+	SequenceID string   `json:"sequence_id"`
+	Title      string   `json:"title"`
+	Message    string   `json:"message"`
+	Priority   int      `json:"priority"`
+	Tags       []string `json:"tags"`
+	Click      string   `json:"click"`
+	Icon       string   `json:"icon"`
+	Actions    []action `json:"actions"`
+	Attach     string   `json:"attach"`
+	Markdown   bool     `json:"markdown"`
+	Filename   string   `json:"filename"`
+	Email      string   `json:"email"`
+	Call       string   `json:"call"`
+	Cache      string   `json:"cache"`    // use string as it defaults to true (or use &bool instead)
+	Firebase   string   `json:"firebase"` // use string as it defaults to true (or use &bool instead)
+	Delay      string   `json:"delay"`
 }
 
 // messageEncoder is a function that knows how to encode a message

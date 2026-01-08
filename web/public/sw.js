@@ -8,7 +8,7 @@ import { dbAsync } from "../src/app/db";
 
 import { toNotificationParams, icon, badge } from "../src/app/notificationUtils";
 import initI18n from "../src/app/i18n";
-import { messageWithSID } from "../src/app/utils";
+import { messageWithSequenceId } from "../src/app/utils";
 
 /**
  * General docs for service workers and PWAs:
@@ -27,14 +27,15 @@ const addNotification = async ({ subscriptionId, message }) => {
 
   // Note: SubscriptionManager duplicates this logic, so if you change it here, change it there too
 
-  // Delete existing notification with same SID (if any)
-  if (message.sid) {
-    await db.notifications.where({ subscriptionId, sid: message.sid }).delete();
+  // Delete existing notification with same sequence ID (if any)
+  const sequenceId = message.sequence_id || message.id;
+  if (sequenceId) {
+    await db.notifications.where({ subscriptionId, sequenceId }).delete();
   }
 
   // Add notification to database
   await db.notifications.add({
-    ...messageWithSID(message),
+    ...messageWithSequenceId(message),
     subscriptionId,
     new: 1, // New marker (used for bubble indicator); cannot be boolean; Dexie index limitation
   });

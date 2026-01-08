@@ -103,9 +103,9 @@ export const maybeActionErrors = (notification) => {
   return actionErrors;
 };
 
-export const messageWithSID = (message) => {
-  if (!message.sid) {
-    message.sid = message.id;
+export const messageWithSequenceId = (message) => {
+  if (!message.sequenceId) {
+    message.sequenceId = message.sequence_id || message.id;
   }
   return message;
 };

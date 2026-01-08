@@ -684,7 +684,7 @@ func TestServer_PublishWithSIDInPath(t *testing.T) {
 	response := request(t, s, "POST", "/mytopic/sid", "message", nil)
 	msg := toMessage(t, response.Body.String())
 	require.NotEmpty(t, msg.ID)
-	require.Equal(t, "sid", msg.SID)
+	require.Equal(t, "sid", msg.SequenceID)
 }
 
 func TestServer_PublishWithSIDInHeader(t *testing.T) {
@@ -695,7 +695,7 @@ func TestServer_PublishWithSIDInHeader(t *testing.T) {
 	})
 	msg := toMessage(t, response.Body.String())
 	require.NotEmpty(t, msg.ID)
-	require.Equal(t, "sid", msg.SID)
+	require.Equal(t, "sid", msg.SequenceID)
 }
 
 func TestServer_PublishWithSIDInPathAndHeader(t *testing.T) {
@@ -706,7 +706,7 @@ func TestServer_PublishWithSIDInPathAndHeader(t *testing.T) {
 	})
 	msg := toMessage(t, response.Body.String())
 	require.NotEmpty(t, msg.ID)
-	require.Equal(t, "sid1", msg.SID) // SID in path has priority over SID in header
+	require.Equal(t, "sid1", msg.SequenceID) // Sequence ID in path has priority over header
 }
 
 func TestServer_PublishWithSIDInQuery(t *testing.T) {
@@ -715,7 +715,7 @@ func TestServer_PublishWithSIDInQuery(t *testing.T) {
 	response := request(t, s, "PUT", "/mytopic?sid=sid1", "message", nil)
 	msg := toMessage(t, response.Body.String())
 	require.NotEmpty(t, msg.ID)
-	require.Equal(t, "sid1", msg.SID)
+	require.Equal(t, "sid1", msg.SequenceID)
 }
 
 func TestServer_PublishWithSIDViaGet(t *testing.T) {
@@ -724,7 +724,7 @@ func TestServer_PublishWithSIDViaGet(t *testing.T) {
 	response := request(t, s, "GET", "/mytopic/publish?sid=sid1", "message", nil)
 	msg := toMessage(t, response.Body.String())
 	require.NotEmpty(t, msg.ID)
-	require.Equal(t, "sid1", msg.SID)
+	require.Equal(t, "sid1", msg.SequenceID)
 }
 
 func TestServer_PublishWithInvalidSIDInPath(t *testing.T) {

@@ -47,22 +47,25 @@ class Poller {
     // Filter out notifications older than the prune threshold
     const deleteAfterSeconds = await prefs.deleteAfter();
     const pruneThresholdTimestamp = deleteAfterSeconds > 0 ? Math.round(Date.now() / 1000) - deleteAfterSeconds : 0;
-    const recentNotifications = pruneThresholdTimestamp > 0 ? notifications.filter((n) => n.time >= pruneThresholdTimestamp) : notifications;
+    const recentNotifications =
+      pruneThresholdTimestamp > 0 ? notifications.filter((n) => n.time >= pruneThresholdTimestamp) : notifications;
 
     // Find the latest notification for each sequence ID
-    const latestBySid = this.latestNotificationsBySid(recentNotifications);
+    const latestBySequenceId = this.latestNotificationsBySequenceId(recentNotifications);
 
     // Delete all existing notifications for which the latest notification is marked as deleted
-    const deletedSids = Object.entries(latestBySid)
+    const deletedSequenceIds = Object.entries(latestBySequenceId)
       .filter(([, notification]) => notification.deleted)
-      .map(([sid]) => sid);
-    if (deletedSids.length > 0) {
-      console.log(`[Poller] Deleting notifications with deleted sequence IDs for ${subscription.id}`, deletedSids);
-      await Promise.all(deletedSids.map((sid) => subscriptionManager.deleteNotificationBySid(subscription.id, sid)));
+      .map(([sequenceId]) => sequenceId);
+    if (deletedSequenceIds.length > 0) {
+      console.log(`[Poller] Deleting notifications with deleted sequence IDs for ${subscription.id}`, deletedSequenceIds);
+      await Promise.all(
+        deletedSequenceIds.map((sequenceId) => subscriptionManager.deleteNotificationBySequenceId(subscription.id, sequenceId))
+      );
     }
 
     // Add only the latest notification for each non-deleted sequence
-    const notificationsToAdd = Object.values(latestBySid).filter((n) => !n.deleted);
+    const notificationsToAdd = Object.values(latestBySequenceId).filter((n) => !n.deleted);
     if (notificationsToAdd.length > 0) {
       console.log(`[Poller] Adding ${notificationsToAdd.length} notification(s) for ${subscription.id}`);
       await subscriptionManager.addNotifications(subscription.id, notificationsToAdd);
@@ -82,18 +85,18 @@ class Poller {
   }
 
   /**
-   * Groups notifications by sid and returns only the latest (highest time) for each sequence.
-   * Returns an object mapping sid -> latest notification.
+   * Groups notifications by sequenceId and returns only the latest (highest time) for each sequence.
+   * Returns an object mapping sequenceId -> latest notification.
    */
-  latestNotificationsBySid(notifications) {
-    const latestBySid = {};
+  latestNotificationsBySequenceId(notifications) {
+    const latestBySequenceId = {};
     notifications.forEach((notification) => {
-      const sid = notification.sid || notification.id;
-      if (!(sid in latestBySid) || notification.time >= latestBySid[sid].time) {
-        latestBySid[sid] = notification;
+      const sequenceId = notification.sequence_id || notification.id;
+      if (!(sequenceId in latestBySequenceId) || notification.time >= latestBySequenceId[sequenceId].time) {
+        latestBySequenceId[sequenceId] = notification;
       }
     });
-    return latestBySid;
+    return latestBySequenceId;
   }
 }
 
