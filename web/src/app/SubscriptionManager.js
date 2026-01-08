@@ -15,7 +15,7 @@ class SubscriptionManager {
     return Promise.all(
       subscriptions.map(async (s) => ({
         ...s,
-        new: await this.db.notifications.where({ subscriptionId: s.id, new: 1 }).count(),
+        new: await this.db.notifications.where({ subscriptionId: s.id, new: 1 }).count()
       }))
     );
   }
@@ -83,7 +83,7 @@ class SubscriptionManager {
       baseUrl,
       topic,
       mutedUntil: 0,
-      last: null,
+      last: null
     };
 
     await this.db.subscriptions.put(subscription);
@@ -101,7 +101,7 @@ class SubscriptionManager {
 
         const local = await this.add(remote.base_url, remote.topic, {
           displayName: remote.display_name, // May be undefined
-          reservation, // May be null!
+          reservation // May be null!
         });
 
         return local.id;
@@ -171,21 +171,6 @@ class SubscriptionManager {
       .toArray();
   }
 
-  // Collapse notification updates based on sids, keeping only the latest version
-  // Filters out notifications where the latest in the sequence is deleted
-  groupNotificationsBySID(notifications) {
-    const latestBySid = {};
-    notifications.forEach((notification) => {
-      const key = `${notification.subscriptionId}:${notification.sid}`;
-      // Keep only the first (latest by time) notification for each sid
-      if (!(key in latestBySid)) {
-        latestBySid[key] = notification;
-      }
-    });
-    // Filter out notifications where the latest is deleted
-    return Object.values(latestBySid).filter((n) => !n.deleted);
-  }
-
   /** Adds notification, or returns false if it already exists */
   async addNotification(subscriptionId, notification) {
     const exists = await this.db.notifications.get(notification.id);
@@ -200,13 +185,13 @@ class SubscriptionManager {
       await this.db.notifications.add({
         ...messageWithSID(notification),
         subscriptionId,
-        new: 1, // New marker (used for bubble indicator); cannot be boolean; Dexie index limitation
+        new: 1 // New marker (used for bubble indicator); cannot be boolean; Dexie index limitation
       });
 
       // FIXME consider put() for double tab
       // Update subscription last message id (for ?since=... queries)
       await this.db.subscriptions.update(subscriptionId, {
-        last: notification.id,
+        last: notification.id
       });
     } catch (e) {
       console.error(`[SubscriptionManager] Error adding notification`, e);
@@ -222,7 +207,7 @@ class SubscriptionManager {
     const lastNotificationId = notifications.at(-1).id;
     await this.db.notifications.bulkPut(notificationsWithSubscriptionId);
     await this.db.subscriptions.update(subscriptionId, {
-      last: lastNotificationId,
+      last: lastNotificationId
     });
   }
 
@@ -265,19 +250,19 @@ class SubscriptionManager {
 
   async setMutedUntil(subscriptionId, mutedUntil) {
     await this.db.subscriptions.update(subscriptionId, {
-      mutedUntil,
+      mutedUntil
     });
   }
 
   async setDisplayName(subscriptionId, displayName) {
     await this.db.subscriptions.update(subscriptionId, {
-      displayName,
+      displayName
     });
   }
 
   async setReservation(subscriptionId, reservation) {
     await this.db.subscriptions.update(subscriptionId, {
-      reservation,
+      reservation
     });
   }
 

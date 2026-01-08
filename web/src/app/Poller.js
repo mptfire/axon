@@ -1,4 +1,5 @@
 import api from "./Api";
+import prefs from "./Prefs";
 import subscriptionManager from "./SubscriptionManager";
 
 const delayMillis = 2000; // 2 seconds
@@ -42,14 +43,21 @@ class Poller {
 
     const since = subscription.last;
     const notifications = await api.poll(subscription.baseUrl, subscription.topic, since);
-    const latestBySid = this.latestNotificationsBySid(notifications);
 
-    // Delete all existing notifications with a deleted sequence ID
+    // Filter out notifications older than the prune threshold
+    const deleteAfterSeconds = await prefs.deleteAfter();
+    const pruneThresholdTimestamp = deleteAfterSeconds > 0 ? Math.round(Date.now() / 1000) - deleteAfterSeconds : 0;
+    const recentNotifications = pruneThresholdTimestamp > 0 ? notifications.filter((n) => n.time >= pruneThresholdTimestamp) : notifications;
+
+    // Find the latest notification for each sequence ID
+    const latestBySid = this.latestNotificationsBySid(recentNotifications);
+
+    // Delete all existing notifications for which the latest notification is marked as deleted
     const deletedSids = Object.entries(latestBySid)
       .filter(([, notification]) => notification.deleted)
       .map(([sid]) => sid);
     if (deletedSids.length > 0) {
-      console.log(`[Poller] Deleting notifications with deleted sequence IDs for ${subscription.id}`);
+      console.log(`[Poller] Deleting notifications with deleted sequence IDs for ${subscription.id}`, deletedSids);
       await Promise.all(deletedSids.map((sid) => subscriptionManager.deleteNotificationBySid(subscription.id, sid)));
     }
 
