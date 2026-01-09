@@ -65,6 +65,17 @@ func (m *message) Context() log.Context {
 	return fields
 }
 
+// forJSON returns a copy of the message suitable for JSON output.
+// It clears the SequenceID if it equals the ID to reduce redundancy.
+func (m *message) forJSON() *message {
+	if m.SequenceID == m.ID {
+		clone := *m
+		clone.SequenceID = ""
+		return &clone
+	}
+	return m
+}
+
 type attachment struct {
 	Name    string `json:"name"`
 	Type    string `json:"type,omitempty"`
