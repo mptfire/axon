@@ -80,8 +80,9 @@ var (
 	wsPathRegex            = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/ws$`)
 	authPathRegex          = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/auth$`)
 	publishPathRegex       = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/(publish|send|trigger)$`)
-	sidRegex               = topicRegex
 	updatePathRegex        = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/[-_A-Za-z0-9]{1,64}$`)
+	markReadPathRegex      = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/[-_A-Za-z0-9]{1,64}/read$`)
+	sequenceIDRegex        = topicRegex
 
 	webConfigPath                                        = "/config.js"
 	webManifestPath                                      = "/manifest.webmanifest"
@@ -140,7 +141,6 @@ const (
 	firebaseControlTopic     = "~control"                // See Android if changed
 	firebasePollTopic        = "~poll"                   // See iOS if changed (DISABLED for now)
 	emptyMessageBody         = "triggered"               // Used when a message body is empty
-	deletedMessageBody       = "deleted"                 // Used when a message is deleted
 	newMessageBody           = "New message"             // Used in poll requests as generic message
 	defaultAttachmentMessage = "You received a file: %s" // Used if message body is empty, and there is an attachment
 	encodingBase64           = "base64"                  // Used mainly for binary UnifiedPush messages
@@ -550,6 +550,8 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)
 	} else if r.Method == http.MethodDelete && updatePathRegex.MatchString(r.URL.Path) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handleDelete))(w, r, v)
+	} else if r.Method == http.MethodPut && markReadPathRegex.MatchString(r.URL.Path) {
+		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handleMarkRead))(w, r, v)
 	} else if r.Method == http.MethodGet && publishPathRegex.MatchString(r.URL.Path) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)
 	} else if r.Method == http.MethodGet && jsonPathRegex.MatchString(r.URL.Path) {
@@ -921,10 +923,8 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, v *visitor
 	if e != nil {
 		return e.With(t)
 	}
-	// Create a delete message: empty body, same SequenceID, deleted flag set
-	m := newDefaultMessage(t.ID, deletedMessageBody)
-	m.SequenceID = sequenceID
-	m.Deleted = true
+	// Create a delete message with event type message_delete
+	m := newActionMessage(messageDeleteEvent, t.ID, sequenceID)
 	m.Sender = v.IP()
 	m.User = v.MaybeUserID()
 	m.Expires = time.Unix(m.Time, 0).Add(v.Limits().MessageExpiryDuration).Unix()
@@ -945,6 +945,50 @@ func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, v *visitor
 		return err
 	}
 	logvrm(v, r, m).Tag(tagPublish).Debug("Deleted message with sequence ID %s", sequenceID)
+	s.mu.Lock()
+	s.messages++
+	s.mu.Unlock()
+	return s.writeJSON(w, m)
+}
+
+func (s *Server) handleMarkRead(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	t, err := fromContext[*topic](r, contextTopic)
+	if err != nil {
+		return err
+	}
+	vrate, err := fromContext[*visitor](r, contextRateVisitor)
+	if err != nil {
+		return err
+	}
+	if !util.ContainsIP(s.config.VisitorRequestExemptPrefixes, v.ip) && !vrate.MessageAllowed() {
+		return errHTTPTooManyRequestsLimitMessages.With(t)
+	}
+	sequenceID, e := s.sequenceIDFromPath(r.URL.Path)
+	if e != nil {
+		return e.With(t)
+	}
+	// Create a read message with event type message_read
+	m := newActionMessage(messageReadEvent, t.ID, sequenceID)
+	m.Sender = v.IP()
+	m.User = v.MaybeUserID()
+	m.Expires = time.Unix(m.Time, 0).Add(v.Limits().MessageExpiryDuration).Unix()
+	// Publish to subscribers
+	if err := t.Publish(v, m); err != nil {
+		return err
+	}
+	// Send to Firebase for Android clients
+	if s.firebaseClient != nil {
+		go s.sendToFirebase(v, m)
+	}
+	// Send to web push endpoints
+	if s.config.WebPushPublicKey != "" {
+		go s.publishToWebPushEndpoints(v, m)
+	}
+	// Add to message cache
+	if err := s.messageCache.AddMessage(m); err != nil {
+		return err
+	}
+	logvrm(v, r, m).Tag(tagPublish).Debug("Marked message as read with sequence ID %s", sequenceID)
 	s.mu.Lock()
 	s.messages++
 	s.mu.Unlock()
@@ -1017,10 +1061,10 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 	} else {
 		sequenceID := readParam(r, "x-sequence-id", "sequence-id", "sid")
 		if sequenceID != "" {
-			if sidRegex.MatchString(sequenceID) {
+			if sequenceIDRegex.MatchString(sequenceID) {
 				m.SequenceID = sequenceID
 			} else {
-				return false, false, "", "", "", false, errHTTPBadRequestSIDInvalid
+				return false, false, "", "", "", false, errHTTPBadRequestSequenceIDInvalid
 			}
 		} else {
 			m.SequenceID = m.ID
@@ -1767,8 +1811,8 @@ func (s *Server) topicsFromPath(path string) ([]*topic, string, error) {
 // sequenceIDFromPath returns the sequence ID from a POST path like /mytopic/sequenceIdHere
 func (s *Server) sequenceIDFromPath(path string) (string, *errHTTP) {
 	parts := strings.Split(path, "/")
-	if len(parts) != 3 {
-		return "", errHTTPBadRequestSIDInvalid
+	if len(parts) < 3 {
+		return "", errHTTPBadRequestSequenceIDInvalid
 	}
 	return parts[2], nil
 }

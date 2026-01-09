@@ -9,6 +9,7 @@ import { dbAsync } from "../src/app/db";
 import { toNotificationParams, icon, badge } from "../src/app/notificationUtils";
 import initI18n from "../src/app/i18n";
 import { messageWithSequenceId } from "../src/app/utils";
+import { EVENT_MESSAGE, EVENT_MESSAGE_DELETE, EVENT_MESSAGE_READ } from "../src/app/events";
 
 /**
  * General docs for service workers and PWAs:
@@ -62,11 +63,6 @@ const handlePushMessage = async (data) => {
   // Add notification to database
   await addNotification({ subscriptionId, message });
 
-  // Don't show a notification for deleted messages
-  if (message.deleted) {
-    return;
-  }
-
   // Broadcast the message to potentially play a sound
   broadcastChannel.postMessage(message);
 
@@ -78,6 +74,51 @@ const handlePushMessage = async (data) => {
       topicRoute: new URL(message.topic, self.location.origin).toString(),
     })
   );
+};
+
+/**
+ * Handle a message_delete event: delete the notification from the database.
+ */
+const handlePushMessageDelete = async (data) => {
+  const { subscription_id: subscriptionId, message } = data;
+  const db = await dbAsync();
+
+  // Delete notification with the same sequence_id
+  const sequenceId = message.sequence_id;
+  if (sequenceId) {
+    console.log("[ServiceWorker] Deleting notification with sequenceId", { subscriptionId, sequenceId });
+    await db.notifications.where({ subscriptionId, sequenceId }).delete();
+  }
+
+  // Update subscription last message id (for ?since=... queries)
+  await db.subscriptions.update(subscriptionId, {
+    last: message.id,
+  });
+};
+
+/**
+ * Handle a message_read event: mark the notification as read.
+ */
+const handlePushMessageRead = async (data) => {
+  const { subscription_id: subscriptionId, message } = data;
+  const db = await dbAsync();
+
+  // Mark notification as read (set new = 0)
+  const sequenceId = message.sequence_id;
+  if (sequenceId) {
+    console.log("[ServiceWorker] Marking notification as read", { subscriptionId, sequenceId });
+    await db.notifications.where({ subscriptionId, sequenceId }).modify({ new: 0 });
+  }
+
+  // Update subscription last message id (for ?since=... queries)
+  await db.subscriptions.update(subscriptionId, {
+    last: message.id,
+  });
+
+  // Update badge count
+  const badgeCount = await db.notifications.where({ new: 1 }).count();
+  console.log("[ServiceWorker] Setting new app badge count", { badgeCount });
+  self.navigator.setAppBadge?.(badgeCount);
 };
 
 /**
@@ -114,8 +155,12 @@ const handlePushUnknown = async (data) => {
  * @param {object} data see server/types.go, type webPushPayload
  */
 const handlePush = async (data) => {
-  if (data.event === "message") {
+  if (data.event === EVENT_MESSAGE) {
     await handlePushMessage(data);
+  } else if (data.event === EVENT_MESSAGE_DELETE) {
+    await handlePushMessageDelete(data);
+  } else if (data.event === EVENT_MESSAGE_READ) {
+    await handlePushMessageRead(data);
   } else if (data.event === "subscription_expiring") {
     await handlePushSubscriptionExpiring(data);
   } else {

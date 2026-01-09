@@ -51,7 +51,7 @@ const (
 			content_type TEXT NOT NULL,
 			encoding TEXT NOT NULL,
 			published INT NOT NULL,
-			deleted INT NOT NULL
+			event TEXT NOT NULL
 		);
 		CREATE INDEX IF NOT EXISTS idx_mid ON messages (mid);
 		CREATE INDEX IF NOT EXISTS idx_sequence_id ON messages (sequence_id);
@@ -69,58 +69,57 @@ const (
 		COMMIT;
 	`
 	insertMessageQuery = `
-		INSERT INTO messages (mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, attachment_deleted, sender, user, content_type, encoding, published, deleted)
+		INSERT INTO messages (mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, attachment_deleted, sender, user, content_type, encoding, published, event)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	deleteMessageQuery                = `DELETE FROM messages WHERE mid = ?`
 	updateMessagesForTopicExpiryQuery = `UPDATE messages SET expires = ? WHERE topic = ?`
 	selectRowIDFromMessageID          = `SELECT id FROM messages WHERE mid = ?` // Do not include topic, see #336 and TestServer_PollSinceID_MultipleTopics
 	selectMessagesByIDQuery           = `
-		SELECT mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, deleted
+		SELECT mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, event
 		FROM messages
 		WHERE mid = ?
 	`
 	selectMessagesSinceTimeQuery = `
-		SELECT mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, deleted
+		SELECT mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, event
 		FROM messages
 		WHERE topic = ? AND time >= ? AND published = 1
 		ORDER BY time, id
 	`
 	selectMessagesSinceTimeIncludeScheduledQuery = `
-		SELECT mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, deleted
+		SELECT mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, event
 		FROM messages
 		WHERE topic = ? AND time >= ?
 		ORDER BY time, id
 	`
 	selectMessagesSinceIDQuery = `
-		SELECT mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, deleted
+		SELECT mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, event
 		FROM messages
 		WHERE topic = ? AND id > ? AND published = 1
 		ORDER BY time, id
 	`
 	selectMessagesSinceIDIncludeScheduledQuery = `
-		SELECT mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, deleted
+		SELECT mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, event
 		FROM messages
 		WHERE topic = ? AND (id > ? OR published = 0)
 		ORDER BY time, id
 	`
 	selectMessagesLatestQuery = `
-		SELECT mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, deleted
+		SELECT mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, event
 		FROM messages
 		WHERE topic = ? AND published = 1
 		ORDER BY time DESC, id DESC
 		LIMIT 1
 	`
 	selectMessagesDueQuery = `
-		SELECT mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, deleted
+		SELECT mid, sequence_id, time, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding, event
 		FROM messages
 		WHERE time <= ? AND published = 0
 		ORDER BY time, id
 	`
-	selectMessagesExpiredQuery      = `SELECT mid FROM messages WHERE expires <= ? AND published = 1`
-	updateMessagePublishedQuery     = `UPDATE messages SET published = 1 WHERE mid = ?`
-	updateMessageDeletedQuery       = `UPDATE messages SET deleted = 1 WHERE mid = ?`
-	selectMessagesCountQuery        = `SELECT COUNT(*) FROM messages`
+	selectMessagesExpiredQuery  = `SELECT mid FROM messages WHERE expires <= ? AND published = 1`
+	updateMessagePublishedQuery = `UPDATE messages SET published = 1 WHERE mid = ?`
+	selectMessagesCountQuery    = `SELECT COUNT(*) FROM messages`
 	selectMessageCountPerTopicQuery = `SELECT topic, COUNT(*) FROM messages GROUP BY topic`
 	selectTopicsQuery               = `SELECT topic FROM messages GROUP BY topic`
 
@@ -268,7 +267,7 @@ const (
 	//13 -> 14
 	migrate13To14AlterMessagesTableQuery = `
 		ALTER TABLE messages ADD COLUMN sequence_id TEXT NOT NULL DEFAULT('');
-		ALTER TABLE messages ADD COLUMN deleted INT NOT NULL DEFAULT('0');
+		ALTER TABLE messages ADD COLUMN event TEXT NOT NULL DEFAULT('message');
 		CREATE INDEX IF NOT EXISTS idx_sequence_id ON messages (sequence_id);
 	`
 )
@@ -381,7 +380,7 @@ func (c *messageCache) addMessages(ms []*message) error {
 	}
 	defer stmt.Close()
 	for _, m := range ms {
-		if m.Event != messageEvent {
+		if m.Event != messageEvent && m.Event != messageDeleteEvent && m.Event != messageReadEvent {
 			return errUnexpectedMessageType
 		}
 		published := m.Time <= time.Now().Unix()
@@ -431,7 +430,7 @@ func (c *messageCache) addMessages(ms []*message) error {
 			m.ContentType,
 			m.Encoding,
 			published,
-			m.Deleted,
+			m.Event,
 		)
 		if err != nil {
 			return err
@@ -720,8 +719,7 @@ func readMessages(rows *sql.Rows) ([]*message, error) {
 func readMessage(rows *sql.Rows) (*message, error) {
 	var timestamp, expires, attachmentSize, attachmentExpires int64
 	var priority int
-	var id, sequenceID, topic, msg, title, tagsStr, click, icon, actionsStr, attachmentName, attachmentType, attachmentURL, sender, user, contentType, encoding string
-	var deleted bool
+	var id, sequenceID, topic, msg, title, tagsStr, click, icon, actionsStr, attachmentName, attachmentType, attachmentURL, sender, user, contentType, encoding, event string
 	err := rows.Scan(
 		&id,
 		&sequenceID,
@@ -744,7 +742,7 @@ func readMessage(rows *sql.Rows) (*message, error) {
 		&user,
 		&contentType,
 		&encoding,
-		&deleted,
+		&event,
 	)
 	if err != nil {
 		return nil, err
@@ -782,7 +780,7 @@ func readMessage(rows *sql.Rows) (*message, error) {
 		SequenceID:  sequenceID,
 		Time:        timestamp,
 		Expires:     expires,
-		Event:       messageEvent,
+		Event:       event,
 		Topic:       topic,
 		Message:     msg,
 		Title:       title,
@@ -796,7 +794,6 @@ func readMessage(rows *sql.Rows) (*message, error) {
 		User:        user,
 		ContentType: contentType,
 		Encoding:    encoding,
-		Deleted:     deleted,
 	}, nil
 }
 

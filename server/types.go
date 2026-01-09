@@ -12,10 +12,12 @@ import (
 
 // List of possible events
 const (
-	openEvent        = "open"
-	keepaliveEvent   = "keepalive"
-	messageEvent     = "message"
-	pollRequestEvent = "poll_request"
+	openEvent          = "open"
+	keepaliveEvent     = "keepalive"
+	messageEvent       = "message"
+	messageDeleteEvent = "message_delete"
+	messageReadEvent   = "message_read"
+	pollRequestEvent   = "poll_request"
 )
 
 const (
@@ -41,7 +43,6 @@ type message struct {
 	PollID      string      `json:"poll_id,omitempty"`
 	ContentType string      `json:"content_type,omitempty"` // text/plain by default (if empty), or text/markdown
 	Encoding    string      `json:"encoding,omitempty"`     // Empty for raw UTF-8, or "base64" for encoded bytes
-	Deleted     bool        `json:"deleted,omitempty"`      // True if message is marked as deleted
 	Sender      netip.Addr  `json:"-"`                      // IP address of uploader, used for rate limiting
 	User        string      `json:"-"`                      // UserID of the uploader, used to associated attachments
 }
@@ -149,6 +150,13 @@ func newPollRequestMessage(topic, pollID string) *message {
 	return m
 }
 
+// newActionMessage creates a new action message (message_delete or message_read)
+func newActionMessage(event, topic, sequenceID string) *message {
+	m := newMessage(event, topic, "")
+	m.SequenceID = sequenceID
+	return m
+}
+
 func validMessageID(s string) bool {
 	return util.ValidRandomString(s, messageIDLength)
 }
@@ -227,7 +235,7 @@ func parseQueryFilters(r *http.Request) (*queryFilter, error) {
 }
 
 func (q *queryFilter) Pass(msg *message) bool {
-	if msg.Event != messageEvent {
+	if msg.Event != messageEvent && msg.Event != messageDeleteEvent && msg.Event != messageReadEvent {
 		return true // filters only apply to messages
 	} else if q.ID != "" && msg.ID != q.ID {
 		return false

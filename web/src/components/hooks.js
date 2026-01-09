@@ -12,6 +12,7 @@ import accountApi from "../app/AccountApi";
 import { UnauthorizedError } from "../app/errors";
 import notifier from "../app/Notifier";
 import prefs from "../app/Prefs";
+import { EVENT_MESSAGE_DELETE, EVENT_MESSAGE_READ } from "../app/events";
 
 /**
  * Wire connectionManager and subscriptionManager so that subscriptions are updated when the connection
@@ -53,13 +54,18 @@ export const useConnectionListeners = (account, subscriptions, users, webPushTop
         // Note: This logic is duplicated in the Android app in SubscriberService::onNotificationReceived()
         //       and FirebaseService::handleMessage().
 
-        // Delete existing notification with same sequenceId, if any
-        const sequenceId = notification.sequence_id || notification.id;
-        if (sequenceId) {
-          await subscriptionManager.deleteNotificationBySequenceId(subscriptionId, sequenceId);
-        }
-        // Add notification to database
-        if (!notification.deleted) {
+        if (notification.event === EVENT_MESSAGE_DELETE && notification.sequence_id) {
+          // Handle delete: remove notification from database
+          await subscriptionManager.deleteNotificationBySequenceId(subscriptionId, notification.sequence_id);
+        } else if (notification.event === EVENT_MESSAGE_READ && notification.sequence_id) {
+          // Handle read: mark notification as read
+          await subscriptionManager.markNotificationReadBySequenceId(subscriptionId, notification.sequence_id);
+        } else {
+          // Regular message: delete existing and add new
+          const sequenceId = notification.sequence_id || notification.id;
+          if (sequenceId) {
+            await subscriptionManager.deleteNotificationBySequenceId(subscriptionId, sequenceId);
+          }
           const added = await subscriptionManager.addNotification(subscriptionId, notification);
           if (added) {
             await subscriptionManager.notify(subscriptionId, notification);

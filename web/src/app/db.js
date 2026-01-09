@@ -13,7 +13,7 @@ const createDatabase = (username) => {
 
   db.version(3).stores({
     subscriptions: "&id,baseUrl,[baseUrl+mutedUntil]",
-    notifications: "&id,sequenceId,subscriptionId,time,new,deleted,[subscriptionId+new],[subscriptionId+sequenceId]",
+    notifications: "&id,sequenceId,subscriptionId,time,new,[subscriptionId+new],[subscriptionId+sequenceId]",
     users: "&baseUrl,username",
     prefs: "&key"
   });
