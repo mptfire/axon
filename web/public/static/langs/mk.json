@@ -58,5 +58,12 @@
     "nav_upgrade_banner_label": "Надградете на ntfy Pro",
     "nav_upgrade_banner_description": "Резервирајте теми, повеќе пораки и е-пораки и поголеми прилози",
     "alert_notification_permission_required_title": "Известувањата се исклучени",
-    "alert_notification_permission_required_description": "Дајте му дозвола на вашиот прелистувач да прикажува известувања"
+    "alert_notification_permission_required_description": "Дајте му дозвола на вашиот прелистувач да прикажува известувања",
+    "nav_button_muted": "Известувањата се загушени",
+    "alert_not_supported_title": "Известувањата не се поддржани",
+    "alert_not_supported_description": "Известувањата не се поддржани во вашиот прелистувач",
+    "alert_not_supported_context_description": "Известувањата се поддржани само преку HTTPS. Ова е ограничување на <mdnLink>Notifications API </mdnLink>.",
+    "notifications_list": "Список на известувања",
+    "notifications_list_item": "Известување",
+    "notifications_mark_read": "Означи како прочитано"
 }
