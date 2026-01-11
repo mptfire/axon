@@ -1599,4 +1599,15 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-Nothing to see here yet.
+### ntfy Android app v1.22.x (UNRELEASED)
+
+**Features:**
+
+* Support for self-signed certs and client certs for mTLS (#215, #530, ntfy-android#149)
+
+**Bug fixes + maintenance:**
+
+* Use server-specific user for attachment downloads (#1529, thanks to @ManInDark for reporting)
+* Fix crash in sharing dialog (thanks to @rogeliodh)
+* Fix crash when exiting multi-delete in detail view
+* Fix potential crashes with icon downloader and backuper
