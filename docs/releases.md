@@ -4,13 +4,40 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Current stable releases
 
-| Component                                | Version | Release date |
-|------------------------------------------|---------|--------------|
-| ntfy server                              | v2.15.0 | Nov 16, 2025 |
-| ntfy Android app (_is being rolled out_) | v1.20.0 | Dec 28, 2025 |
-| ntfy iOS app                             | v1.3    | Nov 26, 2023 |
+| Component        | Version | Release date |
+|------------------|---------|--------------|
+| ntfy server      | v2.15.0 | Nov 16, 2025 |
+| ntfy Android app | v1.21.1 | Jan 6, 2025  |
+| ntfy iOS app     | v1.3    | Nov 26, 2023 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+## ntfy Android app v1.21.1
+Released January 6, 2026
+
+This is the first feature release in a long time. After all the SDK updates, fixes to comply with the Google Play policies
+and the framework updates, this release ships a lot of highly requested features: Sending messages through the app (WhatsApp-style),
+support for passing headers to your proxy, an in-app language switcher, and more.
+
+If you are waiting for a feature, please 👍 the corresponding [GitHub issue](https://github.com/binwiederhier/ntfy/issues?q=is%3Aissue%20state%3Aopen%20sort%3Areactions-%2B1-desc).
+If you like ntfy, please consider purchasing [ntfy Pro](https://ntfy.sh/app) to support us.
+
+**Features:**
+
+* Allow publishing messages through the message bar and publish dialog ([#98](https://github.com/binwiederhier/ntfy/issues/98), [ntfy-android#144](https://github.com/binwiederhier/ntfy-android/pull/144))
+* Define custom HTTP headers to support authenticated proxies, tunnels and SSO ([ntfy-android#116](https://github.com/binwiederhier/ntfy-android/issues/116), [#1018](https://github.com/binwiederhier/ntfy/issues/1018), [ntfy-android#132](https://github.com/binwiederhier/ntfy-android/pull/132), [ntfy-android#146](https://github.com/binwiederhier/ntfy-android/pull/146), thanks to [@CrazyWolf13](https://github.com/CrazyWolf13))
+* Implement UnifiedPush "raise to foreground" requirement ([ntfy-android#98](https://github.com/binwiederhier/ntfy-android/pull/98), [ntfy-android#148](https://github.com/binwiederhier/ntfy-android/pull/148), thanks to [@p1gp1g](https://github.com/p1gp1g))
+* Language selector to allow overriding the system language ([#1508](https://github.com/binwiederhier/ntfy/issues/1508), [ntfy-android#145](https://github.com/binwiederhier/ntfy-android/pull/145), thanks to [@hudsonm62](https://github.com/hudsonm62) for reporting)
+* Highlight phone numbers and email addresses in notifications ([#957](https://github.com/binwiederhier/ntfy/issues/957), [ntfy-android#71](https://github.com/binwiederhier/ntfy-android/pull/71), thanks to [@brennenputh](https://github.com/brennenputh), and [@XylenSky](https://github.com/XylenSky) for reporting)
+* Support for port and display name in [ntfy://](subscribe/phone.md#ntfy-links) links ([ntfy-android#130](https://github.com/binwiederhier/ntfy-android/pull/130), thanks to [@godovski](https://github.com/godovski))
+
+**Bug fixes + maintenance:**
+
+* Add support for (technically incorrect) 'image/jpg' MIME type ([ntfy-android#142](https://github.com/binwiederhier/ntfy-android/pull/142), thanks to [@Murilobeluco](https://github.com/Murilobeluco))
+* Unify "copy to clipboard" notifications, use Android 13 style ([ntfy-android#61](https://github.com/binwiederhier/ntfy-android/pull/61), thanks to [@thgoebel](https://github.com/thgoebel))
+* Fix crash in user add dialog (onAddUser)
+* Fix ForegroundServiceDidNotStartInTimeException (attempt 2, see [#1520](https://github.com/binwiederhier/ntfy/issues/1520))
+* Hide "Exact alarms" setting if battery optimization exemption has been granted ([#1456](https://github.com/binwiederhier/ntfy/issues/1456), thanks for reporting [@HappyLer](https://github.com/HappyLer))
 
 ## ntfy Android app v1.20.0
 Released December 28, 2025
@@ -1572,21 +1599,4 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-### ntfy Android app v1.21.1-rc1 (IN TESTING)
-
-**Features:**
-
-* Allow publishing messages through the message bar and publish dialog ([#98](https://github.com/binwiederhier/ntfy/issues/98), [ntfy-android#144](https://github.com/binwiederhier/ntfy-android/pull/144))
-* Define custom HTTP headers to support authenticated proxies, tunnels and SSO ([ntfy-android#116](https://github.com/binwiederhier/ntfy-android/issues/116), [#1018](https://github.com/binwiederhier/ntfy/issues/1018), [ntfy-android#132](https://github.com/binwiederhier/ntfy-android/pull/132), [ntfy-android#146](https://github.com/binwiederhier/ntfy-android/pull/146), thanks to [@CrazyWolf13](https://github.com/CrazyWolf13))
-* Implement UnifiedPush "raise to foreground" requirement ([ntfy-android#98](https://github.com/binwiederhier/ntfy-android/pull/98), [ntfy-android#148](https://github.com/binwiederhier/ntfy-android/pull/148), thanks to [@p1gp1g](https://github.com/p1gp1g))
-* Language selector to allow overriding the system language ([#1508](https://github.com/binwiederhier/ntfy/issues/1508), [ntfy-android#145](https://github.com/binwiederhier/ntfy-android/pull/145), thanks to [@hudsonm62](https://github.com/hudsonm62) for reporting)
-* Highlight phone numbers and email addresses in notifications ([#957](https://github.com/binwiederhier/ntfy/issues/957), [ntfy-android#71](https://github.com/binwiederhier/ntfy-android/pull/71), thanks to [@brennenputh](https://github.com/brennenputh), and [@XylenSky](https://github.com/XylenSky) for reporting)
-* Support for port and display name in [ntfy://](subscribe/phone.md#ntfy-links) links ([ntfy-android#130](https://github.com/binwiederhier/ntfy-android/pull/130), thanks to [@godovski](https://github.com/godovski))
-
-**Bug fixes + maintenance:**
-
-* Add support for (technically incorrect) 'image/jpg' MIME type ([ntfy-android#142](https://github.com/binwiederhier/ntfy-android/pull/142), thanks to [@Murilobeluco](https://github.com/Murilobeluco))
-* Unify "copy to clipboard" notifications, use Android 13 style ([ntfy-android#61](https://github.com/binwiederhier/ntfy-android/pull/61), thanks to [@thgoebel](https://github.com/thgoebel))
-* Fix crash in user add dialog (onAddUser)
-* Fix ForegroundServiceDidNotStartInTimeException (attempt 2, see [#1520](https://github.com/binwiederhier/ntfy/issues/1520))
-* Hide "Exact alarms" setting if battery optimization exemption has been granted ([#1456](https://github.com/binwiederhier/ntfy/issues/1456), thanks for reporting [@HappyLer](https://github.com/HappyLer))
+Nothing to see here yet.
