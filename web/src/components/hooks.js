@@ -12,7 +12,7 @@ import accountApi from "../app/AccountApi";
 import { UnauthorizedError } from "../app/errors";
 import notifier from "../app/Notifier";
 import prefs from "../app/Prefs";
-import { EVENT_MESSAGE_DELETE, EVENT_MESSAGE_READ } from "../app/events";
+import { EVENT_MESSAGE_DELETE, EVENT_MESSAGE_CLEAR } from "../app/events";
 
 /**
  * Wire connectionManager and subscriptionManager so that subscriptions are updated when the connection
@@ -57,7 +57,7 @@ export const useConnectionListeners = (account, subscriptions, users, webPushTop
         if (notification.event === EVENT_MESSAGE_DELETE && notification.sequence_id) {
           // Handle delete: remove notification from database
           await subscriptionManager.deleteNotificationBySequenceId(subscriptionId, notification.sequence_id);
-        } else if (notification.event === EVENT_MESSAGE_READ && notification.sequence_id) {
+        } else if (notification.event === EVENT_MESSAGE_CLEAR && notification.sequence_id) {
           // Handle read: mark notification as read
           await subscriptionManager.markNotificationReadBySequenceId(subscriptionId, notification.sequence_id);
         } else {

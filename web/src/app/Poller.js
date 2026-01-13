@@ -66,9 +66,7 @@ class Poller {
     }
 
     // Add only the latest notification for each non-deleted sequence
-    const notificationsToAdd = Object
-      .values(latestBySequenceId)
-      .filter(n => n.event === EVENT_MESSAGE);
+    const notificationsToAdd = Object.values(latestBySequenceId).filter((n) => n.event === EVENT_MESSAGE);
     if (notificationsToAdd.length > 0) {
       console.log(`[Poller] Adding ${notificationsToAdd.length} notification(s) for ${subscription.id}`);
       await subscriptionManager.addNotifications(subscription.id, notificationsToAdd);

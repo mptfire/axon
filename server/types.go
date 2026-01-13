@@ -16,7 +16,7 @@ const (
 	keepaliveEvent     = "keepalive"
 	messageEvent       = "message"
 	messageDeleteEvent = "message_delete"
-	messageReadEvent   = "message_read"
+	messageClearEvent  = "message_clear"
 	pollRequestEvent   = "poll_request"
 )
 
@@ -33,7 +33,7 @@ type message struct {
 	Event       string      `json:"event"`                 // One of the above
 	Topic       string      `json:"topic"`
 	Title       string      `json:"title,omitempty"`
-	Message     string      `json:"message"` // Allow empty message body
+	Message     string      `json:"message,omitempty"`
 	Priority    int         `json:"priority,omitempty"`
 	Tags        []string    `json:"tags,omitempty"`
 	Click       string      `json:"click,omitempty"`
@@ -161,7 +161,7 @@ func newPollRequestMessage(topic, pollID string) *message {
 	return m
 }
 
-// newActionMessage creates a new action message (message_delete or message_read)
+// newActionMessage creates a new action message (message_delete or message_clear)
 func newActionMessage(event, topic, sequenceID string) *message {
 	m := newMessage(event, topic, "")
 	m.SequenceID = sequenceID
@@ -246,7 +246,7 @@ func parseQueryFilters(r *http.Request) (*queryFilter, error) {
 }
 
 func (q *queryFilter) Pass(msg *message) bool {
-	if msg.Event != messageEvent && msg.Event != messageDeleteEvent && msg.Event != messageReadEvent {
+	if msg.Event != messageEvent && msg.Event != messageDeleteEvent && msg.Event != messageClearEvent {
 		return true // filters only apply to messages
 	} else if q.ID != "" && msg.ID != q.ID {
 		return false

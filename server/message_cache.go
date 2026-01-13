@@ -117,9 +117,9 @@ const (
 		WHERE time <= ? AND published = 0
 		ORDER BY time, id
 	`
-	selectMessagesExpiredQuery  = `SELECT mid FROM messages WHERE expires <= ? AND published = 1`
-	updateMessagePublishedQuery = `UPDATE messages SET published = 1 WHERE mid = ?`
-	selectMessagesCountQuery    = `SELECT COUNT(*) FROM messages`
+	selectMessagesExpiredQuery      = `SELECT mid FROM messages WHERE expires <= ? AND published = 1`
+	updateMessagePublishedQuery     = `UPDATE messages SET published = 1 WHERE mid = ?`
+	selectMessagesCountQuery        = `SELECT COUNT(*) FROM messages`
 	selectMessageCountPerTopicQuery = `SELECT topic, COUNT(*) FROM messages GROUP BY topic`
 	selectTopicsQuery               = `SELECT topic FROM messages GROUP BY topic`
 
@@ -380,7 +380,7 @@ func (c *messageCache) addMessages(ms []*message) error {
 	}
 	defer stmt.Close()
 	for _, m := range ms {
-		if m.Event != messageEvent && m.Event != messageDeleteEvent && m.Event != messageReadEvent {
+		if m.Event != messageEvent && m.Event != messageDeleteEvent && m.Event != messageClearEvent {
 			return errUnexpectedMessageType
 		}
 		published := m.Time <= time.Now().Unix()

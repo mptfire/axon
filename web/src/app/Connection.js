@@ -52,7 +52,7 @@ class Connection {
         if (data.event === EVENT_OPEN) {
           return;
         }
-        // Accept message, message_delete, and message_read events
+        // Accept message, message_delete, and message_clear events
         const relevantAndValid = isNotificationEvent(data.event) && "id" in data && "time" in data;
         if (!relevantAndValid) {
           console.log(`[Connection, ${this.shortUrl}, ${this.connectionId}] Unexpected message. Ignoring.`);

@@ -9,7 +9,7 @@ import { dbAsync } from "../src/app/db";
 import { toNotificationParams, icon, badge } from "../src/app/notificationUtils";
 import initI18n from "../src/app/i18n";
 import { messageWithSequenceId } from "../src/app/utils";
-import { EVENT_MESSAGE, EVENT_MESSAGE_DELETE, EVENT_MESSAGE_READ } from "../src/app/events";
+import { EVENT_MESSAGE, EVENT_MESSAGE_DELETE, EVENT_MESSAGE_CLEAR } from "../src/app/events";
 
 /**
  * General docs for service workers and PWAs:
@@ -97,9 +97,9 @@ const handlePushMessageDelete = async (data) => {
 };
 
 /**
- * Handle a message_read event: mark the notification as read.
+ * Handle a message_clear event: clear/dismiss the notification.
  */
-const handlePushMessageRead = async (data) => {
+const handlePushMessageClear = async (data) => {
   const { subscription_id: subscriptionId, message } = data;
   const db = await dbAsync();
 
@@ -159,8 +159,8 @@ const handlePush = async (data) => {
     await handlePushMessage(data);
   } else if (data.event === EVENT_MESSAGE_DELETE) {
     await handlePushMessageDelete(data);
-  } else if (data.event === EVENT_MESSAGE_READ) {
-    await handlePushMessageRead(data);
+  } else if (data.event === EVENT_MESSAGE_CLEAR) {
+    await handlePushMessageClear(data);
   } else if (data.event === "subscription_expiring") {
     await handlePushSubscriptionExpiring(data);
   } else {

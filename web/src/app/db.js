@@ -15,7 +15,7 @@ const createDatabase = (username) => {
     subscriptions: "&id,baseUrl,[baseUrl+mutedUntil]",
     notifications: "&id,sequenceId,subscriptionId,time,new,[subscriptionId+new],[subscriptionId+sequenceId]",
     users: "&baseUrl,username",
-    prefs: "&key"
+    prefs: "&key",
   });
 
   return db;

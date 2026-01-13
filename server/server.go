@@ -81,7 +81,7 @@ var (
 	authPathRegex          = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/auth$`)
 	publishPathRegex       = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/(publish|send|trigger)$`)
 	updatePathRegex        = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/[-_A-Za-z0-9]{1,64}$`)
-	markReadPathRegex      = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/[-_A-Za-z0-9]{1,64}/read$`)
+	clearPathRegex         = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/[-_A-Za-z0-9]{1,64}/(read|clear)$`)
 	sequenceIDRegex        = topicRegex
 
 	webConfigPath                                        = "/config.js"
@@ -550,8 +550,8 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)
 	} else if r.Method == http.MethodDelete && updatePathRegex.MatchString(r.URL.Path) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handleDelete))(w, r, v)
-	} else if r.Method == http.MethodPut && markReadPathRegex.MatchString(r.URL.Path) {
-		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handleMarkRead))(w, r, v)
+	} else if r.Method == http.MethodPut && clearPathRegex.MatchString(r.URL.Path) {
+		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handleClear))(w, r, v)
 	} else if r.Method == http.MethodGet && publishPathRegex.MatchString(r.URL.Path) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)
 	} else if r.Method == http.MethodGet && jsonPathRegex.MatchString(r.URL.Path) {
@@ -908,14 +908,14 @@ func (s *Server) handlePublishMatrix(w http.ResponseWriter, r *http.Request, v *
 }
 
 func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	return s.handleActionMessage(w, r, v, messageDeleteEvent, s.sequenceIDFromPath)
+	return s.handleActionMessage(w, r, v, messageDeleteEvent)
 }
 
-func (s *Server) handleMarkRead(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	return s.handleActionMessage(w, r, v, messageReadEvent, s.sequenceIDFromMarkReadPath)
+func (s *Server) handleClear(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	return s.handleActionMessage(w, r, v, messageClearEvent)
 }
 
-func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *visitor, event string, extractSequenceID func(string) (string, *errHTTP)) error {
+func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *visitor, event string) error {
 	t, err := fromContext[*topic](r, contextTopic)
 	if err != nil {
 		return err
@@ -927,7 +927,7 @@ func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *
 	if !util.ContainsIP(s.config.VisitorRequestExemptPrefixes, v.ip) && !vrate.MessageAllowed() {
 		return errHTTPTooManyRequestsLimitMessages.With(t)
 	}
-	sequenceID, e := extractSequenceID(r.URL.Path)
+	sequenceID, e := s.sequenceIDFromPath(r.URL.Path)
 	if e != nil {
 		return e.With(t)
 	}
@@ -1362,7 +1362,7 @@ func (s *Server) handleSubscribeSSE(w http.ResponseWriter, r *http.Request, v *v
 		if err := json.NewEncoder(&buf).Encode(msg.forJSON()); err != nil {
 			return "", err
 		}
-		if msg.Event != messageEvent && msg.Event != messageDeleteEvent && msg.Event != messageReadEvent {
+		if msg.Event != messageEvent && msg.Event != messageDeleteEvent && msg.Event != messageClearEvent {
 			return fmt.Sprintf("event: %s\ndata: %s\n", msg.Event, buf.String()), nil // Browser's .onmessage() does not fire on this!
 		}
 		return fmt.Sprintf("data: %s\n", buf.String()), nil
@@ -1776,15 +1776,6 @@ func (s *Server) topicsFromPath(path string) ([]*topic, string, error) {
 func (s *Server) sequenceIDFromPath(path string) (string, *errHTTP) {
 	parts := strings.Split(path, "/")
 	if len(parts) < 3 {
-		return "", errHTTPBadRequestSequenceIDInvalid
-	}
-	return parts[2], nil
-}
-
-// sequenceIDFromMarkReadPath returns the sequence ID from a path like /mytopic/sequenceIdHere/read
-func (s *Server) sequenceIDFromMarkReadPath(path string) (string, *errHTTP) {
-	parts := strings.Split(path, "/")
-	if len(parts) < 4 || parts[3] != "read" {
 		return "", errHTTPBadRequestSequenceIDInvalid
 	}
 	return parts[2], nil
