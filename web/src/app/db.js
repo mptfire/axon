@@ -18,6 +18,13 @@ const createDatabase = (username) => {
     prefs: "&key",
   });
 
+  // When another connection (e.g., service worker or another tab) wants to upgrade,
+  // close this connection gracefully to allow the upgrade to proceed
+  db.on("versionchange", () => {
+    console.log("[db] versionchange event: closing database");
+    db.close();
+  });
+
   return db;
 };
 
