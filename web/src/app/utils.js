@@ -104,10 +104,10 @@ export const maybeActionErrors = (notification) => {
 };
 
 export const messageWithSequenceId = (message) => {
-  if (!message.sequenceId) {
-    message.sequenceId = message.sequence_id || message.id;
+  if (message.sequenceId) {
+    return message;
   }
-  return message;
+  return { ...message, sequenceId: message.sequence_id || message.id };
 };
 
 export const shuffle = (arr) => {

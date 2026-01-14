@@ -202,9 +202,10 @@ class SubscriptionManager {
 
   /** Adds/replaces notifications, will not throw if they exist */
   async addNotifications(subscriptionId, notifications) {
-    const notificationsWithSubscriptionId = notifications.map((notification) => {
-      return { ...messageWithSequenceId(notification), subscriptionId };
-    });
+    const notificationsWithSubscriptionId = notifications.map((notification) => ({
+      ...messageWithSequenceId(notification),
+      subscriptionId,
+    }));
     const lastNotificationId = notifications.at(-1).id;
     await this.db.notifications.bulkPut(notificationsWithSubscriptionId);
     await this.db.subscriptions.update(subscriptionId, {

@@ -50,7 +50,7 @@ export const isImage = (attachment) => {
 export const icon = "/static/images/ntfy.png";
 export const badge = "/static/images/mask-icon.svg";
 
-export const toNotificationParams = ({ subscriptionId, message, defaultTitle, topicRoute }) => {
+export const toNotificationParams = ({ message, defaultTitle, topicRoute }) => {
   const image = isImage(message.attachment) ? message.attachment.url : undefined;
 
   // https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API

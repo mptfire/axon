@@ -8,8 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/crypto/bcrypt"
-	"heckel.io/ntfy/v2/user"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +22,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 )
 
@@ -3287,6 +3287,212 @@ func TestServer_MessageTemplate_Until100_000(t *testing.T) {
 	require.Equal(t, 400, response.Code)
 	require.Equal(t, 40045, toHTTPError(t, response.Body.String()).Code)
 	require.Contains(t, toHTTPError(t, response.Body.String()).Message, "too many iterations")
+}
+
+func TestServer_DeleteMessage(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+
+	// Publish a message with a sequence ID
+	response := request(t, s, "PUT", "/mytopic/seq123", "original message", nil)
+	require.Equal(t, 200, response.Code)
+	msg := toMessage(t, response.Body.String())
+	require.Equal(t, "seq123", msg.SequenceID)
+	require.Equal(t, "message", msg.Event)
+
+	// Delete the message using DELETE method
+	response = request(t, s, "DELETE", "/mytopic/seq123", "", nil)
+	require.Equal(t, 200, response.Code)
+	deleteMsg := toMessage(t, response.Body.String())
+	require.Equal(t, "seq123", deleteMsg.SequenceID)
+	require.Equal(t, "message_delete", deleteMsg.Event)
+
+	// Poll and verify both messages are returned
+	response = request(t, s, "GET", "/mytopic/json?poll=1", "", nil)
+	require.Equal(t, 200, response.Code)
+	lines := strings.Split(strings.TrimSpace(response.Body.String()), "\n")
+	require.Equal(t, 2, len(lines))
+
+	msg1 := toMessage(t, lines[0])
+	msg2 := toMessage(t, lines[1])
+	require.Equal(t, "message", msg1.Event)
+	require.Equal(t, "message_delete", msg2.Event)
+	require.Equal(t, "seq123", msg1.SequenceID)
+	require.Equal(t, "seq123", msg2.SequenceID)
+}
+
+func TestServer_ClearMessage(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+
+	// Publish a message with a sequence ID
+	response := request(t, s, "PUT", "/mytopic/seq456", "original message", nil)
+	require.Equal(t, 200, response.Code)
+	msg := toMessage(t, response.Body.String())
+	require.Equal(t, "seq456", msg.SequenceID)
+	require.Equal(t, "message", msg.Event)
+
+	// Clear the message using PUT /topic/seq/clear
+	response = request(t, s, "PUT", "/mytopic/seq456/clear", "", nil)
+	require.Equal(t, 200, response.Code)
+	clearMsg := toMessage(t, response.Body.String())
+	require.Equal(t, "seq456", clearMsg.SequenceID)
+	require.Equal(t, "message_clear", clearMsg.Event)
+
+	// Poll and verify both messages are returned
+	response = request(t, s, "GET", "/mytopic/json?poll=1", "", nil)
+	require.Equal(t, 200, response.Code)
+	lines := strings.Split(strings.TrimSpace(response.Body.String()), "\n")
+	require.Equal(t, 2, len(lines))
+
+	msg1 := toMessage(t, lines[0])
+	msg2 := toMessage(t, lines[1])
+	require.Equal(t, "message", msg1.Event)
+	require.Equal(t, "message_clear", msg2.Event)
+	require.Equal(t, "seq456", msg1.SequenceID)
+	require.Equal(t, "seq456", msg2.SequenceID)
+}
+
+func TestServer_ClearMessage_ReadEndpoint(t *testing.T) {
+	// Test that /topic/seq/read also works
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+
+	// Publish a message
+	response := request(t, s, "PUT", "/mytopic/seq789", "original message", nil)
+	require.Equal(t, 200, response.Code)
+
+	// Clear using /read endpoint
+	response = request(t, s, "PUT", "/mytopic/seq789/read", "", nil)
+	require.Equal(t, 200, response.Code)
+	clearMsg := toMessage(t, response.Body.String())
+	require.Equal(t, "seq789", clearMsg.SequenceID)
+	require.Equal(t, "message_clear", clearMsg.Event)
+}
+
+func TestServer_UpdateMessage(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+
+	// Publish original message
+	response := request(t, s, "PUT", "/mytopic/update-seq", "original message", nil)
+	require.Equal(t, 200, response.Code)
+	msg1 := toMessage(t, response.Body.String())
+	require.Equal(t, "update-seq", msg1.SequenceID)
+	require.Equal(t, "original message", msg1.Message)
+
+	// Update the message (same sequence ID, new content)
+	response = request(t, s, "PUT", "/mytopic/update-seq", "updated message", nil)
+	require.Equal(t, 200, response.Code)
+	msg2 := toMessage(t, response.Body.String())
+	require.Equal(t, "update-seq", msg2.SequenceID)
+	require.Equal(t, "updated message", msg2.Message)
+	require.NotEqual(t, msg1.ID, msg2.ID) // Different message IDs
+
+	// Poll and verify both versions are returned
+	response = request(t, s, "GET", "/mytopic/json?poll=1", "", nil)
+	require.Equal(t, 200, response.Code)
+	lines := strings.Split(strings.TrimSpace(response.Body.String()), "\n")
+	require.Equal(t, 2, len(lines))
+
+	polledMsg1 := toMessage(t, lines[0])
+	polledMsg2 := toMessage(t, lines[1])
+	require.Equal(t, "original message", polledMsg1.Message)
+	require.Equal(t, "updated message", polledMsg2.Message)
+	require.Equal(t, "update-seq", polledMsg1.SequenceID)
+	require.Equal(t, "update-seq", polledMsg2.SequenceID)
+}
+
+func TestServer_UpdateMessage_UsingMessageID(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+
+	// Publish original message without a sequence ID
+	response := request(t, s, "PUT", "/mytopic", "original message", nil)
+	require.Equal(t, 200, response.Code)
+	msg1 := toMessage(t, response.Body.String())
+	require.NotEmpty(t, msg1.ID)
+	require.Empty(t, msg1.SequenceID) // No sequence ID provided
+	require.Equal(t, "original message", msg1.Message)
+
+	// Update the message using the message ID as the sequence ID
+	response = request(t, s, "PUT", "/mytopic/"+msg1.ID, "updated message", nil)
+	require.Equal(t, 200, response.Code)
+	msg2 := toMessage(t, response.Body.String())
+	require.Equal(t, msg1.ID, msg2.SequenceID) // Message ID is now used as sequence ID
+	require.Equal(t, "updated message", msg2.Message)
+	require.NotEqual(t, msg1.ID, msg2.ID) // Different message IDs
+
+	// Poll and verify both versions are returned
+	response = request(t, s, "GET", "/mytopic/json?poll=1", "", nil)
+	require.Equal(t, 200, response.Code)
+	lines := strings.Split(strings.TrimSpace(response.Body.String()), "\n")
+	require.Equal(t, 2, len(lines))
+
+	polledMsg1 := toMessage(t, lines[0])
+	polledMsg2 := toMessage(t, lines[1])
+	require.Equal(t, "original message", polledMsg1.Message)
+	require.Equal(t, "updated message", polledMsg2.Message)
+	require.Empty(t, polledMsg1.SequenceID)          // Original has no sequence ID
+	require.Equal(t, msg1.ID, polledMsg2.SequenceID) // Update uses original message ID as sequence ID
+}
+
+func TestServer_DeleteAndClear_InvalidSequenceID(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+
+	// Test invalid sequence ID for delete (returns 404 because route doesn't match)
+	response := request(t, s, "DELETE", "/mytopic/invalid*seq", "", nil)
+	require.Equal(t, 404, response.Code)
+
+	// Test invalid sequence ID for clear (returns 404 because route doesn't match)
+	response = request(t, s, "PUT", "/mytopic/invalid*seq/clear", "", nil)
+	require.Equal(t, 404, response.Code)
+}
+
+func TestServer_DeleteMessage_WithFirebase(t *testing.T) {
+	sender := newTestFirebaseSender(10)
+	s := newTestServer(t, newTestConfig(t))
+	s.firebaseClient = newFirebaseClient(sender, &testAuther{Allow: true})
+
+	// Publish a message
+	response := request(t, s, "PUT", "/mytopic/firebase-seq", "test message", nil)
+	require.Equal(t, 200, response.Code)
+
+	time.Sleep(100 * time.Millisecond) // Firebase publishing happens
+	require.Equal(t, 1, len(sender.Messages()))
+	require.Equal(t, "message", sender.Messages()[0].Data["event"])
+
+	// Delete the message
+	response = request(t, s, "DELETE", "/mytopic/firebase-seq", "", nil)
+	require.Equal(t, 200, response.Code)
+
+	time.Sleep(100 * time.Millisecond) // Firebase publishing happens
+	require.Equal(t, 2, len(sender.Messages()))
+	require.Equal(t, "message_delete", sender.Messages()[1].Data["event"])
+	require.Equal(t, "firebase-seq", sender.Messages()[1].Data["sequence_id"])
+}
+
+func TestServer_ClearMessage_WithFirebase(t *testing.T) {
+	sender := newTestFirebaseSender(10)
+	s := newTestServer(t, newTestConfig(t))
+	s.firebaseClient = newFirebaseClient(sender, &testAuther{Allow: true})
+
+	// Publish a message
+	response := request(t, s, "PUT", "/mytopic/firebase-clear-seq", "test message", nil)
+	require.Equal(t, 200, response.Code)
+
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, 1, len(sender.Messages()))
+
+	// Clear the message
+	response = request(t, s, "PUT", "/mytopic/firebase-clear-seq/clear", "", nil)
+	require.Equal(t, 200, response.Code)
+
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, 2, len(sender.Messages()))
+	require.Equal(t, "message_clear", sender.Messages()[1].Data["event"])
+	require.Equal(t, "firebase-clear-seq", sender.Messages()[1].Data["sequence_id"])
 }
 
 func newTestConfig(t *testing.T) *Config {
