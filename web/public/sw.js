@@ -81,6 +81,13 @@ const handlePushMessageDelete = async (data) => {
     await db.notifications.where({ subscriptionId, sequenceId }).delete();
   }
 
+  // Close browser notification with matching tag
+  const tag = message.sequence_id || message.id;
+  if (tag) {
+    const notifications = await self.registration.getNotifications({ tag });
+    notifications.forEach((notification) => notification.close());
+  }
+
   // Update subscription last message id (for ?since=... queries)
   await db.subscriptions.update(subscriptionId, {
     last: message.id,
@@ -101,6 +108,13 @@ const handlePushMessageClear = async (data) => {
     await db.notifications.where({ subscriptionId, sequenceId }).modify({ new: 0 });
   }
 
+  // Close browser notification with matching tag
+  const tag = message.sequence_id || message.id;
+  if (tag) {
+    const notifications = await self.registration.getNotifications({ tag });
+    notifications.forEach((notification) => notification.close());
+  }
+
   // Update subscription last message id (for ?since=... queries)
   await db.subscriptions.update(subscriptionId, {
     last: message.id,
@@ -108,7 +122,6 @@ const handlePushMessageClear = async (data) => {
 
   // Update badge count
   const badgeCount = await db.notifications.where({ new: 1 }).count();
-  console.log("[ServiceWorker] Setting new app badge count", { badgeCount });
   self.navigator.setAppBadge?.(badgeCount);
 };
 

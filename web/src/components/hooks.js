@@ -55,11 +55,11 @@ export const useConnectionListeners = (account, subscriptions, users, webPushTop
         //       and FirebaseService::handleMessage().
 
         if (notification.event === EVENT_MESSAGE_DELETE && notification.sequence_id) {
-          // Handle delete: remove notification from database
           await subscriptionManager.deleteNotificationBySequenceId(subscriptionId, notification.sequence_id);
+          await notifier.cancel(notification);
         } else if (notification.event === EVENT_MESSAGE_CLEAR && notification.sequence_id) {
-          // Handle read: mark notification as read
           await subscriptionManager.markNotificationReadBySequenceId(subscriptionId, notification.sequence_id);
+          await notifier.cancel(notification);
         } else {
           // Regular message: delete existing and add new
           const sequenceId = notification.sequence_id || notification.id;
