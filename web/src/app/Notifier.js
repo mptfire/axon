@@ -26,7 +26,7 @@ class Notifier {
         subscriptionId: subscription.id,
         message: notification,
         defaultTitle,
-        topicRoute: new URL(routes.forSubscription(subscription), window.location.origin).toString(),
+        topicRoute: new URL(routes.forSubscription(subscription), window.location.origin).toString()
       })
     );
   }
@@ -40,7 +40,7 @@ class Notifier {
       console.log(`[Notifier] Cancelling notification with ${tag}`);
       const registration = await this.serviceWorkerRegistration();
       const notifications = await registration.getNotifications({ tag });
-      notifications.forEach((notification) => notification.close());
+      notifications.forEach(n => n.close());
     } catch (e) {
       console.log(`[Notifier] Error cancelling notification`, e);
     }
@@ -72,7 +72,7 @@ class Notifier {
     if (hasWebPushTopics) {
       return pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlB64ToUint8Array(config.web_push_public_key),
+        applicationServerKey: urlB64ToUint8Array(config.web_push_public_key)
       });
     }
 

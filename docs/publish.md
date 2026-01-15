@@ -1418,22 +1418,23 @@ The JSON message format closely mirrors the format of the message you can consum
 (see [JSON message format](subscribe/api.md#json-message-format) for details), but is not exactly identical. Here's an overview of
 all the supported fields:
 
-| Field      | Required | Type                             | Example                                   | Description                                                           |
-|------------|----------|----------------------------------|-------------------------------------------|-----------------------------------------------------------------------|
-| `topic`    | ✔️       | *string*                         | `topic1`                                  | Target topic name                                                     |
-| `message`  | -        | *string*                         | `Some message`                            | Message body; set to `triggered` if empty or not passed               |
-| `title`    | -        | *string*                         | `Some title`                              | Message [title](#message-title)                                       |
-| `tags`     | -        | *string array*                   | `["tag1","tag2"]`                         | List of [tags](#tags-emojis) that may or not map to emojis            |
-| `priority` | -        | *int (one of: 1, 2, 3, 4, or 5)* | `4`                                       | Message [priority](#message-priority) with 1=min, 3=default and 5=max |
-| `actions`  | -        | *JSON array*                     | *(see [action buttons](#action-buttons))* | Custom [user action buttons](#action-buttons) for notifications       |
-| `click`    | -        | *URL*                            | `https://example.com`                     | Website opened when notification is [clicked](#click-action)          |
-| `attach`   | -        | *URL*                            | `https://example.com/file.jpg`            | URL of an attachment, see [attach via URL](#attach-file-from-a-url)   |
-| `markdown` | -        | *bool*                           | `true`                                    | Set to true if the `message` is Markdown-formatted                    |
-| `icon`     | -        | *string*                         | `https://example.com/icon.png`            | URL to use as notification [icon](#icons)                             |
-| `filename` | -        | *string*                         | `file.jpg`                                | File name of the attachment                                           |
-| `delay`    | -        | *string*                         | `30min`, `9am`                            | Timestamp or duration for delayed delivery                            |
-| `email`    | -        | *e-mail address*                 | `phil@example.com`                        | E-mail address for e-mail notifications                               |
-| `call`     | -        | *phone number or 'yes'*          | `+1222334444` or `yes`                    | Phone number to use for [voice call](#phone-calls)                    |
+| Field         | Required | Type                             | Example                                   | Description                                                                               |
+|---------------|----------|----------------------------------|-------------------------------------------|-------------------------------------------------------------------------------------------|
+| `topic`       | ✔️       | *string*                         | `topic1`                                  | Target topic name                                                                         |
+| `message`     | -        | *string*                         | `Some message`                            | Message body; set to `triggered` if empty or not passed                                   |
+| `title`       | -        | *string*                         | `Some title`                              | Message [title](#message-title)                                                           |
+| `tags`        | -        | *string array*                   | `["tag1","tag2"]`                         | List of [tags](#tags-emojis) that may or not map to emojis                                |
+| `priority`    | -        | *int (one of: 1, 2, 3, 4, or 5)* | `4`                                       | Message [priority](#message-priority) with 1=min, 3=default and 5=max                     |
+| `actions`     | -        | *JSON array*                     | *(see [action buttons](#action-buttons))* | Custom [user action buttons](#action-buttons) for notifications                           |
+| `click`       | -        | *URL*                            | `https://example.com`                     | Website opened when notification is [clicked](#click-action)                              |
+| `attach`      | -        | *URL*                            | `https://example.com/file.jpg`            | URL of an attachment, see [attach via URL](#attach-file-from-a-url)                       |
+| `markdown`    | -        | *bool*                           | `true`                                    | Set to true if the `message` is Markdown-formatted                                        |
+| `icon`        | -        | *string*                         | `https://example.com/icon.png`            | URL to use as notification [icon](#icons)                                                 |
+| `filename`    | -        | *string*                         | `file.jpg`                                | File name of the attachment                                                               |
+| `delay`       | -        | *string*                         | `30min`, `9am`                            | Timestamp or duration for delayed delivery                                                |
+| `email`       | -        | *e-mail address*                 | `phil@example.com`                        | E-mail address for e-mail notifications                                                   |
+| `call`        | -        | *phone number or 'yes'*          | `+1222334444` or `yes`                    | Phone number to use for [voice call](#phone-calls)                                        |
+| `sequence_id` | -        | *string*                         | `my-sequence-123`                         | Sequence ID for [updating/deleting notifications](#updating-deleting-notifications)   |
 
 ## Action buttons
 _Supported on:_ :material-android: :material-apple: :material-firefox:
@@ -2693,6 +2694,134 @@ Here's an example that will open Reddit when the notification is clicked:
         ]
     ]));
     ```
+
+## Updating + deleting notifications
+_Supported on:_ :material-android: :material-firefox:
+
+You can update, clear (mark as read), or delete notifications that have already been delivered. This is useful for scenarios 
+like download progress updates, replacing outdated information, or dismissing notifications that are no longer relevant.
+
+The key concept is the **sequence ID** (`sequence_id` or `sid`): notifications with the same sequence ID are treated as 
+belonging to the same sequence, and clients will update/replace the notification accordingly.
+
+### Updating notifications
+To update an existing notification, publish a new message with the same sequence ID. Clients will replace the previous 
+notification with the new one.
+
+You can either:
+
+1. **Use the message ID**: First publish without a sequence ID, then use the returned message `id` as the sequence ID for updates
+2. **Use a custom sequence ID**: Publish directly to `/<topic>/<sequence_id>` with your own identifier
+
+=== "Using the message ID"
+    ```bash
+    # First, publish a message and capture the message ID
+    $ curl -d "Downloading file..." ntfy.sh/mytopic
+    {"id":"xE73Iyuabi","time":1673542291,...}
+    
+    # Then use the message ID to update it
+    $ curl -d "Download complete!" ntfy.sh/mytopic/xE73Iyuabi
+    ```
+
+=== "Using a custom sequence ID"
+    ```bash
+    # Publish with a custom sequence ID
+    $ curl -d "Downloading file..." ntfy.sh/mytopic/my-download-123
+    
+    # Update using the same sequence ID  
+    $ curl -d "Download complete!" ntfy.sh/mytopic/my-download-123
+    ```
+
+=== "Using the X-Sequence-ID header"
+    ```bash
+    # Publish with a sequence ID via header
+    $ curl -H "X-Sequence-ID: my-download-123" -d "Downloading..." ntfy.sh/mytopic
+    
+    # Update using the same sequence ID
+    $ curl -H "X-Sequence-ID: my-download-123" -d "Done!" ntfy.sh/mytopic
+    ```
+
+You can also set the sequence ID via the `sid` query parameter or when [publishing as JSON](#publish-as-json) using the 
+`sequence_id` field.
+
+### Clearing notifications
+To clear a notification (mark it as read and dismiss it from the notification drawer), send a PUT request to 
+`/<topic>/<sequence_id>/clear` (or `/<topic>/<sequence_id>/read` as an alias):
+
+=== "Command line (curl)"
+    ```bash
+    curl -X PUT ntfy.sh/mytopic/my-download-123/clear
+    ```
+
+=== "HTTP"
+    ```http
+    PUT /mytopic/my-download-123/clear HTTP/1.1
+    Host: ntfy.sh
+    ```
+
+This publishes a `message_clear` event, which tells clients to:
+
+- Mark the notification as read in the app
+- Dismiss the browser/Android notification
+
+### Deleting notifications
+To delete a notification entirely, send a DELETE request to `/<topic>/<sequence_id>`:
+
+=== "Command line (curl)"
+    ```bash
+    curl -X DELETE ntfy.sh/mytopic/my-download-123
+    ```
+
+=== "HTTP"
+    ```http
+    DELETE /mytopic/my-download-123 HTTP/1.1
+    Host: ntfy.sh
+    ```
+
+This publishes a `message_delete` event, which tells clients to:
+
+- Delete the notification from the database
+- Dismiss the browser/Android notification
+
+!!! info
+    Deleted sequences can be revived by publishing a new message with the same sequence ID. The notification will 
+    reappear as a new message.
+
+### Full example
+Here's a complete example showing the lifecycle of a notification with updates, clearing, and deletion:
+
+```bash
+# 1. Create a notification with a custom sequence ID
+$ curl -d "Starting backup..." ntfy.sh/mytopic/backup-2024
+
+# 2. Update the notification with progress
+$ curl -d "Backup 50% complete..." ntfy.sh/mytopic/backup-2024
+
+# 3. Update again when complete
+$ curl -d "Backup finished successfully!" ntfy.sh/mytopic/backup-2024
+
+# 4. Clear the notification (dismiss from notification drawer)
+$ curl -X PUT ntfy.sh/mytopic/backup-2024/clear
+
+# 5. Later, delete the notification entirely
+$ curl -X DELETE ntfy.sh/mytopic/backup-2024
+```
+
+When polling the topic, you'll see the complete sequence of events:
+
+```bash
+$ curl -s "ntfy.sh/mytopic/json?poll=1&since=all" | jq .
+```
+
+```json
+{"id":"abc123","time":1673542291,"event":"message","topic":"mytopic","sequence_id":"backup-2024","message":"Starting backup..."}
+{"id":"def456","time":1673542295,"event":"message","topic":"mytopic","sequence_id":"backup-2024","message":"Backup 50% complete..."}
+{"id":"ghi789","time":1673542300,"event":"message","topic":"mytopic","sequence_id":"backup-2024","message":"Backup finished successfully!"}
+{"id":"jkl012","time":1673542305,"event":"message_clear","topic":"mytopic","sequence_id":"backup-2024"}
+{"id":"mno345","time":1673542400,"event":"message_delete","topic":"mytopic","sequence_id":"backup-2024"}
+```
+
+Clients process these events in order, keeping only the latest state for each sequence ID.
 
 ## Attachments
 _Supported on:_ :material-android: :material-firefox:

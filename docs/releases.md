@@ -1599,12 +1599,22 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
+### ntfy server v2.16.x (UNRELEASED)
+
+**Features:**
+
+* Support for [updating and deleting notifications](publish.md#updating-deleting-notifications): You can now update, 
+  clear (mark as read), or delete notifications using a sequence ID. This enables use cases like progress updates, 
+  replacing outdated notifications, or dismissing notifications from all clients.
+
 ### ntfy Android app v1.22.x (UNRELEASED)
 
 **Features:**
 
 * Support for self-signed certs and client certs for mTLS (#215, #530, ntfy-android#149)
 * Connection error dialog to help diagnose connection issues
+* Support for [updating and deleting notifications](publish.md#updating-deleting-notifications): Notifications with
+  the same sequence ID are updated in place, and `message_delete`/`message_clear` events dismiss notifications
 
 **Bug fixes + maintenance:**
 
