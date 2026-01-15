@@ -946,7 +946,11 @@ _Supported on:_ :material-android: :material-firefox:
 You can **update, clear, or delete notifications** that have already been delivered. This is useful for scenarios
 like download progress updates, replacing outdated information, or dismissing notifications that are no longer relevant.
 
-The key concept is the **sequence ID** (`sequence_id` or `sid`): notifications with the same sequence ID are treated as
+The way this works is that when you publish a message with a specific **sequence ID**, clients that receive the
+notification will treat it as part of a sequence. When a new message with the same sequence ID is published, clients
+will update the existing notification instead of creating a new one. You can also
+
+The key concept is the **sequence ID**: notifications with the same sequence ID are treated as
 belonging to the same sequence, and clients will update/replace the notification accordingly.
 
 <div id="updating-notifications-screenshots" class="screenshots">
@@ -963,7 +967,87 @@ You can either:
 1. **Use the message ID**: First publish without a sequence ID, then use the returned message `id` as the sequence ID for updates
 2. **Use a custom sequence ID**: Publish directly to `/<topic>/<sequence_id>` with your own identifier
 
-Here's an example using a custom sequence ID to update a notification:
+If you don't know the sequence ID ahead of time, you can publish a message first and then use the returned 
+message `id` to update it. The message ID of the first message will then serve as the sequence ID for subsequent updates:
+
+=== "Command line (curl)"
+    ```bash
+    # First, publish a message and capture the message ID
+    curl -d "Downloading file..." ntfy.sh/mytopic
+    # Returns: {"id":"xE73Iyuabi","time":1673542291,...}
+
+    # Then use the message ID to update it
+    curl -d "Download complete!" ntfy.sh/mytopic/xE73Iyuabi
+    ```
+
+=== "ntfy CLI"
+    ```bash
+    # First, publish a message and capture the message ID
+    ntfy pub mytopic "Downloading file..."
+    # Returns: {"id":"xE73Iyuabi","time":1673542291,...}
+
+    # Then use the message ID to update it
+    ntfy pub --sequence-id=xE73Iyuabi mytopic "Download complete!"
+    ```
+
+=== "JavaScript"
+    ``` javascript
+    // First, publish and get the message ID
+    const response = await fetch('https://ntfy.sh/mytopic', {
+      method: 'POST',
+      body: 'Downloading file...'
+    });
+    const { id } = await response.json();
+
+    // Then use the message ID to update
+    await fetch(`https://ntfy.sh/mytopic/${id}`, {
+      method: 'POST',
+      body: 'Download complete!'
+    });
+    ```
+
+=== "Go"
+    ``` go
+    // Publish and parse the response to get the message ID
+    resp, _ := http.Post("https://ntfy.sh/mytopic", "text/plain",
+        strings.NewReader("Downloading file..."))
+    var msg struct { ID string `json:"id"` }
+    json.NewDecoder(resp.Body).Decode(&msg)
+    
+    // Update using the message ID
+    http.Post("https://ntfy.sh/mytopic/"+msg.ID, "text/plain",
+        strings.NewReader("Download complete!"))
+    ```
+
+=== "Python"
+    ``` python
+    import requests
+    
+    # Publish and get the message ID
+    response = requests.post("https://ntfy.sh/mytopic", data="Downloading file...")
+    message_id = response.json()["id"]
+    
+    # Update using the message ID
+    requests.post(f"https://ntfy.sh/mytopic/{message_id}", data="Download complete!")
+    ```
+
+=== "PHP"
+    ``` php-inline
+    // Publish and get the message ID
+    $response = file_get_contents('https://ntfy.sh/mytopic', false, stream_context_create([
+        'http' => ['method' => 'POST', 'content' => 'Downloading file...']
+    ]));
+    $messageId = json_decode($response)->id;
+    
+    // Update using the message ID
+    file_get_contents("https://ntfy.sh/mytopic/$messageId", false, stream_context_create([
+        'http' => ['method' => 'POST', 'content' => 'Download complete!']
+    ]));
+    ```
+
+You can also use a custom sequence ID (e.g., a download ID, job ID, etc.) when publishing the first message. This is
+less cumbersome, since you don't need to capture the message ID first. Just publish directly to
+`/<topic>/<sequence_id>`:
 
 === "Command line (curl)"
     ```bash
