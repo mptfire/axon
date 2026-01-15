@@ -943,15 +943,16 @@ _Supported on:_ :material-android: :material-firefox:
 !!! info
     **This feature is not yet released.** It will be available in ntfy v2.16.x and later and ntfy Android v1.22.x and later.
 
-You can **update, clear, or delete notifications** that have already been delivered. This is useful for scenarios
+You can **update, clear (mark as read and dismiss), or delete notifications** that have already been delivered. This is useful for scenarios
 like download progress updates, replacing outdated information, or dismissing notifications that are no longer relevant.
+
+* Updating notifications will alter the content of an existing notification.
+* Clearing notifications will mark them as read and dismiss them from the notification drawer.
+* Deleting notifications will remove them from the notification drawer and remove them in the clients as well (if supported).
 
 The way this works is that when you publish a message with a specific **sequence ID**, clients that receive the
 notification will treat it as part of a sequence. When a new message with the same sequence ID is published, clients
 will update the existing notification instead of creating a new one. You can also
-
-The key concept is the **sequence ID**: notifications with the same sequence ID are treated as
-belonging to the same sequence, and clients will update/replace the notification accordingly.
 
 <div id="updating-notifications-screenshots" class="screenshots">
     <a href="../../static/img/android-screenshot-notification-update-1.png"><img src="../../static/img/android-screenshot-notification-update-1.png"/></a>
@@ -960,12 +961,11 @@ belonging to the same sequence, and clients will update/replace the notification
 
 ### Updating notifications
 To update an existing notification, publish a new message with the same sequence ID. Clients will replace the previous
-notification with the new one.
+notification with the new one. You can either:
 
-You can either:
-
-1. **Use the message ID**: First publish without a sequence ID, then use the returned message `id` as the sequence ID for updates
-2. **Use a custom sequence ID**: Publish directly to `/<topic>/<sequence_id>` with your own identifier
+1. **Use the message ID**: First publish like normal to `POST /<topic>` without a sequence ID, then use the returned message `id` as the sequence ID for updates
+2. **Use a custom sequence ID**: Publish directly to `POST /<topic>/<sequence_id>` with your own identifier, or use `POST /<topic>` with the 
+   `X-Sequence-ID` header (or any of its aliases: `Sequence-ID` or`SID`)
 
 If you don't know the sequence ID ahead of time, you can publish a message first and then use the returned 
 message `id` to update it. The message ID of the first message will then serve as the sequence ID for subsequent updates:
@@ -976,8 +976,11 @@ message `id` to update it. The message ID of the first message will then serve a
     curl -d "Downloading file..." ntfy.sh/mytopic
     # Returns: {"id":"xE73Iyuabi","time":1673542291,...}
 
-    # Then use the message ID to update it
-    curl -d "Download complete!" ntfy.sh/mytopic/xE73Iyuabi
+    # Then use the message ID to update it (via URL path)
+    curl -d "Download 50% ..." ntfy.sh/mytopic/xE73Iyuabi
+
+    # Or update using the X-Sequence-ID header
+    curl -H "X-Sequence-ID: xE73Iyuabi" -d "Download complete" ntfy.sh/mytopic
     ```
 
 === "ntfy CLI"
@@ -987,7 +990,34 @@ message `id` to update it. The message ID of the first message will then serve a
     # Returns: {"id":"xE73Iyuabi","time":1673542291,...}
 
     # Then use the message ID to update it
-    ntfy pub --sequence-id=xE73Iyuabi mytopic "Download complete!"
+    ntfy pub --sequence-id=xE73Iyuabi mytopic "Download 50% ..."
+
+    # Update again with the same sequence ID
+    ntfy pub -S xE73Iyuabi mytopic "Download complete"
+    ```
+
+=== "HTTP"
+    ``` http
+    # First, publish a message and capture the message ID
+    POST /mytopic HTTP/1.1
+    Host: ntfy.sh
+
+    Downloading file...
+
+    # Returns: {"id":"xE73Iyuabi","time":1673542291,...}
+
+    # Then use the message ID to update it
+    POST /mytopic/xE73Iyuabi HTTP/1.1
+    Host: ntfy.sh
+
+    Download 50% ...
+
+    # Update again with the same sequence ID, this time using the header
+    POST /mytopic HTTP/1.1
+    Host: ntfy.sh
+    X-Sequence-ID: xE73Iyuabi
+
+    Download complete
     ```
 
 === "JavaScript"
@@ -999,10 +1029,17 @@ message `id` to update it. The message ID of the first message will then serve a
     });
     const { id } = await response.json();
 
-    // Then use the message ID to update
+    // Update via URL path
     await fetch(`https://ntfy.sh/mytopic/${id}`, {
       method: 'POST',
-      body: 'Download complete!'
+      body: 'Download 50% ...'
+    });
+
+    // Or update using the X-Sequence-ID header
+    await fetch('https://ntfy.sh/mytopic', {
+      method: 'POST',
+      headers: { 'X-Sequence-ID': id },
+      body: 'Download complete'
     });
     ```
 
@@ -1014,9 +1051,29 @@ message `id` to update it. The message ID of the first message will then serve a
     var msg struct { ID string `json:"id"` }
     json.NewDecoder(resp.Body).Decode(&msg)
     
-    // Update using the message ID
+    // Update via URL path
     http.Post("https://ntfy.sh/mytopic/"+msg.ID, "text/plain",
-        strings.NewReader("Download complete!"))
+        strings.NewReader("Download 50% ..."))
+
+    // Or update using the X-Sequence-ID header
+    req, _ := http.NewRequest("POST", "https://ntfy.sh/mytopic",
+        strings.NewReader("Download complete"))
+    req.Header.Set("X-Sequence-ID", msg.ID)
+    http.DefaultClient.Do(req)
+    ```
+
+=== "PowerShell"
+    ``` powershell
+    # Publish and get the message ID
+    $response = Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic" -Body "Downloading file..."
+    $messageId = $response.id
+    
+    # Update via URL path
+    Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic/$messageId" -Body "Download 50% ..."
+
+    # Or update using the X-Sequence-ID header
+    Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic" `
+        -Headers @{"X-Sequence-ID"=$messageId} -Body "Download complete"
     ```
 
 === "Python"
@@ -1027,8 +1084,12 @@ message `id` to update it. The message ID of the first message will then serve a
     response = requests.post("https://ntfy.sh/mytopic", data="Downloading file...")
     message_id = response.json()["id"]
     
-    # Update using the message ID
-    requests.post(f"https://ntfy.sh/mytopic/{message_id}", data="Download complete!")
+    # Update via URL path
+    requests.post(f"https://ntfy.sh/mytopic/{message_id}", data="Download 50% ...")
+
+    # Or update using the X-Sequence-ID header
+    requests.post("https://ntfy.sh/mytopic",
+        headers={"X-Sequence-ID": message_id}, data="Download complete")
     ```
 
 === "PHP"
@@ -1039,9 +1100,18 @@ message `id` to update it. The message ID of the first message will then serve a
     ]));
     $messageId = json_decode($response)->id;
     
-    // Update using the message ID
+    // Update via URL path
     file_get_contents("https://ntfy.sh/mytopic/$messageId", false, stream_context_create([
-        'http' => ['method' => 'POST', 'content' => 'Download complete!']
+        'http' => ['method' => 'POST', 'content' => 'Download 50% ...']
+    ]));
+
+    // Or update using the X-Sequence-ID header
+    file_get_contents('https://ntfy.sh/mytopic', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => "X-Sequence-ID: $messageId",
+            'content' => 'Download complete'
+        ]
     ]));
     ```
 
@@ -1054,8 +1124,11 @@ less cumbersome, since you don't need to capture the message ID first. Just publ
     # Publish with a custom sequence ID
     curl -d "Downloading file..." ntfy.sh/mytopic/my-download-123
 
-    # Update using the same sequence ID  
-    curl -d "Download complete!" ntfy.sh/mytopic/my-download-123
+    # Update using the same sequence ID (via URL path)
+    curl -d "Download 50% ..." ntfy.sh/mytopic/my-download-123
+
+    # Or update using the X-Sequence-ID header
+    curl -H "X-Sequence-ID: my-download-123" -d "Download complete" ntfy.sh/mytopic
     ```
 
 === "ntfy CLI"
@@ -1064,7 +1137,10 @@ less cumbersome, since you don't need to capture the message ID first. Just publ
     ntfy pub --sequence-id=my-download-123 mytopic "Downloading file..."
 
     # Update using the same sequence ID
-    ntfy pub --sequence-id=my-download-123 mytopic "Download complete!"
+    ntfy pub --sequence-id=my-download-123 mytopic "Download 50% ..."
+
+    # Update again
+    ntfy pub -S my-download-123 mytopic "Download complete"
     ```
 
 === "HTTP"
@@ -1073,6 +1149,13 @@ less cumbersome, since you don't need to capture the message ID first. Just publ
     Host: ntfy.sh
 
     Downloading file...
+    ```
+    ``` http
+    POST /mytopic HTTP/1.1
+    Host: ntfy.sh
+    X-Sequence-ID: my-download-123
+
+    Download complete
     ```
 
 === "JavaScript"
@@ -1083,10 +1166,17 @@ less cumbersome, since you don't need to capture the message ID first. Just publ
       body: 'Downloading file...'
     });
 
-    // Update with same sequence ID
+    // Update via URL path
     await fetch('https://ntfy.sh/mytopic/my-download-123', {
       method: 'POST',
-      body: 'Download complete!'
+      body: 'Download 50% ...'
+    });
+
+    // Or update using the X-Sequence-ID header
+    await fetch('https://ntfy.sh/mytopic', {
+      method: 'POST',
+      headers: { 'X-Sequence-ID': 'my-download-123' },
+      body: 'Download complete'
     });
     ```
 
@@ -1096,9 +1186,15 @@ less cumbersome, since you don't need to capture the message ID first. Just publ
     http.Post("https://ntfy.sh/mytopic/my-download-123", "text/plain",
         strings.NewReader("Downloading file..."))
     
-    // Update with same sequence ID
+    // Update via URL path
     http.Post("https://ntfy.sh/mytopic/my-download-123", "text/plain",
-        strings.NewReader("Download complete!"))
+        strings.NewReader("Download 50% ..."))
+
+    // Or update using the X-Sequence-ID header
+    req, _ := http.NewRequest("POST", "https://ntfy.sh/mytopic",
+        strings.NewReader("Download complete"))
+    req.Header.Set("X-Sequence-ID", "my-download-123")
+    http.DefaultClient.Do(req)
     ```
 
 === "PowerShell"
@@ -1106,8 +1202,12 @@ less cumbersome, since you don't need to capture the message ID first. Just publ
     # Publish with sequence ID
     Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic/my-download-123" -Body "Downloading file..."
     
-    # Update with same sequence ID
-    Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic/my-download-123" -Body "Download complete!"
+    # Update via URL path
+    Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic/my-download-123" -Body "Download 50% ..."
+
+    # Or update using the X-Sequence-ID header
+    Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic" `
+        -Headers @{"X-Sequence-ID"="my-download-123"} -Body "Download complete"
     ```
 
 === "Python"
@@ -1117,8 +1217,12 @@ less cumbersome, since you don't need to capture the message ID first. Just publ
     # Publish with sequence ID
     requests.post("https://ntfy.sh/mytopic/my-download-123", data="Downloading file...")
     
-    # Update with same sequence ID
-    requests.post("https://ntfy.sh/mytopic/my-download-123", data="Download complete!")
+    # Update via URL path
+    requests.post("https://ntfy.sh/mytopic/my-download-123", data="Download 50% ...")
+
+    # Or update using the X-Sequence-ID header
+    requests.post("https://ntfy.sh/mytopic",
+        headers={"X-Sequence-ID": "my-download-123"}, data="Download complete")
     ```
 
 === "PHP"
@@ -1128,14 +1232,23 @@ less cumbersome, since you don't need to capture the message ID first. Just publ
         'http' => ['method' => 'POST', 'content' => 'Downloading file...']
     ]));
     
-    // Update with same sequence ID
+    // Update via URL path
     file_get_contents('https://ntfy.sh/mytopic/my-download-123', false, stream_context_create([
-        'http' => ['method' => 'POST', 'content' => 'Download complete!']
+        'http' => ['method' => 'POST', 'content' => 'Download 50% ...']
+    ]));
+
+    // Or update using the X-Sequence-ID header
+    file_get_contents('https://ntfy.sh/mytopic', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'X-Sequence-ID: my-download-123',
+            'content' => 'Download complete'
+        ]
     ]));
     ```
 
-You can also set the sequence ID via the `X-Sequence-ID` header, the `sid` query parameter, or when 
-[publishing as JSON](#publish-as-json) using the `sequence_id` field.
+You can also set the sequence ID via the `sid` query parameter, or when [publishing as JSON](#publish-as-json) 
+using the `sequence_id` field.
 
 ### Clearing notifications
 To clear a notification (mark it as read and dismiss it from the notification drawer), send a PUT request to
