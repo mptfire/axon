@@ -963,36 +963,95 @@ You can either:
 1. **Use the message ID**: First publish without a sequence ID, then use the returned message `id` as the sequence ID for updates
 2. **Use a custom sequence ID**: Publish directly to `/<topic>/<sequence_id>` with your own identifier
 
-=== "Using the message ID"
-    ```bash
-    # First, publish a message and capture the message ID
-    $ curl -d "Downloading file..." ntfy.sh/mytopic
-    {"id":"xE73Iyuabi","time":1673542291,...}
+Here's an example using a custom sequence ID to update a notification:
 
-    # Then use the message ID to update it
-    $ curl -d "Download complete!" ntfy.sh/mytopic/xE73Iyuabi
-    ```
-
-=== "Using a custom sequence ID"
+=== "Command line (curl)"
     ```bash
     # Publish with a custom sequence ID
-    $ curl -d "Downloading file..." ntfy.sh/mytopic/my-download-123
+    curl -d "Downloading file..." ntfy.sh/mytopic/my-download-123
 
     # Update using the same sequence ID  
-    $ curl -d "Download complete!" ntfy.sh/mytopic/my-download-123
+    curl -d "Download complete!" ntfy.sh/mytopic/my-download-123
     ```
 
-=== "Using the X-Sequence-ID header"
+=== "ntfy CLI"
     ```bash
-    # Publish with a sequence ID via header
-    $ curl -H "X-Sequence-ID: my-download-123" -d "Downloading..." ntfy.sh/mytopic
+    # Publish with a sequence ID
+    ntfy pub --sequence-id=my-download-123 mytopic "Downloading file..."
 
     # Update using the same sequence ID
-    $ curl -H "X-Sequence-ID: my-download-123" -d "Done!" ntfy.sh/mytopic
+    ntfy pub --sequence-id=my-download-123 mytopic "Download complete!"
     ```
 
-You can also set the sequence ID via the `sid` query parameter or when [publishing as JSON](#publish-as-json) using the
-`sequence_id` field.
+=== "HTTP"
+    ``` http
+    POST /mytopic/my-download-123 HTTP/1.1
+    Host: ntfy.sh
+
+    Downloading file...
+    ```
+
+=== "JavaScript"
+    ``` javascript
+    // First message
+    await fetch('https://ntfy.sh/mytopic/my-download-123', {
+      method: 'POST',
+      body: 'Downloading file...'
+    });
+
+    // Update with same sequence ID
+    await fetch('https://ntfy.sh/mytopic/my-download-123', {
+      method: 'POST',
+      body: 'Download complete!'
+    });
+    ```
+
+=== "Go"
+    ``` go
+    // Publish with sequence ID in URL path
+    http.Post("https://ntfy.sh/mytopic/my-download-123", "text/plain",
+        strings.NewReader("Downloading file..."))
+    
+    // Update with same sequence ID
+    http.Post("https://ntfy.sh/mytopic/my-download-123", "text/plain",
+        strings.NewReader("Download complete!"))
+    ```
+
+=== "PowerShell"
+    ``` powershell
+    # Publish with sequence ID
+    Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic/my-download-123" -Body "Downloading file..."
+    
+    # Update with same sequence ID
+    Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic/my-download-123" -Body "Download complete!"
+    ```
+
+=== "Python"
+    ``` python
+    import requests
+    
+    # Publish with sequence ID
+    requests.post("https://ntfy.sh/mytopic/my-download-123", data="Downloading file...")
+    
+    # Update with same sequence ID
+    requests.post("https://ntfy.sh/mytopic/my-download-123", data="Download complete!")
+    ```
+
+=== "PHP"
+    ``` php-inline
+    // Publish with sequence ID
+    file_get_contents('https://ntfy.sh/mytopic/my-download-123', false, stream_context_create([
+        'http' => ['method' => 'POST', 'content' => 'Downloading file...']
+    ]));
+    
+    // Update with same sequence ID
+    file_get_contents('https://ntfy.sh/mytopic/my-download-123', false, stream_context_create([
+        'http' => ['method' => 'POST', 'content' => 'Download complete!']
+    ]));
+    ```
+
+You can also set the sequence ID via the `X-Sequence-ID` header, the `sid` query parameter, or when 
+[publishing as JSON](#publish-as-json) using the `sequence_id` field.
 
 ### Clearing notifications
 To clear a notification (mark it as read and dismiss it from the notification drawer), send a PUT request to
@@ -1004,9 +1063,39 @@ To clear a notification (mark it as read and dismiss it from the notification dr
     ```
 
 === "HTTP"
-    ```http
+    ``` http
     PUT /mytopic/my-download-123/clear HTTP/1.1
     Host: ntfy.sh
+    ```
+
+=== "JavaScript"
+    ``` javascript
+    await fetch('https://ntfy.sh/mytopic/my-download-123/clear', {
+      method: 'PUT'
+    });
+    ```
+
+=== "Go"
+    ``` go
+    req, _ := http.NewRequest("PUT", "https://ntfy.sh/mytopic/my-download-123/clear", nil)
+    http.DefaultClient.Do(req)
+    ```
+
+=== "PowerShell"
+    ``` powershell
+    Invoke-RestMethod -Method PUT -Uri "https://ntfy.sh/mytopic/my-download-123/clear"
+    ```
+
+=== "Python"
+    ``` python
+    requests.put("https://ntfy.sh/mytopic/my-download-123/clear")
+    ```
+
+=== "PHP"
+    ``` php-inline
+    file_get_contents('https://ntfy.sh/mytopic/my-download-123/clear', false, stream_context_create([
+        'http' => ['method' => 'PUT']
+    ]));
     ```
 
 This publishes a `message_clear` event, which tells clients to:
@@ -1023,9 +1112,39 @@ To delete a notification entirely, send a DELETE request to `/<topic>/<sequence_
     ```
 
 === "HTTP"
-    ```http
+    ``` http
     DELETE /mytopic/my-download-123 HTTP/1.1
     Host: ntfy.sh
+    ```
+
+=== "JavaScript"
+    ``` javascript
+    await fetch('https://ntfy.sh/mytopic/my-download-123', {
+      method: 'DELETE'
+    });
+    ```
+
+=== "Go"
+    ``` go
+    req, _ := http.NewRequest("DELETE", "https://ntfy.sh/mytopic/my-download-123", nil)
+    http.DefaultClient.Do(req)
+    ```
+
+=== "PowerShell"
+    ``` powershell
+    Invoke-RestMethod -Method DELETE -Uri "https://ntfy.sh/mytopic/my-download-123"
+    ```
+
+=== "Python"
+    ``` python
+    requests.delete("https://ntfy.sh/mytopic/my-download-123")
+    ```
+
+=== "PHP"
+    ``` php-inline
+    file_get_contents('https://ntfy.sh/mytopic/my-download-123', false, stream_context_create([
+        'http' => ['method' => 'DELETE']
+    ]));
     ```
 
 This publishes a `message_delete` event, which tells clients to:
