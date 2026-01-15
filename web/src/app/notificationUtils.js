@@ -25,13 +25,13 @@ const formatTitleWithDefault = (m, fallback) => {
 
 export const formatMessage = (m) => {
   if (m.title) {
-    return m.message;
+    return m.message || "";
   }
   const emojiList = toEmojis(m.tags);
   if (emojiList.length > 0) {
-    return `${emojiList.join(" ")} ${m.message}`;
+    return `${emojiList.join(" ")} ${m.message || ""}`;
   }
-  return m.message;
+  return m.message || "";
 };
 
 const imageRegex = /\.(png|jpe?g|gif|webp)$/i;
@@ -78,4 +78,11 @@ export const toNotificationParams = ({ message, defaultTitle, topicRoute }) => {
         })),
     },
   ];
+};
+
+export const messageWithSequenceId = (message) => {
+  if (message.sequenceId) {
+    return message;
+  }
+  return { ...message, sequenceId: message.sequence_id || message.id };
 };

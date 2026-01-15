@@ -103,13 +103,6 @@ export const maybeActionErrors = (notification) => {
   return actionErrors;
 };
 
-export const messageWithSequenceId = (message) => {
-  if (message.sequenceId) {
-    return message;
-  }
-  return { ...message, sequenceId: message.sequence_id || message.id };
-};
-
 export const shuffle = (arr) => {
   const returnArr = [...arr];
 

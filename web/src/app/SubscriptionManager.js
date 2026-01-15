@@ -2,8 +2,9 @@ import api from "./Api";
 import notifier from "./Notifier";
 import prefs from "./Prefs";
 import db from "./db";
-import { messageWithSequenceId, topicUrl } from "./utils";
-import { EVENT_MESSAGE, EVENT_MESSAGE_DELETE, EVENT_MESSAGE_CLEAR } from "./events";
+import { topicUrl } from "./utils";
+import { messageWithSequenceId } from "./notificationUtils";
+import { EVENT_MESSAGE, EVENT_MESSAGE_CLEAR, EVENT_MESSAGE_DELETE } from "./events";
 
 class SubscriptionManager {
   constructor(dbImpl) {

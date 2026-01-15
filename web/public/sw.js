@@ -3,13 +3,10 @@ import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from
 import { NavigationRoute, registerRoute } from "workbox-routing";
 import { NetworkFirst } from "workbox-strategies";
 import { clientsClaim } from "workbox-core";
-
 import { dbAsync } from "../src/app/db";
-
-import { toNotificationParams, icon, badge } from "../src/app/notificationUtils";
+import { badge, icon, messageWithSequenceId, toNotificationParams } from "../src/app/notificationUtils";
 import initI18n from "../src/app/i18n";
-import { messageWithSequenceId } from "../src/app/utils";
-import { EVENT_MESSAGE, EVENT_MESSAGE_DELETE, EVENT_MESSAGE_CLEAR } from "../src/app/events";
+import { EVENT_MESSAGE, EVENT_MESSAGE_CLEAR, EVENT_MESSAGE_DELETE, EVENT_SUBSCRIPTION_EXPIRING } from "../src/app/events";
 
 /**
  * General docs for service workers and PWAs:
@@ -23,10 +20,17 @@ import { EVENT_MESSAGE, EVENT_MESSAGE_DELETE, EVENT_MESSAGE_CLEAR } from "../src
 
 const broadcastChannel = new BroadcastChannel("web-push-broadcast");
 
-const addNotification = async ({ subscriptionId, message }) => {
+/**
+ * Handle a received web push message and show notification.
+ *
+ * Since the service worker cannot play a sound, we send a broadcast to the web app, which (if it is running)
+ * receives the broadcast and plays a sound (see web/src/app/WebPush.js).
+ */
+const handlePushMessage = async (data) => {
+  const { subscription_id: subscriptionId, message } = data;
   const db = await dbAsync();
 
-  // Note: SubscriptionManager duplicates this logic, so if you change it here, change it there too
+  console.log("[ServiceWorker] Message received", data);
 
   // Delete existing notification with same sequence ID (if any)
   const sequenceId = message.sequence_id || message.id;
@@ -46,22 +50,9 @@ const addNotification = async ({ subscriptionId, message }) => {
     last: message.id,
   });
 
+  // Update badge in PWA
   const badgeCount = await db.notifications.where({ new: 1 }).count();
-  console.log("[ServiceWorker] Setting new app badge count", { badgeCount });
   self.navigator.setAppBadge?.(badgeCount);
-};
-
-/**
- * Handle a received web push message and show notification.
- *
- * Since the service worker cannot play a sound, we send a broadcast to the web app, which (if it is running)
- * receives the broadcast and plays a sound (see web/src/app/WebPush.js).
- */
-const handlePushMessage = async (data) => {
-  const { subscription_id: subscriptionId, message } = data;
-
-  // Add notification to database
-  await addNotification({ subscriptionId, message });
 
   // Broadcast the message to potentially play a sound
   broadcastChannel.postMessage(message);
@@ -82,11 +73,11 @@ const handlePushMessage = async (data) => {
 const handlePushMessageDelete = async (data) => {
   const { subscription_id: subscriptionId, message } = data;
   const db = await dbAsync();
+  console.log("[ServiceWorker] Deleting notification sequence", data);
 
   // Delete notification with the same sequence_id
   const sequenceId = message.sequence_id;
   if (sequenceId) {
-    console.log("[ServiceWorker] Deleting notification with sequenceId", { subscriptionId, sequenceId });
     await db.notifications.where({ subscriptionId, sequenceId }).delete();
   }
 
@@ -102,11 +93,11 @@ const handlePushMessageDelete = async (data) => {
 const handlePushMessageClear = async (data) => {
   const { subscription_id: subscriptionId, message } = data;
   const db = await dbAsync();
+  console.log("[ServiceWorker] Marking notification as read", data);
 
   // Mark notification as read (set new = 0)
   const sequenceId = message.sequence_id;
   if (sequenceId) {
-    console.log("[ServiceWorker] Marking notification as read", { subscriptionId, sequenceId });
     await db.notifications.where({ subscriptionId, sequenceId }).modify({ new: 0 });
   }
 
@@ -126,6 +117,7 @@ const handlePushMessageClear = async (data) => {
  */
 const handlePushSubscriptionExpiring = async (data) => {
   const t = await initI18n();
+  console.log("[ServiceWorker] Handling incoming subscription expiring event", data);
 
   await self.registration.showNotification(t("web_push_subscription_expiring_title"), {
     body: t("web_push_subscription_expiring_body"),
@@ -141,6 +133,7 @@ const handlePushSubscriptionExpiring = async (data) => {
  */
 const handlePushUnknown = async (data) => {
   const t = await initI18n();
+  console.log("[ServiceWorker] Unknown event received", data);
 
   await self.registration.showNotification(t("web_push_unknown_notification_title"), {
     body: t("web_push_unknown_notification_body"),
@@ -155,13 +148,15 @@ const handlePushUnknown = async (data) => {
  * @param {object} data see server/types.go, type webPushPayload
  */
 const handlePush = async (data) => {
-  if (data.event === EVENT_MESSAGE) {
+  const { message } = data;
+
+  if (message.event === EVENT_MESSAGE) {
     await handlePushMessage(data);
-  } else if (data.event === EVENT_MESSAGE_DELETE) {
+  } else if (message.event === EVENT_MESSAGE_DELETE) {
     await handlePushMessageDelete(data);
-  } else if (data.event === EVENT_MESSAGE_CLEAR) {
+  } else if (message.event === EVENT_MESSAGE_CLEAR) {
     await handlePushMessageClear(data);
-  } else if (data.event === "subscription_expiring") {
+  } else if (message.event === EVENT_SUBSCRIPTION_EXPIRING) {
     await handlePushSubscriptionExpiring(data);
   } else {
     await handlePushUnknown(data);
@@ -176,10 +171,8 @@ const handleClick = async (event) => {
   const t = await initI18n();
 
   const clients = await self.clients.matchAll({ type: "window" });
-
   const rootUrl = new URL(self.location.origin);
   const rootClient = clients.find((client) => client.url === rootUrl.toString());
-  // perhaps open on another topic
   const fallbackClient = clients[0];
 
   if (!event.notification.data?.message) {
@@ -295,6 +288,7 @@ precacheAndRoute(
 
 // Claim all open windows
 clientsClaim();
+
 // Delete any cached old dist files from previous service worker versions
 cleanupOutdatedCaches();
 
