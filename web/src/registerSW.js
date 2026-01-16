@@ -7,8 +7,6 @@ const intervalMS = 60 * 60 * 1000;
 // https://vite-pwa-org.netlify.app/guide/periodic-sw-updates.html
 const registerSW = () => {
   console.log("[ServiceWorker] Registering service worker");
-  console.log("[ServiceWorker] serviceWorker in navigator:", "serviceWorker" in navigator);
-
   if (!("serviceWorker" in navigator)) {
     console.warn("[ServiceWorker] Service workers not supported");
     return;
