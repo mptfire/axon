@@ -937,6 +937,445 @@ Here's an example with a custom message, tags and a priority:
     file_get_contents('https://ntfy.sh/mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull');
     ```
 
+## Updating + deleting notifications
+_Supported on:_ :material-android: :material-firefox:
+
+!!! info
+    **This feature is not yet released.** It will be available in ntfy v2.16.x and later and ntfy Android v1.22.x and later.
+
+You can **update, clear (mark as read and dismiss), or delete notifications** that have already been delivered. This is useful for scenarios
+like download progress updates, replacing outdated information, or dismissing notifications that are no longer relevant.
+
+* [Updating notifications](#updating-notifications) will alter the content of an existing notification.
+* [Clearing notifications](#clearing-notifications) will mark them as read and dismiss them from the notification drawer.
+* [Deleting notifications](#deleting-notifications) will remove them from the notification drawer and remove them in the clients as well (if supported).
+
+Here's an example of a download progress notification being updated over time on Android:
+
+<div id="updating-notifications-screenshots" class="screenshots">
+    <a href="../../static/img/android-screenshot-notification-update-1.png"><img src="../../static/img/android-screenshot-notification-update-1.png"/></a>
+    <a href="../../static/img/android-screenshot-notification-update-2.png"><img src="../../static/img/android-screenshot-notification-update-2.png"/></a>
+</div>
+
+To facilitate updating notifications and altering existing notifications, ntfy messages are linked together in a sequence,
+using a **sequence ID**. When a notification is meant to be updated, cleared, or deleted, you publish a new message with the
+same sequence ID and the clients will perform the appropriate action on the existing notification.
+
+Existing ntfy messages will not be updated on the server or in the message cache. Instead, a new message is created that indicates
+the update, clear, or delete action. This append-only behavior ensures that message history remains intact.
+
+### Updating notifications
+To update an existing notification, publish a new message with the same sequence ID. Clients will replace the previous
+notification with the new one. You can either:
+
+1. **Use the message ID**: First publish like normal to `POST /<topic>` without a sequence ID, then use the returned message `id` as the sequence ID for updates
+2. **Use a custom sequence ID**: Publish directly to `POST /<topic>/<sequence_id>` with your own identifier, or use `POST /<topic>` with the 
+   `X-Sequence-ID` header (or any of its aliases: `Sequence-ID` or`SID`)
+
+If you don't know the sequence ID ahead of time, you can publish a message first and then use the returned 
+message `id` to update it. Here's an example:
+
+=== "Command line (curl)"
+    ```bash
+    # First, publish a message and capture the message ID
+    curl -d "Downloading file..." ntfy.sh/mytopic
+    # Returns: {"id":"xE73Iyuabi","time":1673542291,...}
+
+    # Then use the message ID to update it (via URL path)
+    curl -d "Download 50% ..." ntfy.sh/mytopic/xE73Iyuabi
+
+    # Or update using the X-Sequence-ID header
+    curl -H "X-Sequence-ID: xE73Iyuabi" -d "Download complete" ntfy.sh/mytopic
+    ```
+
+=== "ntfy CLI"
+    ```bash
+    # First, publish a message and capture the message ID
+    ntfy pub mytopic "Downloading file..."
+    # Returns: {"id":"xE73Iyuabi","time":1673542291,...}
+
+    # Then use the message ID to update it
+    ntfy pub --sequence-id=xE73Iyuabi mytopic "Download 50% ..."
+
+    # Update again with the same sequence ID
+    ntfy pub -S xE73Iyuabi mytopic "Download complete"
+    ```
+
+=== "HTTP"
+    ``` http
+    # First, publish a message and capture the message ID
+    POST /mytopic HTTP/1.1
+    Host: ntfy.sh
+
+    Downloading file...
+
+    # Returns: {"id":"xE73Iyuabi","time":1673542291,...}
+
+    # Then use the message ID to update it
+    POST /mytopic/xE73Iyuabi HTTP/1.1
+    Host: ntfy.sh
+
+    Download 50% ...
+
+    # Update again with the same sequence ID, this time using the header
+    POST /mytopic HTTP/1.1
+    Host: ntfy.sh
+    X-Sequence-ID: xE73Iyuabi
+
+    Download complete
+    ```
+
+=== "JavaScript"
+    ``` javascript
+    // First, publish and get the message ID
+    const response = await fetch('https://ntfy.sh/mytopic', {
+      method: 'POST',
+      body: 'Downloading file...'
+    });
+    const { id } = await response.json();
+
+    // Update via URL path
+    await fetch(`https://ntfy.sh/mytopic/${id}`, {
+      method: 'POST',
+      body: 'Download 50% ...'
+    });
+
+    // Or update using the X-Sequence-ID header
+    await fetch('https://ntfy.sh/mytopic', {
+      method: 'POST',
+      headers: { 'X-Sequence-ID': id },
+      body: 'Download complete'
+    });
+    ```
+
+=== "Go"
+    ``` go
+    // Publish and parse the response to get the message ID
+    resp, _ := http.Post("https://ntfy.sh/mytopic", "text/plain",
+        strings.NewReader("Downloading file..."))
+    var msg struct { ID string `json:"id"` }
+    json.NewDecoder(resp.Body).Decode(&msg)
+    
+    // Update via URL path
+    http.Post("https://ntfy.sh/mytopic/"+msg.ID, "text/plain",
+        strings.NewReader("Download 50% ..."))
+
+    // Or update using the X-Sequence-ID header
+    req, _ := http.NewRequest("POST", "https://ntfy.sh/mytopic",
+        strings.NewReader("Download complete"))
+    req.Header.Set("X-Sequence-ID", msg.ID)
+    http.DefaultClient.Do(req)
+    ```
+
+=== "PowerShell"
+    ``` powershell
+    # Publish and get the message ID
+    $response = Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic" -Body "Downloading file..."
+    $messageId = $response.id
+    
+    # Update via URL path
+    Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic/$messageId" -Body "Download 50% ..."
+
+    # Or update using the X-Sequence-ID header
+    Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic" `
+        -Headers @{"X-Sequence-ID"=$messageId} -Body "Download complete"
+    ```
+
+=== "Python"
+    ``` python
+    import requests
+    
+    # Publish and get the message ID
+    response = requests.post("https://ntfy.sh/mytopic", data="Downloading file...")
+    message_id = response.json()["id"]
+    
+    # Update via URL path
+    requests.post(f"https://ntfy.sh/mytopic/{message_id}", data="Download 50% ...")
+
+    # Or update using the X-Sequence-ID header
+    requests.post("https://ntfy.sh/mytopic",
+        headers={"X-Sequence-ID": message_id}, data="Download complete")
+    ```
+
+=== "PHP"
+    ``` php-inline
+    // Publish and get the message ID
+    $response = file_get_contents('https://ntfy.sh/mytopic', false, stream_context_create([
+        'http' => ['method' => 'POST', 'content' => 'Downloading file...']
+    ]));
+    $messageId = json_decode($response)->id;
+    
+    // Update via URL path
+    file_get_contents("https://ntfy.sh/mytopic/$messageId", false, stream_context_create([
+        'http' => ['method' => 'POST', 'content' => 'Download 50% ...']
+    ]));
+
+    // Or update using the X-Sequence-ID header
+    file_get_contents('https://ntfy.sh/mytopic', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => "X-Sequence-ID: $messageId",
+            'content' => 'Download complete'
+        ]
+    ]));
+    ```
+
+You can also use a **custom sequence ID** (e.g., a download ID, job ID, etc.) when publishing the first message. 
+**This is less cumbersome**, since you don't need to capture the message ID first. Just publish directly to
+`/<topic>/<sequence_id>`:
+
+=== "Command line (curl)"
+    ```bash
+    # Publish with a custom sequence ID
+    curl -d "Downloading file..." ntfy.sh/mytopic/my-download-123
+
+    # Update using the same sequence ID (via URL path)
+    curl -d "Download 50% ..." ntfy.sh/mytopic/my-download-123
+
+    # Or update using the X-Sequence-ID header
+    curl -H "X-Sequence-ID: my-download-123" -d "Download complete" ntfy.sh/mytopic
+    ```
+
+=== "ntfy CLI"
+    ```bash
+    # Publish with a sequence ID
+    ntfy pub --sequence-id=my-download-123 mytopic "Downloading file..."
+
+    # Update using the same sequence ID
+    ntfy pub --sequence-id=my-download-123 mytopic "Download 50% ..."
+
+    # Update again
+    ntfy pub -S my-download-123 mytopic "Download complete"
+    ```
+
+=== "HTTP"
+    ``` http
+    # Publish a message with a custom sequence ID
+    POST /mytopic/my-download-123 HTTP/1.1
+    Host: ntfy.sh
+
+    Downloading file...
+
+    # Update again using the X-Sequence-ID header
+    POST /mytopic HTTP/1.1
+    Host: ntfy.sh
+    X-Sequence-ID: my-download-123
+
+    Download complete
+    ```
+
+=== "JavaScript"
+    ``` javascript
+    // First message
+    await fetch('https://ntfy.sh/mytopic/my-download-123', {
+      method: 'POST',
+      body: 'Downloading file...'
+    });
+
+    // Update via URL path
+    await fetch('https://ntfy.sh/mytopic/my-download-123', {
+      method: 'POST',
+      body: 'Download 50% ...'
+    });
+
+    // Or update using the X-Sequence-ID header
+    await fetch('https://ntfy.sh/mytopic', {
+      method: 'POST',
+      headers: { 'X-Sequence-ID': 'my-download-123' },
+      body: 'Download complete'
+    });
+    ```
+
+=== "Go"
+    ``` go
+    // Publish with sequence ID in URL path
+    http.Post("https://ntfy.sh/mytopic/my-download-123", "text/plain",
+        strings.NewReader("Downloading file..."))
+    
+    // Update via URL path
+    http.Post("https://ntfy.sh/mytopic/my-download-123", "text/plain",
+        strings.NewReader("Download 50% ..."))
+
+    // Or update using the X-Sequence-ID header
+    req, _ := http.NewRequest("POST", "https://ntfy.sh/mytopic",
+        strings.NewReader("Download complete"))
+    req.Header.Set("X-Sequence-ID", "my-download-123")
+    http.DefaultClient.Do(req)
+    ```
+
+=== "PowerShell"
+    ``` powershell
+    # Publish with sequence ID
+    Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic/my-download-123" -Body "Downloading file..."
+    
+    # Update via URL path
+    Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic/my-download-123" -Body "Download 50% ..."
+
+    # Or update using the X-Sequence-ID header
+    Invoke-RestMethod -Method POST -Uri "https://ntfy.sh/mytopic" `
+        -Headers @{"X-Sequence-ID"="my-download-123"} -Body "Download complete"
+    ```
+
+=== "Python"
+    ``` python
+    import requests
+    
+    # Publish with sequence ID
+    requests.post("https://ntfy.sh/mytopic/my-download-123", data="Downloading file...")
+    
+    # Update via URL path
+    requests.post("https://ntfy.sh/mytopic/my-download-123", data="Download 50% ...")
+
+    # Or update using the X-Sequence-ID header
+    requests.post("https://ntfy.sh/mytopic",
+        headers={"X-Sequence-ID": "my-download-123"}, data="Download complete")
+    ```
+
+=== "PHP"
+    ``` php-inline
+    // Publish with sequence ID
+    file_get_contents('https://ntfy.sh/mytopic/my-download-123', false, stream_context_create([
+        'http' => ['method' => 'POST', 'content' => 'Downloading file...']
+    ]));
+    
+    // Update via URL path
+    file_get_contents('https://ntfy.sh/mytopic/my-download-123', false, stream_context_create([
+        'http' => ['method' => 'POST', 'content' => 'Download 50% ...']
+    ]));
+
+    // Or update using the X-Sequence-ID header
+    file_get_contents('https://ntfy.sh/mytopic', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => 'X-Sequence-ID: my-download-123',
+            'content' => 'Download complete'
+        ]
+    ]));
+    ```
+
+You can also set the sequence ID via the `sequence-id` [query parameter](#list-of-all-parameters), or when
+[publishing as JSON](#publish-as-json) using the `sequence_id` field.
+
+If the message ID (`id`) and the sequence ID (`sequence_id`) are different, the ntfy server will include the `sequence_id`
+field the response. A sequence of updates may look like this (first example from above):
+
+```json
+{"id":"xE73Iyuabi","time":1673542291,"event":"message","topic":"mytopic","message":"Downloading file..."}
+{"id":"yF84Jzvbcj","time":1673542295,"event":"message","topic":"mytopic","sequence_id":"xE73Iyuabi","message":"Download 50% ..."}
+{"id":"zG95Kawdde","time":1673542300,"event":"message","topic":"mytopic","sequence_id":"xE73Iyuabi","message":"Download complete"}
+```
+
+### Clearing notifications
+Clearing a notification means **marking it as read and dismissing it from the notification drawer**. 
+
+To do this, send a PUT request to the `/<topic>/<sequence_id>/clear` endpoint (or `/<topic>/<sequence_id>/read` as an alias). 
+This will then emit a `message_clear` event that is used by the clients (web app and Android app) to update the read status
+and dismiss the notification.
+
+=== "Command line (curl)"
+    ```bash
+    curl -X PUT ntfy.sh/mytopic/my-download-123/clear
+    ```
+
+=== "HTTP"
+    ``` http
+    PUT /mytopic/my-download-123/clear HTTP/1.1
+    Host: ntfy.sh
+    ```
+
+=== "JavaScript"
+    ``` javascript
+    await fetch('https://ntfy.sh/mytopic/my-download-123/clear', {
+      method: 'PUT'
+    });
+    ```
+
+=== "Go"
+    ``` go
+    req, _ := http.NewRequest("PUT", "https://ntfy.sh/mytopic/my-download-123/clear", nil)
+    http.DefaultClient.Do(req)
+    ```
+
+=== "PowerShell"
+    ``` powershell
+    Invoke-RestMethod -Method PUT -Uri "https://ntfy.sh/mytopic/my-download-123/clear"
+    ```
+
+=== "Python"
+    ``` python
+    requests.put("https://ntfy.sh/mytopic/my-download-123/clear")
+    ```
+
+=== "PHP"
+    ``` php-inline
+    file_get_contents('https://ntfy.sh/mytopic/my-download-123/clear', false, stream_context_create([
+        'http' => ['method' => 'PUT']
+    ]));
+    ```
+
+An example response from the server with the `message_clear` event may look like this:
+
+```json
+{"id":"jkl012","time":1673542305,"event":"message_clear","topic":"mytopic","sequence_id":"my-download-123"}
+```
+
+### Deleting notifications
+Deleting a notification means **removing it from the notification drawer and from the client's database**.
+
+To do this, send a DELETE request to the `/<topic>/<sequence_id>` endpoint. This will emit a `message_delete` event
+that is used by the clients (web app and Android app) to remove the notification entirely.
+
+=== "Command line (curl)"
+    ```bash
+    curl -X DELETE ntfy.sh/mytopic/my-download-123
+    ```
+
+=== "HTTP"
+    ``` http
+    DELETE /mytopic/my-download-123 HTTP/1.1
+    Host: ntfy.sh
+    ```
+
+=== "JavaScript"
+    ``` javascript
+    await fetch('https://ntfy.sh/mytopic/my-download-123', {
+      method: 'DELETE'
+    });
+    ```
+
+=== "Go"
+    ``` go
+    req, _ := http.NewRequest("DELETE", "https://ntfy.sh/mytopic/my-download-123", nil)
+    http.DefaultClient.Do(req)
+    ```
+
+=== "PowerShell"
+    ``` powershell
+    Invoke-RestMethod -Method DELETE -Uri "https://ntfy.sh/mytopic/my-download-123"
+    ```
+
+=== "Python"
+    ``` python
+    requests.delete("https://ntfy.sh/mytopic/my-download-123")
+    ```
+
+=== "PHP"
+    ``` php-inline
+    file_get_contents('https://ntfy.sh/mytopic/my-download-123', false, stream_context_create([
+        'http' => ['method' => 'DELETE']
+    ]));
+    ```
+
+An example response from the server with the `message_delete` event may look like this:
+
+```json
+{"id":"mno345","time":1673542400,"event":"message_delete","topic":"mytopic","sequence_id":"my-download-123"}
+```
+
+!!! info
+    Deleted sequences can be revived by publishing a new message with the same sequence ID. The notification will
+    reappear as a new message.
+
 ## Message templating
 _Supported on:_ :material-android: :material-apple: :material-firefox:
 
@@ -1418,22 +1857,23 @@ The JSON message format closely mirrors the format of the message you can consum
 (see [JSON message format](subscribe/api.md#json-message-format) for details), but is not exactly identical. Here's an overview of
 all the supported fields:
 
-| Field      | Required | Type                             | Example                                   | Description                                                           |
-|------------|----------|----------------------------------|-------------------------------------------|-----------------------------------------------------------------------|
-| `topic`    | ✔️       | *string*                         | `topic1`                                  | Target topic name                                                     |
-| `message`  | -        | *string*                         | `Some message`                            | Message body; set to `triggered` if empty or not passed               |
-| `title`    | -        | *string*                         | `Some title`                              | Message [title](#message-title)                                       |
-| `tags`     | -        | *string array*                   | `["tag1","tag2"]`                         | List of [tags](#tags-emojis) that may or not map to emojis            |
-| `priority` | -        | *int (one of: 1, 2, 3, 4, or 5)* | `4`                                       | Message [priority](#message-priority) with 1=min, 3=default and 5=max |
-| `actions`  | -        | *JSON array*                     | *(see [action buttons](#action-buttons))* | Custom [user action buttons](#action-buttons) for notifications       |
-| `click`    | -        | *URL*                            | `https://example.com`                     | Website opened when notification is [clicked](#click-action)          |
-| `attach`   | -        | *URL*                            | `https://example.com/file.jpg`            | URL of an attachment, see [attach via URL](#attach-file-from-a-url)   |
-| `markdown` | -        | *bool*                           | `true`                                    | Set to true if the `message` is Markdown-formatted                    |
-| `icon`     | -        | *string*                         | `https://example.com/icon.png`            | URL to use as notification [icon](#icons)                             |
-| `filename` | -        | *string*                         | `file.jpg`                                | File name of the attachment                                           |
-| `delay`    | -        | *string*                         | `30min`, `9am`                            | Timestamp or duration for delayed delivery                            |
-| `email`    | -        | *e-mail address*                 | `phil@example.com`                        | E-mail address for e-mail notifications                               |
-| `call`     | -        | *phone number or 'yes'*          | `+1222334444` or `yes`                    | Phone number to use for [voice call](#phone-calls)                    |
+| Field         | Required | Type                             | Example                                   | Description                                                                               |
+|---------------|----------|----------------------------------|-------------------------------------------|-------------------------------------------------------------------------------------------|
+| `topic`       | ✔️       | *string*                         | `topic1`                                  | Target topic name                                                                         |
+| `message`     | -        | *string*                         | `Some message`                            | Message body; set to `triggered` if empty or not passed                                   |
+| `title`       | -        | *string*                         | `Some title`                              | Message [title](#message-title)                                                           |
+| `tags`        | -        | *string array*                   | `["tag1","tag2"]`                         | List of [tags](#tags-emojis) that may or not map to emojis                                |
+| `priority`    | -        | *int (one of: 1, 2, 3, 4, or 5)* | `4`                                       | Message [priority](#message-priority) with 1=min, 3=default and 5=max                     |
+| `actions`     | -        | *JSON array*                     | *(see [action buttons](#action-buttons))* | Custom [user action buttons](#action-buttons) for notifications                           |
+| `click`       | -        | *URL*                            | `https://example.com`                     | Website opened when notification is [clicked](#click-action)                              |
+| `attach`      | -        | *URL*                            | `https://example.com/file.jpg`            | URL of an attachment, see [attach via URL](#attach-file-from-a-url)                       |
+| `markdown`    | -        | *bool*                           | `true`                                    | Set to true if the `message` is Markdown-formatted                                        |
+| `icon`        | -        | *string*                         | `https://example.com/icon.png`            | URL to use as notification [icon](#icons)                                                 |
+| `filename`    | -        | *string*                         | `file.jpg`                                | File name of the attachment                                                               |
+| `delay`       | -        | *string*                         | `30min`, `9am`                            | Timestamp or duration for delayed delivery                                                |
+| `email`       | -        | *e-mail address*                 | `phil@example.com`                        | E-mail address for e-mail notifications                                                   |
+| `call`        | -        | *phone number or 'yes'*          | `+1222334444` or `yes`                    | Phone number to use for [voice call](#phone-calls)                                        |
+| `sequence_id` | -        | *string*                         | `my-sequence-123`                         | Sequence ID for [updating/deleting notifications](#updating-deleting-notifications)   |
 
 ## Action buttons
 _Supported on:_ :material-android: :material-apple: :material-firefox:
@@ -3931,6 +4371,7 @@ table in their canonical form.
 |-----------------|--------------------------------------------|-----------------------------------------------------------------------------------------------|
 | `X-Message`     | `Message`, `m`                             | Main body of the message as shown in the notification                                         |
 | `X-Title`       | `Title`, `t`                               | [Message title](#message-title)                                                               |
+| `X-Sequence-ID` | `Sequence-ID`, `SID`                       | [Sequence ID](#updating-deleting-notifications) for updating/clearing/deleting notifications  |
 | `X-Priority`    | `Priority`, `prio`, `p`                    | [Message priority](#message-priority)                                                         |
 | `X-Tags`        | `Tags`, `Tag`, `ta`                        | [Tags and emojis](#tags-emojis)                                                               |
 | `X-Delay`       | `Delay`, `X-At`, `At`, `X-In`, `In`        | Timestamp or duration for [delayed delivery](#scheduled-delivery)                             |

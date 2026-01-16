@@ -80,11 +80,12 @@ var (
 	wsPathRegex            = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/ws$`)
 	authPathRegex          = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/auth$`)
 	publishPathRegex       = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/(publish|send|trigger)$`)
+	updatePathRegex        = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/[-_A-Za-z0-9]{1,64}$`)
+	clearPathRegex         = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/[-_A-Za-z0-9]{1,64}/(read|clear)$`)
+	sequenceIDRegex        = topicRegex
 
 	webConfigPath                                        = "/config.js"
 	webManifestPath                                      = "/manifest.webmanifest"
-	webRootHTMLPath                                      = "/app.html"
-	webServiceWorkerPath                                 = "/sw.js"
 	accountPath                                          = "/account"
 	matrixPushPath                                       = "/_matrix/push/v1/notify"
 	metricsPath                                          = "/metrics"
@@ -108,7 +109,7 @@ var (
 	apiAccountBillingSubscriptionCheckoutSuccessTemplate = "/v1/account/billing/subscription/success/{CHECKOUT_SESSION_ID}"
 	apiAccountBillingSubscriptionCheckoutSuccessRegex    = regexp.MustCompile(`/v1/account/billing/subscription/success/(.+)$`)
 	apiAccountReservationSingleRegex                     = regexp.MustCompile(`/v1/account/reservation/([-_A-Za-z0-9]{1,64})$`)
-	staticRegex                                          = regexp.MustCompile(`^/static/.+`)
+	staticRegex                                          = regexp.MustCompile(`^/(static/.+|app.html|sw.js|sw.js.map)$`)
 	docsRegex                                            = regexp.MustCompile(`^/docs(|/.*)$`)
 	fileRegex                                            = regexp.MustCompile(`^/file/([-_A-Za-z0-9]{1,64})(?:\.[A-Za-z0-9]{1,16})?$`)
 	urlRegex                                             = regexp.MustCompile(`^https?://`)
@@ -137,7 +138,7 @@ var (
 const (
 	firebaseControlTopic     = "~control"                // See Android if changed
 	firebasePollTopic        = "~poll"                   // See iOS if changed (DISABLED for now)
-	emptyMessageBody         = "triggered"               // Used if message body is empty
+	emptyMessageBody         = "triggered"               // Used when a message body is empty
 	newMessageBody           = "New message"             // Used in poll requests as generic message
 	defaultAttachmentMessage = "You received a file: %s" // Used if message body is empty, and there is an attachment
 	encodingBase64           = "base64"                  // Used mainly for binary UnifiedPush messages
@@ -531,7 +532,7 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.handleMatrixDiscovery(w)
 	} else if r.Method == http.MethodGet && r.URL.Path == metricsPath && s.metricsHandler != nil {
 		return s.handleMetrics(w, r, v)
-	} else if r.Method == http.MethodGet && (staticRegex.MatchString(r.URL.Path) || r.URL.Path == webServiceWorkerPath || r.URL.Path == webRootHTMLPath) {
+	} else if r.Method == http.MethodGet && staticRegex.MatchString(r.URL.Path) {
 		return s.ensureWebEnabled(s.handleStatic)(w, r, v)
 	} else if r.Method == http.MethodGet && docsRegex.MatchString(r.URL.Path) {
 		return s.ensureWebEnabled(s.handleDocs)(w, r, v)
@@ -543,8 +544,12 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.transformBodyJSON(s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish)))(w, r, v)
 	} else if r.Method == http.MethodPost && r.URL.Path == matrixPushPath {
 		return s.transformMatrixJSON(s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublishMatrix)))(w, r, v)
-	} else if (r.Method == http.MethodPut || r.Method == http.MethodPost) && topicPathRegex.MatchString(r.URL.Path) {
+	} else if (r.Method == http.MethodPut || r.Method == http.MethodPost) && (topicPathRegex.MatchString(r.URL.Path) || updatePathRegex.MatchString(r.URL.Path)) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)
+	} else if r.Method == http.MethodDelete && updatePathRegex.MatchString(r.URL.Path) {
+		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handleDelete))(w, r, v)
+	} else if r.Method == http.MethodPut && clearPathRegex.MatchString(r.URL.Path) {
+		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handleClear))(w, r, v)
 	} else if r.Method == http.MethodGet && publishPathRegex.MatchString(r.URL.Path) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)
 	} else if r.Method == http.MethodGet && jsonPathRegex.MatchString(r.URL.Path) {
@@ -872,7 +877,7 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request, v *visito
 		return err
 	}
 	minc(metricMessagesPublishedSuccess)
-	return s.writeJSON(w, m)
+	return s.writeJSON(w, m.forJSON())
 }
 
 func (s *Server) handlePublishMatrix(w http.ResponseWriter, r *http.Request, v *visitor) error {
@@ -898,6 +903,58 @@ func (s *Server) handlePublishMatrix(w http.ResponseWriter, r *http.Request, v *
 	minc(metricMessagesPublishedSuccess)
 	minc(metricMatrixPublishedSuccess)
 	return writeMatrixSuccess(w)
+}
+
+func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	return s.handleActionMessage(w, r, v, messageDeleteEvent)
+}
+
+func (s *Server) handleClear(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	return s.handleActionMessage(w, r, v, messageClearEvent)
+}
+
+func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *visitor, event string) error {
+	t, err := fromContext[*topic](r, contextTopic)
+	if err != nil {
+		return err
+	}
+	vrate, err := fromContext[*visitor](r, contextRateVisitor)
+	if err != nil {
+		return err
+	}
+	if !util.ContainsIP(s.config.VisitorRequestExemptPrefixes, v.ip) && !vrate.MessageAllowed() {
+		return errHTTPTooManyRequestsLimitMessages.With(t)
+	}
+	sequenceID, e := s.sequenceIDFromPath(r.URL.Path)
+	if e != nil {
+		return e.With(t)
+	}
+	// Create an action message with the given event type
+	m := newActionMessage(event, t.ID, sequenceID)
+	m.Sender = v.IP()
+	m.User = v.MaybeUserID()
+	m.Expires = time.Unix(m.Time, 0).Add(v.Limits().MessageExpiryDuration).Unix()
+	// Publish to subscribers
+	if err := t.Publish(v, m); err != nil {
+		return err
+	}
+	// Send to Firebase for Android clients
+	if s.firebaseClient != nil {
+		go s.sendToFirebase(v, m)
+	}
+	// Send to web push endpoints
+	if s.config.WebPushPublicKey != "" {
+		go s.publishToWebPushEndpoints(v, m)
+	}
+	// Add to message cache
+	if err := s.messageCache.AddMessage(m); err != nil {
+		return err
+	}
+	logvrm(v, r, m).Tag(tagPublish).Debug("Published %s for sequence ID %s", event, sequenceID)
+	s.mu.Lock()
+	s.messages++
+	s.mu.Unlock()
+	return s.writeJSON(w, m.forJSON())
 }
 
 func (s *Server) sendToFirebase(v *visitor, m *message) {
@@ -957,6 +1014,24 @@ func (s *Server) forwardPollRequest(v *visitor, m *message) {
 }
 
 func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, firebase bool, email, call string, template templateMode, unifiedpush bool, err *errHTTP) {
+	if r.Method != http.MethodGet && updatePathRegex.MatchString(r.URL.Path) {
+		pathSequenceID, err := s.sequenceIDFromPath(r.URL.Path)
+		if err != nil {
+			return false, false, "", "", "", false, err
+		}
+		m.SequenceID = pathSequenceID
+	} else {
+		sequenceID := readParam(r, "x-sequence-id", "sequence-id", "sid")
+		if sequenceID != "" {
+			if sequenceIDRegex.MatchString(sequenceID) {
+				m.SequenceID = sequenceID
+			} else {
+				return false, false, "", "", "", false, errHTTPBadRequestSequenceIDInvalid
+			}
+		} else {
+			m.SequenceID = m.ID
+		}
+	}
 	cache = readBoolParam(r, true, "x-cache", "cache")
 	firebase = readBoolParam(r, true, "x-firebase", "firebase")
 	m.Title = readParam(r, "x-title", "title", "t")
@@ -1271,7 +1346,7 @@ func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *message,
 func (s *Server) handleSubscribeJSON(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	encoder := func(msg *message) (string, error) {
 		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(&msg); err != nil {
+		if err := json.NewEncoder(&buf).Encode(msg.forJSON()); err != nil {
 			return "", err
 		}
 		return buf.String(), nil
@@ -1282,10 +1357,10 @@ func (s *Server) handleSubscribeJSON(w http.ResponseWriter, r *http.Request, v *
 func (s *Server) handleSubscribeSSE(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	encoder := func(msg *message) (string, error) {
 		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(&msg); err != nil {
+		if err := json.NewEncoder(&buf).Encode(msg.forJSON()); err != nil {
 			return "", err
 		}
-		if msg.Event != messageEvent {
+		if msg.Event != messageEvent && msg.Event != messageDeleteEvent && msg.Event != messageClearEvent {
 			return fmt.Sprintf("event: %s\ndata: %s\n", msg.Event, buf.String()), nil // Browser's .onmessage() does not fire on this!
 		}
 		return fmt.Sprintf("data: %s\n", buf.String()), nil
@@ -1695,6 +1770,15 @@ func (s *Server) topicsFromPath(path string) ([]*topic, string, error) {
 	return topics, parts[1], nil
 }
 
+// sequenceIDFromPath returns the sequence ID from a path like /mytopic/sequenceIdHere
+func (s *Server) sequenceIDFromPath(path string) (string, *errHTTP) {
+	parts := strings.Split(path, "/")
+	if len(parts) < 3 {
+		return "", errHTTPBadRequestSequenceIDInvalid
+	}
+	return parts[2], nil
+}
+
 // topicsFromIDs returns the topics with the given IDs, creating them if they don't exist.
 func (s *Server) topicsFromIDs(ids ...string) ([]*topic, error) {
 	s.mu.Lock()
@@ -1948,6 +2032,9 @@ func (s *Server) transformBodyJSON(next handleFunc) handleFunc {
 		}
 		if m.Firebase != "" {
 			r.Header.Set("X-Firebase", m.Firebase)
+		}
+		if m.SequenceID != "" {
+			r.Header.Set("X-Sequence-ID", m.SequenceID)
 		}
 		return next(w, r, v)
 	}

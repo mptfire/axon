@@ -25,13 +25,13 @@ const formatTitleWithDefault = (m, fallback) => {
 
 export const formatMessage = (m) => {
   if (m.title) {
-    return m.message;
+    return m.message || "";
   }
   const emojiList = toEmojis(m.tags);
   if (emojiList.length > 0) {
-    return `${emojiList.join(" ")} ${m.message}`;
+    return `${emojiList.join(" ")} ${m.message || ""}`;
   }
-  return m.message;
+  return m.message || "";
 };
 
 const imageRegex = /\.(png|jpe?g|gif|webp)$/i;
@@ -50,7 +50,7 @@ export const isImage = (attachment) => {
 export const icon = "/static/images/ntfy.png";
 export const badge = "/static/images/mask-icon.svg";
 
-export const toNotificationParams = ({ subscriptionId, message, defaultTitle, topicRoute }) => {
+export const toNotificationParams = ({ message, defaultTitle, topicRoute }) => {
   const image = isImage(message.attachment) ? message.attachment.url : undefined;
 
   // https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API
@@ -61,8 +61,8 @@ export const toNotificationParams = ({ subscriptionId, message, defaultTitle, to
       badge,
       icon,
       image,
-      timestamp: message.time * 1_000,
-      tag: subscriptionId,
+      timestamp: message.time * 1000,
+      tag: message.sequence_id || message.id, // Update notification if there is a sequence ID
       renotify: true,
       silent: false,
       // This is used by the notification onclick event
@@ -78,4 +78,11 @@ export const toNotificationParams = ({ subscriptionId, message, defaultTitle, to
         })),
     },
   ];
+};
+
+export const messageWithSequenceId = (message) => {
+  if (message.sequenceId) {
+    return message;
+  }
+  return { ...message, sequenceId: message.sequence_id || message.id };
 };
