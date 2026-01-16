@@ -771,10 +771,6 @@ func readMessage(rows *sql.Rows) (*message, error) {
 			URL:     attachmentURL,
 		}
 	}
-	// Clear SequenceID if it equals ID (we do not want the SequenceID in the message output)
-	if sequenceID == id {
-		sequenceID = ""
-	}
 	return &message{
 		ID:          id,
 		SequenceID:  sequenceID,
