@@ -51,8 +51,11 @@ export const useConnectionListeners = (account, subscriptions, users, webPushTop
       };
 
       const handleNotification = async (subscriptionId, notification) => {
-        // Note: This logic is duplicated in the Android app in SubscriberService::onNotificationReceived()
-        //       and FirebaseService::handleMessage().
+        // This logic is (partially) duplicated in
+        // - Android: SubscriberService::onNotificationReceived()
+        // - Android: FirebaseService::onMessageReceived()
+        // - Web app: hooks.js:handleNotification()
+        // - Web app: sw.js:handleMessage(), sw.js:handleMessageClear(), ...
 
         if (notification.event === EVENT_MESSAGE_DELETE && notification.sequence_id) {
           await subscriptionManager.deleteNotificationBySequenceId(subscriptionId, notification.sequence_id);

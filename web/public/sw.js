@@ -163,6 +163,12 @@ const handlePushUnknown = async (data) => {
 const handlePush = async (data) => {
   const { message } = data;
 
+  // This logic is (partially) duplicated in
+  // - Android: SubscriberService::onNotificationReceived()
+  // - Android: FirebaseService::onMessageReceived()
+  // - Web app: hooks.js:handleNotification()
+  // - Web app: sw.js:handleMessage(), sw.js:handleMessageClear(), ...
+
   if (message.event === EVENT_MESSAGE) {
     await handlePushMessage(data);
   } else if (message.event === EVENT_MESSAGE_DELETE) {
