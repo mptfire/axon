@@ -6,7 +6,13 @@ import { clientsClaim } from "workbox-core";
 import { dbAsync } from "../src/app/db";
 import { badge, icon, messageWithSequenceId, toNotificationParams } from "../src/app/notificationUtils";
 import initI18n from "../src/app/i18n";
-import { EVENT_MESSAGE, EVENT_MESSAGE_CLEAR, EVENT_MESSAGE_DELETE, EVENT_SUBSCRIPTION_EXPIRING } from "../src/app/events";
+import {
+  EVENT_MESSAGE,
+  EVENT_MESSAGE_CLEAR,
+  EVENT_MESSAGE_DELETE,
+  WEBPUSH_EVENT_MESSAGE,
+  WEBPUSH_EVENT_SUBSCRIPTION_EXPIRING,
+} from "../src/app/events";
 
 /**
  * General docs for service workers and PWAs:
@@ -161,25 +167,26 @@ const handlePushUnknown = async (data) => {
  * @param {object} data see server/types.go, type webPushPayload
  */
 const handlePush = async (data) => {
-  const { message } = data;
-
   // This logic is (partially) duplicated in
   // - Android: SubscriberService::onNotificationReceived()
   // - Android: FirebaseService::onMessageReceived()
   // - Web app: hooks.js:handleNotification()
   // - Web app: sw.js:handleMessage(), sw.js:handleMessageClear(), ...
 
-  if (message.event === EVENT_MESSAGE) {
-    await handlePushMessage(data);
-  } else if (message.event === EVENT_MESSAGE_DELETE) {
-    await handlePushMessageDelete(data);
-  } else if (message.event === EVENT_MESSAGE_CLEAR) {
-    await handlePushMessageClear(data);
-  } else if (message.event === EVENT_SUBSCRIPTION_EXPIRING) {
-    await handlePushSubscriptionExpiring(data);
-  } else {
-    await handlePushUnknown(data);
+  if (data.event === WEBPUSH_EVENT_MESSAGE) {
+    const { message } = data;
+    if (message.event === EVENT_MESSAGE) {
+      return await handlePushMessage(data);
+    } else if (message.event === EVENT_MESSAGE_DELETE) {
+      return await handlePushMessageDelete(data);
+    } else if (message.event === EVENT_MESSAGE_CLEAR) {
+      return await handlePushMessageClear(data);
+    }
+  } else if (data.event === WEBPUSH_EVENT_SUBSCRIPTION_EXPIRING) {
+    return await handlePushSubscriptionExpiring(data);
   }
+
+  return await handlePushUnknown(data);
 };
 
 /**

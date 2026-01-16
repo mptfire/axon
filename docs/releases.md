@@ -1603,22 +1603,28 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 **Features:**
 
-* Support for [updating and deleting notifications](publish.md#updating-deleting-notifications): You can now update, 
-  clear (mark as read), or delete notifications using a sequence ID. This enables use cases like progress updates, 
-  replacing outdated notifications, or dismissing notifications from all clients.
+* Support for [updating and deleting notifications](publish.md#updating-deleting-notifications) 
+  ([#303](https://github.com/binwiederhier/ntfy/issues/303), [#1536](https://github.com/binwiederhier/ntfy/pull/1536),
+  [ntfy-android#151](https://github.com/binwiederhier/ntfy-android/pull/151), thanks to [@wunter8](https://github.com/wunter8)
+  for the initial implementation)
 
 ### ntfy Android app v1.22.x (UNRELEASED)
 
 **Features:**
 
-* Support for self-signed certs and client certs for mTLS (#215, #530, ntfy-android#149)
+* Support for [updating and deleting notifications](publish.md#updating-deleting-notifications)
+  ([#303](https://github.com/binwiederhier/ntfy/issues/303), [#1536](https://github.com/binwiederhier/ntfy/pull/1536),
+  [ntfy-android#151](https://github.com/binwiederhier/ntfy-android/pull/151), thanks to [@wunter8](https://github.com/wunter8)
+  for the initial implementation)
+* Support for self-signed certs and client certs for mTLS ([#215](https://github.com/binwiederhier/ntfy/issues/215),
+  [#530](https://github.com/binwiederhier/ntfy/issues/530), [ntfy-android#149](https://github.com/binwiederhier/ntfy-android/pull/149),
+  thanks to [@cyb3rko](https://github.com/cyb3rko) for reviewing)
 * Connection error dialog to help diagnose connection issues
-* Support for [updating and deleting notifications](publish.md#updating-deleting-notifications): Notifications with
-  the same sequence ID are updated in place, and `message_delete`/`message_clear` events dismiss notifications
 
 **Bug fixes + maintenance:**
 
-* Use server-specific user for attachment downloads (#1529, thanks to @ManInDark for reporting)
-* Fix crash in sharing dialog (thanks to @rogeliodh)
+* Use server-specific user for attachment downloads ([#1529](https://github.com/binwiederhier/ntfy/issues/1529),
+  thanks to [@ManInDark](https://github.com/ManInDark) for reporting and testing)
+* Fix crash in sharing dialog (thanks to [@rogeliodh](https://github.com/rogeliodh))
 * Fix crash when exiting multi-delete in detail view
 * Fix potential crashes with icon downloader and backuper
