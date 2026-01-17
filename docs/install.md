@@ -228,19 +228,38 @@ brew install ntfy
 ```
 
 ## Windows
-The [ntfy CLI](subscribe/cli.md) (`ntfy publish` and `ntfy subscribe` only) is supported on Windows as well.
+The ntfy server and CLI are fully supported on Windows. You can run the ntfy server directly or as a Windows service.
+
 To install, please [download the latest ZIP](https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_windows_amd64.zip),
 extract it and place the `ntfy.exe` binary somewhere in your `%Path%`. 
-
-The default path for the client config file is at `%AppData%\ntfy\client.yml` (not created automatically, sample in the ZIP file).
 
 Also available in [Scoop's](https://scoop.sh) Main repository:
 
 `scoop install ntfy`
 
+### Running the server
+To run the ntfy server directly:
+```
+ntfy serve
+```
+
+The default configuration file location on Windows is `%ProgramData%\ntfy\server.yml` (e.g., `C:\ProgramData\ntfy\server.yml`).
+You may need to create the directory and config file manually.
+
+For information on running ntfy as a Windows service, see the [Windows service](config.md#windows-service) section in the configuration documentation.
+
+### Client configuration
+The default path for the client config file is at `%AppData%\ntfy\client.yml` (not created automatically, sample in the ZIP file).
+
 !!! info
     There is currently no installer for Windows, and the binary is not signed. If this is desired, please create a
     [GitHub issue](https://github.com/binwiederhier/ntfy/issues) to let me know.
+
+!!! note
+    Some features are not available on Windows:
+    
+    - Unix socket listening (`listen-unix`) is not supported
+    - Config hot-reload via SIGHUP is not available; restart the service to apply config changes
 
 ## Docker
 The [ntfy image](https://hub.docker.com/r/binwiederhier/ntfy) is available for amd64, armv6, armv7 and arm64. It should 

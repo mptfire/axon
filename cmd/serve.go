@@ -10,10 +10,8 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
-	"os"
-	"os/signal"
+	"runtime"
 	"strings"
-	"syscall"
 	"text/template"
 	"time"
 
@@ -350,6 +348,8 @@ func execServe(c *cli.Context) error {
 		return errors.New("visitor-prefix-bits-ipv4 must be between 1 and 32")
 	} else if visitorPrefixBitsIPv6 < 1 || visitorPrefixBitsIPv6 > 128 {
 		return errors.New("visitor-prefix-bits-ipv6 must be between 1 and 128")
+	} else if runtime.GOOS == "windows" && listenUnix != "" {
+		return errors.New("listen-unix is not supported on Windows")
 	}
 
 	// Backwards compatibility
@@ -503,6 +503,14 @@ func execServe(c *cli.Context) error {
 	conf.WebPushExpiryWarningDuration = webPushExpiryWarningDuration
 	conf.Version = c.App.Version
 
+	// Check if we should run as a Windows service
+	if ranAsService, err := maybeRunAsService(conf); err != nil {
+		log.Fatal("%s", err.Error())
+	} else if ranAsService {
+		log.Info("Exiting.")
+		return nil
+	}
+
 	// Set up hot-reloading of config
 	go sigHandlerConfigReload(config)
 
@@ -515,22 +523,6 @@ func execServe(c *cli.Context) error {
 	}
 	log.Info("Exiting.")
 	return nil
-}
-
-func sigHandlerConfigReload(config string) {
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGHUP)
-	for range sigs {
-		log.Info("Partially hot reloading configuration ...")
-		inputSource, err := newYamlSourceFromFile(config, flagsServe)
-		if err != nil {
-			log.Warn("Hot reload failed: %s", err.Error())
-			continue
-		}
-		if err := reloadLogLevel(inputSource); err != nil {
-			log.Warn("Reloading log level failed: %s", err.Error())
-		}
-	}
 }
 
 func parseIPHostPrefix(host string) (prefixes []netip.Prefix, err error) {
@@ -664,24 +656,3 @@ func parseTokens(users []*user.User, tokensRaw []string) (map[string][]*user.Tok
 	return tokens, nil
 }
 
-func reloadLogLevel(inputSource altsrc.InputSourceContext) error {
-	newLevelStr, err := inputSource.String("log-level")
-	if err != nil {
-		return fmt.Errorf("cannot load log level: %s", err.Error())
-	}
-	overrides, err := inputSource.StringSlice("log-level-overrides")
-	if err != nil {
-		return fmt.Errorf("cannot load log level overrides (1): %s", err.Error())
-	}
-	log.ResetLevelOverrides()
-	if err := applyLogLevelOverrides(overrides); err != nil {
-		return fmt.Errorf("cannot load log level overrides (2): %s", err.Error())
-	}
-	log.SetLevel(log.ToLevel(newLevelStr))
-	if len(overrides) > 0 {
-		log.Info("Log level is %v, %d override(s) in place", strings.ToUpper(newLevelStr), len(overrides))
-	} else {
-		log.Info("Log level is %v", strings.ToUpper(newLevelStr))
-	}
-	return nil
-}
