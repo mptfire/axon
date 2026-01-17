@@ -7,16 +7,17 @@ import (
 
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/user"
-
 	"heckel.io/ntfy/v2/util"
 )
 
 // List of possible events
 const (
-	openEvent        = "open"
-	keepaliveEvent   = "keepalive"
-	messageEvent     = "message"
-	pollRequestEvent = "poll_request"
+	openEvent          = "open"
+	keepaliveEvent     = "keepalive"
+	messageEvent       = "message"
+	messageDeleteEvent = "message_delete"
+	messageClearEvent  = "message_clear"
+	pollRequestEvent   = "poll_request"
 )
 
 const (
@@ -25,10 +26,11 @@ const (
 
 // message represents a message published to a topic
 type message struct {
-	ID          string      `json:"id"`                // Random message ID
-	Time        int64       `json:"time"`              // Unix time in seconds
-	Expires     int64       `json:"expires,omitempty"` // Unix time in seconds (not required for open/keepalive)
-	Event       string      `json:"event"`             // One of the above
+	ID          string      `json:"id"`                    // Random message ID
+	SequenceID  string      `json:"sequence_id,omitempty"` // Message sequence ID for updating message contents (omitted if same as ID)
+	Time        int64       `json:"time"`                  // Unix time in seconds
+	Expires     int64       `json:"expires,omitempty"`     // Unix time in seconds (not required for open/keepalive)
+	Event       string      `json:"event"`                 // One of the above
 	Topic       string      `json:"topic"`
 	Title       string      `json:"title,omitempty"`
 	Message     string      `json:"message,omitempty"`
@@ -40,18 +42,19 @@ type message struct {
 	Attachment  *attachment `json:"attachment,omitempty"`
 	PollID      string      `json:"poll_id,omitempty"`
 	ContentType string      `json:"content_type,omitempty"` // text/plain by default (if empty), or text/markdown
-	Encoding    string      `json:"encoding,omitempty"`     // empty for raw UTF-8, or "base64" for encoded bytes
+	Encoding    string      `json:"encoding,omitempty"`     // Empty for raw UTF-8, or "base64" for encoded bytes
 	Sender      netip.Addr  `json:"-"`                      // IP address of uploader, used for rate limiting
 	User        string      `json:"-"`                      // UserID of the uploader, used to associated attachments
 }
 
 func (m *message) Context() log.Context {
 	fields := map[string]any{
-		"topic":             m.Topic,
-		"message_id":        m.ID,
-		"message_time":      m.Time,
-		"message_event":     m.Event,
-		"message_body_size": len(m.Message),
+		"topic":               m.Topic,
+		"message_id":          m.ID,
+		"message_sequence_id": m.SequenceID,
+		"message_time":        m.Time,
+		"message_event":       m.Event,
+		"message_body_size":   len(m.Message),
 	}
 	if m.Sender.IsValid() {
 		fields["message_sender"] = m.Sender.String()
@@ -60,6 +63,17 @@ func (m *message) Context() log.Context {
 		fields["message_user"] = m.User
 	}
 	return fields
+}
+
+// forJSON returns a copy of the message suitable for JSON output.
+// It clears the SequenceID if it equals the ID to reduce redundancy.
+func (m *message) forJSON() *message {
+	if m.SequenceID == m.ID {
+		clone := *m
+		clone.SequenceID = ""
+		return &clone
+	}
+	return m
 }
 
 type attachment struct {
@@ -92,20 +106,23 @@ func newAction() *action {
 
 // publishMessage is used as input when publishing as JSON
 type publishMessage struct {
-	Topic    string   `json:"topic"`
-	Title    string   `json:"title"`
-	Message  string   `json:"message"`
-	Priority int      `json:"priority"`
-	Tags     []string `json:"tags"`
-	Click    string   `json:"click"`
-	Icon     string   `json:"icon"`
-	Actions  []action `json:"actions"`
-	Attach   string   `json:"attach"`
-	Markdown bool     `json:"markdown"`
-	Filename string   `json:"filename"`
-	Email    string   `json:"email"`
-	Call     string   `json:"call"`
-	Delay    string   `json:"delay"`
+	Topic      string   `json:"topic"`
+	SequenceID string   `json:"sequence_id"`
+	Title      string   `json:"title"`
+	Message    string   `json:"message"`
+	Priority   int      `json:"priority"`
+	Tags       []string `json:"tags"`
+	Click      string   `json:"click"`
+	Icon       string   `json:"icon"`
+	Actions    []action `json:"actions"`
+	Attach     string   `json:"attach"`
+	Markdown   bool     `json:"markdown"`
+	Filename   string   `json:"filename"`
+	Email      string   `json:"email"`
+	Call       string   `json:"call"`
+	Cache      string   `json:"cache"`    // use string as it defaults to true (or use &bool instead)
+	Firebase   string   `json:"firebase"` // use string as it defaults to true (or use &bool instead)
+	Delay      string   `json:"delay"`
 }
 
 // messageEncoder is a function that knows how to encode a message
@@ -144,6 +161,13 @@ func newPollRequestMessage(topic, pollID string) *message {
 	return m
 }
 
+// newActionMessage creates a new action message (message_delete or message_clear)
+func newActionMessage(event, topic, sequenceID string) *message {
+	m := newMessage(event, topic, "")
+	m.SequenceID = sequenceID
+	return m
+}
+
 func validMessageID(s string) bool {
 	return util.ValidRandomString(s, messageIDLength)
 }
@@ -169,8 +193,12 @@ func (t sinceMarker) IsNone() bool {
 	return t == sinceNoMessages
 }
 
+func (t sinceMarker) IsLatest() bool {
+	return t == sinceLatestMessage
+}
+
 func (t sinceMarker) IsID() bool {
-	return t.id != ""
+	return t.id != "" && t.id != "latest"
 }
 
 func (t sinceMarker) Time() time.Time {
@@ -182,8 +210,9 @@ func (t sinceMarker) ID() string {
 }
 
 var (
-	sinceAllMessages = sinceMarker{time.Unix(0, 0), ""}
-	sinceNoMessages  = sinceMarker{time.Unix(1, 0), ""}
+	sinceAllMessages   = sinceMarker{time.Unix(0, 0), ""}
+	sinceNoMessages    = sinceMarker{time.Unix(1, 0), ""}
+	sinceLatestMessage = sinceMarker{time.Unix(0, 0), "latest"}
 )
 
 type queryFilter struct {
@@ -217,7 +246,7 @@ func parseQueryFilters(r *http.Request) (*queryFilter, error) {
 }
 
 func (q *queryFilter) Pass(msg *message) bool {
-	if msg.Event != messageEvent {
+	if msg.Event != messageEvent && msg.Event != messageDeleteEvent && msg.Event != messageClearEvent {
 		return true // filters only apply to messages
 	} else if q.ID != "" && msg.ID != q.ID {
 		return false
@@ -239,6 +268,51 @@ func (q *queryFilter) Pass(msg *message) bool {
 	return true
 }
 
+// templateMode represents the mode in which templates are used
+//
+// It can be
+// - empty: templating is disabled
+// - a boolean string (yes/1/true/no/0/false): inline-templating mode
+// - a filename (e.g. grafana): template mode with a file
+type templateMode string
+
+// Enabled returns true if templating is enabled
+func (t templateMode) Enabled() bool {
+	return t != ""
+}
+
+// InlineMode returns true if inline-templating mode is enabled
+func (t templateMode) InlineMode() bool {
+	return t.Enabled() && isBoolValue(string(t))
+}
+
+// FileMode returns true if file-templating mode is enabled
+func (t templateMode) FileMode() bool {
+	return t.Enabled() && !isBoolValue(string(t))
+}
+
+// FileName returns the filename if file-templating mode is enabled, or an empty string otherwise
+func (t templateMode) FileName() string {
+	if t.FileMode() {
+		return string(t)
+	}
+	return ""
+}
+
+// templateFile represents a template file with title and message
+// It is used for file-based templates, e.g. grafana, influxdb, etc.
+//
+// Example YAML:
+//
+//	  title: "Alert: {{ .Title }}"
+//	  message: |
+//		   This is a {{ .Type }} alert.
+//		   It can be multiline.
+type templateFile struct {
+	Title   *string `yaml:"title"`
+	Message *string `yaml:"message"`
+}
+
 type apiHealthResponse struct {
 	Healthy bool `json:"healthy"`
 }
@@ -248,9 +322,10 @@ type apiStatsResponse struct {
 	MessagesRate float64 `json:"messages_rate"` // Average number of messages per second
 }
 
-type apiUserAddRequest struct {
+type apiUserAddOrUpdateRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Hash     string `json:"hash"`
 	Tier     string `json:"tier"`
 	// Do not add 'role' here. We don't want to add admins via the API.
 }
@@ -308,11 +383,12 @@ type apiAccountTokenUpdateRequest struct {
 }
 
 type apiAccountTokenResponse struct {
-	Token      string `json:"token"`
-	Label      string `json:"label,omitempty"`
-	LastAccess int64  `json:"last_access,omitempty"`
-	LastOrigin string `json:"last_origin,omitempty"`
-	Expires    int64  `json:"expires,omitempty"` // Unix timestamp
+	Token       string `json:"token"`
+	Label       string `json:"label,omitempty"`
+	LastAccess  int64  `json:"last_access,omitempty"`
+	LastOrigin  string `json:"last_origin,omitempty"`
+	Expires     int64  `json:"expires,omitempty"`     // Unix timestamp
+	Provisioned bool   `json:"provisioned,omitempty"` // True if this token was provisioned by the server config
 }
 
 type apiAccountPhoneNumberVerifyRequest struct {
@@ -374,6 +450,7 @@ type apiAccountResponse struct {
 	Username      string                     `json:"username"`
 	Role          string                     `json:"role,omitempty"`
 	SyncTopic     string                     `json:"sync_topic,omitempty"`
+	Provisioned   bool                       `json:"provisioned,omitempty"`
 	Language      string                     `json:"language,omitempty"`
 	Notification  *user.NotificationPrefs    `json:"notification,omitempty"`
 	Subscriptions []*user.Subscription       `json:"subscriptions,omitempty"`
@@ -395,6 +472,7 @@ type apiConfigResponse struct {
 	BaseURL            string   `json:"base_url"`
 	AppRoot            string   `json:"app_root"`
 	EnableLogin        bool     `json:"enable_login"`
+	RequireLogin       bool     `json:"require_login"`
 	EnableSignup       bool     `json:"enable_signup"`
 	EnablePayments     bool     `json:"enable_payments"`
 	EnableCalls        bool     `json:"enable_calls"`

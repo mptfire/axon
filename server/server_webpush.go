@@ -1,3 +1,5 @@
+//go:build !nowebpush
+
 package server
 
 import (
@@ -13,6 +15,10 @@ import (
 )
 
 const (
+	// WebPushAvailable is a constant used to indicate that WebPush support is available.
+	// It can be disabled with the 'nowebpush' build tag.
+	WebPushAvailable = true
+
 	webPushTopicSubscribeLimit = 50
 )
 
@@ -83,7 +89,7 @@ func (s *Server) publishToWebPushEndpoints(v *visitor, m *message) {
 		return
 	}
 	log.Tag(tagWebPush).With(v, m).Debug("Publishing web push message to %d subscribers", len(subscriptions))
-	payload, err := json.Marshal(newWebPushPayload(fmt.Sprintf("%s/%s", s.config.BaseURL, m.Topic), m))
+	payload, err := json.Marshal(newWebPushPayload(fmt.Sprintf("%s/%s", s.config.BaseURL, m.Topic), m.forJSON()))
 	if err != nil {
 		log.Tag(tagWebPush).Err(err).With(v, m).Warn("Unable to marshal expiring payload")
 		return

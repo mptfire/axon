@@ -9,6 +9,7 @@ var config = {
   base_url: window.location.origin, // Change to test against a different server
   app_root: "/",
   enable_login: true,
+  require_login: false,
   enable_signup: true,
   enable_payments: false,
   enable_reservations: true,

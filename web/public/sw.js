@@ -3,11 +3,16 @@ import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from
 import { NavigationRoute, registerRoute } from "workbox-routing";
 import { NetworkFirst } from "workbox-strategies";
 import { clientsClaim } from "workbox-core";
-
 import { dbAsync } from "../src/app/db";
-
-import { toNotificationParams, icon, badge } from "../src/app/notificationUtils";
+import { badge, icon, messageWithSequenceId, toNotificationParams } from "../src/app/notificationUtils";
 import initI18n from "../src/app/i18n";
+import {
+  EVENT_MESSAGE,
+  EVENT_MESSAGE_CLEAR,
+  EVENT_MESSAGE_DELETE,
+  WEBPUSH_EVENT_MESSAGE,
+  WEBPUSH_EVENT_SUBSCRIPTION_EXPIRING,
+} from "../src/app/events";
 
 /**
  * General docs for service workers and PWAs:
@@ -21,25 +26,6 @@ import initI18n from "../src/app/i18n";
 
 const broadcastChannel = new BroadcastChannel("web-push-broadcast");
 
-const addNotification = async ({ subscriptionId, message }) => {
-  const db = await dbAsync();
-
-  await db.notifications.add({
-    ...message,
-    subscriptionId,
-    // New marker (used for bubble indicator); cannot be boolean; Dexie index limitation
-    new: 1,
-  });
-
-  await db.subscriptions.update(subscriptionId, {
-    last: message.id,
-  });
-
-  const badgeCount = await db.notifications.where({ new: 1 }).count();
-  console.log("[ServiceWorker] Setting new app badge count", { badgeCount });
-  self.navigator.setAppBadge?.(badgeCount);
-};
-
 /**
  * Handle a received web push message and show notification.
  *
@@ -48,10 +34,35 @@ const addNotification = async ({ subscriptionId, message }) => {
  */
 const handlePushMessage = async (data) => {
   const { subscription_id: subscriptionId, message } = data;
+  const db = await dbAsync();
 
-  broadcastChannel.postMessage(message); // To potentially play sound
+  console.log("[ServiceWorker] Message received", data);
 
-  await addNotification({ subscriptionId, message });
+  // Delete existing notification with same sequence ID (if any)
+  const sequenceId = message.sequence_id || message.id;
+  if (sequenceId) {
+    await db.notifications.where({ subscriptionId, sequenceId }).delete();
+  }
+
+  // Add notification to database
+  await db.notifications.add({
+    ...messageWithSequenceId(message),
+    subscriptionId,
+    new: 1, // New marker (used for bubble indicator); cannot be boolean; Dexie index limitation
+  });
+
+  // Update subscription last message id (for ?since=... queries)
+  await db.subscriptions.update(subscriptionId, {
+    last: message.id,
+  });
+
+  // Update badge in PWA
+  const badgeCount = await db.notifications.where({ new: 1 }).count();
+  self.navigator.setAppBadge?.(badgeCount);
+
+  // Broadcast the message to potentially play a sound
+  broadcastChannel.postMessage(message);
+
   await self.registration.showNotification(
     ...toNotificationParams({
       subscriptionId,
@@ -63,10 +74,69 @@ const handlePushMessage = async (data) => {
 };
 
 /**
+ * Handle a message_delete event: delete the notification from the database.
+ */
+const handlePushMessageDelete = async (data) => {
+  const { subscription_id: subscriptionId, message } = data;
+  const db = await dbAsync();
+  console.log("[ServiceWorker] Deleting notification sequence", data);
+
+  // Delete notification with the same sequence_id
+  const sequenceId = message.sequence_id;
+  if (sequenceId) {
+    await db.notifications.where({ subscriptionId, sequenceId }).delete();
+  }
+
+  // Close browser notification with matching tag
+  const tag = message.sequence_id || message.id;
+  if (tag) {
+    const notifications = await self.registration.getNotifications({ tag });
+    notifications.forEach((notification) => notification.close());
+  }
+
+  // Update subscription last message id (for ?since=... queries)
+  await db.subscriptions.update(subscriptionId, {
+    last: message.id,
+  });
+};
+
+/**
+ * Handle a message_clear event: clear/dismiss the notification.
+ */
+const handlePushMessageClear = async (data) => {
+  const { subscription_id: subscriptionId, message } = data;
+  const db = await dbAsync();
+  console.log("[ServiceWorker] Marking notification as read", data);
+
+  // Mark notification as read (set new = 0)
+  const sequenceId = message.sequence_id;
+  if (sequenceId) {
+    await db.notifications.where({ subscriptionId, sequenceId }).modify({ new: 0 });
+  }
+
+  // Close browser notification with matching tag
+  const tag = message.sequence_id || message.id;
+  if (tag) {
+    const notifications = await self.registration.getNotifications({ tag });
+    notifications.forEach((notification) => notification.close());
+  }
+
+  // Update subscription last message id (for ?since=... queries)
+  await db.subscriptions.update(subscriptionId, {
+    last: message.id,
+  });
+
+  // Update badge count
+  const badgeCount = await db.notifications.where({ new: 1 }).count();
+  self.navigator.setAppBadge?.(badgeCount);
+};
+
+/**
  * Handle a received web push subscription expiring.
  */
 const handlePushSubscriptionExpiring = async (data) => {
   const t = await initI18n();
+  console.log("[ServiceWorker] Handling incoming subscription expiring event", data);
 
   await self.registration.showNotification(t("web_push_subscription_expiring_title"), {
     body: t("web_push_subscription_expiring_body"),
@@ -82,6 +152,7 @@ const handlePushSubscriptionExpiring = async (data) => {
  */
 const handlePushUnknown = async (data) => {
   const t = await initI18n();
+  console.log("[ServiceWorker] Unknown event received", data);
 
   await self.registration.showNotification(t("web_push_unknown_notification_title"), {
     body: t("web_push_unknown_notification_body"),
@@ -96,13 +167,26 @@ const handlePushUnknown = async (data) => {
  * @param {object} data see server/types.go, type webPushPayload
  */
 const handlePush = async (data) => {
-  if (data.event === "message") {
-    await handlePushMessage(data);
-  } else if (data.event === "subscription_expiring") {
-    await handlePushSubscriptionExpiring(data);
-  } else {
-    await handlePushUnknown(data);
+  // This logic is (partially) duplicated in
+  // - Android: SubscriberService::onNotificationReceived()
+  // - Android: FirebaseService::onMessageReceived()
+  // - Web app: hooks.js:handleNotification()
+  // - Web app: sw.js:handleMessage(), sw.js:handleMessageClear(), ...
+
+  if (data.event === WEBPUSH_EVENT_MESSAGE) {
+    const { message } = data;
+    if (message.event === EVENT_MESSAGE) {
+      return await handlePushMessage(data);
+    } else if (message.event === EVENT_MESSAGE_DELETE) {
+      return await handlePushMessageDelete(data);
+    } else if (message.event === EVENT_MESSAGE_CLEAR) {
+      return await handlePushMessageClear(data);
+    }
+  } else if (data.event === WEBPUSH_EVENT_SUBSCRIPTION_EXPIRING) {
+    return await handlePushSubscriptionExpiring(data);
   }
+
+  return await handlePushUnknown(data);
 };
 
 /**
@@ -113,10 +197,8 @@ const handleClick = async (event) => {
   const t = await initI18n();
 
   const clients = await self.clients.matchAll({ type: "window" });
-
   const rootUrl = new URL(self.location.origin);
   const rootClient = clients.find((client) => client.url === rootUrl.toString());
-  // perhaps open on another topic
   const fallbackClient = clients[0];
 
   if (!event.notification.data?.message) {
@@ -232,6 +314,7 @@ precacheAndRoute(
 
 // Claim all open windows
 clientsClaim();
+
 // Delete any cached old dist files from previous service worker versions
 cleanupOutdatedCaches();
 

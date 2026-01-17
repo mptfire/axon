@@ -23,6 +23,7 @@ import Account from "./Account";
 import initI18n from "../app/i18n"; // Translations!
 import prefs, { THEME } from "../app/Prefs";
 import RTLCacheProvider from "./RTLCacheProvider";
+import session from "../app/Session";
 
 initI18n();
 
@@ -45,7 +46,6 @@ const darkModeEnabled = (prefersDarkMode, themePreference) => {
 const App = () => {
   const { i18n } = useTranslation();
   const languageDir = i18n.dir();
-
   const [account, setAccount] = useState(null);
   const accountMemo = useMemo(() => ({ account, setAccount }), [account, setAccount]);
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
@@ -59,6 +59,12 @@ const App = () => {
     document.documentElement.setAttribute("lang", getKebabCaseLangStr(i18n.language));
     document.dir = languageDir;
   }, [i18n.language, languageDir]);
+
+  useEffect(() => {
+    if (!session.exists() && config.require_login && window.location.pathname !== routes.login) {
+      window.location.href = routes.login;
+    }
+  }, []);
 
   return (
     <Suspense fallback={<Loader />}>

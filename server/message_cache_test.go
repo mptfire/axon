@@ -3,8 +3,10 @@ package server
 import (
 	"database/sql"
 	"fmt"
+	"github.com/stretchr/testify/assert"
 	"net/netip"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -66,6 +68,11 @@ func testCacheMessages(t *testing.T, c *messageCache) {
 	require.Equal(t, 1, len(messages))
 	require.Equal(t, "my other message", messages[0].Message)
 
+	// mytopic: latest
+	messages, _ = c.Messages("mytopic", sinceLatestMessage, false)
+	require.Equal(t, 1, len(messages))
+	require.Equal(t, "my other message", messages[0].Message)
+
 	// example: count
 	counts, err = c.MessageCounts()
 	require.Nil(t, err)
@@ -83,6 +90,26 @@ func testCacheMessages(t *testing.T, c *messageCache) {
 	// non-existing: since all
 	messages, _ = c.Messages("doesnotexist", sinceAllMessages, false)
 	require.Empty(t, messages)
+}
+
+func TestSqliteCache_MessagesLock(t *testing.T) {
+	testCacheMessagesLock(t, newSqliteTestCache(t))
+}
+
+func TestMemCache_MessagesLock(t *testing.T) {
+	testCacheMessagesLock(t, newMemTestCache(t))
+}
+
+func testCacheMessagesLock(t *testing.T, c *messageCache) {
+	var wg sync.WaitGroup
+	for i := 0; i < 5000; i++ {
+		wg.Add(1)
+		go func() {
+			assert.Nil(t, c.AddMessage(newDefaultMessage("mytopic", "test message")))
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }
 
 func TestSqliteCache_MessagesScheduled(t *testing.T) {
@@ -292,6 +319,7 @@ func testCacheAttachments(t *testing.T, c *messageCache) {
 	expires1 := time.Now().Add(-4 * time.Hour).Unix() // Expired
 	m := newDefaultMessage("mytopic", "flower for you")
 	m.ID = "m1"
+	m.SequenceID = "m1"
 	m.Sender = netip.MustParseAddr("1.2.3.4")
 	m.Attachment = &attachment{
 		Name:    "flower.jpg",
@@ -305,6 +333,7 @@ func testCacheAttachments(t *testing.T, c *messageCache) {
 	expires2 := time.Now().Add(2 * time.Hour).Unix() // Future
 	m = newDefaultMessage("mytopic", "sending you a car")
 	m.ID = "m2"
+	m.SequenceID = "m2"
 	m.Sender = netip.MustParseAddr("1.2.3.4")
 	m.Attachment = &attachment{
 		Name:    "car.jpg",
@@ -318,6 +347,7 @@ func testCacheAttachments(t *testing.T, c *messageCache) {
 	expires3 := time.Now().Add(1 * time.Hour).Unix() // Future
 	m = newDefaultMessage("another-topic", "sending you another car")
 	m.ID = "m3"
+	m.SequenceID = "m3"
 	m.User = "u_BAsbaAa"
 	m.Sender = netip.MustParseAddr("5.6.7.8")
 	m.Attachment = &attachment{
@@ -373,11 +403,13 @@ func TestMemCache_Attachments_Expired(t *testing.T) {
 func testCacheAttachmentsExpired(t *testing.T, c *messageCache) {
 	m := newDefaultMessage("mytopic", "flower for you")
 	m.ID = "m1"
+	m.SequenceID = "m1"
 	m.Expires = time.Now().Add(time.Hour).Unix()
 	require.Nil(t, c.AddMessage(m))
 
 	m = newDefaultMessage("mytopic", "message with attachment")
 	m.ID = "m2"
+	m.SequenceID = "m2"
 	m.Expires = time.Now().Add(2 * time.Hour).Unix()
 	m.Attachment = &attachment{
 		Name:    "car.jpg",
@@ -390,6 +422,7 @@ func testCacheAttachmentsExpired(t *testing.T, c *messageCache) {
 
 	m = newDefaultMessage("mytopic", "message with external attachment")
 	m.ID = "m3"
+	m.SequenceID = "m3"
 	m.Expires = time.Now().Add(2 * time.Hour).Unix()
 	m.Attachment = &attachment{
 		Name:    "car.jpg",
@@ -401,6 +434,7 @@ func testCacheAttachmentsExpired(t *testing.T, c *messageCache) {
 
 	m = newDefaultMessage("mytopic2", "message with expired attachment")
 	m.ID = "m4"
+	m.SequenceID = "m4"
 	m.Expires = time.Now().Add(2 * time.Hour).Unix()
 	m.Attachment = &attachment{
 		Name:    "expired-car.jpg",

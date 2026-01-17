@@ -12,6 +12,7 @@ import accountApi from "../app/AccountApi";
 import { UnauthorizedError } from "../app/errors";
 import notifier from "../app/Notifier";
 import prefs from "../app/Prefs";
+import { EVENT_MESSAGE_DELETE, EVENT_MESSAGE_CLEAR } from "../app/events";
 
 /**
  * Wire connectionManager and subscriptionManager so that subscriptions are updated when the connection
@@ -50,9 +51,28 @@ export const useConnectionListeners = (account, subscriptions, users, webPushTop
       };
 
       const handleNotification = async (subscriptionId, notification) => {
-        const added = await subscriptionManager.addNotification(subscriptionId, notification);
-        if (added) {
-          await subscriptionManager.notify(subscriptionId, notification);
+        // This logic is (partially) duplicated in
+        // - Android: SubscriberService::onNotificationReceived()
+        // - Android: FirebaseService::onMessageReceived()
+        // - Web app: hooks.js:handleNotification()
+        // - Web app: sw.js:handleMessage(), sw.js:handleMessageClear(), ...
+
+        if (notification.event === EVENT_MESSAGE_DELETE && notification.sequence_id) {
+          await subscriptionManager.deleteNotificationBySequenceId(subscriptionId, notification.sequence_id);
+          await notifier.cancel(notification);
+        } else if (notification.event === EVENT_MESSAGE_CLEAR && notification.sequence_id) {
+          await subscriptionManager.markNotificationReadBySequenceId(subscriptionId, notification.sequence_id);
+          await notifier.cancel(notification);
+        } else {
+          // Regular message: delete existing and add new
+          const sequenceId = notification.sequence_id || notification.id;
+          if (sequenceId) {
+            await subscriptionManager.deleteNotificationBySequenceId(subscriptionId, sequenceId);
+          }
+          const added = await subscriptionManager.addNotification(subscriptionId, notification);
+          if (added) {
+            await subscriptionManager.notify(subscriptionId, notification);
+          }
         }
       };
 
@@ -231,7 +251,9 @@ export const useIsLaunchedPWA = () => {
 
   useEffect(() => {
     if (isIOSStandalone) {
-      return () => {}; // No need to listen for events on iOS
+      return () => {
+        // No need to listen for events on iOS
+      };
     }
     const handler = (evt) => {
       console.log(`[useIsLaunchedPWA] App is now running ${evt.matches ? "standalone" : "in the browser"}`);

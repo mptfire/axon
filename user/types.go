@@ -2,27 +2,27 @@ package user
 
 import (
 	"errors"
-	"github.com/stripe/stripe-go/v74"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/payments"
 	"net/netip"
-	"regexp"
 	"strings"
 	"time"
 )
 
 // User is a struct that represents a user
 type User struct {
-	ID        string
-	Name      string
-	Hash      string // password hash (bcrypt)
-	Token     string // Only set if token was used to log in
-	Role      Role
-	Prefs     *Prefs
-	Tier      *Tier
-	Stats     *Stats
-	Billing   *Billing
-	SyncTopic string
-	Deleted   bool
+	ID          string
+	Name        string
+	Hash        string // Password hash (bcrypt)
+	Token       string // Only set if token was used to log in
+	Role        Role
+	Prefs       *Prefs
+	Tier        *Tier
+	Stats       *Stats
+	Billing     *Billing
+	SyncTopic   string
+	Provisioned bool // Whether the user was provisioned by the config file
+	Deleted     bool // Whether the user was soft-deleted
 }
 
 // TierID returns the ID of the User.Tier, or an empty string if the user has no tier,
@@ -58,11 +58,12 @@ type Auther interface {
 
 // Token represents a user token, including expiry date
 type Token struct {
-	Value      string
-	Label      string
-	LastAccess time.Time
-	LastOrigin netip.Addr
-	Expires    time.Time
+	Value       string
+	Label       string
+	LastAccess  time.Time
+	LastOrigin  netip.Addr
+	Expires     time.Time
+	Provisioned bool
 }
 
 // TokenUpdate holds information about the last access time and origin IP address of a token
@@ -139,8 +140,8 @@ type Stats struct {
 type Billing struct {
 	StripeCustomerID            string
 	StripeSubscriptionID        string
-	StripeSubscriptionStatus    stripe.SubscriptionStatus
-	StripeSubscriptionInterval  stripe.PriceRecurringInterval
+	StripeSubscriptionStatus    payments.SubscriptionStatus
+	StripeSubscriptionInterval  payments.PriceRecurringInterval
 	StripeSubscriptionPaidUntil time.Time
 	StripeSubscriptionCancelAt  time.Time
 }
@@ -148,7 +149,8 @@ type Billing struct {
 // Grant is a struct that represents an access control entry to a topic by a user
 type Grant struct {
 	TopicPattern string // May include wildcard (*)
-	Allow        Permission
+	Permission   Permission
+	Provisioned  bool // Whether the grant was provisioned by the config file
 }
 
 // Reservation is a struct that represents the ownership over a topic by a user
@@ -240,48 +242,20 @@ const (
 	everyoneID = "u_everyone"
 )
 
-var (
-	allowedUsernameRegex     = regexp.MustCompile(`^[-_.+@a-zA-Z0-9]+$`)    // Does not include Everyone (*)
-	allowedTopicRegex        = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)  // No '*'
-	allowedTopicPatternRegex = regexp.MustCompile(`^[-_*A-Za-z0-9]{1,64}$`) // Adds '*' for wildcards!
-	allowedTierRegex         = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)
-)
-
-// AllowedRole returns true if the given role can be used for new users
-func AllowedRole(role Role) bool {
-	return role == RoleUser || role == RoleAdmin
-}
-
-// AllowedUsername returns true if the given username is valid
-func AllowedUsername(username string) bool {
-	return allowedUsernameRegex.MatchString(username)
-}
-
-// AllowedTopic returns true if the given topic name is valid
-func AllowedTopic(topic string) bool {
-	return allowedTopicRegex.MatchString(topic)
-}
-
-// AllowedTopicPattern returns true if the given topic pattern is valid; this includes the wildcard character (*)
-func AllowedTopicPattern(topic string) bool {
-	return allowedTopicPatternRegex.MatchString(topic)
-}
-
-// AllowedTier returns true if the given tier name is valid
-func AllowedTier(tier string) bool {
-	return allowedTierRegex.MatchString(tier)
-}
-
 // Error constants used by the package
 var (
-	ErrUnauthenticated     = errors.New("unauthenticated")
-	ErrUnauthorized        = errors.New("unauthorized")
-	ErrInvalidArgument     = errors.New("invalid argument")
-	ErrUserNotFound        = errors.New("user not found")
-	ErrUserExists          = errors.New("user already exists")
-	ErrTierNotFound        = errors.New("tier not found")
-	ErrTokenNotFound       = errors.New("token not found")
-	ErrPhoneNumberNotFound = errors.New("phone number not found")
-	ErrTooManyReservations = errors.New("new tier has lower reservation limit")
-	ErrPhoneNumberExists   = errors.New("phone number already exists")
+	ErrUnauthenticated        = errors.New("unauthenticated")
+	ErrUnauthorized           = errors.New("unauthorized")
+	ErrInvalidArgument        = errors.New("invalid argument")
+	ErrUserNotFound           = errors.New("user not found")
+	ErrUserExists             = errors.New("user already exists")
+	ErrPasswordHashInvalid    = errors.New("password hash must be a bcrypt hash, use 'ntfy user hash' to generate")
+	ErrPasswordHashWeak       = errors.New("password hash too weak, use 'ntfy user hash' to generate")
+	ErrTierNotFound           = errors.New("tier not found")
+	ErrTokenNotFound          = errors.New("token not found")
+	ErrPhoneNumberNotFound    = errors.New("phone number not found")
+	ErrTooManyReservations    = errors.New("new tier has lower reservation limit")
+	ErrPhoneNumberExists      = errors.New("phone number already exists")
+	ErrProvisionedUserChange  = errors.New("cannot change or delete provisioned user")
+	ErrProvisionedTokenChange = errors.New("cannot change or delete provisioned token")
 )

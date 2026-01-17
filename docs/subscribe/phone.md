@@ -4,16 +4,21 @@ to receive notifications directly on your phone. Just like the server, this app 
 on GitHub ([Android](https://github.com/binwiederhier/ntfy-android), [iOS](https://github.com/binwiederhier/ntfy-ios)). Feel free to 
 contribute, or [build your own](../develop.md).
 
-<a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy"><img src="../../static/img/badge-googleplay.png"></a>
-<a href="https://f-droid.org/en/packages/io.heckel.ntfy/"><img src="../../static/img/badge-fdroid.png"></a>
-<a href="https://apps.apple.com/us/app/ntfy/id1625396347"><img src="../../static/img/badge-appstore.png"></a>
+<a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy"><img width="170" src="../../static/img/badge-googleplay.png"></a>
+<a href="https://f-droid.org/en/packages/io.heckel.ntfy/"><img width="170" src="../../static/img/badge-fdroid.png"></a>
+<a href="https://apps.apple.com/us/app/ntfy/id1625396347"><img width="150" src="../../static/img/badge-appstore.png"></a>
 
-You can get the Android app from both [Google Play](https://play.google.com/store/apps/details?id=io.heckel.ntfy) and 
-from [F-Droid](https://f-droid.org/en/packages/io.heckel.ntfy/). Both are largely identical, with the one exception that
-the F-Droid flavor does not use Firebase. The iOS app can be downloaded from the [App Store](https://apps.apple.com/us/app/ntfy/id1625396347).
+You can get the Android app from [Google Play](https://play.google.com/store/apps/details?id=io.heckel.ntfy), 
+[F-Droid](https://f-droid.org/en/packages/io.heckel.ntfy/), or via the APKs from [GitHub Releases](https://github.com/binwiederhier/ntfy-android/releases).
+The Google Play and F-Droid releases are largely identical, with the one exception that the F-Droid flavor does not use Firebase. 
+The iOS app can be downloaded from the [App Store](https://apps.apple.com/us/app/ntfy/id1625396347).
 
 Alternatively, you may also want to consider using the **[progressive web app (PWA)](pwa.md)** instead of the native app.
 The PWA is a website that you can add to your home screen, and it will behave just like a native app.
+
+If you're downloading the APKs from [GitHub](https://github.com/binwiederhier/ntfy-android/releases), they are signed with
+a certificate with the following SHA-256 fingerprint: `6e145d7ae685eff75468e5067e03a6c3645453343e4e181dac8b6b17ff67489d`.
+You can also query the DNS TXT records for `ntfy.sh` to find this fingerprint.
 
 ## Overview
 A picture is worth a thousand words. Here are a few screenshots showing what the app looks like. It's all pretty
@@ -95,7 +100,7 @@ The reason for this is [Firebase Cloud Messaging (FCM)](https://firebase.google.
 notifications. Firebase is overall pretty bad at delivering messages in time, but on Android, most apps are stuck with it.
 
 The ntfy Android app uses Firebase only for the main host `ntfy.sh`, and only in the Google Play flavor of the app.
-It won't use Firebase for any self-hosted servers, and not at all in the the F-Droid flavor.
+It won't use Firebase for any self-hosted servers, and not at all in the F-Droid flavor.
 
 ## Share to topic
 _Supported on:_ :material-android:
@@ -124,10 +129,11 @@ or to simply directly link to a topic from a mobile website.
 
 **Supported link formats:**
 
-| Link format                                                                   | Example                                   | Description                                                                                                                                                                                         |
-|-------------------------------------------------------------------------------|-------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| <span style="white-space: nowrap">`ntfy://<host>/<topic>`</span>              | `ntfy://ntfy.sh/mytopic`                  | Directly opens the Android app detail view for the given topic and server. Subscribes to the topic if not already subscribed. This is equivalent to the web view `https://ntfy.sh/mytopic` (HTTPS!) |
-| <span style="white-space: nowrap">`ntfy://<host>/<topic>?secure=false`</span> | `ntfy://example.com/mytopic?secure=false` | Same as above, except that this will use HTTP instead of HTTPS as topic URL. This is equivalent to the web view `http://example.com/mytopic` (HTTP!)                                                |
+| Link format                                                                     | Example                                   | Description                                                                                                                                                                                         |
+|---------------------------------------------------------------------------------|-------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| <span style="white-space: nowrap">`ntfy://<host>/<topic>`</span>                | `ntfy://ntfy.sh/mytopic`                  | Directly opens the Android app detail view for the given topic and server. Subscribes to the topic if not already subscribed. This is equivalent to the web view `https://ntfy.sh/mytopic` (HTTPS!) |
+| <span style="white-space: nowrap">`ntfy://<host>/<topic>?display=<name>`</span> | `ntfy://ntfy.sh/mytopic?display=My+Topic` | Same as above, but also defines a display name for the topic.                                                                                                                                       |
+| <span style="white-space: nowrap">`ntfy://<host>/<topic>?secure=false`</span>   | `ntfy://example.com/mytopic?secure=false` | Same as above, except that this will use HTTP instead of HTTPS as topic URL. This is equivalent to the web view `http://example.com/mytopic` (HTTP!)                                                |
 
 ## Integrations
 

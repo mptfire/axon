@@ -32,7 +32,9 @@ var flagsPublish = append(
 	&cli.StringFlag{Name: "actions", Aliases: []string{"A"}, EnvVars: []string{"NTFY_ACTIONS"}, Usage: "actions JSON array or simple definition"},
 	&cli.StringFlag{Name: "attach", Aliases: []string{"a"}, EnvVars: []string{"NTFY_ATTACH"}, Usage: "URL to send as an external attachment"},
 	&cli.BoolFlag{Name: "markdown", Aliases: []string{"md"}, EnvVars: []string{"NTFY_MARKDOWN"}, Usage: "Message is formatted as Markdown"},
+	&cli.StringFlag{Name: "template", Aliases: []string{"tpl"}, EnvVars: []string{"NTFY_TEMPLATE"}, Usage: "use templates to transform JSON message body"},
 	&cli.StringFlag{Name: "filename", Aliases: []string{"name", "n"}, EnvVars: []string{"NTFY_FILENAME"}, Usage: "filename for the attachment"},
+	&cli.StringFlag{Name: "sequence-id", Aliases: []string{"sequence_id", "sid", "S"}, EnvVars: []string{"NTFY_SEQUENCE_ID"}, Usage: "sequence ID for updating notifications"},
 	&cli.StringFlag{Name: "file", Aliases: []string{"f"}, EnvVars: []string{"NTFY_FILE"}, Usage: "file to upload as an attachment"},
 	&cli.StringFlag{Name: "email", Aliases: []string{"mail", "e"}, EnvVars: []string{"NTFY_EMAIL"}, Usage: "also send to e-mail address"},
 	&cli.StringFlag{Name: "user", Aliases: []string{"u"}, EnvVars: []string{"NTFY_USER"}, Usage: "username[:password] used to auth against the server"},
@@ -69,6 +71,8 @@ Examples:
   ntfy pub --icon="http://some.tld/icon.png" 'Icon!'      # Send notification with custom icon
   ntfy pub --attach="http://some.tld/file.zip" files      # Send ZIP archive from URL as attachment
   ntfy pub --file=flower.jpg flowers 'Nice!'              # Send image.jpg as attachment
+  ntfy pub -S my-id mytopic 'Update me'                   # Send with sequence ID for updates
+  echo 'message' | ntfy publish mytopic                   # Send message from stdin
   ntfy pub -u phil:mypass secret Psst                     # Publish with username/password
   ntfy pub --wait-pid 1234 mytopic                        # Wait for process 1234 to exit before publishing
   ntfy pub --wait-cmd mytopic rsync -av ./ /tmp/a         # Run command and publish after it completes
@@ -97,7 +101,9 @@ func execPublish(c *cli.Context) error {
 	actions := c.String("actions")
 	attach := c.String("attach")
 	markdown := c.Bool("markdown")
+	template := c.String("template")
 	filename := c.String("filename")
+	sequenceID := c.String("sequence-id")
 	file := c.String("file")
 	email := c.String("email")
 	user := c.String("user")
@@ -145,8 +151,14 @@ func execPublish(c *cli.Context) error {
 	if markdown {
 		options = append(options, client.WithMarkdown())
 	}
+	if template != "" {
+		options = append(options, client.WithTemplate(template))
+	}
 	if filename != "" {
 		options = append(options, client.WithFilename(filename))
+	}
+	if sequenceID != "" {
+		options = append(options, client.WithSequenceID(sequenceID))
 	}
 	if email != "" {
 		options = append(options, client.WithEmail(email))
@@ -254,6 +266,15 @@ func parseTopicMessageCommand(c *cli.Context) (topic string, message string, com
 	if c.String("message") != "" {
 		message = c.String("message")
 	}
+	if message == "" && isStdinRedirected() {
+		var data []byte
+		data, err = io.ReadAll(io.LimitReader(c.App.Reader, 1024*1024))
+		if err != nil {
+			log.Debug("Failed to read from stdin: %s", err.Error())
+			return
+		}
+		message = strings.TrimSpace(string(data))
+	}
 	return
 }
 
@@ -311,4 +332,13 @@ func runAndWaitForCommand(command []string) (message string, err error) {
 	}
 	log.Debug("Command succeeded after %s: %s", runtime, prettyCmd)
 	return fmt.Sprintf("Command succeeded after %s: %s", runtime, prettyCmd), nil
+}
+
+func isStdinRedirected() bool {
+	stat, err := os.Stdin.Stat()
+	if err != nil {
+		log.Debug("Failed to stat stdin: %s", err.Error())
+		return false
+	}
+	return (stat.Mode() & os.ModeCharDevice) == 0
 }

@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/stretchr/testify/require"
-	"github.com/stripe/stripe-go/v74"
 	"golang.org/x/crypto/bcrypt"
 	"heckel.io/ntfy/v2/util"
 	"net/netip"
@@ -14,13 +13,13 @@ import (
 	"time"
 )
 
-const minBcryptTimingMillis = int64(50) // Ideally should be >100ms, but this should also run on a Raspberry Pi without massive resources
+const minBcryptTimingMillis = int64(40) // Ideally should be >100ms, but this should also run on a Raspberry Pi without massive resources
 
 func TestManager_FullScenario_Default_DenyAll(t *testing.T) {
 	a := newTestManagerFromFile(t, filepath.Join(t.TempDir(), "user.db"), "", PermissionDenyAll, DefaultUserPasswordBcryptCost, DefaultUserStatsQueueWriterInterval)
-	require.Nil(t, a.AddUser("phil", "phil", RoleAdmin))
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
-	require.Nil(t, a.AddUser("john", "john", RoleUser))
+	require.Nil(t, a.AddUser("phil", "phil", RoleAdmin, false))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
+	require.Nil(t, a.AddUser("john", "john", RoleUser, false))
 	require.Nil(t, a.AllowAccess("ben", "mytopic", PermissionReadWrite))
 	require.Nil(t, a.AllowAccess("ben", "readme", PermissionRead))
 	require.Nil(t, a.AllowAccess("ben", "writeme", PermissionWrite))
@@ -52,10 +51,10 @@ func TestManager_FullScenario_Default_DenyAll(t *testing.T) {
 	benGrants, err := a.Grants("ben")
 	require.Nil(t, err)
 	require.Equal(t, []Grant{
-		{"everyonewrite", PermissionDenyAll},
-		{"mytopic", PermissionReadWrite},
-		{"writeme", PermissionWrite},
-		{"readme", PermissionRead},
+		{"everyonewrite", PermissionDenyAll, false},
+		{"mytopic", PermissionReadWrite, false},
+		{"writeme", PermissionWrite, false},
+		{"readme", PermissionRead, false},
 	}, benGrants)
 
 	john, err := a.Authenticate("john", "john")
@@ -67,10 +66,10 @@ func TestManager_FullScenario_Default_DenyAll(t *testing.T) {
 	johnGrants, err := a.Grants("john")
 	require.Nil(t, err)
 	require.Equal(t, []Grant{
-		{"mytopic_deny*", PermissionDenyAll},
-		{"mytopic_ro*", PermissionRead},
-		{"mytopic*", PermissionReadWrite},
-		{"*", PermissionRead},
+		{"mytopic_deny*", PermissionDenyAll, false},
+		{"mytopic_ro*", PermissionRead, false},
+		{"mytopic*", PermissionReadWrite, false},
+		{"*", PermissionRead, false},
 	}, johnGrants)
 
 	notben, err := a.Authenticate("ben", "this is wrong")
@@ -134,7 +133,7 @@ func TestManager_Access_Order_LengthWriteRead(t *testing.T) {
 	// and longer ACL rules are prioritized as well.
 
 	a := newTestManagerFromFile(t, filepath.Join(t.TempDir(), "user.db"), "", PermissionDenyAll, DefaultUserPasswordBcryptCost, DefaultUserStatsQueueWriterInterval)
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 	require.Nil(t, a.AllowAccess("ben", "test*", PermissionReadWrite))
 	require.Nil(t, a.AllowAccess("ben", "*", PermissionRead))
 
@@ -147,25 +146,25 @@ func TestManager_Access_Order_LengthWriteRead(t *testing.T) {
 
 func TestManager_AddUser_Invalid(t *testing.T) {
 	a := newTestManager(t, PermissionDenyAll)
-	require.Equal(t, ErrInvalidArgument, a.AddUser("  invalid  ", "pass", RoleAdmin))
-	require.Equal(t, ErrInvalidArgument, a.AddUser("validuser", "pass", "invalid-role"))
+	require.Equal(t, ErrInvalidArgument, a.AddUser("  invalid  ", "pass", RoleAdmin, false))
+	require.Equal(t, ErrInvalidArgument, a.AddUser("validuser", "pass", "invalid-role", false))
 }
 
 func TestManager_AddUser_Timing(t *testing.T) {
 	a := newTestManagerFromFile(t, filepath.Join(t.TempDir(), "user.db"), "", PermissionDenyAll, DefaultUserPasswordBcryptCost, DefaultUserStatsQueueWriterInterval)
 	start := time.Now().UnixMilli()
-	require.Nil(t, a.AddUser("user", "pass", RoleAdmin))
+	require.Nil(t, a.AddUser("user", "pass", RoleAdmin, false))
 	require.GreaterOrEqual(t, time.Now().UnixMilli()-start, minBcryptTimingMillis)
 }
 
 func TestManager_AddUser_And_Query(t *testing.T) {
 	a := newTestManagerFromFile(t, filepath.Join(t.TempDir(), "user.db"), "", PermissionDenyAll, DefaultUserPasswordBcryptCost, DefaultUserStatsQueueWriterInterval)
-	require.Nil(t, a.AddUser("user", "pass", RoleAdmin))
+	require.Nil(t, a.AddUser("user", "pass", RoleAdmin, false))
 	require.Nil(t, a.ChangeBilling("user", &Billing{
 		StripeCustomerID:            "acct_123",
 		StripeSubscriptionID:        "sub_123",
-		StripeSubscriptionStatus:    stripe.SubscriptionStatusActive,
-		StripeSubscriptionInterval:  stripe.PriceRecurringIntervalMonth,
+		StripeSubscriptionStatus:    "active",
+		StripeSubscriptionInterval:  "month",
 		StripeSubscriptionPaidUntil: time.Now().Add(time.Hour),
 		StripeSubscriptionCancelAt:  time.Unix(0, 0),
 	}))
@@ -187,14 +186,14 @@ func TestManager_MarkUserRemoved_RemoveDeletedUsers(t *testing.T) {
 	a := newTestManager(t, PermissionDenyAll)
 
 	// Create user, add reservations and token
-	require.Nil(t, a.AddUser("user", "pass", RoleAdmin))
+	require.Nil(t, a.AddUser("user", "pass", RoleAdmin, false))
 	require.Nil(t, a.AddReservation("user", "mytopic", PermissionRead))
 
 	u, err := a.User("user")
 	require.Nil(t, err)
 	require.False(t, u.Deleted)
 
-	token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified())
+	token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 
 	u, err = a.Authenticate("user", "pass")
@@ -237,19 +236,19 @@ func TestManager_CreateToken_Only_Lower(t *testing.T) {
 	a := newTestManager(t, PermissionDenyAll)
 
 	// Create user, add reservations and token
-	require.Nil(t, a.AddUser("user", "pass", RoleAdmin))
+	require.Nil(t, a.AddUser("user", "pass", RoleAdmin, false))
 	u, err := a.User("user")
 	require.Nil(t, err)
 
-	token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified())
+	token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 	require.Equal(t, token.Value, strings.ToLower(token.Value))
 }
 
 func TestManager_UserManagement(t *testing.T) {
 	a := newTestManager(t, PermissionDenyAll)
-	require.Nil(t, a.AddUser("phil", "phil", RoleAdmin))
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
+	require.Nil(t, a.AddUser("phil", "phil", RoleAdmin, false))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 	require.Nil(t, a.AllowAccess("ben", "mytopic", PermissionReadWrite))
 	require.Nil(t, a.AllowAccess("ben", "readme", PermissionRead))
 	require.Nil(t, a.AllowAccess("ben", "writeme", PermissionWrite))
@@ -277,10 +276,10 @@ func TestManager_UserManagement(t *testing.T) {
 	benGrants, err := a.Grants("ben")
 	require.Nil(t, err)
 	require.Equal(t, []Grant{
-		{"everyonewrite", PermissionDenyAll},
-		{"mytopic", PermissionReadWrite},
-		{"writeme", PermissionWrite},
-		{"readme", PermissionRead},
+		{"everyonewrite", PermissionDenyAll, false},
+		{"mytopic", PermissionReadWrite, false},
+		{"writeme", PermissionWrite, false},
+		{"readme", PermissionRead, false},
 	}, benGrants)
 
 	everyone, err := a.User(Everyone)
@@ -292,8 +291,8 @@ func TestManager_UserManagement(t *testing.T) {
 	everyoneGrants, err := a.Grants(Everyone)
 	require.Nil(t, err)
 	require.Equal(t, []Grant{
-		{"everyonewrite", PermissionReadWrite},
-		{"announcements", PermissionRead},
+		{"everyonewrite", PermissionReadWrite, false},
+		{"announcements", PermissionRead, false},
 	}, everyoneGrants)
 
 	// Ben: Before revoking
@@ -339,21 +338,31 @@ func TestManager_UserManagement(t *testing.T) {
 
 func TestManager_ChangePassword(t *testing.T) {
 	a := newTestManager(t, PermissionDenyAll)
-	require.Nil(t, a.AddUser("phil", "phil", RoleAdmin))
+	require.Nil(t, a.AddUser("phil", "phil", RoleAdmin, false))
+	require.Nil(t, a.AddUser("jane", "$2a$10$OyqU72muEy7VMd1SAU2Iru5IbeSMgrtCGHu/fWLmxL1MwlijQXWbG", RoleUser, true))
 
 	_, err := a.Authenticate("phil", "phil")
 	require.Nil(t, err)
 
-	require.Nil(t, a.ChangePassword("phil", "newpass"))
+	_, err = a.Authenticate("jane", "jane")
+	require.Nil(t, err)
+
+	require.Nil(t, a.ChangePassword("phil", "newpass", false))
 	_, err = a.Authenticate("phil", "phil")
 	require.Equal(t, ErrUnauthenticated, err)
 	_, err = a.Authenticate("phil", "newpass")
+	require.Nil(t, err)
+
+	require.Nil(t, a.ChangePassword("jane", "$2a$10$CNaCW.q1R431urlbQ5Drh.zl48TiiOeJSmZgfcswkZiPbJGQ1ApSS", true))
+	_, err = a.Authenticate("jane", "jane")
+	require.Equal(t, ErrUnauthenticated, err)
+	_, err = a.Authenticate("jane", "newpass")
 	require.Nil(t, err)
 }
 
 func TestManager_ChangeRole(t *testing.T) {
 	a := newTestManager(t, PermissionDenyAll)
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 	require.Nil(t, a.AllowAccess("ben", "mytopic", PermissionReadWrite))
 	require.Nil(t, a.AllowAccess("ben", "readme", PermissionRead))
 
@@ -378,8 +387,8 @@ func TestManager_ChangeRole(t *testing.T) {
 
 func TestManager_Reservations(t *testing.T) {
 	a := newTestManager(t, PermissionDenyAll)
-	require.Nil(t, a.AddUser("phil", "phil", RoleUser))
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
+	require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 	require.Nil(t, a.AddReservation("ben", "ztopic_", PermissionDenyAll))
 	require.Nil(t, a.AddReservation("ben", "readme", PermissionRead))
 	require.Nil(t, a.AllowAccess("ben", "something-else", PermissionRead))
@@ -460,7 +469,7 @@ func TestManager_ChangeRoleFromTierUserToAdmin(t *testing.T) {
 		AttachmentTotalSizeLimit: 524288000,
 		AttachmentExpiryDuration: 24 * time.Hour,
 	}))
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 	require.Nil(t, a.ChangeTier("ben", "pro"))
 	require.Nil(t, a.AddReservation("ben", "mytopic", PermissionDenyAll))
 
@@ -479,12 +488,12 @@ func TestManager_ChangeRoleFromTierUserToAdmin(t *testing.T) {
 	benGrants, err := a.Grants("ben")
 	require.Nil(t, err)
 	require.Equal(t, 1, len(benGrants))
-	require.Equal(t, PermissionReadWrite, benGrants[0].Allow)
+	require.Equal(t, PermissionReadWrite, benGrants[0].Permission)
 
 	everyoneGrants, err := a.Grants(Everyone)
 	require.Nil(t, err)
 	require.Equal(t, 1, len(everyoneGrants))
-	require.Equal(t, PermissionDenyAll, everyoneGrants[0].Allow)
+	require.Equal(t, PermissionDenyAll, everyoneGrants[0].Permission)
 
 	benReservations, err := a.Reservations("ben")
 	require.Nil(t, err)
@@ -507,13 +516,13 @@ func TestManager_ChangeRoleFromTierUserToAdmin(t *testing.T) {
 
 func TestManager_Token_Valid(t *testing.T) {
 	a := newTestManager(t, PermissionDenyAll)
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 	u, err := a.User("ben")
 	require.Nil(t, err)
 
 	// Create token for user
-	token, err := a.CreateToken(u.ID, "some label", time.Now().Add(72*time.Hour), netip.IPv4Unspecified())
+	token, err := a.CreateToken(u.ID, "some label", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 	require.NotEmpty(t, token.Value)
 	require.Equal(t, "some label", token.Label)
@@ -551,7 +560,7 @@ func TestManager_Token_Valid(t *testing.T) {
 
 func TestManager_Token_Invalid(t *testing.T) {
 	a := newTestManager(t, PermissionDenyAll)
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 	u, err := a.AuthenticateToken(strings.Repeat("x", 32)) // 32 == token length
 	require.Nil(t, u)
@@ -570,18 +579,18 @@ func TestManager_Token_NotFound(t *testing.T) {
 
 func TestManager_Token_Expire(t *testing.T) {
 	a := newTestManager(t, PermissionDenyAll)
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 	u, err := a.User("ben")
 	require.Nil(t, err)
 
 	// Create tokens for user
-	token1, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified())
+	token1, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 	require.NotEmpty(t, token1.Value)
 	require.True(t, time.Now().Add(71*time.Hour).Unix() < token1.Expires.Unix())
 
-	token2, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified())
+	token2, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 	require.NotEmpty(t, token2.Value)
 	require.NotEqual(t, token1.Value, token2.Value)
@@ -618,7 +627,7 @@ func TestManager_Token_Expire(t *testing.T) {
 
 func TestManager_Token_Extend(t *testing.T) {
 	a := newTestManager(t, PermissionDenyAll)
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 	// Try to extend token for user without token
 	u, err := a.User("ben")
@@ -628,7 +637,7 @@ func TestManager_Token_Extend(t *testing.T) {
 	require.Equal(t, errNoTokenProvided, err)
 
 	// Create token for user
-	token, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified())
+	token, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 	require.NotEmpty(t, token.Value)
 
@@ -647,8 +656,8 @@ func TestManager_Token_MaxCount_AutoDelete(t *testing.T) {
 	// Tests that tokens are automatically deleted when the maximum number of tokens is reached
 
 	a := newTestManager(t, PermissionDenyAll)
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
-	require.Nil(t, a.AddUser("phil", "phil", RoleUser))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
+	require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
 
 	ben, err := a.User("ben")
 	require.Nil(t, err)
@@ -658,21 +667,21 @@ func TestManager_Token_MaxCount_AutoDelete(t *testing.T) {
 
 	// Create 2 tokens for phil
 	philTokens := make([]string, 0)
-	token, err := a.CreateToken(phil.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified())
+	token, err := a.CreateToken(phil.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 	require.NotEmpty(t, token.Value)
 	philTokens = append(philTokens, token.Value)
 
-	token, err = a.CreateToken(phil.ID, "", time.Unix(0, 0), netip.IPv4Unspecified())
+	token, err = a.CreateToken(phil.ID, "", time.Unix(0, 0), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 	require.NotEmpty(t, token.Value)
 	philTokens = append(philTokens, token.Value)
 
-	// Create 22 tokens for ben (only 20 allowed!)
+	// Create 62 tokens for ben (only 60 allowed!)
 	baseTime := time.Now().Add(24 * time.Hour)
 	benTokens := make([]string, 0)
-	for i := 0; i < 22; i++ { //
-		token, err := a.CreateToken(ben.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified())
+	for i := 0; i < 62; i++ { //
+		token, err := a.CreateToken(ben.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
 		require.Nil(t, err)
 		require.NotEmpty(t, token.Value)
 		benTokens = append(benTokens, token.Value)
@@ -690,7 +699,7 @@ func TestManager_Token_MaxCount_AutoDelete(t *testing.T) {
 	require.Equal(t, ErrUnauthenticated, err)
 
 	// Ben: The other tokens should still work
-	for i := 2; i < 22; i++ {
+	for i := 2; i < 62; i++ {
 		userWithToken, err := a.AuthenticateToken(benTokens[i])
 		require.Nil(t, err, "token[%d]=%s failed", i, benTokens[i])
 		require.Equal(t, "ben", userWithToken.Name)
@@ -710,7 +719,7 @@ func TestManager_Token_MaxCount_AutoDelete(t *testing.T) {
 	require.Nil(t, err)
 	require.True(t, rows.Next())
 	require.Nil(t, rows.Scan(&benCount))
-	require.Equal(t, 20, benCount)
+	require.Equal(t, 60, benCount)
 
 	var philCount int
 	rows, err = a.db.Query(`SELECT COUNT(*) FROM user_token WHERE user_id=?`, phil.ID)
@@ -721,9 +730,16 @@ func TestManager_Token_MaxCount_AutoDelete(t *testing.T) {
 }
 
 func TestManager_EnqueueStats_ResetStats(t *testing.T) {
-	a, err := NewManager(filepath.Join(t.TempDir(), "db"), "", PermissionReadWrite, bcrypt.MinCost, 1500*time.Millisecond)
+	conf := &Config{
+		Filename:            filepath.Join(t.TempDir(), "db"),
+		StartupQueries:      "",
+		DefaultAccess:       PermissionReadWrite,
+		BcryptCost:          bcrypt.MinCost,
+		QueueWriterInterval: 1500 * time.Millisecond,
+	}
+	a, err := NewManager(conf)
 	require.Nil(t, err)
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 	// Baseline: No messages or emails
 	u, err := a.User("ben")
@@ -763,15 +779,22 @@ func TestManager_EnqueueStats_ResetStats(t *testing.T) {
 }
 
 func TestManager_EnqueueTokenUpdate(t *testing.T) {
-	a, err := NewManager(filepath.Join(t.TempDir(), "db"), "", PermissionReadWrite, bcrypt.MinCost, 500*time.Millisecond)
+	conf := &Config{
+		Filename:            filepath.Join(t.TempDir(), "db"),
+		StartupQueries:      "",
+		DefaultAccess:       PermissionReadWrite,
+		BcryptCost:          bcrypt.MinCost,
+		QueueWriterInterval: 500 * time.Millisecond,
+	}
+	a, err := NewManager(conf)
 	require.Nil(t, err)
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 	// Create user and token
 	u, err := a.User("ben")
 	require.Nil(t, err)
 
-	token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified())
+	token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false)
 	require.Nil(t, err)
 
 	// Queue token update
@@ -796,9 +819,16 @@ func TestManager_EnqueueTokenUpdate(t *testing.T) {
 }
 
 func TestManager_ChangeSettings(t *testing.T) {
-	a, err := NewManager(filepath.Join(t.TempDir(), "db"), "", PermissionReadWrite, bcrypt.MinCost, 1500*time.Millisecond)
+	conf := &Config{
+		Filename:            filepath.Join(t.TempDir(), "db"),
+		StartupQueries:      "",
+		DefaultAccess:       PermissionReadWrite,
+		BcryptCost:          bcrypt.MinCost,
+		QueueWriterInterval: 1500 * time.Millisecond,
+	}
+	a, err := NewManager(conf)
 	require.Nil(t, err)
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 	// No settings
 	u, err := a.User("ben")
@@ -866,7 +896,7 @@ func TestManager_Tier_Create_Update_List_Delete(t *testing.T) {
 		AttachmentBandwidthLimit: 21474836480,
 		StripeMonthlyPriceID:     "price_2",
 	}))
-	require.Nil(t, a.AddUser("phil", "phil", RoleUser))
+	require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
 	require.Nil(t, a.ChangeTier("phil", "pro"))
 
 	ti, err := a.Tier("pro")
@@ -981,7 +1011,7 @@ func TestManager_Tier_Change_And_Reset(t *testing.T) {
 		Name:             "Pro",
 		ReservationLimit: 4,
 	}))
-	require.Nil(t, a.AddUser("phil", "phil", RoleUser))
+	require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
 	require.Nil(t, a.ChangeTier("phil", "pro"))
 
 	// Add 10 reservations (pro tier allows that)
@@ -1007,7 +1037,7 @@ func TestManager_Tier_Change_And_Reset(t *testing.T) {
 func TestUser_PhoneNumberAddListRemove(t *testing.T) {
 	a := newTestManager(t, PermissionDenyAll)
 
-	require.Nil(t, a.AddUser("phil", "phil", RoleUser))
+	require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
 	phil, err := a.User("phil")
 	require.Nil(t, err)
 	require.Nil(t, a.AddPhoneNumber(phil.ID, "+1234567890"))
@@ -1032,8 +1062,8 @@ func TestUser_PhoneNumberAddListRemove(t *testing.T) {
 func TestUser_PhoneNumberAdd_Multiple_Users_Same_Number(t *testing.T) {
 	a := newTestManager(t, PermissionDenyAll)
 
-	require.Nil(t, a.AddUser("phil", "phil", RoleUser))
-	require.Nil(t, a.AddUser("ben", "ben", RoleUser))
+	require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 	phil, err := a.User("phil")
 	require.Nil(t, err)
 	ben, err := a.User("ben")
@@ -1063,6 +1093,237 @@ func TestManager_Topic_Wildcard_With_Underscore(t *testing.T) {
 	require.Nil(t, a.Authorize(nil, "mytopic_", PermissionWrite))
 	require.Equal(t, ErrUnauthorized, a.Authorize(nil, "mytopicX", PermissionRead))
 	require.Equal(t, ErrUnauthorized, a.Authorize(nil, "mytopicX", PermissionWrite))
+}
+
+func TestManager_WithProvisionedUsers(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "user.db")
+	conf := &Config{
+		Filename:         f,
+		DefaultAccess:    PermissionReadWrite,
+		ProvisionEnabled: true,
+		Users: []*User{
+			{Name: "philuser", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
+			{Name: "philadmin", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleAdmin},
+		},
+		Access: map[string][]*Grant{
+			"philuser": {
+				{TopicPattern: "stats", Permission: PermissionReadWrite},
+				{TopicPattern: "secret", Permission: PermissionRead},
+			},
+		},
+		Tokens: map[string][]*Token{
+			"philuser": {
+				{Value: "tk_op56p8lz5bf3cxkz9je99v9oc37lo", Label: "Alerts token"},
+			},
+		},
+	}
+	a, err := NewManager(conf)
+	require.Nil(t, err)
+
+	// Manually add user
+	require.Nil(t, a.AddUser("philmanual", "manual", RoleUser, false))
+
+	// Check that the provisioned users are there
+	users, err := a.Users()
+	require.Nil(t, err)
+	require.Len(t, users, 4)
+	require.Equal(t, "philadmin", users[0].Name)
+	require.Equal(t, RoleAdmin, users[0].Role)
+	require.Equal(t, "philmanual", users[1].Name)
+	require.Equal(t, RoleUser, users[1].Role)
+	require.Equal(t, "philuser", users[2].Name)
+	require.Equal(t, RoleUser, users[2].Role)
+	require.Equal(t, "*", users[3].Name)
+	provisionedUserID := users[2].ID // "philuser" is the provisioned user
+
+	grants, err := a.Grants("philuser")
+	require.Nil(t, err)
+	require.Equal(t, 2, len(grants))
+	require.Equal(t, "secret", grants[0].TopicPattern)
+	require.Equal(t, PermissionRead, grants[0].Permission)
+	require.Equal(t, "stats", grants[1].TopicPattern)
+	require.Equal(t, PermissionReadWrite, grants[1].Permission)
+
+	tokens, err := a.Tokens(provisionedUserID)
+	require.Nil(t, err)
+	require.Equal(t, 1, len(tokens))
+	require.Equal(t, "tk_op56p8lz5bf3cxkz9je99v9oc37lo", tokens[0].Value)
+	require.Equal(t, "Alerts token", tokens[0].Label)
+	require.True(t, tokens[0].Provisioned)
+
+	// Update the token last access time and origin (so we can check that it is persisted)
+	lastAccessTime := time.Now().Add(time.Hour)
+	lastOrigin := netip.MustParseAddr("1.1.9.9")
+	err = execTx(a.db, func(tx *sql.Tx) error {
+		return a.updateTokenLastAccessTx(tx, tokens[0].Value, lastAccessTime.Unix(), lastOrigin.String())
+	})
+	require.Nil(t, err)
+
+	// Re-open the DB (second app start)
+	require.Nil(t, a.db.Close())
+	conf.Users = []*User{
+		{Name: "philuser", Hash: "$2a$10$AAAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
+	}
+	conf.Access = map[string][]*Grant{
+		"philuser": {
+			{TopicPattern: "stats12", Permission: PermissionReadWrite},
+			{TopicPattern: "secret12", Permission: PermissionRead},
+		},
+	}
+	conf.Tokens = map[string][]*Token{
+		"philuser": {
+			{Value: "tk_op56p8lz5bf3cxkz9je99v9oc37lo", Label: "Alerts token updated"},
+			{Value: "tk_u48wqendnkx9er21pqqcadlytbutx", Label: "Another token"},
+		},
+	}
+	a, err = NewManager(conf)
+	require.Nil(t, err)
+
+	// Check that the provisioned users are there
+	users, err = a.Users()
+	require.Nil(t, err)
+	require.Len(t, users, 3)
+	require.Equal(t, "philmanual", users[0].Name)
+	require.Equal(t, "philuser", users[1].Name)
+	require.Equal(t, RoleUser, users[1].Role)
+	require.Equal(t, RoleUser, users[0].Role)
+	require.Equal(t, "*", users[2].Name)
+
+	grants, err = a.Grants("philuser")
+	require.Nil(t, err)
+	require.Equal(t, 2, len(grants))
+	require.Equal(t, "secret12", grants[0].TopicPattern)
+	require.Equal(t, PermissionRead, grants[0].Permission)
+	require.Equal(t, "stats12", grants[1].TopicPattern)
+	require.Equal(t, PermissionReadWrite, grants[1].Permission)
+
+	tokens, err = a.Tokens(provisionedUserID)
+	require.Nil(t, err)
+	require.Equal(t, 2, len(tokens))
+	require.Equal(t, "tk_op56p8lz5bf3cxkz9je99v9oc37lo", tokens[0].Value)
+	require.Equal(t, "Alerts token updated", tokens[0].Label)
+	require.Equal(t, lastAccessTime.Unix(), tokens[0].LastAccess.Unix())
+	require.Equal(t, lastOrigin, tokens[0].LastOrigin)
+	require.True(t, tokens[0].Provisioned)
+	require.Equal(t, "tk_u48wqendnkx9er21pqqcadlytbutx", tokens[1].Value)
+	require.Equal(t, "Another token", tokens[1].Label)
+
+	// Try changing provisioned user's password
+	require.Error(t, a.ChangePassword("philuser", "new-pass", false))
+
+	// Re-open the DB again (third app start)
+	require.Nil(t, a.db.Close())
+	conf.Users = []*User{}
+	conf.Access = map[string][]*Grant{}
+	conf.Tokens = map[string][]*Token{}
+	a, err = NewManager(conf)
+	require.Nil(t, err)
+
+	// Check that the provisioned users are all gone
+	users, err = a.Users()
+	require.Nil(t, err)
+	require.Len(t, users, 2)
+
+	require.Equal(t, "philmanual", users[0].Name)
+	require.Equal(t, RoleUser, users[0].Role)
+	require.Equal(t, "*", users[1].Name)
+
+	grants, err = a.Grants("philuser")
+	require.Nil(t, err)
+	require.Equal(t, 0, len(grants))
+
+	tokens, err = a.Tokens(provisionedUserID)
+	require.Nil(t, err)
+	require.Equal(t, 0, len(tokens))
+
+	var count int
+	a.db.QueryRow("SELECT COUNT(*) FROM user WHERE provisioned = 1").Scan(&count)
+	require.Equal(t, 0, count)
+	a.db.QueryRow("SELECT COUNT(*) FROM user_grant WHERE provisioned = 1").Scan(&count)
+	require.Equal(t, 0, count)
+	a.db.QueryRow("SELECT COUNT(*) FROM user_token WHERE provisioned = 1").Scan(&count)
+}
+
+func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
+	f := filepath.Join(t.TempDir(), "user.db")
+	conf := &Config{
+		Filename:         f,
+		DefaultAccess:    PermissionReadWrite,
+		ProvisionEnabled: true,
+		Users:            []*User{},
+		Access: map[string][]*Grant{
+			Everyone: {
+				{TopicPattern: "food", Permission: PermissionRead},
+			},
+		},
+	}
+	a, err := NewManager(conf)
+	require.Nil(t, err)
+
+	// Manually add user
+	require.Nil(t, a.AddUser("philuser", "manual", RoleUser, false))
+	require.Nil(t, a.AllowAccess("philuser", "stats", PermissionReadWrite))
+	require.Nil(t, a.AllowAccess("philuser", "food", PermissionReadWrite))
+
+	users, err := a.Users()
+	require.Nil(t, err)
+	require.Len(t, users, 2)
+	require.Equal(t, "philuser", users[0].Name)
+	require.Equal(t, RoleUser, users[0].Role)
+	require.False(t, users[0].Provisioned) // Manually added
+
+	grants, err := a.Grants("philuser")
+	require.Nil(t, err)
+	require.Equal(t, 2, len(grants))
+	require.Equal(t, "stats", grants[0].TopicPattern)
+	require.Equal(t, PermissionReadWrite, grants[0].Permission)
+	require.False(t, grants[0].Provisioned) // Manually added
+	require.Equal(t, "food", grants[1].TopicPattern)
+	require.Equal(t, PermissionReadWrite, grants[1].Permission)
+	require.False(t, grants[1].Provisioned) // Manually added
+
+	grants, err = a.Grants(Everyone)
+	require.Nil(t, err)
+	require.Equal(t, 1, len(grants))
+	require.Equal(t, "food", grants[0].TopicPattern)
+	require.Equal(t, PermissionRead, grants[0].Permission)
+	require.True(t, grants[0].Provisioned) // Provisioned entry
+
+	// Re-open the DB (second app start)
+	require.Nil(t, a.db.Close())
+	conf.Users = []*User{
+		{Name: "philuser", Hash: "$2a$10$AAAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
+	}
+	conf.Access = map[string][]*Grant{
+		"philuser": {
+			{TopicPattern: "stats", Permission: PermissionReadWrite},
+		},
+	}
+	a, err = NewManager(conf)
+	require.Nil(t, err)
+
+	// Check that the user was "upgraded" to a provisioned user
+	users, err = a.Users()
+	require.Nil(t, err)
+	require.Len(t, users, 2)
+	require.Equal(t, "philuser", users[0].Name)
+	require.Equal(t, RoleUser, users[0].Role)
+	require.Equal(t, "$2a$10$AAAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", users[0].Hash)
+	require.True(t, users[0].Provisioned) // Updated to provisioned!
+
+	grants, err = a.Grants("philuser")
+	require.Nil(t, err)
+	require.Equal(t, 2, len(grants))
+	require.Equal(t, "stats", grants[0].TopicPattern)
+	require.Equal(t, PermissionReadWrite, grants[0].Permission)
+	require.True(t, grants[0].Provisioned) // Updated to provisioned!
+	require.Equal(t, "food", grants[1].TopicPattern)
+	require.Equal(t, PermissionReadWrite, grants[1].Permission)
+	require.False(t, grants[1].Provisioned) // Manually added grants stay!
+
+	grants, err = a.Grants(Everyone)
+	require.Nil(t, err)
+	require.Empty(t, grants)
 }
 
 func TestToFromSQLWildcard(t *testing.T) {
@@ -1152,16 +1413,16 @@ func TestMigrationFrom1(t *testing.T) {
 	require.NotEqual(t, ben.SyncTopic, phil.SyncTopic)
 	require.Equal(t, 2, len(benGrants))
 	require.Equal(t, "secret", benGrants[0].TopicPattern)
-	require.Equal(t, PermissionRead, benGrants[0].Allow)
+	require.Equal(t, PermissionRead, benGrants[0].Permission)
 	require.Equal(t, "stats", benGrants[1].TopicPattern)
-	require.Equal(t, PermissionReadWrite, benGrants[1].Allow)
+	require.Equal(t, PermissionReadWrite, benGrants[1].Permission)
 
 	require.Equal(t, "u_everyone", everyone.ID)
 	require.Equal(t, Everyone, everyone.Name)
 	require.Equal(t, RoleAnonymous, everyone.Role)
 	require.Equal(t, 1, len(everyoneGrants))
 	require.Equal(t, "stats", everyoneGrants[0].TopicPattern)
-	require.Equal(t, PermissionRead, everyoneGrants[0].Allow)
+	require.Equal(t, PermissionRead, everyoneGrants[0].Permission)
 }
 
 func TestMigrationFrom4(t *testing.T) {
@@ -1326,7 +1587,14 @@ func newTestManager(t *testing.T, defaultAccess Permission) *Manager {
 }
 
 func newTestManagerFromFile(t *testing.T, filename, startupQueries string, defaultAccess Permission, bcryptCost int, statsWriterInterval time.Duration) *Manager {
-	a, err := NewManager(filename, startupQueries, defaultAccess, bcryptCost, statsWriterInterval)
+	conf := &Config{
+		Filename:            filename,
+		StartupQueries:      startupQueries,
+		DefaultAccess:       defaultAccess,
+		BcryptCost:          bcryptCost,
+		QueueWriterInterval: statsWriterInterval,
+	}
+	a, err := NewManager(conf)
 	require.Nil(t, err)
 	return a
 }

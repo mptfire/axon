@@ -2,7 +2,233 @@
 Binaries for all releases can be found on the GitHub releases pages for the [ntfy server](https://github.com/binwiederhier/ntfy/releases)
 and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/releases).
 
-### ntfy server v2.11.0
+## Current stable releases
+
+| Component        | Version | Release date |
+|------------------|---------|--------------|
+| ntfy server      | v2.15.0 | Nov 16, 2025 |
+| ntfy Android app | v1.21.1 | Jan 6, 2025  |
+| ntfy iOS app     | v1.3    | Nov 26, 2023 |
+
+Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+## ntfy Android app v1.21.1
+Released January 6, 2026
+
+This is the first feature release in a long time. After all the SDK updates, fixes to comply with the Google Play policies
+and the framework updates, this release ships a lot of highly requested features: Sending messages through the app (WhatsApp-style),
+support for passing headers to your proxy, an in-app language switcher, and more.
+
+If you are waiting for a feature, please 👍 the corresponding [GitHub issue](https://github.com/binwiederhier/ntfy/issues?q=is%3Aissue%20state%3Aopen%20sort%3Areactions-%2B1-desc).
+If you like ntfy, please consider purchasing [ntfy Pro](https://ntfy.sh/app) to support us.
+
+**Features:**
+
+* Allow publishing messages through the message bar and publish dialog ([#98](https://github.com/binwiederhier/ntfy/issues/98), [ntfy-android#144](https://github.com/binwiederhier/ntfy-android/pull/144))
+* Define custom HTTP headers to support authenticated proxies, tunnels and SSO ([ntfy-android#116](https://github.com/binwiederhier/ntfy-android/issues/116), [#1018](https://github.com/binwiederhier/ntfy/issues/1018), [ntfy-android#132](https://github.com/binwiederhier/ntfy-android/pull/132), [ntfy-android#146](https://github.com/binwiederhier/ntfy-android/pull/146), thanks to [@CrazyWolf13](https://github.com/CrazyWolf13))
+* Implement UnifiedPush "raise to foreground" requirement ([ntfy-android#98](https://github.com/binwiederhier/ntfy-android/pull/98), [ntfy-android#148](https://github.com/binwiederhier/ntfy-android/pull/148), thanks to [@p1gp1g](https://github.com/p1gp1g))
+* Language selector to allow overriding the system language ([#1508](https://github.com/binwiederhier/ntfy/issues/1508), [ntfy-android#145](https://github.com/binwiederhier/ntfy-android/pull/145), thanks to [@hudsonm62](https://github.com/hudsonm62) for reporting)
+* Highlight phone numbers and email addresses in notifications ([#957](https://github.com/binwiederhier/ntfy/issues/957), [ntfy-android#71](https://github.com/binwiederhier/ntfy-android/pull/71), thanks to [@brennenputh](https://github.com/brennenputh), and [@XylenSky](https://github.com/XylenSky) for reporting)
+* Support for port and display name in [ntfy://](subscribe/phone.md#ntfy-links) links ([ntfy-android#130](https://github.com/binwiederhier/ntfy-android/pull/130), thanks to [@godovski](https://github.com/godovski))
+
+**Bug fixes + maintenance:**
+
+* Add support for (technically incorrect) 'image/jpg' MIME type ([ntfy-android#142](https://github.com/binwiederhier/ntfy-android/pull/142), thanks to [@Murilobeluco](https://github.com/Murilobeluco))
+* Unify "copy to clipboard" notifications, use Android 13 style ([ntfy-android#61](https://github.com/binwiederhier/ntfy-android/pull/61), thanks to [@thgoebel](https://github.com/thgoebel))
+* Fix crash in user add dialog (onAddUser)
+* Fix ForegroundServiceDidNotStartInTimeException (attempt 2, see [#1520](https://github.com/binwiederhier/ntfy/issues/1520))
+* Hide "Exact alarms" setting if battery optimization exemption has been granted ([#1456](https://github.com/binwiederhier/ntfy/issues/1456), thanks for reporting [@HappyLer](https://github.com/HappyLer))
+
+## ntfy Android app v1.20.0
+Released December 28, 2025
+
+This is the last pure maintenance release for now. It'll bring all dependencies and library version to the latest version,
+and fixes some crashes. I had to drop support for about 4,000 devices (only ~200 installations), because the libraries
+themselves do not support SDK 21 anymore, which was the previous minimum SDK version (Android 5, 2014). Now the minimum
+SDK version is 26 (Android 8, 2017).
+
+**Bug fixes + maintenance:**
+
+* Updated dependencies, minimum SDK version to 26, clean up legacy code, upgrade Gradle ([ntfy-android#140](https://github.com/binwiederhier/ntfy-android/pull/140),
+  thanks to [@cyb3rko](https://github.com/cyb3rko) for the implementation)
+* Updated target SDK version to 36 (Android 8, 2017)
+* Fixed ForegroundServiceDidNotStartInTimeException ([#1520](https://github.com/binwiederhier/ntfy/issues/1520))
+* Fixed crashes with redrawing the list when temporarily muted topics expire
+
+## ntfy Android app v1.19.4
+Released December 21, 2025
+
+This release upgrades the Android app to use [Material 3](https://m3.material.io/) design components and adds the
+ability to use [dynamic colors](https://developer.android.com/develop/ui/views/theming/dynamic-colors).
+**This was a lot of work** and I want to thank [@Bnyro](https://github.com/Bnyro) and [@cyb3rko](https://github.com/cyb3rko) for implementing this. You guys rock!
+
+**Features:**
+
+* Moved the user interface to Material 3 and added dynamic color support ([#580](https://github.com/binwiederhier/ntfy/issues/580),
+  [ntfy-android#56](https://github.com/binwiederhier/ntfy-android/pull/56), [ntfy-android#126](https://github.com/binwiederhier/ntfy-android/pull/126),
+  [ntfy-android#135](https://github.com/binwiederhier/ntfy-android/pull/135), thanks to [@Bnyro](https://github.com/Bnyro)
+  and [@cyb3rko](https://github.com/cyb3rko) for the implementation, and to [@RokeJulianLockhart](https://github.com/RokeJulianLockhart) for reporting)
+
+## ntfy Android app v1.18.0
+Released December 4, 2025
+
+**Features:**
+
+* Added GIF support for preview images ([ntfy-android#76](https://github.com/binwiederhier/ntfy-android/pull/76)/[#532](https://github.com/binwiederhier/ntfy/issues/532), thanks to [@MichaelArkh](https://github.com/MichaelArkh) and [@dimatx](https://github.com/dimatx) for reporting)
+* Added WebP support for preview images ([ntfy-android#81](https://github.com/binwiederhier/ntfy-android/pull/81)/[ntfy-android#80](https://github.com/binwiederhier/ntfy-android/issues/80), thanks to [@jokakilla](https://github.com/jokakilla))
+* Added UnifiedPush distributor selection support ([#137](https://github.com/binwiederhier/ntfy-android/pull/137), thanks to [@p1gp1g](https://github.com/p1gp1g))
+
+**Bug fixes + maintenance:**
+
+* Remove REQUEST_INSTALL_PACKAGES permission ([#684](https://github.com/binwiederhier/ntfy/issues/684))
+* Request to ignore battery optimizations before receiving subscription ([ntfy-android#97](https://github.com/binwiederhier/ntfy-android/pull/97), thanks to [@p1gp1g](https://github.com/p1gp1g))
+
+## ntfy server v2.15.0
+Released Nov 16, 2025
+
+This release adds a `require-login` flag to topics, which forces users to log in before they can
+use the web app. This is useful for self-hosters and will obviously not be enabled on ntfy.sh.
+
+**Features:**
+
+* Add `require-login` flag to redirect to login page if not logged in ([#1434](https://github.com/binwiederhier/ntfy/pull/1434)/[#238](https://github.com/binwiederhier/ntfy/issues/238)/[#1329](https://github.com/binwiederhier/ntfy/pull/1329), thanks to [@theatischbein](https://github.com/theatischbein) for implementing most of this)
+
+**Bug fixes + maintenance:**
+
+* The official ntfy.sh Debian/Ubuntu repository has moved to [archive.ntfy.sh](https://archive.ntfy.sh) ([#1357](https://github.com/binwiederhier/ntfy/issues/1357)/[#1401](https://github.com/binwiederhier/ntfy/issues/1401), thanks to [@skibbipl](https://github.com/skibbipl) and [@lduesing](https://github.com/lduesing) for reporting)
+* Add mutex around message cache writes to avoid `database locked` errors ([#1397](https://github.com/binwiederhier/ntfy/pull/1397), [#1391](https://github.com/binwiederhier/ntfy/issues/1391), thanks to [@timofej673](https://github.com/timofej673))
+* Add build tags `nopayments`, `nofirebase` and `nowebpush` to allow excluding external dependencies, useful for
+  packaging in Debian ([#1420](https://github.com/binwiederhier/ntfy/pull/1420), discussion in [#1258](https://github.com/binwiederhier/ntfy/issues/1258), thanks to [@thekhalifa](https://github.com/thekhalifa) for packaging ntfy for Debian/Ubuntu)
+* Make copying tokens, phone numbers, etc. possible on HTTP ([#1432](https://github.com/binwiederhier/ntfy/pull/1432)/[#1408](https://github.com/binwiederhier/ntfy/issues/1408)/[#1295](https://github.com/binwiederhier/ntfy/issues/1295), thanks to [@EdwinKM](https://github.com/EdwinKM), [@xxl6097](https://github.com/xxl6097) for reporting)
+
+## ntfy Android app v1.17.13
+Released October 21, 2025
+
+This release makes changes to comply with the Google Play policies. See [#1463](https://github.com/binwiederhier/ntfy/issues/1463)
+or [ef57cd1](https://github.com/binwiederhier/ntfy-android/commit/ef57cd1374118b3e4d7a7ab496afe337e714fff7) for details.
+
+The policies do not allow directly or indirectly linking to paid plans or donation links that do not go through Google Play.
+
+**Changes:**
+
+* Remove the "Donate" button from menu (all variants)
+* Change default display name from "ntfy.sh/mytopic" to "mytopic" (all variants)
+* Remove links to ntfy docs and issue tracker (Play variant only)
+* Remove how-to links to ntfy.sh in a few places (Play variant only)
+* Remove "Copy topic address" from subscription menu (Play variant only)
+
+## ntfy Android app v1.17.8
+Released September 23, 2025
+
+This is largely a maintenance update to ensure the SDK is up-to-date.
+
+**Features:**
+
+* Markdown is now rendered if "Markdown: yes" was passed ([#310](https://github.com/binwiederhier/ntfy/issues/310), thanks to [@NiNiyas](https://github.com/NiNiyas) for reporting)
+* You can now disable UnifiedPush so ntfy does not act as a UnifiedPush distributor ([#646](https://github.com/binwiederhier/ntfy/issues/646), thanks to [@ollien](https://github.com/ollien) for reporting and to [@wunter8](https://github.com/wunter8) for implementing)
+
+**Bug fixes + maintenance:**
+
+* UnifiedPush subscriptions now include the `Rate-Topics` header to facilitate subscriber-based billing ([#652](https://github.com/binwiederhier/ntfy/issues/652), thanks to [@wunter8](https://github.com/wunter8))
+* Subscriptions without icons no longer appear to use another subscription's icon ([#634](https://github.com/binwiederhier/ntfy/issues/634), thanks to [@topcaser](https://github.com/topcaser) for reporting and to [@wunter8](https://github.com/wunter8) for fixing)
+* Bumped all dependencies to the latest versions (no ticket)
+
+## ntfy server v2.14.0
+Released August 5, 2025
+
+This release adds support for [declarative users](config.md#users-via-the-config), [declarative ACL entries](config.md#acl-entries-via-the-config) and [declarative tokens](config.md#tokens-via-the-config). This allows you to define users, ACL entries and tokens in the config file, which is useful for static deployments or deployments that use a configuration management system.
+
+It also adds support for [pre-defined templates](publish.md#pre-defined-templates) and [custom templates](publish.md#custom-templates) for enhanced JSON webhook support, as well as advanced [template functions](publish.md#template-functions) based on the [Sprig](https://github.com/Masterminds/sprig) functions.
+
+❤️ If you like ntfy, **please consider sponsoring me** via [GitHub Sponsors](https://github.com/sponsors/binwiederhier), [Liberapay](https://en.liberapay.com/ntfy/), Bitcoin (`1626wjrw3uWk9adyjCfYwafw4sQWujyjn8`), or by buying a [paid plan via the web app](https://ntfy.sh/app). ntfy
+will always remain open source.
+
+**Features:**
+
+* [Declarative users](config.md#users-via-the-config), [declarative ACL entries](config.md#acl-entries-via-the-config) and [declarative tokens](config.md#tokens-via-the-config) ([#464](https://github.com/binwiederhier/ntfy/issues/464), [#1384](https://github.com/binwiederhier/ntfy/pull/1384), [#1413](https://github.com/binwiederhier/ntfy/pull/1413), thanks to [pinpox](https://github.com/pinpox) for reporting, to [@wunter8](https://github.com/wunter8) for reviewing and implementing parts of it)
+* [Pre-defined templates](publish.md#pre-defined-templates) and [custom templates](publish.md#custom-templates) for enhanced JSON webhook support ([#1390](https://github.com/binwiederhier/ntfy/pull/1390))
+* Support of advanced [template functions](publish.md#template-functions) based on the [Sprig](https://github.com/Masterminds/sprig) library ([#1121](https://github.com/binwiederhier/ntfy/issues/1121), thanks to [@davidatkinsondoyle](https://github.com/davidatkinsondoyle) for reporting, to [@wunter8](https://github.com/wunter8) for implementing, and to the Sprig team for their work)
+
+## ntfy server v2.13.0
+Released July 10, 2025
+
+This is a relatively small release, mainly to support IPv6 and to add more sophisticated
+proxy header support. Quick reminder that if you like ntfy, **please consider sponsoring us**
+via [GitHub Sponsors](https://github.com/sponsors/binwiederhier) and [Liberapay](https://en.liberapay.com/ntfy/), or buying a [paid plan via the web app](https://ntfy.sh/app).
+ntfy will always remain open source.
+
+**Features:**
+
+* Full [IPv6 support](config.md#ipv6-support) for ntfy and the official ntfy.sh server ([#519](https://github.com/binwiederhier/ntfy/issues/519)/[#1380](https://github.com/binwiederhier/ntfy/pull/1380)/[ansible#4](https://github.com/binwiederhier/ntfy-ansible/pull/4))
+* Support `X-Client-IP`, `X-Real-IP`, `Forwarded` headers for [rate limiting](config.md#ip-based-rate-limiting) via `proxy-forwarded-header` and `proxy-trusted-hosts` ([#1360](https://github.com/binwiederhier/ntfy/pull/1360)/[#1252](https://github.com/binwiederhier/ntfy/pull/1252), thanks to [@pixitha](https://github.com/pixitha))
+* Add STDIN support for `ntfy publish` ([#1382](https://github.com/binwiederhier/ntfy/pull/1382), thanks to [@srevn](https://github.com/srevn))
+
+**Languages**
+
+* Update new languages from Weblate. Thanks to all the contributors!
+* Added Estonian (Esti), Galician (Galego), Romanian (Română), Slovak (Slovenčina) as new languages to the web app
+
+## ntfy server v2.12.0
+Released May 29, 2025
+
+This is mainly a maintenance release that updates dependencies, though since it's been over a year, there are a few
+new features and bug fixes as well. 
+
+Thanks to everyone who contributed to this release, and special thanks to [@wunter8](https://github.com/wunter8) for his continued
+user support in Discord/Matrix/GitHub! You rock, man!  
+
+**Features:**
+
+* Add username/password auth to email publishing ([#1164](https://github.com/binwiederhier/ntfy/pull/1164), thanks to [@bishtawi](https://github.com/bishtawi))
+* Write VAPID keys to file in `ntfy webpush --output-file` ([#1138](https://github.com/binwiederhier/ntfy/pull/1138), thanks to [@nogweii](https://github.com/nogweii))
+* Add Docker major/minor version to image tags ([#1271](https://github.com/binwiederhier/ntfy/pull/1271), thanks to [@RoboMagus](https://github.com/RoboMagus))
+* Add `latest` subscription param for grabbing just the most recent message ([#1216](https://github.com/binwiederhier/ntfy/pull/1216), thanks to [@wunter8](https://github.com/wunter8))
+* Allow using `NTFY_PASSWORD_HASH` in `ntfy user` command instead of raw password ([#1340](https://github.com/binwiederhier/ntfy/pull/1340), thanks to [@Tom-Hubrecht](https://github.com/Tom-Hubrecht) for implementing)
+* You can now change passwords via `v1/users` API ([#1267](https://github.com/binwiederhier/ntfy/pull/1267), thanks to [@wunter8](https://github.com/wunter8) for implementing)
+* Make WebPush subscription warning/expiry configurable, increase default to 55/60 days ([#1212](https://github.com/binwiederhier/ntfy/pull/1212), thanks to [@KuroSetsuna29](https://github.com/KuroSetsuna29))
+* Support [systemd user service](https://docs.ntfy.sh/subscribe/cli/#using-the-systemd-service) `ntfy-client.service` ([#1002](https://github.com/binwiederhier/ntfy/pull/1002), thanks to [@dandersch](https://github.com/dandersch))
+
+**Bug fixes + maintenance:**
+
+* Security updates for dependencies and Docker images ([#1341](https://github.com/binwiederhier/ntfy/pull/1341))
+* Upgrade to Vite 6 ([#1342](https://github.com/binwiederhier/ntfy/pull/1342), thanks Dependabot)
+* Fix iOS delivery issues for read-protected topics ([#1207](https://github.com/binwiederhier/ntfy/pull/1287), thanks a lot to [@barart](https://github.com/barart)!)
+* Add `Date` header to outgoing emails to avoid rejection ([#1141](https://github.com/binwiederhier/ntfy/pull/1141), thanks to [@pcouy](https://github.com/pcouy))
+* Fix IP address parsing when behind a proxy ([#1266](https://github.com/binwiederhier/ntfy/pull/1266), thanks to [@mmatuska](https://github.com/mmatuska))
+* Make sure UnifiedPush messages are not treated as attachments ([#1312](https://github.com/binwiederhier/ntfy/pull/1312), thanks to [@vkrause](https://github.com/vkrause))
+* Add OCI image version to Docker image ([#1307](https://github.com/binwiederhier/ntfy/pull/1307), thanks to [@jlssmt](https://github.com/jlssmt))
+* WebSocket returning incorrect HTTP error code ([#1338](https://github.com/binwiederhier/ntfy/pull/1338) / [#1337](https://github.com/binwiederhier/ntfy/pull/1337), thanks to [@wunter8](https://github.com/wunter8) for debugging and implementing)
+* Make Markdown in the web app scrollable horizontally ([#1262](https://github.com/binwiederhier/ntfy/pull/1262), thanks to [@rake5k](https://github.com/rake5k) for fixing)
+* Make sure WebPush subscription topics are actually deleted (no ticket)
+* Increase the number of access tokens per user to 60 ([#1308](https://github.com/binwiederhier/ntfy/issues/1308))
+* Allow specifying `cache` and `firebase` via JSON publishing ([#1119](https://github.com/binwiederhier/ntfy/issues/1119)/[#1123](https://github.com/binwiederhier/ntfy/pull/1123), thanks to [@stendler](https://github.com/stendler))
+
+**Documentation:**
+
+* Lots of new integrations and projects. Amazing!
+    * [ntfy-me-mcp](https://github.com/gitmotion/ntfy-me-mcp)
+    * [UptimeObserver](https://uptimeobserver.com)
+    * [alertmanager-ntfy-relay](https://github.com/therobbielee/alertmanager-ntfy-relay)
+    * [Monibot](https://monibot.io/)
+    * [Daily_Fact_Ntfy](https://github.com/thiswillbeyourgithub/Daily_Fact_Ntfy)
+    * [EasyMorph](https://help.easymorph.com/doku.php?id=transformations:sendntfymessage)
+    * [ntfy-run](https://github.com/quantum5/ntfy-run)
+    * [Clipboard IO](https://github.com/jim3692/clipboard-io)
+    * [ntfy-me-mcp](https://github.com/gitmotion/ntfy-me-mcp)
+    * [InvaderInformant](https://github.com/patricksthannon/InvaderInformant)
+* Various docs updates ([#1161](https://github.com/binwiederhier/ntfy/pull/1161), thanks to [@OneWeekNotice](https://github.com/OneWeekNotice))
+* Typo in config docs ([#1177](https://github.com/binwiederhier/ntfy/pull/1177), thanks to [@hoho4190](https://github.com/hoho4190))
+* Typo in CLI docs ([#1172](https://github.com/binwiederhier/ntfy/pull/1172), thanks to [@anirvan](https://github.com/anirvan))
+* Correction about MacroDroid ([#1137](https://github.com/binwiederhier/ntfy/pull/1137), thanks to [@ShlomoCode](https://github.com/ShlomoCode))
+* Note about fail2ban in Docker ([#1175](https://github.com/binwiederhier/ntfy/pull/1175)), thanks to [@Measurity](https://github.com/Measurity))
+* Lots of other tiny docs updates, thanks to everyone who contributed!
+
+**Languages**
+
+* Update new languages from Weblate. Thanks to all the contributors!
+* Added Tamil (தமிழ்) as a new language to the web app
+
+## ntfy server v2.11.0
 Released May 13, 2024
 
 This is a tiny release that fixes a database index issue that caused performance issues on ntfy.sh. It also fixes a bug
@@ -17,7 +243,7 @@ and [Liberapay](https://en.liberapay.com/ntfy/), or buying a [paid plan via the 
 * Do not set rate visitor for non-eligible topics (no ticket)
 * Do not cache `config.js` ([#1098](https://github.com/binwiederhier/ntfy/pull/1098), thanks to [@wunter8](https://github.com/wunter8))
 
-### ntfy server v2.10.0
+## ntfy server v2.10.0
 Released Mar 27, 2024
 
 This release adds support for **message templating** in the ntfy server, which allows you to include a message and/or
@@ -28,7 +254,7 @@ This is great for services that let you specify a webhook URL but do not let you
 
 * [Message templating](publish.md#message-templating): You can now include a message and/or title template that will be filled with values from a JSON body ([#724](https://github.com/binwiederhier/ntfy/issues/724), thanks to [@wunter8](https://github.com/wunter8) for implementing)
 
-### ntfy server v2.9.0
+## ntfy server v2.9.0
 Released Mar 7, 2024
 
 A small release after a long pause (lots of day job work). This release adds for **larger messages** and **longer
@@ -689,7 +915,7 @@ minute or so, due to competing stats gathering (personal installations will like
 
 **Features:**
 
-* Add `cache-startup-queries` option to allow custom [SQLite performance tuning](config.md#wal-for-message-cache) (no ticket)
+* Add `cache-startup-queries` option to allow custom [SQLite performance tuning](config.md#message-cache) (no ticket)
 * ntfy CLI can now [wait for a command or PID](subscribe/cli.md#wait-for-pidcommand) before publishing ([#263](https://github.com/binwiederhier/ntfy/issues/263), thanks to the [original ntfy](https://github.com/dschep/ntfy) for the idea)
 * Trace: Log entire HTTP request to simplify debugging (no ticket)
 * Allow setting user password via `NTFY_PASSWORD` env variable ([#327](https://github.com/binwiederhier/ntfy/pull/327), thanks to [@Kenix3](https://github.com/Kenix3))
@@ -1373,36 +1599,32 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-### ntfy server v2.12.0 (UNRELEASED)
+### ntfy server v2.16.x (UNRELEASED)
 
 **Features:**
 
-* Add username/password auth to email publishing ([#1164](https://github.com/binwiederhier/ntfy/pull/1164), thanks to [@bishtawi](https://github.com/bishtawi))
+* Support for [updating and deleting notifications](publish.md#updating-deleting-notifications) 
+  ([#303](https://github.com/binwiederhier/ntfy/issues/303), [#1536](https://github.com/binwiederhier/ntfy/pull/1536),
+  [ntfy-android#151](https://github.com/binwiederhier/ntfy-android/pull/151), thanks to [@wunter8](https://github.com/wunter8)
+  for the initial implementation)
 
-**Bug fixes + maintenance:**
-
-* Add `Date` header to outgoing emails to avoid rejection ([#1141](https://github.com/binwiederhier/ntfy/pull/1141), thanks to [pcouy](https://github.com/pcouy))
-
-**Documentation:**
-
-* Various docs updates ([#1161](https://github.com/binwiederhier/ntfy/pull/1161), thanks to [@OneWeekNotice](https://github.com/OneWeekNotice))
-* Typo in config docs ([#1177](https://github.com/binwiederhier/ntfy/pull/1177), thanks to [@hoho4190](https://github.com/hoho4190))
-* Typo in CLI docs ([#1172](https://github.com/binwiederhier/ntfy/pull/1172), thanks to [@anirvan](https://github.com/anirvan))
-* Correction about MacroDroid ([#1137](https://github.com/binwiederhier/ntfy/pull/1137), thanks to [@ShlomoCode](https://github.com/ShlomoCode))
-* Note about fail2ban in Docker ([#1175](https://github.com/binwiederhier/ntfy/pull/1175)), thanks to [@Measurity](https://github.com/Measurity))
-
-### ntfy Android app v1.16.1 (UNRELEASED)
+### ntfy Android app v1.22.x (UNRELEASED)
 
 **Features:**
 
-* You can now disable UnifiedPush so ntfy does not act as a UnifiedPush distributor ([#646](https://github.com/binwiederhier/ntfy/issues/646), thanks to [@ollien](https://github.com/ollien) for reporting and to [@wunter8](https://github.com/wunter8) for implementing) 
+* Support for [updating and deleting notifications](publish.md#updating-deleting-notifications)
+  ([#303](https://github.com/binwiederhier/ntfy/issues/303), [#1536](https://github.com/binwiederhier/ntfy/pull/1536),
+  [ntfy-android#151](https://github.com/binwiederhier/ntfy-android/pull/151), thanks to [@wunter8](https://github.com/wunter8)
+  for the initial implementation)
+* Support for self-signed certs and client certs for mTLS ([#215](https://github.com/binwiederhier/ntfy/issues/215),
+  [#530](https://github.com/binwiederhier/ntfy/issues/530), [ntfy-android#149](https://github.com/binwiederhier/ntfy-android/pull/149),
+  thanks to [@cyb3rko](https://github.com/cyb3rko) for reviewing)
+* Connection error dialog to help diagnose connection issues
 
 **Bug fixes + maintenance:**
 
-* UnifiedPush subscriptions now include the `Rate-Topics` header to facilitate subscriber-based billing ([#652](https://github.com/binwiederhier/ntfy/issues/652), thanks to [@wunter8](https://github.com/wunter8))
-* Subscriptions without icons no longer appear to use another subscription's icon ([#634](https://github.com/binwiederhier/ntfy/issues/634), thanks to [@topcaser](https://github.com/topcaser) for reporting and to [@wunter8](https://github.com/wunter8) for fixing)
-* Bumped all dependencies to the latest versions (no ticket)
-
-**Additional languages:**
-
-* Swedish (thanks to [@hellbown](https://hosted.weblate.org/user/hellbown/))
+* Use server-specific user for attachment downloads ([#1529](https://github.com/binwiederhier/ntfy/issues/1529),
+  thanks to [@ManInDark](https://github.com/ManInDark) for reporting and testing)
+* Fix crash in sharing dialog (thanks to [@rogeliodh](https://github.com/rogeliodh))
+* Fix crash when exiting multi-delete in detail view
+* Fix potential crashes with icon downloader and backuper

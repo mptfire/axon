@@ -2,7 +2,7 @@
 Hurray 🥳 🎉, you are interested in writing code for ntfy! **That's awesome.** 😎
 
 I tried my very best to write up detailed instructions, but if at any point in time you run into issues, don't 
-hesitate to **contact me on [Discord](https://discord.gg/cT7ECsZj9w) or [Matrix](https://matrix.to/#/#ntfy:matrix.org)**.
+hesitate to reach out via one of the channels listed on the [contact page](contact.md).
 
 ## ntfy server
 The ntfy server source code is available [on GitHub](https://github.com/binwiederhier/ntfy). The codebase for the
@@ -384,7 +384,7 @@ strictly based off of my development on this app. There may be other versions of
 ### Apple setup
 
 !!! info
-    Along with this step, the [PLIST Deployment](#plist-deployment-and-configuration) step is also required 
+    Along with this step, the [PLIST Deployment](#plist-config) step is also required 
     for these changes to take effect in the iOS app.
 
 1. [Create a new key in Apple Developer Member Center](https://developer.apple.com/account/resources/authkeys/add)
@@ -441,6 +441,6 @@ To have instant notifications/better notification delivery when using firebase, 
 1. In XCode, find the NTFY app target. **Not** the NSE app target.
 1. Find the Asset/ folder in the project navigator
 1. Drag the `GoogleService-Info.plist` file into the Asset/ folder that you get from the firebase console. It can be 
-   found in the "Project settings" > "General" > "Your apps"  with a button labled "GoogleService-Info.plist"
+   found in the "Project settings" > "General" > "Your apps"  with a button labeled "GoogleService-Info.plist"
 
 After that, you should be all set!

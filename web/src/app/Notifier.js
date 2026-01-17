@@ -31,6 +31,21 @@ class Notifier {
     );
   }
 
+  async cancel(notification) {
+    if (!this.supported()) {
+      return;
+    }
+    try {
+      const tag = notification.sequence_id || notification.id;
+      console.log(`[Notifier] Cancelling notification with ${tag}`);
+      const registration = await this.serviceWorkerRegistration();
+      const notifications = await registration.getNotifications({ tag });
+      notifications.forEach((n) => n.close());
+    } catch (e) {
+      console.log(`[Notifier] Error cancelling notification`, e);
+    }
+  }
+
   async playSound() {
     // Play sound
     const sound = await prefs.sound();

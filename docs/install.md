@@ -30,50 +30,56 @@ deb/rpm packages.
 
 === "x86_64/amd64"
     ```bash
-    wget https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_linux_amd64.tar.gz
-    tar zxvf ntfy_2.11.0_linux_amd64.tar.gz
-    sudo cp -a ntfy_2.11.0_linux_amd64/ntfy /usr/local/bin/ntfy
-    sudo mkdir /etc/ntfy && sudo cp ntfy_2.11.0_linux_amd64/{client,server}/*.yml /etc/ntfy
+    wget https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_linux_amd64.tar.gz
+    tar zxvf ntfy_2.15.0_linux_amd64.tar.gz
+    sudo cp -a ntfy_2.15.0_linux_amd64/ntfy /usr/local/bin/ntfy
+    sudo mkdir /etc/ntfy && sudo cp ntfy_2.15.0_linux_amd64/{client,server}/*.yml /etc/ntfy
     sudo ntfy serve
     ```
 
 === "armv6"
     ```bash
-    wget https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_linux_armv6.tar.gz
-    tar zxvf ntfy_2.11.0_linux_armv6.tar.gz
-    sudo cp -a ntfy_2.11.0_linux_armv6/ntfy /usr/bin/ntfy
-    sudo mkdir /etc/ntfy && sudo cp ntfy_2.11.0_linux_armv6/{client,server}/*.yml /etc/ntfy
+    wget https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_linux_armv6.tar.gz
+    tar zxvf ntfy_2.15.0_linux_armv6.tar.gz
+    sudo cp -a ntfy_2.15.0_linux_armv6/ntfy /usr/bin/ntfy
+    sudo mkdir /etc/ntfy && sudo cp ntfy_2.15.0_linux_armv6/{client,server}/*.yml /etc/ntfy
     sudo ntfy serve
     ```
 
 === "armv7/armhf"
     ```bash
-    wget https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_linux_armv7.tar.gz
-    tar zxvf ntfy_2.11.0_linux_armv7.tar.gz
-    sudo cp -a ntfy_2.11.0_linux_armv7/ntfy /usr/bin/ntfy
-    sudo mkdir /etc/ntfy && sudo cp ntfy_2.11.0_linux_armv7/{client,server}/*.yml /etc/ntfy
+    wget https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_linux_armv7.tar.gz
+    tar zxvf ntfy_2.15.0_linux_armv7.tar.gz
+    sudo cp -a ntfy_2.15.0_linux_armv7/ntfy /usr/bin/ntfy
+    sudo mkdir /etc/ntfy && sudo cp ntfy_2.15.0_linux_armv7/{client,server}/*.yml /etc/ntfy
     sudo ntfy serve
     ```
 
 === "arm64"
     ```bash
-    wget https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_linux_arm64.tar.gz
-    tar zxvf ntfy_2.11.0_linux_arm64.tar.gz
-    sudo cp -a ntfy_2.11.0_linux_arm64/ntfy /usr/bin/ntfy
-    sudo mkdir /etc/ntfy && sudo cp ntfy_2.11.0_linux_arm64/{client,server}/*.yml /etc/ntfy
+    wget https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_linux_arm64.tar.gz
+    tar zxvf ntfy_2.15.0_linux_arm64.tar.gz
+    sudo cp -a ntfy_2.15.0_linux_arm64/ntfy /usr/bin/ntfy
+    sudo mkdir /etc/ntfy && sudo cp ntfy_2.15.0_linux_arm64/{client,server}/*.yml /etc/ntfy
     sudo ntfy serve
     ```
 
 ## Debian/Ubuntu repository
-Installation via Debian repository:
+
+!!! info
+    As of September 2025, **the official ntfy.sh Debian/Ubuntu repository has moved to [archive.ntfy.sh](https://archive.ntfy.sh/apt)**.
+    The old repository [archive.heckel.io](https://archive.heckel.io/apt) is still available for now, but will likely
+    go away soon. I suspect I will phase it out some time in early 2026.
+
+Installation via Debian/Ubuntu repository (fingerprint `55BA 774A 6F5E E674 31E4  6B7C CFDB 962D 4F1E C4AF`):
 
 === "x86_64/amd64"
     ```bash
     sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://archive.heckel.io/apt/pubkey.txt | sudo gpg --dearmor -o /etc/apt/keyrings/archive.heckel.io.gpg
+    sudo curl -L -o /etc/apt/keyrings/ntfy.gpg https://archive.ntfy.sh/apt/keyring.gpg
     sudo apt install apt-transport-https
-    sudo sh -c "echo 'deb [arch=amd64 signed-by=/etc/apt/keyrings/archive.heckel.io.gpg] https://archive.heckel.io/apt debian main' \
-        > /etc/apt/sources.list.d/archive.heckel.io.list"  
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/ntfy.gpg] https://archive.ntfy.sh/apt stable main" \
+        | sudo tee /etc/apt/sources.list.d/ntfy.list
     sudo apt update
     sudo apt install ntfy
     sudo systemctl enable ntfy
@@ -83,10 +89,10 @@ Installation via Debian repository:
 === "armv7/armhf"
     ```bash
     sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://archive.heckel.io/apt/pubkey.txt | sudo gpg --dearmor -o /etc/apt/keyrings/archive.heckel.io.gpg
+    sudo curl -L -o /etc/apt/keyrings/ntfy.gpg https://archive.ntfy.sh/apt/keyring.gpg
     sudo apt install apt-transport-https
-    sudo sh -c "echo 'deb [arch=armhf signed-by=/etc/apt/keyrings/archive.heckel.io.gpg] https://archive.heckel.io/apt debian main' \
-        > /etc/apt/sources.list.d/archive.heckel.io.list"
+    echo "deb [arch=armhf signed-by=/etc/apt/keyrings/ntfy.gpg] https://archive.ntfy.sh/apt stable main" \
+        | sudo tee /etc/apt/sources.list.d/ntfy.list
     sudo apt update
     sudo apt install ntfy
     sudo systemctl enable ntfy
@@ -96,10 +102,10 @@ Installation via Debian repository:
 === "arm64"
     ```bash
     sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://archive.heckel.io/apt/pubkey.txt | sudo gpg --dearmor -o /etc/apt/keyrings/archive.heckel.io.gpg
+    sudo curl -L -o /etc/apt/keyrings/ntfy.gpg https://archive.ntfy.sh/apt/keyring.gpg
     sudo apt install apt-transport-https
-    sudo sh -c "echo 'deb [arch=arm64 signed-by=/etc/apt/keyrings/archive.heckel.io.gpg] https://archive.heckel.io/apt debian main' \
-        > /etc/apt/sources.list.d/archive.heckel.io.list"
+    echo "deb [arch=arm64 signed-by=/etc/apt/keyrings/ntfy.gpg] https://archive.ntfy.sh/apt stable main" \
+        | sudo tee /etc/apt/sources.list.d/ntfy.list
     sudo apt update
     sudo apt install ntfy
     sudo systemctl enable ntfy
@@ -110,7 +116,7 @@ Manually installing the .deb file:
 
 === "x86_64/amd64"
     ```bash
-    wget https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_linux_amd64.deb
+    wget https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_linux_amd64.deb
     sudo dpkg -i ntfy_*.deb
     sudo systemctl enable ntfy
     sudo systemctl start ntfy
@@ -118,7 +124,7 @@ Manually installing the .deb file:
 
 === "armv6"
     ```bash
-    wget https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_linux_armv6.deb
+    wget https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_linux_armv6.deb
     sudo dpkg -i ntfy_*.deb
     sudo systemctl enable ntfy
     sudo systemctl start ntfy
@@ -126,7 +132,7 @@ Manually installing the .deb file:
 
 === "armv7/armhf"
     ```bash
-    wget https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_linux_armv7.deb
+    wget https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_linux_armv7.deb
     sudo dpkg -i ntfy_*.deb
     sudo systemctl enable ntfy
     sudo systemctl start ntfy
@@ -134,7 +140,7 @@ Manually installing the .deb file:
 
 === "arm64"
     ```bash
-    wget https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_linux_arm64.deb
+    wget https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_linux_arm64.deb
     sudo dpkg -i ntfy_*.deb
     sudo systemctl enable ntfy
     sudo systemctl start ntfy
@@ -144,28 +150,28 @@ Manually installing the .deb file:
 
 === "x86_64/amd64"
     ```bash
-    sudo rpm -ivh https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_linux_amd64.rpm
+    sudo rpm -ivh https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_linux_amd64.rpm
     sudo systemctl enable ntfy 
     sudo systemctl start ntfy
     ```
 
 === "armv6"
     ```bash
-    sudo rpm -ivh https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_linux_armv6.rpm
+    sudo rpm -ivh https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_linux_armv6.rpm
     sudo systemctl enable ntfy
     sudo systemctl start ntfy
     ```
 
 === "armv7/armhf"
     ```bash
-    sudo rpm -ivh https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_linux_armv7.rpm
+    sudo rpm -ivh https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_linux_armv7.rpm
     sudo systemctl enable ntfy 
     sudo systemctl start ntfy
     ```
 
 === "arm64"
     ```bash
-    sudo rpm -ivh https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_linux_arm64.rpm
+    sudo rpm -ivh https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_linux_arm64.rpm
     sudo systemctl enable ntfy 
     sudo systemctl start ntfy
     ```
@@ -195,18 +201,18 @@ NixOS also supports [declarative setup of the ntfy server](https://search.nixos.
 
 ## macOS
 The [ntfy CLI](subscribe/cli.md) (`ntfy publish` and `ntfy subscribe` only) is supported on macOS as well. 
-To install, please [download the tarball](https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_darwin_all.tar.gz), 
+To install, please [download the tarball](https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_darwin_all.tar.gz), 
 extract it and place it somewhere in your `PATH` (e.g. `/usr/local/bin/ntfy`). 
 
 If run as `root`, ntfy will look for its config at `/etc/ntfy/client.yml`. For all other users, it'll look for it at 
 `~/Library/Application Support/ntfy/client.yml` (sample included in the tarball).
 
 ```bash
-curl -L https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_darwin_all.tar.gz > ntfy_2.11.0_darwin_all.tar.gz
-tar zxvf ntfy_2.11.0_darwin_all.tar.gz
-sudo cp -a ntfy_2.11.0_darwin_all/ntfy /usr/local/bin/ntfy
+curl -L https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_darwin_all.tar.gz > ntfy_2.15.0_darwin_all.tar.gz
+tar zxvf ntfy_2.15.0_darwin_all.tar.gz
+sudo cp -a ntfy_2.15.0_darwin_all/ntfy /usr/local/bin/ntfy
 mkdir ~/Library/Application\ Support/ntfy 
-cp ntfy_2.11.0_darwin_all/client/client.yml ~/Library/Application\ Support/ntfy/client.yml
+cp ntfy_2.15.0_darwin_all/client/client.yml ~/Library/Application\ Support/ntfy/client.yml
 ntfy --help
 ```
 
@@ -221,10 +227,9 @@ simply run:
 brew install ntfy
 ```
 
-
 ## Windows
 The [ntfy CLI](subscribe/cli.md) (`ntfy publish` and `ntfy subscribe` only) is supported on Windows as well.
-To install, please [download the latest ZIP](https://github.com/binwiederhier/ntfy/releases/download/v2.11.0/ntfy_2.11.0_windows_amd64.zip),
+To install, please [download the latest ZIP](https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_windows_amd64.zip),
 extract it and place the `ntfy.exe` binary somewhere in your `%Path%`. 
 
 The default path for the client config file is at `%AppData%\ntfy\client.yml` (not created automatically, sample in the ZIP file).
@@ -280,8 +285,6 @@ docker run \
 
 Using docker-compose with non-root user and healthchecks enabled:
 ```yaml
-version: "2.3"
-
 services:
   ntfy:
     image: binwiederhier/ntfy
@@ -303,6 +306,7 @@ services:
         retries: 3
         start_period: 40s
     restart: unless-stopped
+    init: true # needed, if healthcheck is used. Prevents zombie processes
 ```
 
 If using a non-root user when running the docker version, be sure to chown the server.yml, user.db, and cache.db files and attachments directory to the same uid/gid.
@@ -320,7 +324,6 @@ This image can be pushed to a container registry and shipped independently. All 
 The setup for Kubernetes is very similar to that for Docker, and requires a fairly minimal deployment or pod definition to function. There
 are a few options to mix and match, including a deployment without a cache file, a stateful set with a persistent cache, and a standalone
 unmanned pod.
-
 
 === "deployment"
     ```yaml
@@ -540,7 +543,7 @@ kubectl apply -k /ntfy
                       cpu: 150m
                       memory: 150Mi
               volumeMounts:
-                  - mountPath: /etc/ntfy/server.yml
+                  - mountPath: /etc/ntfy
                     subPath: server.yml
                     name: config-volume # generated vie configMapGenerator from kustomization file
                   - mountPath: /var/cache/ntfy

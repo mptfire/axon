@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
+	"heckel.io/ntfy/v2/server"
 	"heckel.io/ntfy/v2/user"
 	"os"
 	"strings"
@@ -25,7 +26,7 @@ func init() {
 
 var flagsUser = append(
 	append([]cli.Flag{}, flagsDefault...),
-	&cli.StringFlag{Name: "config", Aliases: []string{"c"}, EnvVars: []string{"NTFY_CONFIG_FILE"}, Value: defaultServerConfigFile, DefaultText: defaultServerConfigFile, Usage: "config file"},
+	&cli.StringFlag{Name: "config", Aliases: []string{"c"}, EnvVars: []string{"NTFY_CONFIG_FILE"}, Value: server.DefaultConfigFile, DefaultText: server.DefaultConfigFile, Usage: "config file"},
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "auth-file", Aliases: []string{"auth_file", "H"}, EnvVars: []string{"NTFY_AUTH_FILE"}, Usage: "auth database file used for access control"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "auth-default-access", Aliases: []string{"auth_default_access", "p"}, EnvVars: []string{"NTFY_AUTH_DEFAULT_ACCESS"}, Value: "read-write", Usage: "default permissions if no matching entries in the auth database are found"}),
 )
@@ -42,7 +43,7 @@ var cmdUser = &cli.Command{
 			Name:      "add",
 			Aliases:   []string{"a"},
 			Usage:     "Adds a new user",
-			UsageText: "ntfy user add [--role=admin|user] USERNAME\nNTFY_PASSWORD=... ntfy user add [--role=admin|user] USERNAME",
+			UsageText: "ntfy user add [--role=admin|user] USERNAME\nNTFY_PASSWORD=... ntfy user add [--role=admin|user] USERNAME\nNTFY_PASSWORD_HASH=... ntfy user add [--role=admin|user] USERNAME",
 			Action:    execUserAdd,
 			Flags: []cli.Flag{
 				&cli.StringFlag{Name: "role", Aliases: []string{"r"}, Value: string(user.RoleUser), Usage: "user role"},
@@ -55,12 +56,13 @@ granted otherwise by the auth-default-access setting). An admin user has read an
 topics.
 
 Examples:
-  ntfy user add phil                     # Add regular user phil  
-  ntfy user add --role=admin phil        # Add admin user phil
-  NTFY_PASSWORD=... ntfy user add phil   # Add user, using env variable to set password (for scripts)
+  ntfy user add phil                          # Add regular user phil
+  ntfy user add --role=admin phil             # Add admin user phil
+  NTFY_PASSWORD=... ntfy user add phil        # Add user, using env variable to set password (for scripts)
+  NTFY_PASSWORD_HASH=... ntfy user add phil   # Add user, using env variable to set password hash (for scripts)
 
-You may set the NTFY_PASSWORD environment variable to pass the password. This is useful if 
-you are creating users via scripts.
+You may set the NTFY_PASSWORD environment variable to pass the password, or NTFY_PASSWORD_HASH to pass
+directly the bcrypt hash. This is useful if you are creating users via scripts.
 `,
 		},
 		{
@@ -79,7 +81,7 @@ Example:
 			Name:      "change-pass",
 			Aliases:   []string{"chp"},
 			Usage:     "Changes a user's password",
-			UsageText: "ntfy user change-pass USERNAME\nNTFY_PASSWORD=... ntfy user change-pass USERNAME",
+			UsageText: "ntfy user change-pass USERNAME\nNTFY_PASSWORD=... ntfy user change-pass USERNAME\nNTFY_PASSWORD_HASH=... ntfy user change-pass USERNAME",
 			Action:    execUserChangePass,
 			Description: `Change the password for the given user.
 
@@ -89,10 +91,10 @@ it twice.
 Example:
   ntfy user change-pass phil
   NTFY_PASSWORD=.. ntfy user change-pass phil
+  NTFY_PASSWORD_HASH=.. ntfy user change-pass phil
 
-You may set the NTFY_PASSWORD environment variable to pass the new password. This is 
-useful if you are updating users via scripts.
-
+You may set the NTFY_PASSWORD environment variable to pass the new password or NTFY_PASSWORD_HASH to pass
+directly the bcrypt hash. This is useful if you are updating users via scripts.
 `,
 		},
 		{
@@ -131,6 +133,22 @@ as messages per day, attachment file sizes, etc.
 Example:
   ntfy user change-tier phil pro   # Change tier to "pro" for user "phil"  
   ntfy user change-tier phil -     # Remove tier from user "phil" entirely 
+`,
+		},
+		{
+			Name:      "hash",
+			Usage:     "Create password hash for a predefined user",
+			UsageText: "ntfy user hash",
+			Action:    execUserHash,
+			Description: `Asks for a password and creates a bcrypt password hash.
+
+This command is useful to create a password hash for a user, which can then be used
+for predefined users in the server config file, in auth-users.
+
+Example:
+  $ ntfy user hash
+  (asks for password and confirmation)
+  $2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C
 `,
 		},
 		{
@@ -174,7 +192,12 @@ variable to pass the new password. This is useful if you are creating/updating u
 func execUserAdd(c *cli.Context) error {
 	username := c.Args().Get(0)
 	role := user.Role(c.String("role"))
-	password := os.Getenv("NTFY_PASSWORD")
+	password, hashed := os.LookupEnv("NTFY_PASSWORD_HASH")
+
+	if !hashed {
+		password = os.Getenv("NTFY_PASSWORD")
+	}
+
 	if username == "" {
 		return errors.New("username expected, type 'ntfy user add --help' for help")
 	} else if username == userEveryone || username == user.Everyone {
@@ -188,7 +211,7 @@ func execUserAdd(c *cli.Context) error {
 	}
 	if user, _ := manager.User(username); user != nil {
 		if c.Bool("ignore-exists") {
-			fmt.Fprintf(c.App.ErrWriter, "user %s already exists (exited successfully)\n", username)
+			fmt.Fprintf(c.App.Writer, "user %s already exists (exited successfully)\n", username)
 			return nil
 		}
 		return fmt.Errorf("user %s already exists", username)
@@ -200,10 +223,10 @@ func execUserAdd(c *cli.Context) error {
 		}
 		password = p
 	}
-	if err := manager.AddUser(username, password, role); err != nil {
+	if err := manager.AddUser(username, password, role, hashed); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.App.ErrWriter, "user %s added with role %s\n", username, role)
+	fmt.Fprintf(c.App.Writer, "user %s added with role %s\n", username, role)
 	return nil
 }
 
@@ -218,19 +241,23 @@ func execUserDel(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	if _, err := manager.User(username); err == user.ErrUserNotFound {
+	if _, err := manager.User(username); errors.Is(err, user.ErrUserNotFound) {
 		return fmt.Errorf("user %s does not exist", username)
 	}
 	if err := manager.RemoveUser(username); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.App.ErrWriter, "user %s removed\n", username)
+	fmt.Fprintf(c.App.Writer, "user %s removed\n", username)
 	return nil
 }
 
 func execUserChangePass(c *cli.Context) error {
 	username := c.Args().Get(0)
-	password := os.Getenv("NTFY_PASSWORD")
+	password, hashed := os.LookupEnv("NTFY_PASSWORD_HASH")
+
+	if !hashed {
+		password = os.Getenv("NTFY_PASSWORD")
+	}
 	if username == "" {
 		return errors.New("username expected, type 'ntfy user change-pass --help' for help")
 	} else if username == userEveryone || username == user.Everyone {
@@ -240,7 +267,7 @@ func execUserChangePass(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	if _, err := manager.User(username); err == user.ErrUserNotFound {
+	if _, err := manager.User(username); errors.Is(err, user.ErrUserNotFound) {
 		return fmt.Errorf("user %s does not exist", username)
 	}
 	if password == "" {
@@ -249,10 +276,10 @@ func execUserChangePass(c *cli.Context) error {
 			return err
 		}
 	}
-	if err := manager.ChangePassword(username, password); err != nil {
+	if err := manager.ChangePassword(username, password, hashed); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.App.ErrWriter, "changed password for user %s\n", username)
+	fmt.Fprintf(c.App.Writer, "changed password for user %s\n", username)
 	return nil
 }
 
@@ -268,13 +295,26 @@ func execUserChangeRole(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	if _, err := manager.User(username); err == user.ErrUserNotFound {
+	if _, err := manager.User(username); errors.Is(err, user.ErrUserNotFound) {
 		return fmt.Errorf("user %s does not exist", username)
 	}
 	if err := manager.ChangeRole(username, role); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.App.ErrWriter, "changed role for user %s to %s\n", username, role)
+	fmt.Fprintf(c.App.Writer, "changed role for user %s to %s\n", username, role)
+	return nil
+}
+
+func execUserHash(c *cli.Context) error {
+	password, err := readPasswordAndConfirm(c)
+	if err != nil {
+		return err
+	}
+	hash, err := user.HashPassword(password)
+	if err != nil {
+		return fmt.Errorf("failed to hash password: %w", err)
+	}
+	fmt.Fprintln(c.App.Writer, hash)
 	return nil
 }
 
@@ -292,19 +332,19 @@ func execUserChangeTier(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	if _, err := manager.User(username); err == user.ErrUserNotFound {
+	if _, err := manager.User(username); errors.Is(err, user.ErrUserNotFound) {
 		return fmt.Errorf("user %s does not exist", username)
 	}
 	if tier == tierReset {
 		if err := manager.ResetTier(username); err != nil {
 			return err
 		}
-		fmt.Fprintf(c.App.ErrWriter, "removed tier from user %s\n", username)
+		fmt.Fprintf(c.App.Writer, "removed tier from user %s\n", username)
 	} else {
 		if err := manager.ChangeTier(username, tier); err != nil {
 			return err
 		}
-		fmt.Fprintf(c.App.ErrWriter, "changed tier for user %s to %s\n", username, tier)
+		fmt.Fprintf(c.App.Writer, "changed tier for user %s to %s\n", username, tier)
 	}
 	return nil
 }
@@ -334,7 +374,15 @@ func createUserManager(c *cli.Context) (*user.Manager, error) {
 	if err != nil {
 		return nil, errors.New("if set, auth-default-access must start set to 'read-write', 'read-only', 'write-only' or 'deny-all'")
 	}
-	return user.NewManager(authFile, authStartupQueries, authDefault, user.DefaultUserPasswordBcryptCost, user.DefaultUserStatsQueueWriterInterval)
+	authConfig := &user.Config{
+		Filename:            authFile,
+		StartupQueries:      authStartupQueries,
+		DefaultAccess:       authDefault,
+		ProvisionEnabled:    false, // Hack: Do not re-provision users on manager initialization
+		BcryptCost:          user.DefaultUserPasswordBcryptCost,
+		QueueWriterInterval: user.DefaultUserStatsQueueWriterInterval,
+	}
+	return user.NewManager(authConfig)
 }
 
 func readPasswordAndConfirm(c *cli.Context) (string, error) {

@@ -21,7 +21,7 @@
 # default-command:
 
 # Subscriptions to topics and their actions. This option is primarily used by the systemd service,
-# or if you cann "ntfy subscribe --from-config" directly.
+# or if you can "ntfy subscribe --from-config" directly.
 #
 # Example:
 #     subscribe:

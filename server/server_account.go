@@ -37,7 +37,7 @@ func (s *Server) handleAccountCreate(w http.ResponseWriter, r *http.Request, v *
 		return errHTTPConflictUserExists
 	}
 	logvr(v, r).Tag(tagAccount).Field("user_name", newAccount.Username).Info("Creating user %s", newAccount.Username)
-	if err := s.userManager.AddUser(newAccount.Username, newAccount.Password, user.RoleUser); err != nil {
+	if err := s.userManager.AddUser(newAccount.Username, newAccount.Password, user.RoleUser, false); err != nil {
 		if errors.Is(err, user.ErrInvalidArgument) {
 			return errHTTPBadRequestInvalidUsername
 		}
@@ -85,6 +85,7 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 		response.Username = u.Name
 		response.Role = string(u.Role)
 		response.SyncTopic = u.SyncTopic
+		response.Provisioned = u.Provisioned
 		if u.Prefs != nil {
 			if u.Prefs.Language != nil {
 				response.Language = *u.Prefs.Language
@@ -139,11 +140,12 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 					lastOrigin = t.LastOrigin.String()
 				}
 				response.Tokens = append(response.Tokens, &apiAccountTokenResponse{
-					Token:      t.Value,
-					Label:      t.Label,
-					LastAccess: t.LastAccess.Unix(),
-					LastOrigin: lastOrigin,
-					Expires:    t.Expires.Unix(),
+					Token:       t.Value,
+					Label:       t.Label,
+					LastAccess:  t.LastAccess.Unix(),
+					LastOrigin:  lastOrigin,
+					Expires:     t.Expires.Unix(),
+					Provisioned: t.Provisioned,
 				})
 			}
 		}
@@ -173,6 +175,12 @@ func (s *Server) handleAccountDelete(w http.ResponseWriter, r *http.Request, v *
 	u := v.User()
 	if _, err := s.userManager.Authenticate(u.Name, req.Password); err != nil {
 		return errHTTPBadRequestIncorrectPasswordConfirmation
+	}
+	if err := s.userManager.CanChangeUser(u.Name); err != nil {
+		if errors.Is(err, user.ErrProvisionedUserChange) {
+			return errHTTPConflictProvisionedUserChange
+		}
+		return err
 	}
 	if s.webPush != nil && u.ID != "" {
 		if err := s.webPush.RemoveSubscriptionsByUserID(u.ID); err != nil {
@@ -207,7 +215,10 @@ func (s *Server) handleAccountPasswordChange(w http.ResponseWriter, r *http.Requ
 		return errHTTPBadRequestIncorrectPasswordConfirmation
 	}
 	logvr(v, r).Tag(tagAccount).Debug("Changing password for user %s", u.Name)
-	if err := s.userManager.ChangePassword(u.Name, req.NewPassword); err != nil {
+	if err := s.userManager.ChangePassword(u.Name, req.NewPassword, false); err != nil {
+		if errors.Is(err, user.ErrProvisionedUserChange) {
+			return errHTTPConflictProvisionedUserChange
+		}
 		return err
 	}
 	return s.writeJSON(w, newSuccessResponse())
@@ -234,7 +245,7 @@ func (s *Server) handleAccountTokenCreate(w http.ResponseWriter, r *http.Request
 			"token_expires": expires,
 		}).
 		Debug("Creating token for user %s", u.Name)
-	token, err := s.userManager.CreateToken(u.ID, label, expires, v.IP())
+	token, err := s.userManager.CreateToken(u.ID, label, expires, v.IP(), false)
 	if err != nil {
 		return err
 	}
@@ -274,6 +285,9 @@ func (s *Server) handleAccountTokenUpdate(w http.ResponseWriter, r *http.Request
 		Debug("Updating token for user %s as deleted", u.Name)
 	token, err := s.userManager.ChangeToken(u.ID, req.Token, req.Label, expires)
 	if err != nil {
+		if errors.Is(err, user.ErrProvisionedTokenChange) {
+			return errHTTPConflictProvisionedTokenChange
+		}
 		return err
 	}
 	response := &apiAccountTokenResponse{
@@ -296,6 +310,9 @@ func (s *Server) handleAccountTokenDelete(w http.ResponseWriter, r *http.Request
 		}
 	}
 	if err := s.userManager.RemoveToken(u.ID, token); err != nil {
+		if errors.Is(err, user.ErrProvisionedTokenChange) {
+			return errHTTPConflictProvisionedTokenChange
+		}
 		return err
 	}
 	logvr(v, r).

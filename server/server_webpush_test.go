@@ -1,8 +1,11 @@
+//go:build !nowebpush
+
 package server
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/SherClockHolmes/webpush-go"
 	"github.com/stretchr/testify/require"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
@@ -10,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -20,6 +24,28 @@ const (
 	testWebPushEndpoint = "https://updates.push.services.mozilla.com/wpush/v1/AAABBCCCDDEEEFFF"
 )
 
+func TestServer_WebPush_Enabled(t *testing.T) {
+	conf := newTestConfig(t)
+	conf.WebRoot = "" // Disable web app
+	s := newTestServer(t, conf)
+
+	rr := request(t, s, "GET", "/manifest.webmanifest", "", nil)
+	require.Equal(t, 404, rr.Code)
+
+	conf2 := newTestConfig(t)
+	s2 := newTestServer(t, conf2)
+
+	rr = request(t, s2, "GET", "/manifest.webmanifest", "", nil)
+	require.Equal(t, 404, rr.Code)
+
+	conf3 := newTestConfigWithWebPush(t)
+	s3 := newTestServer(t, conf3)
+
+	rr = request(t, s3, "GET", "/manifest.webmanifest", "", nil)
+	require.Equal(t, 200, rr.Code)
+	require.Equal(t, "application/manifest+json", rr.Header().Get("Content-Type"))
+
+}
 func TestServer_WebPush_Disabled(t *testing.T) {
 	s := newTestServer(t, newTestConfig(t))
 
@@ -96,7 +122,7 @@ func TestServer_WebPush_TopicSubscribeProtected_Allowed(t *testing.T) {
 	config.AuthDefault = user.PermissionDenyAll
 	s := newTestServer(t, config)
 
-	require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser))
+	require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser, false))
 	require.Nil(t, s.userManager.AllowAccess("ben", "test-topic", user.PermissionReadWrite))
 
 	response := request(t, s, "POST", "/v1/webpush", payloadForTopics(t, []string{"test-topic"}, testWebPushEndpoint), map[string]string{
@@ -126,7 +152,7 @@ func TestServer_WebPush_DeleteAccountUnsubscribe(t *testing.T) {
 	config := configureAuth(t, newTestConfigWithWebPush(t))
 	s := newTestServer(t, config)
 
-	require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser))
+	require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser, false))
 	require.Nil(t, s.userManager.AllowAccess("ben", "test-topic", user.PermissionReadWrite))
 
 	response := request(t, s, "POST", "/v1/webpush", payloadForTopics(t, []string{"test-topic"}, testWebPushEndpoint), map[string]string{
@@ -212,7 +238,7 @@ func TestServer_WebPush_Expiry(t *testing.T) {
 	addSubscription(t, s, pushService.URL+"/push-receive", "test-topic")
 	requireSubscriptionCount(t, s, "test-topic", 1)
 
-	_, err := s.webPush.db.Exec("UPDATE subscription SET updated_at = ?", time.Now().Add(-7*24*time.Hour).Unix())
+	_, err := s.webPush.db.Exec("UPDATE subscription SET updated_at = ?", time.Now().Add(-55*24*time.Hour).Unix())
 	require.Nil(t, err)
 
 	s.pruneAndNotifyWebPushSubscriptions()
@@ -222,7 +248,7 @@ func TestServer_WebPush_Expiry(t *testing.T) {
 		return received.Load()
 	})
 
-	_, err = s.webPush.db.Exec("UPDATE subscription SET updated_at = ?", time.Now().Add(-9*24*time.Hour).Unix())
+	_, err = s.webPush.db.Exec("UPDATE subscription SET updated_at = ?", time.Now().Add(-60*24*time.Hour).Unix())
 	require.Nil(t, err)
 
 	s.pruneAndNotifyWebPushSubscriptions()
@@ -253,4 +279,15 @@ func requireSubscriptionCount(t *testing.T, s *Server, topic string, expectedLen
 	subs, err := s.webPush.SubscriptionsForTopic(topic)
 	require.Nil(t, err)
 	require.Len(t, subs, expectedLength)
+}
+
+func newTestConfigWithWebPush(t *testing.T) *Config {
+	conf := newTestConfig(t)
+	privateKey, publicKey, err := webpush.GenerateVAPIDKeys()
+	require.Nil(t, err)
+	conf.WebPushFile = filepath.Join(t.TempDir(), "webpush.db")
+	conf.WebPushEmailAddress = "testing@example.com"
+	conf.WebPushPrivateKey = privateKey
+	conf.WebPushPublicKey = publicKey
+	return conf
 }
