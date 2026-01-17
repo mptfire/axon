@@ -107,6 +107,7 @@ build-deps-ubuntu:
 		curl \
 		gcc-aarch64-linux-gnu \
 		gcc-arm-linux-gnueabi \
+		gcc-mingw-w64-x86-64 \
 		python3 \
 		python3-venv \
 		jq
