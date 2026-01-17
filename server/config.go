@@ -3,6 +3,7 @@ package server
 import (
 	"io/fs"
 	"net/netip"
+	"text/template"
 	"time"
 
 	"heckel.io/ntfy/v2/user"
@@ -128,6 +129,7 @@ type Config struct {
 	TwilioCallsBaseURL                   string
 	TwilioVerifyBaseURL                  string
 	TwilioVerifyService                  string
+	TwilioCallFormat                     *template.Template
 	MetricsEnable                        bool
 	MetricsListenHTTP                    string
 	ProfileListenHTTP                    string
@@ -226,6 +228,7 @@ func NewConfig() *Config {
 		TwilioPhoneNumber:                    "",
 		TwilioVerifyBaseURL:                  "https://verify.twilio.com", // Override for tests
 		TwilioVerifyService:                  "",
+		TwilioCallFormat:                     nil,
 		MessageSizeLimit:                     DefaultMessageSizeLimit,
 		MessageDelayMin:                      DefaultMessageDelayMin,
 		MessageDelayMax:                      DefaultMessageDelayMax,

@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"text/template"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -77,6 +78,7 @@ var flagsServe = append(
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "twilio-auth-token", Aliases: []string{"twilio_auth_token"}, EnvVars: []string{"NTFY_TWILIO_AUTH_TOKEN"}, Usage: "Twilio auth token"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "twilio-phone-number", Aliases: []string{"twilio_phone_number"}, EnvVars: []string{"NTFY_TWILIO_PHONE_NUMBER"}, Usage: "Twilio number to use for outgoing calls"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "twilio-verify-service", Aliases: []string{"twilio_verify_service"}, EnvVars: []string{"NTFY_TWILIO_VERIFY_SERVICE"}, Usage: "Twilio Verify service ID, used for phone number verification"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "twilio-call-format", Aliases: []string{"twilio_call_format"}, EnvVars: []string{"NTFY_TWILIO_CALL_FORMAT"}, Usage: "Twilio/TwiML format string for phone calls"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "message-size-limit", Aliases: []string{"message_size_limit"}, EnvVars: []string{"NTFY_MESSAGE_SIZE_LIMIT"}, Value: util.FormatSize(server.DefaultMessageSizeLimit), Usage: "size limit for the message (see docs for limitations)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "message-delay-limit", Aliases: []string{"message_delay_limit"}, EnvVars: []string{"NTFY_MESSAGE_DELAY_LIMIT"}, Value: util.FormatDuration(server.DefaultMessageDelayMax), Usage: "max duration a message can be scheduled into the future"}),
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "global-topic-limit", Aliases: []string{"global_topic_limit", "T"}, EnvVars: []string{"NTFY_GLOBAL_TOPIC_LIMIT"}, Value: server.DefaultTotalTopicLimit, Usage: "total number of topics allowed"}),
@@ -187,6 +189,7 @@ func execServe(c *cli.Context) error {
 	twilioAuthToken := c.String("twilio-auth-token")
 	twilioPhoneNumber := c.String("twilio-phone-number")
 	twilioVerifyService := c.String("twilio-verify-service")
+	twilioCallFormat := c.String("twilio-call-format")
 	messageSizeLimitStr := c.String("message-size-limit")
 	messageDelayLimitStr := c.String("message-delay-limit")
 	totalTopicLimit := c.Int("global-topic-limit")
@@ -456,6 +459,13 @@ func execServe(c *cli.Context) error {
 	conf.TwilioAuthToken = twilioAuthToken
 	conf.TwilioPhoneNumber = twilioPhoneNumber
 	conf.TwilioVerifyService = twilioVerifyService
+	if twilioCallFormat != "" {
+		tmpl, err := template.New("twiml").Parse(twilioCallFormat)
+		if err != nil {
+			return fmt.Errorf("failed to parse twilio-call-format template: %w", err)
+		}
+		conf.TwilioCallFormat = tmpl
+	}
 	conf.MessageSizeLimit = int(messageSizeLimit)
 	conf.MessageDelayMax = messageDelayLimit
 	conf.TotalTopicLimit = totalTopicLimit

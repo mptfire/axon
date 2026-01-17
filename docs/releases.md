@@ -1603,10 +1603,9 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 **Features:**
 
-* Support for [updating and deleting notifications](publish.md#updating-deleting-notifications) 
-  ([#303](https://github.com/binwiederhier/ntfy/issues/303), [#1536](https://github.com/binwiederhier/ntfy/pull/1536),
-  [ntfy-android#151](https://github.com/binwiederhier/ntfy-android/pull/151), thanks to [@wunter8](https://github.com/wunter8)
-  for the initial implementation)
+* Support for [updating and deleting notifications](publish.md#updating-deleting-notifications) ([#303](https://github.com/binwiederhier/ntfy/issues/303), [#1536](https://github.com/binwiederhier/ntfy/pull/1536),
+  [ntfy-android#151](https://github.com/binwiederhier/ntfy-android/pull/151), thanks to [@wunter8](https://github.com/wunter8) for the initial implementation)
+* Support for a [custom Twilio call format](config.md#phone-calls) ([#1289](https://github.com/binwiederhier/ntfy/pull/1289), thanks to [@mmichaa](https://github.com/mmichaa) for the initial implementation) 
 
 ### ntfy Android app v1.22.x (UNRELEASED)
 
