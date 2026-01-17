@@ -27,7 +27,7 @@ const (
 
 // Platform-specific default paths (set in config_unix.go or config_windows.go)
 var (
-	DefaultConfigFile string
+	DefaultConfigFile  string
 	DefaultTemplateDir string
 )
 

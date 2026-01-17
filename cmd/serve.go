@@ -655,4 +655,3 @@ func parseTokens(users []*user.User, tokensRaw []string) (map[string][]*user.Tok
 	}
 	return tokens, nil
 }
-
