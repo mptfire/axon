@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"text/template"
 	"time"
 
 	"github.com/urfave/cli/v2"
@@ -458,7 +459,13 @@ func execServe(c *cli.Context) error {
 	conf.TwilioAuthToken = twilioAuthToken
 	conf.TwilioPhoneNumber = twilioPhoneNumber
 	conf.TwilioVerifyService = twilioVerifyService
-	conf.TwilioCallFormat = twilioCallFormat
+	if twilioCallFormat != "" {
+		tmpl, err := template.New("twiml").Parse(twilioCallFormat)
+		if err != nil {
+			return fmt.Errorf("failed to parse twilio-call-format template: %w", err)
+		}
+		conf.TwilioCallFormat = tmpl
+	}
 	conf.MessageSizeLimit = int(messageSizeLimit)
 	conf.MessageDelayMax = messageDelayLimit
 	conf.TotalTopicLimit = totalTopicLimit

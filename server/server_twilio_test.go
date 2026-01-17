@@ -1,14 +1,16 @@
 package server
 
 import (
-	"github.com/stretchr/testify/require"
-	"heckel.io/ntfy/v2/user"
-	"heckel.io/ntfy/v2/util"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"text/template"
+
+	"github.com/stretchr/testify/require"
+	"heckel.io/ntfy/v2/user"
+	"heckel.io/ntfy/v2/util"
 )
 
 func TestServer_Twilio_Call_Add_Verify_Call_Delete_Success(t *testing.T) {
@@ -222,22 +224,22 @@ func TestServer_Twilio_Call_Success_with_custom_twiml(t *testing.T) {
 	c.TwilioAccount = "AC1234567890"
 	c.TwilioAuthToken = "AAEAA1234567890"
 	c.TwilioPhoneNumber = "+1234567890"
-	c.TwilioCallFormat = `
+	c.TwilioCallFormat = template.Must(template.New("twiml").Parse(`
 <Response>
 	<Pause length="1"/>
 	<Say language="de-DE" loop="3">
-		Du hast eine Nachricht von notify im Thema %s. Nachricht:
+		Du hast eine Nachricht von notify im Thema {{.Topic}}. Nachricht:
 		<break time="1s"/>
-		%s
+		{{.Message}}
 		<break time="1s"/>
 		Ende der Nachricht.
 		<break time="1s"/>
-		Diese Nachricht wurde von Benutzer %s gesendet. Sie wird drei Mal wiederholt.
+		Diese Nachricht wurde von Benutzer {{.Sender}} gesendet. Sie wird drei Mal wiederholt.
 		Um dich von Anrufen wie diesen abzumelden, entferne deine Telefonnummer in der notify web app.
 		<break time="3s"/>
 	</Say>
 	<Say language="de-DE">Auf Wiederhören.</Say>
-</Response>`
+</Response>`))
 	s := newTestServer(t, c)
 
 	// Add tier and user
@@ -246,7 +248,7 @@ func TestServer_Twilio_Call_Success_with_custom_twiml(t *testing.T) {
 		MessageLimit: 10,
 		CallLimit:    1,
 	}))
-	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser))
+	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
 	require.Nil(t, s.userManager.ChangeTier("phil", "pro"))
 	u, err := s.userManager.User("phil")
 	require.Nil(t, err)

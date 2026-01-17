@@ -15,14 +15,13 @@ import (
 	"heckel.io/ntfy/v2/util"
 )
 
-const (
-	// defaultTwilioCallFormat is the default TwiML format used for Twilio calls.
-	// It can be overridden in the server configuration's twilio-call-format field.
-	//
-	// The format uses Go template syntax with the following fields:
-	// {{.Topic}}, {{.Title}}, {{.Message}}, {{.Priority}}, {{.Tags}}, {{.Sender}}
-	// String fields are automatically XML-escaped.
-	defaultTwilioCallFormat = `
+// defaultTwilioCallFormatTemplate is the default TwiML template used for Twilio calls.
+// It can be overridden in the server configuration's twilio-call-format field.
+//
+// The format uses Go template syntax with the following fields:
+// {{.Topic}}, {{.Title}}, {{.Message}}, {{.Priority}}, {{.Tags}}, {{.Sender}}
+// String fields are automatically XML-escaped.
+var defaultTwilioCallFormatTemplate = template.Must(template.New("twiml").Parse(`
 <Response>
 	<Pause length="1"/>
 	<Say loop="3">
@@ -37,8 +36,7 @@ const (
 		<break time="3s"/>
 	</Say>
 	<Say>Goodbye.</Say>
-</Response>`
-)
+</Response>`))
 
 // twilioCallData holds the data passed to the Twilio call format template
 type twilioCallData struct {
@@ -83,15 +81,9 @@ func (s *Server) callPhone(v *visitor, r *http.Request, m *message, to string) {
 	if u != nil {
 		sender = u.Name
 	}
-	templateStr := defaultTwilioCallFormat
-	if s.config.TwilioCallFormat != "" {
-		templateStr = s.config.TwilioCallFormat
-	}
-	tmpl, err := template.New("twiml").Parse(templateStr)
-	if err != nil {
-		logvrm(v, r, m).Tag(tagTwilio).Err(err).Warn("Error parsing Twilio call format template")
-		minc(metricCallsMadeFailure)
-		return
+	tmpl := defaultTwilioCallFormatTemplate
+	if s.config.TwilioCallFormat != nil {
+		tmpl = s.config.TwilioCallFormat
 	}
 	tags := make([]string, len(m.Tags))
 	for i, tag := range m.Tags {

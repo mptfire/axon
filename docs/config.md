@@ -1261,12 +1261,12 @@ are the easiest), and then configure the following options:
 * `twilio-auth-token` is the Twilio auth token, e.g. affebeef258625862586258625862586
 * `twilio-phone-number` is the outgoing phone number you purchased, e.g. +18775132586 
 * `twilio-verify-service` is the Twilio Verify service SID, e.g. VA12345beefbeef67890beefbeef122586
-* `twilio-call-format` is the custom TwiML send to the Call API (optional, see [TwiML](https://www.twilio.com/docs/voice/twiml))
+* `twilio-call-format` is the custom Twilio markup ([TwiML](https://www.twilio.com/docs/voice/twiml)) to use for phone calls (optional)
 
 After you have configured phone calls, create a [tier](#tiers) with a call limit (e.g. `ntfy tier create --call-limit=10 ...`),
 and then assign it to a user. Users may then use the `X-Call` header to receive a phone call when publishing a message.
 
-To customize your message send to Twilio's Call API, set the `twilio-call-format` option with [TwiML](https://www.twilio.com/docs/voice/twiml). The format is
+To customize the message that is spoken out loud, set the `twilio-call-format` option with [TwiML](https://www.twilio.com/docs/voice/twiml). The format is
 rendered as a [Go template](https://pkg.go.dev/text/template), so you can use the following fields from the message:
 
 * `{{.Topic}}` is the topic name
@@ -1278,7 +1278,37 @@ rendered as a [Go template](https://pkg.go.dev/text/template), so you can use th
 
 Here's an example:
 
-=== English example
+=== "Custom TwiML (English)"
+    ``` yaml
+    twilio-account: "AC12345beefbeef67890beefbeef122586"
+    twilio-auth-token: "affebeef258625862586258625862586"
+    twilio-phone-number: "+18775132586"
+    twilio-verify-service: "VA12345beefbeef67890beefbeef122586"
+    twilio-call-format: |
+      <Response>
+        <Pause length="1"/>
+        <Say loop="3">
+          Yo yo yo, you should totally check out this message for {{.Topic}}.
+          {{ if eq .Priority 5 }}
+            It's really really important, dude. So listen up!
+          {{ end }}
+          <break time="1s"/>
+          {{ if neq .Title "" }}
+            Bro, it's titled: {{.Title}}.
+          {{ end }}
+          <break time="1s"/>
+          {{.Message}}
+          <break time="1s"/>
+          That is all.
+          <break time="1s"/>
+          You know who this message is from? It is from {{.Sender}}.
+          <break time="3s"/>
+        </Say>
+        <Say>See ya!</Say>
+      </Response>
+    ```
+
+=== "Custom TwiML (German)"
     ``` yaml
     twilio-account: "AC12345beefbeef67890beefbeef122586"
     twilio-auth-token: "affebeef258625862586258625862586"
@@ -1309,11 +1339,6 @@ Here's an example:
         <Say voice="alice" language="de-DE">Alla mol!</Say>
       </Response>
     ```
-
-The TwiML is internaly used as a format string:
-1. The first `%s` will be replaced with the topic.
-1. The second `%s` will be replaced with the message.
-1. The third `%s` will be replaced with the message`s sender name.
 
 ## Message limits
 There are a few message limits that you can configure:
