@@ -228,19 +228,29 @@ brew install ntfy
 ```
 
 ## Windows
-The [ntfy CLI](subscribe/cli.md) (`ntfy publish` and `ntfy subscribe` only) is supported on Windows as well.
-To install, please [download the latest ZIP](https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_windows_amd64.zip),
+The ntfy server and CLI are fully supported on Windows. You can run the ntfy server directly or as a Windows service.
+To install, you can either
+
+* [Download the latest ZIP](https://github.com/binwiederhier/ntfy/releases/download/v2.15.0/ntfy_2.15.0_windows_amd64.zip),
 extract it and place the `ntfy.exe` binary somewhere in your `%Path%`. 
+* Or install ntfy from the [Scoop](https://scoop.sh) main repository via `scoop install ntfy`
 
-The default path for the client config file is at `%AppData%\ntfy\client.yml` (not created automatically, sample in the ZIP file).
+Once installed, you can run the ntfy CLI commands like so:
 
-Also available in [Scoop's](https://scoop.sh) Main repository:
+```
+ntfy.exe -h
+```
 
-`scoop install ntfy`
+The default configuration file location on Windows is `%ProgramData%\ntfy\server.yml` (e.g., `C:\ProgramData\ntfy\server.yml`)
+for the server, and `%AppData%\ntfy\client.yml` for the client. You may need to create the directory and config file manually.
 
-!!! info
-    There is currently no installer for Windows, and the binary is not signed. If this is desired, please create a
-    [GitHub issue](https://github.com/binwiederhier/ntfy/issues) to let me know.
+To install the ntfy server as a Windows service, you can use the built-in `sc` command. For example, run this in an
+elevated command prompt (adjust the path to `ntfy.exe` accordingly):
+
+```
+sc create ntfy binPath="C:\path\to\ntfy.exe serve" start=auto
+sc start ntfy
+```
 
 ## Docker
 The [ntfy image](https://hub.docker.com/r/binwiederhier/ntfy) is available for amd64, armv6, armv7 and arm64. It should 

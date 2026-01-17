@@ -12,8 +12,6 @@ import (
 // Defines default config settings (excluding limits, see below)
 const (
 	DefaultListenHTTP                           = ":80"
-	DefaultConfigFile                           = "/etc/ntfy/server.yml"
-	DefaultTemplateDir                          = "/etc/ntfy/templates"
 	DefaultCacheDuration                        = 12 * time.Hour
 	DefaultCacheBatchTimeout                    = time.Duration(0)
 	DefaultKeepaliveInterval                    = 45 * time.Second // Not too frequently to save battery (Android read timeout used to be 77s!)
@@ -25,6 +23,12 @@ const (
 	DefaultFirebasePollInterval                 = 20 * time.Minute // ~poll topic (iOS), max. 2-3 times per hour (see docs)
 	DefaultFirebaseQuotaExceededPenaltyDuration = 10 * time.Minute // Time that over-users are locked out of Firebase if it returns "quota exceeded"
 	DefaultStripePriceCacheDuration             = 3 * time.Hour    // Time to keep Stripe prices cached in memory before a refresh is needed
+)
+
+// Platform-specific default paths (set in config_unix.go or config_windows.go)
+var (
+	DefaultConfigFile  string
+	DefaultTemplateDir string
 )
 
 // Defines default Web Push settings
