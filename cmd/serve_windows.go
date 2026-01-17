@@ -17,26 +17,23 @@ const serviceName = "ntfy"
 // Windows users can restart the service to reload configuration.
 func sigHandlerConfigReload(config string) {
 	log.Debug("Config hot-reload via SIGHUP is not supported on Windows")
-	// On Windows, we simply don't set up any signal handler for config reload.
-	// Users must restart the service/process to reload configuration.
 }
 
 // runAsWindowsService runs the ntfy server as a Windows service
 func runAsWindowsService(conf *server.Config) error {
-	return svc.Run(serviceName, &ntfyService{conf: conf})
+	return svc.Run(serviceName, &windowsService{conf: conf})
 }
 
-// ntfyService implements the svc.Handler interface
-type ntfyService struct {
+// windowsService implements the svc.Handler interface
+type windowsService struct {
 	conf   *server.Config
 	server *server.Server
 	mu     sync.Mutex
 }
 
 // Execute is the main entry point for the Windows service
-func (s *ntfyService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
+func (s *windowsService) Execute(args []string, requests <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
-
 	status <- svc.Status{State: svc.StartPending}
 
 	// Create and start the server
@@ -92,8 +89,7 @@ func maybeRunAsService(conf *server.Config) (bool, error) {
 	isService, err := svc.IsWindowsService()
 	if err != nil {
 		return false, fmt.Errorf("failed to detect Windows service mode: %w", err)
-	}
-	if !isService {
+	} else if !isService {
 		return false, nil
 	}
 	log.Info("Running as Windows service")

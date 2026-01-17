@@ -50,8 +50,6 @@ func reloadLogLevel(inputSource altsrc.InputSourceContext) error {
 	return nil
 }
 
-// maybeRunAsService is a no-op on Unix systems.
-// Windows service mode is not available on Unix.
 func maybeRunAsService(conf *server.Config) (bool, error) {
 	return false, nil
 }
