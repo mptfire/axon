@@ -857,11 +857,75 @@ Here's an example of a dead man's switch that sends an alert if the script stops
     done
     ```
 
+=== "ntfy CLI"
+    ```bash
+    # Dead man's switch: keeps pushing a scheduled message into the future
+    # If this script stops, the alert will be delivered after 5 minutes
+    while true; do
+        ntfy publish \
+            --in="5m" \
+            --sequence-id="heartbeat-check" \
+            mytopic "Warning: Server heartbeat stopped!"
+        sleep 60  # Update every minute
+    done
+    ```
+
+=== "HTTP"
+    ``` http
+    POST /mytopic/heartbeat-check HTTP/1.1
+    Host: ntfy.sh
+    In: 5m
+
+    Warning: Server heartbeat stopped!
+    ```
+
+=== "JavaScript"
+    ``` javascript
+    // Dead man's switch: keeps pushing a scheduled message into the future
+    // If this script stops, the alert will be delivered after 5 minutes
+    setInterval(() => {
+        fetch('https://ntfy.sh/mytopic/heartbeat-check', {
+            method: 'POST',
+            body: 'Warning: Server heartbeat stopped!',
+            headers: { 'In': '5m' }
+        })
+    }, 60000) // Update every minute
+    ```
+
+=== "Go"
+    ``` go
+    // Dead man's switch: keeps pushing a scheduled message into the future
+    // If this script stops, the alert will be delivered after 5 minutes
+    for {
+        req, _ := http.NewRequest("POST", "https://ntfy.sh/mytopic/heartbeat-check",
+            strings.NewReader("Warning: Server heartbeat stopped!"))
+        req.Header.Set("In", "5m")
+        http.DefaultClient.Do(req)
+        time.Sleep(60 * time.Second) // Update every minute
+    }
+    ```
+
+=== "PowerShell"
+    ``` powershell
+    # Dead man's switch: keeps pushing a scheduled message into the future
+    # If this script stops, the alert will be delivered after 5 minutes
+    while ($true) {
+        $Request = @{
+            Method = "POST"
+            URI = "https://ntfy.sh/mytopic/heartbeat-check"
+            Headers = @{ In = "5m" }
+            Body = "Warning: Server heartbeat stopped!"
+        }
+        Invoke-RestMethod @Request
+        Start-Sleep -Seconds 60  # Update every minute
+    }
+    ```
+
 === "Python"
     ``` python
     import requests
     import time
-    
+
     # Dead man's switch: keeps pushing a scheduled message into the future
     # If this script stops, the alert will be delivered after 5 minutes
     while True:
@@ -871,6 +935,22 @@ Here's an example of a dead man's switch that sends an alert if the script stops
             headers={"In": "5m"}
         )
         time.sleep(60) # Update every minute
+    ```
+
+=== "PHP"
+    ``` php-inline
+    // Dead man's switch: keeps pushing a scheduled message into the future
+    // If this script stops, the alert will be delivered after 5 minutes
+    while (true) {
+        file_get_contents('https://ntfy.sh/mytopic/heartbeat-check', false, stream_context_create([
+            'http' => [
+                'method' => 'POST',
+                'header' => "Content-Type: text/plain\r\nIn: 5m",
+                'content' => 'Warning: Server heartbeat stopped!'
+            ]
+        ]));
+        sleep(60); // Update every minute
+    }
     ```
 
 ### Canceling scheduled messages
@@ -887,25 +967,95 @@ scheduled message from the server so it will never be delivered, and emit a `mes
     curl -X DELETE ntfy.sh/mytopic/break-reminder
     ```
 
+=== "ntfy CLI"
+    ```bash
+    # Schedule a reminder for 2 hours from now
+    ntfy publish --in="2h" mytopic/break-reminder "Take a break!"
+
+    # Changed your mind? Cancel the scheduled message
+    # (ntfy CLI does not support DELETE, use curl instead)
+    curl -X DELETE ntfy.sh/mytopic/break-reminder
+    ```
+
 === "HTTP"
     ``` http
     DELETE /mytopic/break-reminder HTTP/1.1
     Host: ntfy.sh
     ```
 
+=== "JavaScript"
+    ``` javascript
+    // Schedule a reminder for 2 hours from now
+    await fetch('https://ntfy.sh/mytopic/break-reminder', {
+        method: 'POST',
+        body: 'Take a break!',
+        headers: { 'In': '2h' }
+    });
+
+    // Changed your mind? Cancel the scheduled message
+    await fetch('https://ntfy.sh/mytopic/break-reminder', {
+        method: 'DELETE'
+    });
+    ```
+
+=== "Go"
+    ``` go
+    // Schedule a reminder for 2 hours from now
+    req, _ := http.NewRequest("POST", "https://ntfy.sh/mytopic/break-reminder",
+        strings.NewReader("Take a break!"))
+    req.Header.Set("In", "2h")
+    http.DefaultClient.Do(req)
+
+    // Changed your mind? Cancel the scheduled message
+    req, _ = http.NewRequest("DELETE", "https://ntfy.sh/mytopic/break-reminder", nil)
+    http.DefaultClient.Do(req)
+    ```
+
+=== "PowerShell"
+    ``` powershell
+    # Schedule a reminder for 2 hours from now
+    $Request = @{
+        Method = "POST"
+        URI = "https://ntfy.sh/mytopic/break-reminder"
+        Headers = @{ In = "2h" }
+        Body = "Take a break!"
+    }
+    Invoke-RestMethod @Request
+
+    # Changed your mind? Cancel the scheduled message
+    Invoke-RestMethod -Method DELETE -Uri "https://ntfy.sh/mytopic/break-reminder"
+    ```
+
 === "Python"
     ``` python
     import requests
-    
-    # Schedule a reminder
+
+    # Schedule a reminder for 2 hours from now
     requests.post(
         "https://ntfy.sh/mytopic/break-reminder",
         data="Take a break!",
         headers={"In": "2h"}
     )
-    
-    # Cancel it
+
+    # Changed your mind? Cancel the scheduled message
     requests.delete("https://ntfy.sh/mytopic/break-reminder")
+    ```
+
+=== "PHP"
+    ``` php-inline
+    // Schedule a reminder for 2 hours from now
+    file_get_contents('https://ntfy.sh/mytopic/break-reminder', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => "Content-Type: text/plain\r\nIn: 2h",
+            'content' => 'Take a break!'
+        ]
+    ]));
+
+    // Changed your mind? Cancel the scheduled message
+    file_get_contents('https://ntfy.sh/mytopic/break-reminder', false, stream_context_create([
+        'http' => ['method' => 'DELETE']
+    ]));
     ```
 
 ## Webhooks (publish via GET) 
