@@ -742,9 +742,11 @@ func testDeleteScheduledBySequenceID(t *testing.T, c *messageCache) {
 	require.Nil(t, err)
 	require.Equal(t, 1, len(messages))
 
-	// Delete scheduled message by sequence ID
-	err = c.DeleteScheduledBySequenceID("mytopic", "seq123")
+	// Delete scheduled message by sequence ID and verify returned IDs
+	deletedIDs, err := c.DeleteScheduledBySequenceID("mytopic", "seq123")
 	require.Nil(t, err)
+	require.Equal(t, 1, len(deletedIDs))
+	require.Equal(t, "scheduled1", deletedIDs[0])
 
 	// Verify scheduled message is deleted
 	messages, err = c.Messages("mytopic", sinceAllMessages, true)
@@ -758,13 +760,15 @@ func testDeleteScheduledBySequenceID(t *testing.T, c *messageCache) {
 	require.Equal(t, 1, len(messages))
 	require.Equal(t, "other scheduled", messages[0].Message)
 
-	// Deleting non-existent sequence ID should not error
-	err = c.DeleteScheduledBySequenceID("mytopic", "nonexistent")
+	// Deleting non-existent sequence ID should return empty list
+	deletedIDs, err = c.DeleteScheduledBySequenceID("mytopic", "nonexistent")
 	require.Nil(t, err)
+	require.Empty(t, deletedIDs)
 
 	// Deleting published message should not affect it (only deletes unpublished)
-	err = c.DeleteScheduledBySequenceID("mytopic", "seq456")
+	deletedIDs, err = c.DeleteScheduledBySequenceID("mytopic", "seq456")
 	require.Nil(t, err)
+	require.Empty(t, deletedIDs)
 
 	messages, err = c.Messages("mytopic", sinceAllMessages, true)
 	require.Nil(t, err)
