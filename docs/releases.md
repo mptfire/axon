@@ -1607,6 +1607,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
   [ntfy-android#151](https://github.com/binwiederhier/ntfy-android/pull/151), thanks to [@wunter8](https://github.com/wunter8) for the initial implementation)
 * Configure [custom Twilio call format](config.md#phone-calls) for phone calls ([#1289](https://github.com/binwiederhier/ntfy/pull/1289), thanks to [@mmichaa](https://github.com/mmichaa) for the initial implementation) 
 * `ntfy serve` now works on Windows, including support for running it as a Windows service ([#1552](https://github.com/binwiederhier/ntfy/pull/1552), originally [#1328](https://github.com/binwiederhier/ntfy/pull/1328), thanks to [@wtf911](https://github.com/wtf911))
+* Web app: "New version available" banner ([#1554](https://github.com/binwiederhier/ntfy/pull/1554))
 
 ### ntfy Android app v1.22.x (UNRELEASED)
 
