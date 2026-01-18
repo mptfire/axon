@@ -833,6 +833,81 @@ Here are a few examples (assuming today's date is **12/10/2021, 9am, Eastern Tim
 </td>
 </tr></table>
 
+### Updating scheduled messages
+You can update or replace a scheduled message before it is delivered by publishing a new message with the same 
+[sequence ID](#updating-deleting-notifications). When you do this, the **original scheduled message is deleted** 
+from the server and replaced with the new one. This is different from [updating notifications](#updating-notifications) 
+after delivery, where both messages are kept in the cache.
+
+This is particularly useful for implementing a [dead man's switch](https://en.wikipedia.org/wiki/Dead_man%27s_switch) — 
+a mechanism that triggers an alert if it's not periodically reset. For example, you could schedule a message to be 
+delivered in 5 minutes, but continuously update it every minute to push the delivery time further into the future. 
+If your script or system stops running, the message will eventually be delivered as an alert.
+
+Here's an example of a dead man's switch that sends an alert if the script stops running for more than 5 minutes:
+
+=== "Command line (curl)"
+    ```bash
+    # Dead man's switch: keeps pushing a scheduled message into the future
+    # If this script stops, the alert will be delivered after 5 minutes
+    while true; do
+        curl -H "In: 5m" -d "Warning: Server heartbeat stopped!" \
+            ntfy.sh/mytopic/heartbeat-check
+        sleep 60  # Update every minute
+    done
+    ```
+
+=== "Python"
+    ``` python
+    import requests
+    import time
+    
+    # Dead man's switch: keeps pushing a scheduled message into the future
+    # If this script stops, the alert will be delivered after 5 minutes
+    while True:
+        requests.post(
+            "https://ntfy.sh/mytopic/heartbeat-check",
+            data="Warning: Server heartbeat stopped!",
+            headers={"In": "5m"}
+        )
+        time.sleep(60) # Update every minute
+    ```
+
+### Canceling scheduled messages
+You can cancel a scheduled message before it is delivered by sending a DELETE request to the 
+`/<topic>/<sequence_id>` endpoint, just like [deleting notifications](#deleting-notifications). This will remove the 
+scheduled message from the server so it will never be delivered, and emit a `message_delete` event to any subscribers.
+
+=== "Command line (curl)"
+    ```bash
+    # Schedule a reminder for 2 hours from now
+    curl -H "In: 2h" -d "Take a break!" ntfy.sh/mytopic/break-reminder
+
+    # Changed your mind? Cancel the scheduled message
+    curl -X DELETE ntfy.sh/mytopic/break-reminder
+    ```
+
+=== "HTTP"
+    ``` http
+    DELETE /mytopic/break-reminder HTTP/1.1
+    Host: ntfy.sh
+    ```
+
+=== "Python"
+    ``` python
+    import requests
+    
+    # Schedule a reminder
+    requests.post(
+        "https://ntfy.sh/mytopic/break-reminder",
+        data="Take a break!",
+        headers={"In": "2h"}
+    )
+    
+    # Cancel it
+    requests.delete("https://ntfy.sh/mytopic/break-reminder")
+    ```
+
 ## Webhooks (publish via GET) 
 _Supported on:_ :material-android: :material-apple: :material-firefox:
 
