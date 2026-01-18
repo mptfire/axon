@@ -128,11 +128,6 @@ Examples:
   ntfy serve --listen-http :8080  # Starts server with alternate port`,
 }
 
-// App metadata fields used to pass from
-const (
-	MetadataKeyCommit = "commit"
-	MetadataKeyDate   = "date"
-)
 
 func execServe(c *cli.Context) error {
 	if c.NArg() > 0 {
