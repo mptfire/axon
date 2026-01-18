@@ -21,7 +21,7 @@ import {
   useTheme,
 } from "@mui/material";
 import * as React from "react";
-import { useContext, useState } from "react";
+import { useCallback, useContext, useState } from "react";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import Person from "@mui/icons-material/Person";
 import SettingsIcon from "@mui/icons-material/Settings";
@@ -44,7 +44,7 @@ import UpgradeDialog from "./UpgradeDialog";
 import { AccountContext } from "./App";
 import { PermissionDenyAll, PermissionRead, PermissionReadWrite, PermissionWrite } from "./ReserveIcons";
 import { SubscriptionPopup } from "./SubscriptionPopup";
-import { useNotificationPermissionListener } from "./hooks";
+import { useNotificationPermissionListener, useVersionChangeListener } from "./hooks";
 
 const navWidth = 280;
 
@@ -91,6 +91,13 @@ const NavList = (props) => {
   const { account } = useContext(AccountContext);
   const [subscribeDialogKey, setSubscribeDialogKey] = useState(0);
   const [subscribeDialogOpen, setSubscribeDialogOpen] = useState(false);
+  const [versionChanged, setVersionChanged] = useState(false);
+
+  const handleVersionChange = useCallback(() => {
+    setVersionChanged(true);
+  }, []);
+
+  useVersionChangeListener(handleVersionChange);
 
   const handleSubscribeReset = () => {
     setSubscribeDialogOpen(false);
@@ -119,6 +126,7 @@ const NavList = (props) => {
   const showNotificationContextNotSupportedBox = notifier.browserSupported() && !notifier.contextSupported(); // Only show if notifications are generally supported in the browser
 
   const alertVisible =
+    versionChanged ||
     showNotificationPermissionRequired ||
     showNotificationPermissionDenied ||
     showNotificationIOSInstallRequired ||
@@ -129,6 +137,7 @@ const NavList = (props) => {
     <>
       <Toolbar sx={{ display: { xs: "none", sm: "block" } }} />
       <List component="nav" sx={{ paddingTop: { xs: 0, sm: alertVisible ? 0 : "" } }}>
+        {versionChanged && <VersionUpdateBanner />}
         {showNotificationPermissionRequired && <NotificationPermissionRequired />}
         {showNotificationPermissionDenied && <NotificationPermissionDeniedAlert />}
         {showNotificationBrowserNotSupportedBox && <NotificationBrowserNotSupportedAlert />}
@@ -421,6 +430,22 @@ const NotificationContextNotSupportedAlert = () => {
           }}
         />
       </Typography>
+    </Alert>
+  );
+};
+
+const VersionUpdateBanner = () => {
+  const { t } = useTranslation();
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+  return (
+    <Alert severity="info" sx={{ paddingTop: 2 }}>
+      <AlertTitle>{t("version_update_available_title")}</AlertTitle>
+      <Typography gutterBottom>{t("version_update_available_description")}</Typography>
+      <Button sx={{ float: "right" }} color="inherit" size="small" onClick={handleRefresh}>
+        {t("common_refresh")}
+      </Button>
     </Alert>
   );
 };

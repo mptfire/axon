@@ -3,7 +3,7 @@
  * or configuration changes, prompting users to refresh the page.
  */
 
-const CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const CHECK_INTERVAL = 30 * 1000; // 5 * 60 * 1000; // 5 minutes
 
 class VersionChecker {
   constructor() {

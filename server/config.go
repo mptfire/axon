@@ -182,7 +182,7 @@ type Config struct {
 	WebPushStartupQueries                string
 	WebPushExpiryDuration                time.Duration
 	WebPushExpiryWarningDuration         time.Duration
-	Version                              string // injected by App
+	Version                              string // Injected by App
 }
 
 // NewConfig instantiates a default new server config
@@ -279,86 +279,13 @@ func NewConfig() *Config {
 	}
 }
 
-// configHashData is a subset of Config fields used for computing the config hash.
-// It excludes sensitive fields (keys, passwords, tokens) and runtime-only fields.
-type configHashData struct {
-	BaseURL                              string
-	ListenHTTP                           string
-	ListenHTTPS                          string
-	ListenUnix                           string
-	CacheDuration                        time.Duration
-	AttachmentTotalSizeLimit             int64
-	AttachmentFileSizeLimit              int64
-	AttachmentExpiryDuration             time.Duration
-	KeepaliveInterval                    time.Duration
-	ManagerInterval                      time.Duration
-	DisallowedTopics                     []string
-	WebRoot                              string
-	MessageDelayMin                      time.Duration
-	MessageDelayMax                      time.Duration
-	MessageSizeLimit                     int
-	TotalTopicLimit                      int
-	VisitorSubscriptionLimit             int
-	VisitorAttachmentTotalSizeLimit      int64
-	VisitorAttachmentDailyBandwidthLimit int64
-	VisitorRequestLimitBurst             int
-	VisitorRequestLimitReplenish         time.Duration
-	VisitorMessageDailyLimit             int
-	VisitorEmailLimitBurst               int
-	VisitorEmailLimitReplenish           time.Duration
-	EnableSignup                         bool
-	EnableLogin                          bool
-	RequireLogin                         bool
-	EnableReservations                   bool
-	EnableMetrics                        bool
-	EnablePayments                       bool
-	EnableCalls                          bool
-	EnableEmails                         bool
-	EnableWebPush                        bool
-	BillingContact                       string
-	Version                              string
-}
-
 // Hash computes a SHA-256 hash of the configuration. This is used to detect
 // configuration changes for the web app version check feature.
 func (c *Config) Hash() string {
-	data := configHashData{
-		BaseURL:                              c.BaseURL,
-		ListenHTTP:                           c.ListenHTTP,
-		ListenHTTPS:                          c.ListenHTTPS,
-		ListenUnix:                           c.ListenUnix,
-		CacheDuration:                        c.CacheDuration,
-		AttachmentTotalSizeLimit:             c.AttachmentTotalSizeLimit,
-		AttachmentFileSizeLimit:              c.AttachmentFileSizeLimit,
-		AttachmentExpiryDuration:             c.AttachmentExpiryDuration,
-		KeepaliveInterval:                    c.KeepaliveInterval,
-		ManagerInterval:                      c.ManagerInterval,
-		DisallowedTopics:                     c.DisallowedTopics,
-		WebRoot:                              c.WebRoot,
-		MessageDelayMin:                      c.MessageDelayMin,
-		MessageDelayMax:                      c.MessageDelayMax,
-		MessageSizeLimit:                     c.MessageSizeLimit,
-		TotalTopicLimit:                      c.TotalTopicLimit,
-		VisitorSubscriptionLimit:             c.VisitorSubscriptionLimit,
-		VisitorAttachmentTotalSizeLimit:      c.VisitorAttachmentTotalSizeLimit,
-		VisitorAttachmentDailyBandwidthLimit: c.VisitorAttachmentDailyBandwidthLimit,
-		VisitorRequestLimitBurst:             c.VisitorRequestLimitBurst,
-		VisitorRequestLimitReplenish:         c.VisitorRequestLimitReplenish,
-		VisitorMessageDailyLimit:             c.VisitorMessageDailyLimit,
-		VisitorEmailLimitBurst:               c.VisitorEmailLimitBurst,
-		VisitorEmailLimitReplenish:           c.VisitorEmailLimitReplenish,
-		EnableSignup:                         c.EnableSignup,
-		EnableLogin:                          c.EnableLogin,
-		RequireLogin:                         c.RequireLogin,
-		EnableReservations:                   c.EnableReservations,
-		EnableMetrics:                        c.EnableMetrics,
-		EnablePayments:                       c.StripeSecretKey != "",
-		EnableCalls:                          c.TwilioAccount != "",
-		EnableEmails:                         c.SMTPSenderFrom != "",
-		EnableWebPush:                        c.WebPushPublicKey != "",
-		BillingContact:                       c.BillingContact,
-		Version:                              c.Version,
+	b, err := json.Marshal(c)
+	if err != nil {
+		fmt.Println(err)
 	}
-	b, _ := json.Marshal(data)
+	fmt.Println(string(b))
 	return fmt.Sprintf("%x", sha256.Sum256(b))
 }

@@ -1,18 +1,6 @@
 import * as React from "react";
-import { createContext, Suspense, useContext, useEffect, useState, useMemo, useCallback } from "react";
-import {
-  Box,
-  Toolbar,
-  CssBaseline,
-  Backdrop,
-  CircularProgress,
-  useMediaQuery,
-  ThemeProvider,
-  createTheme,
-  Snackbar,
-  Button,
-  Alert,
-} from "@mui/material";
+import { createContext, Suspense, useContext, useEffect, useState, useMemo } from "react";
+import { Box, Toolbar, CssBaseline, Backdrop, CircularProgress, useMediaQuery, ThemeProvider, createTheme } from "@mui/material";
 import { useLiveQuery } from "dexie-react-hooks";
 import { BrowserRouter, Outlet, Route, Routes, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -26,13 +14,7 @@ import userManager from "../app/UserManager";
 import { expandUrl, getKebabCaseLangStr } from "../app/utils";
 import ErrorBoundary from "./ErrorBoundary";
 import routes from "./routes";
-import {
-  useAccountListener,
-  useBackgroundProcesses,
-  useConnectionListeners,
-  useWebPushTopics,
-  useVersionChangeListener,
-} from "./hooks";
+import { useAccountListener, useBackgroundProcesses, useConnectionListeners, useWebPushTopics } from "./hooks";
 import PublishDialog from "./PublishDialog";
 import Messaging from "./Messaging";
 import Login from "./Login";
@@ -118,12 +100,10 @@ const updateTitle = (newNotificationsCount) => {
 };
 
 const Layout = () => {
-  const { t } = useTranslation();
   const params = useParams();
   const { account, setAccount } = useContext(AccountContext);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [sendDialogOpenMode, setSendDialogOpenMode] = useState("");
-  const [versionChanged, setVersionChanged] = useState(false);
   const users = useLiveQuery(() => userManager.all());
   const subscriptions = useLiveQuery(() => subscriptionManager.all());
   const webPushTopics = useWebPushTopics();
@@ -135,18 +115,9 @@ const Layout = () => {
       (config.base_url === s.baseUrl && params.topic === s.topic)
   );
 
-  const handleVersionChange = useCallback(() => {
-    setVersionChanged(true);
-  }, []);
-
-  const handleRefresh = useCallback(() => {
-    window.location.reload();
-  }, []);
-
   useConnectionListeners(account, subscriptions, users, webPushTopics);
   useAccountListener(setAccount);
   useBackgroundProcesses();
-  useVersionChangeListener(handleVersionChange);
   useEffect(() => updateTitle(newNotificationsCount), [newNotificationsCount]);
 
   return (
@@ -169,23 +140,6 @@ const Layout = () => {
         />
       </Main>
       <Messaging selected={selected} dialogOpenMode={sendDialogOpenMode} onDialogOpenModeChange={setSendDialogOpenMode} />
-      <Snackbar
-        open={versionChanged}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-        sx={{ bottom: { xs: 70, md: 24 } }}
-      >
-        <Alert
-          severity="info"
-          variant="filled"
-          action={
-            <Button color="inherit" size="small" onClick={handleRefresh}>
-              {t("common_refresh")}
-            </Button>
-          }
-        >
-          {t("version_update_available")}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 };
