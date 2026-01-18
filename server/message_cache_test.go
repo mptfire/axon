@@ -703,6 +703,75 @@ func testSender(t *testing.T, c *messageCache) {
 	require.Equal(t, messages[1].Sender, netip.Addr{})
 }
 
+func TestSqliteCache_DeleteScheduledBySequenceID(t *testing.T) {
+	testDeleteScheduledBySequenceID(t, newSqliteTestCache(t))
+}
+
+func TestMemCache_DeleteScheduledBySequenceID(t *testing.T) {
+	testDeleteScheduledBySequenceID(t, newMemTestCache(t))
+}
+
+func testDeleteScheduledBySequenceID(t *testing.T, c *messageCache) {
+	// Create a scheduled (unpublished) message
+	scheduledMsg := newDefaultMessage("mytopic", "scheduled message")
+	scheduledMsg.ID = "scheduled1"
+	scheduledMsg.SequenceID = "seq123"
+	scheduledMsg.Time = time.Now().Add(time.Hour).Unix() // Future time makes it scheduled
+	require.Nil(t, c.AddMessage(scheduledMsg))
+
+	// Create a published message with different sequence ID
+	publishedMsg := newDefaultMessage("mytopic", "published message")
+	publishedMsg.ID = "published1"
+	publishedMsg.SequenceID = "seq456"
+	publishedMsg.Time = time.Now().Add(-time.Hour).Unix() // Past time makes it published
+	require.Nil(t, c.AddMessage(publishedMsg))
+
+	// Create a scheduled message in a different topic
+	otherTopicMsg := newDefaultMessage("othertopic", "other scheduled")
+	otherTopicMsg.ID = "other1"
+	otherTopicMsg.SequenceID = "seq123" // Same sequence ID as scheduledMsg
+	otherTopicMsg.Time = time.Now().Add(time.Hour).Unix()
+	require.Nil(t, c.AddMessage(otherTopicMsg))
+
+	// Verify all messages exist (including scheduled)
+	messages, err := c.Messages("mytopic", sinceAllMessages, true)
+	require.Nil(t, err)
+	require.Equal(t, 2, len(messages))
+
+	messages, err = c.Messages("othertopic", sinceAllMessages, true)
+	require.Nil(t, err)
+	require.Equal(t, 1, len(messages))
+
+	// Delete scheduled message by sequence ID
+	err = c.DeleteScheduledBySequenceID("mytopic", "seq123")
+	require.Nil(t, err)
+
+	// Verify scheduled message is deleted
+	messages, err = c.Messages("mytopic", sinceAllMessages, true)
+	require.Nil(t, err)
+	require.Equal(t, 1, len(messages))
+	require.Equal(t, "published message", messages[0].Message)
+
+	// Verify other topic's message still exists (topic-scoped deletion)
+	messages, err = c.Messages("othertopic", sinceAllMessages, true)
+	require.Nil(t, err)
+	require.Equal(t, 1, len(messages))
+	require.Equal(t, "other scheduled", messages[0].Message)
+
+	// Deleting non-existent sequence ID should not error
+	err = c.DeleteScheduledBySequenceID("mytopic", "nonexistent")
+	require.Nil(t, err)
+
+	// Deleting published message should not affect it (only deletes unpublished)
+	err = c.DeleteScheduledBySequenceID("mytopic", "seq456")
+	require.Nil(t, err)
+
+	messages, err = c.Messages("mytopic", sinceAllMessages, true)
+	require.Nil(t, err)
+	require.Equal(t, 1, len(messages))
+	require.Equal(t, "published message", messages[0].Message)
+}
+
 func checkSchemaVersion(t *testing.T, db *sql.DB) {
 	rows, err := db.Query(`SELECT version FROM schemaVersion`)
 	require.Nil(t, err)

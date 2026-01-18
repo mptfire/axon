@@ -73,6 +73,7 @@ const (
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	deleteMessageQuery                = `DELETE FROM messages WHERE mid = ?`
+	deleteScheduledBySequenceIDQuery  = `DELETE FROM messages WHERE topic = ? AND sequence_id = ? AND published = 0`
 	updateMessagesForTopicExpiryQuery = `UPDATE messages SET expires = ? WHERE topic = ?`
 	selectRowIDFromMessageID          = `SELECT id FROM messages WHERE mid = ?` // Do not include topic, see #336 and TestServer_PollSinceID_MultipleTopics
 	selectMessagesByIDQuery           = `
@@ -605,6 +606,14 @@ func (c *messageCache) DeleteMessages(ids ...string) error {
 		}
 	}
 	return tx.Commit()
+}
+
+// DeleteScheduledBySequenceID deletes unpublished (scheduled) messages with the given topic and sequence ID
+func (c *messageCache) DeleteScheduledBySequenceID(topic, sequenceID string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, err := c.db.Exec(deleteScheduledBySequenceIDQuery, topic, sequenceID)
+	return err
 }
 
 func (c *messageCache) ExpireMessages(topics ...string) error {

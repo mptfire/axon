@@ -863,6 +863,10 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*message, e
 		logvrm(v, r, m).Tag(tagPublish).Debug("Message delayed, will process later")
 	}
 	if cache {
+		// Delete any existing scheduled message with the same sequence ID
+		if err := s.messageCache.DeleteScheduledBySequenceID(t.ID, m.SequenceID); err != nil {
+			return nil, err
+		}
 		logvrm(v, r, m).Tag(tagPublish).Debug("Adding message to cache")
 		if err := s.messageCache.AddMessage(m); err != nil {
 			return nil, err
@@ -957,6 +961,10 @@ func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *
 	// Send to web push endpoints
 	if s.config.WebPushPublicKey != "" {
 		go s.publishToWebPushEndpoints(v, m)
+	}
+	// Delete any existing scheduled message with the same sequence ID
+	if err := s.messageCache.DeleteScheduledBySequenceID(t.ID, sequenceID); err != nil {
+		return err
 	}
 	// Add to message cache
 	if err := s.messageCache.AddMessage(m); err != nil {
