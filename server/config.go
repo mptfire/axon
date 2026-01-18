@@ -280,6 +280,7 @@ func NewConfig() *Config {
 		WebPushExpiryWarningDuration:         DefaultWebPushExpiryWarningDuration,
 		BuildVersion:                         "",
 		BuildDate:                            "",
+		BuildCommit:                          "",
 	}
 }
 
