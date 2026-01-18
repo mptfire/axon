@@ -128,7 +128,6 @@ Examples:
   ntfy serve --listen-http :8080  # Starts server with alternate port`,
 }
 
-
 func execServe(c *cli.Context) error {
 	if c.NArg() > 0 {
 		return errors.New("no arguments expected, see 'ntfy serve --help' for help")
