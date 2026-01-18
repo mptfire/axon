@@ -90,6 +90,7 @@ var (
 	matrixPushPath                                       = "/_matrix/push/v1/notify"
 	metricsPath                                          = "/metrics"
 	apiHealthPath                                        = "/v1/health"
+	apiVersionPath                                       = "/v1/version"
 	apiStatsPath                                         = "/v1/stats"
 	apiWebPushPath                                       = "/v1/webpush"
 	apiTiersPath                                         = "/v1/tiers"
@@ -460,6 +461,8 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureWebEnabled(s.handleEmpty)(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == apiHealthPath {
 		return s.handleHealth(w, r, v)
+	} else if r.Method == http.MethodGet && r.URL.Path == apiVersionPath {
+		return s.handleVersion(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == webConfigPath {
 		return s.ensureWebEnabled(s.handleWebConfig)(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == webManifestPath {
@@ -600,6 +603,14 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request, _ *visitor
 	return s.writeJSON(w, response)
 }
 
+func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request, _ *visitor) error {
+	response := &apiVersionResponse{
+		Version:    s.config.Version,
+		ConfigHash: s.config.Hash(),
+	}
+	return s.writeJSON(w, response)
+}
+
 func (s *Server) handleWebConfig(w http.ResponseWriter, _ *http.Request, _ *visitor) error {
 	response := &apiConfigResponse{
 		BaseURL:            "", // Will translate to window.location.origin
@@ -615,6 +626,7 @@ func (s *Server) handleWebConfig(w http.ResponseWriter, _ *http.Request, _ *visi
 		BillingContact:     s.config.BillingContact,
 		WebPushPublicKey:   s.config.WebPushPublicKey,
 		DisallowedTopics:   s.config.DisallowedTopics,
+		ConfigHash:         s.config.Hash(),
 	}
 	b, err := json.MarshalIndent(response, "", "  ")
 	if err != nil {

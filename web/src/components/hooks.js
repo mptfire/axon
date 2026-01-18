@@ -9,6 +9,7 @@ import poller from "../app/Poller";
 import pruner from "../app/Pruner";
 import session from "../app/Session";
 import accountApi from "../app/AccountApi";
+import versionChecker from "../app/VersionChecker";
 import { UnauthorizedError } from "../app/errors";
 import notifier from "../app/Notifier";
 import prefs from "../app/Prefs";
@@ -292,12 +293,14 @@ const startWorkers = () => {
   poller.startWorker();
   pruner.startWorker();
   accountApi.startWorker();
+  versionChecker.startWorker();
 };
 
 const stopWorkers = () => {
   poller.stopWorker();
   pruner.stopWorker();
   accountApi.stopWorker();
+  versionChecker.stopWorker();
 };
 
 export const useBackgroundProcesses = () => {
@@ -322,4 +325,16 @@ export const useAccountListener = (setAccount) => {
       accountApi.resetListener();
     };
   }, []);
+};
+
+/**
+ * Hook to detect version/config changes and call the provided callback when a change is detected.
+ */
+export const useVersionChangeListener = (onVersionChange) => {
+  useEffect(() => {
+    versionChecker.registerListener(onVersionChange);
+    return () => {
+      versionChecker.resetListener();
+    };
+  }, [onVersionChange]);
 };
