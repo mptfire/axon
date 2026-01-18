@@ -3,13 +3,12 @@
  * or configuration changes, prompting users to refresh the page.
  */
 
-const CHECK_INTERVAL = 30 * 1000; // 5 * 60 * 1000; // 5 minutes
+const intervalMillis = 5 * 60 * 1000; // 5 minutes
 
 class VersionChecker {
   constructor() {
     this.initialConfigHash = null;
     this.listener = null;
-    console.log("XXXXXXxxxx set listener null");
     this.timer = null;
   }
 
@@ -21,7 +20,7 @@ class VersionChecker {
     // Store initial config hash from the config loaded at page load
     this.initialConfigHash = window.config?.config_hash || "";
     console.log("[VersionChecker] Starting version checker");
-    this.timer = setInterval(() => this.checkVersion(), CHECK_INTERVAL);
+    this.timer = setInterval(() => this.checkVersion(), intervalMillis);
   }
 
   stopWorker() {

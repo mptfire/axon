@@ -23,7 +23,7 @@ class Pruner {
       clearTimeout(this.timer);
       this.timer = null;
     }
-    console.log("[VersionChecker] Stopped pruner checker");
+    console.log("[Pruner] Stopped worker");
   }
 
   async prune() {
