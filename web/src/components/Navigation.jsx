@@ -1,27 +1,27 @@
 import {
-  Drawer,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
-  Toolbar,
-  Divider,
-  List,
   Alert,
   AlertTitle,
   Badge,
+  Box,
+  Button,
   CircularProgress,
+  Divider,
+  Drawer,
+  IconButton,
   Link,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
   ListSubheader,
   Portal,
+  Toolbar,
   Tooltip,
   Typography,
-  Box,
-  IconButton,
-  Button,
   useTheme,
 } from "@mui/material";
 import * as React from "react";
-import { useCallback, useContext, useState } from "react";
+import { useContext, useState } from "react";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import Person from "@mui/icons-material/Person";
 import SettingsIcon from "@mui/icons-material/Settings";
@@ -93,9 +93,9 @@ const NavList = (props) => {
   const [subscribeDialogOpen, setSubscribeDialogOpen] = useState(false);
   const [versionChanged, setVersionChanged] = useState(false);
 
-  const handleVersionChange = useCallback(() => {
+  const handleVersionChange = () => {
     setVersionChanged(true);
-  }, []);
+  };
 
   useVersionChangeListener(handleVersionChange);
 

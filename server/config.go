@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/netip"
+	"reflect"
 	"text/template"
 	"time"
 
@@ -182,7 +183,9 @@ type Config struct {
 	WebPushStartupQueries                string
 	WebPushExpiryDuration                time.Duration
 	WebPushExpiryWarningDuration         time.Duration
-	Version                              string // Injected by App
+	BuildVersion                         string // Injected by App
+	BuildDate                            string // Injected by App
+	BuildCommit                          string // Injected by App
 }
 
 // NewConfig instantiates a default new server config
@@ -269,23 +272,31 @@ func NewConfig() *Config {
 		EnableReservations:                   false,
 		RequireLogin:                         false,
 		AccessControlAllowOrigin:             "*",
-		Version:                              "",
 		WebPushPrivateKey:                    "",
 		WebPushPublicKey:                     "",
 		WebPushFile:                          "",
 		WebPushEmailAddress:                  "",
 		WebPushExpiryDuration:                DefaultWebPushExpiryDuration,
 		WebPushExpiryWarningDuration:         DefaultWebPushExpiryWarningDuration,
+		BuildVersion:                         "",
+		BuildDate:                            "",
 	}
 }
 
-// Hash computes a SHA-256 hash of the configuration. This is used to detect
-// configuration changes for the web app version check feature.
+// Hash computes an SHA-256 hash of the configuration. This is used to detect
+// configuration changes for the web app version check feature. It uses reflection
+// to include all JSON-serializable fields automatically.
 func (c *Config) Hash() string {
-	b, err := json.Marshal(c)
-	if err != nil {
-		fmt.Println(err)
+	v := reflect.ValueOf(*c)
+	t := v.Type()
+	var result string
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		fieldName := t.Field(i).Name
+		// Try to marshal the field and skip if it fails (e.g. *template.Template, netip.Prefix)
+		if b, err := json.Marshal(field.Interface()); err == nil {
+			result += fmt.Sprintf("%s:%s|", fieldName, string(b))
+		}
 	}
-	fmt.Println(string(b))
-	return fmt.Sprintf("%x", sha256.Sum256(b))
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(result)))
 }

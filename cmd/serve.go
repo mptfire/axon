@@ -128,6 +128,12 @@ Examples:
   ntfy serve --listen-http :8080  # Starts server with alternate port`,
 }
 
+// App metadata fields used to pass from
+const (
+	MetadataKeyCommit = "commit"
+	MetadataKeyDate   = "date"
+)
+
 func execServe(c *cli.Context) error {
 	if c.NArg() > 0 {
 		return errors.New("no arguments expected, see 'ntfy serve --help' for help")
@@ -501,7 +507,9 @@ func execServe(c *cli.Context) error {
 	conf.WebPushStartupQueries = webPushStartupQueries
 	conf.WebPushExpiryDuration = webPushExpiryDuration
 	conf.WebPushExpiryWarningDuration = webPushExpiryWarningDuration
-	conf.Version = c.App.Version
+	conf.BuildVersion = c.App.Version
+	conf.BuildDate = maybeFromMetadata(c.App.Metadata, MetadataKeyDate)
+	conf.BuildCommit = maybeFromMetadata(c.App.Metadata, MetadataKeyCommit)
 
 	// Check if we should run as a Windows service
 	if ranAsService, err := maybeRunAsService(conf); err != nil {
@@ -654,4 +662,19 @@ func parseTokens(users []*user.User, tokensRaw []string) (map[string][]*user.Tok
 		})
 	}
 	return tokens, nil
+}
+
+func maybeFromMetadata(m map[string]any, key string) string {
+	if m == nil {
+		return ""
+	}
+	v, exists := m[key]
+	if !exists {
+		return ""
+	}
+	s, ok := v.(string)
+	if !ok {
+		return ""
+	}
+	return s
 }

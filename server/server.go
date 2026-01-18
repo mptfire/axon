@@ -90,7 +90,7 @@ var (
 	matrixPushPath                                       = "/_matrix/push/v1/notify"
 	metricsPath                                          = "/metrics"
 	apiHealthPath                                        = "/v1/health"
-	apiVersionPath                                       = "/v1/version"
+	apiConfigPath                                        = "/v1/config"
 	apiStatsPath                                         = "/v1/stats"
 	apiWebPushPath                                       = "/v1/webpush"
 	apiTiersPath                                         = "/v1/tiers"
@@ -278,9 +278,9 @@ func (s *Server) Run() error {
 	if s.config.ProfileListenHTTP != "" {
 		listenStr += fmt.Sprintf(" %s[http/profile]", s.config.ProfileListenHTTP)
 	}
-	log.Tag(tagStartup).Info("Listening on%s, ntfy %s, log level is %s", listenStr, s.config.Version, log.CurrentLevel().String())
+	log.Tag(tagStartup).Info("Listening on%s, ntfy %s, log level is %s", listenStr, s.config.BuildVersion, log.CurrentLevel().String())
 	if log.IsFile() {
-		fmt.Fprintf(os.Stderr, "Listening on%s, ntfy %s\n", listenStr, s.config.Version)
+		fmt.Fprintf(os.Stderr, "Listening on%s, ntfy %s\n", listenStr, s.config.BuildVersion)
 		fmt.Fprintf(os.Stderr, "Logs are written to %s\n", log.File())
 	}
 	mux := http.NewServeMux()
@@ -461,8 +461,8 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureWebEnabled(s.handleEmpty)(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == apiHealthPath {
 		return s.handleHealth(w, r, v)
-	} else if r.Method == http.MethodGet && r.URL.Path == apiVersionPath {
-		return s.handleVersion(w, r, v)
+	} else if r.Method == http.MethodGet && r.URL.Path == apiConfigPath {
+		return s.handleConfig(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == webConfigPath {
 		return s.ensureWebEnabled(s.handleWebConfig)(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == webManifestPath {
@@ -603,16 +603,24 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request, _ *visitor
 	return s.writeJSON(w, response)
 }
 
-func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request, _ *visitor) error {
-	response := &apiVersionResponse{
-		Version:    s.config.Version,
-		ConfigHash: s.config.Hash(),
-	}
-	return s.writeJSON(w, response)
+func (s *Server) handleConfig(w http.ResponseWriter, _ *http.Request, _ *visitor) error {
+	w.Header().Set("Cache-Control", "no-cache")
+	return s.writeJSON(w, s.configResponse())
 }
 
 func (s *Server) handleWebConfig(w http.ResponseWriter, _ *http.Request, _ *visitor) error {
-	response := &apiConfigResponse{
+	b, err := json.MarshalIndent(s.configResponse(), "", "  ")
+	if err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "text/javascript")
+	w.Header().Set("Cache-Control", "no-cache")
+	_, err = io.WriteString(w, fmt.Sprintf("// Generated server configuration\nvar config = %s;\n", string(b)))
+	return err
+}
+
+func (s *Server) configResponse() *apiConfigResponse {
+	return &apiConfigResponse{
 		BaseURL:            "", // Will translate to window.location.origin
 		AppRoot:            s.config.WebRoot,
 		EnableLogin:        s.config.EnableLogin,
@@ -628,14 +636,6 @@ func (s *Server) handleWebConfig(w http.ResponseWriter, _ *http.Request, _ *visi
 		DisallowedTopics:   s.config.DisallowedTopics,
 		ConfigHash:         s.config.Hash(),
 	}
-	b, err := json.MarshalIndent(response, "", "  ")
-	if err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "text/javascript")
-	w.Header().Set("Cache-Control", "no-cache")
-	_, err = io.WriteString(w, fmt.Sprintf("// Generated server configuration\nvar config = %s;\n", string(b)))
-	return err
 }
 
 // handleWebManifest serves the web app manifest for the progressive web app (PWA)
@@ -1003,7 +1003,7 @@ func (s *Server) forwardPollRequest(v *visitor, m *message) {
 		logvm(v, m).Err(err).Warn("Unable to publish poll request")
 		return
 	}
-	req.Header.Set("User-Agent", "ntfy/"+s.config.Version)
+	req.Header.Set("User-Agent", "ntfy/"+s.config.BuildVersion)
 	req.Header.Set("X-Poll-ID", m.ID)
 	if s.config.UpstreamAccessToken != "" {
 		req.Header.Set("Authorization", util.BearerAuth(s.config.UpstreamAccessToken))
