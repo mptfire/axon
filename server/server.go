@@ -863,6 +863,17 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*message, e
 		logvrm(v, r, m).Tag(tagPublish).Debug("Message delayed, will process later")
 	}
 	if cache {
+		// Delete any existing scheduled message with the same sequence ID
+		deletedIDs, err := s.messageCache.DeleteScheduledBySequenceID(t.ID, m.SequenceID)
+		if err != nil {
+			return nil, err
+		}
+		// Delete attachment files for deleted scheduled messages
+		if s.fileCache != nil && len(deletedIDs) > 0 {
+			if err := s.fileCache.Remove(deletedIDs...); err != nil {
+				logvrm(v, r, m).Tag(tagPublish).Err(err).Warn("Error removing attachments for deleted scheduled messages")
+			}
+		}
 		logvrm(v, r, m).Tag(tagPublish).Debug("Adding message to cache")
 		if err := s.messageCache.AddMessage(m); err != nil {
 			return nil, err
@@ -957,6 +968,19 @@ func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *
 	// Send to web push endpoints
 	if s.config.WebPushPublicKey != "" {
 		go s.publishToWebPushEndpoints(v, m)
+	}
+	if event == messageDeleteEvent {
+		// Delete any existing scheduled message with the same sequence ID
+		deletedIDs, err := s.messageCache.DeleteScheduledBySequenceID(t.ID, sequenceID)
+		if err != nil {
+			return err
+		}
+		// Delete attachment files for deleted scheduled messages
+		if s.fileCache != nil && len(deletedIDs) > 0 {
+			if err := s.fileCache.Remove(deletedIDs...); err != nil {
+				logvrm(v, r, m).Tag(tagPublish).Err(err).Warn("Error removing attachments for deleted scheduled messages")
+			}
+		}
 	}
 	// Add to message cache
 	if err := s.messageCache.AddMessage(m); err != nil {

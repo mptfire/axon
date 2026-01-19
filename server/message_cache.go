@@ -72,10 +72,12 @@ const (
 		INSERT INTO messages (mid, sequence_id, time, event, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, attachment_deleted, sender, user, content_type, encoding, published)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	deleteMessageQuery                = `DELETE FROM messages WHERE mid = ?`
-	updateMessagesForTopicExpiryQuery = `UPDATE messages SET expires = ? WHERE topic = ?`
-	selectRowIDFromMessageID          = `SELECT id FROM messages WHERE mid = ?` // Do not include topic, see #336 and TestServer_PollSinceID_MultipleTopics
-	selectMessagesByIDQuery           = `
+	deleteMessageQuery                    = `DELETE FROM messages WHERE mid = ?`
+	selectScheduledMessageIDsBySeqIDQuery = `SELECT mid FROM messages WHERE topic = ? AND sequence_id = ? AND published = 0`
+	deleteScheduledBySequenceIDQuery      = `DELETE FROM messages WHERE topic = ? AND sequence_id = ? AND published = 0`
+	updateMessagesForTopicExpiryQuery     = `UPDATE messages SET expires = ? WHERE topic = ?`
+	selectRowIDFromMessageID              = `SELECT id FROM messages WHERE mid = ?` // Do not include topic, see #336 and TestServer_PollSinceID_MultipleTopics
+	selectMessagesByIDQuery               = `
 		SELECT mid, sequence_id, time, event, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding
 		FROM messages
 		WHERE mid = ?
@@ -605,6 +607,44 @@ func (c *messageCache) DeleteMessages(ids ...string) error {
 		}
 	}
 	return tx.Commit()
+}
+
+// DeleteScheduledBySequenceID deletes unpublished (scheduled) messages with the given topic and sequence ID.
+// It returns the message IDs of the deleted messages, which can be used to clean up attachment files.
+func (c *messageCache) DeleteScheduledBySequenceID(topic, sequenceID string) ([]string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	tx, err := c.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	// First, get the message IDs of scheduled messages to be deleted
+	rows, err := tx.Query(selectScheduledMessageIDsBySeqIDQuery, topic, sequenceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := make([]string, 0)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close() // Close rows before executing delete in same transaction
+	// Then delete the messages
+	if _, err := tx.Exec(deleteScheduledBySequenceIDQuery, topic, sequenceID); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return ids, nil
 }
 
 func (c *messageCache) ExpireMessages(topics ...string) error {

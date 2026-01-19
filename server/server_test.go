@@ -3495,6 +3495,162 @@ func TestServer_ClearMessage_WithFirebase(t *testing.T) {
 	require.Equal(t, "firebase-clear-seq", sender.Messages()[1].Data["sequence_id"])
 }
 
+func TestServer_UpdateScheduledMessage(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+
+	// Publish a scheduled message (future delivery)
+	response := request(t, s, "PUT", "/mytopic/sched-seq?delay=1h", "original scheduled message", nil)
+	require.Equal(t, 200, response.Code)
+	msg1 := toMessage(t, response.Body.String())
+	require.Equal(t, "sched-seq", msg1.SequenceID)
+	require.Equal(t, "original scheduled message", msg1.Message)
+
+	// Verify scheduled message exists
+	response = request(t, s, "GET", "/mytopic/json?poll=1&scheduled=1", "", nil)
+	require.Equal(t, 200, response.Code)
+	messages := toMessages(t, response.Body.String())
+	require.Equal(t, 1, len(messages))
+	require.Equal(t, "original scheduled message", messages[0].Message)
+
+	// Update the scheduled message (same sequence ID, new content)
+	response = request(t, s, "PUT", "/mytopic/sched-seq?delay=2h", "updated scheduled message", nil)
+	require.Equal(t, 200, response.Code)
+	msg2 := toMessage(t, response.Body.String())
+	require.Equal(t, "sched-seq", msg2.SequenceID)
+	require.Equal(t, "updated scheduled message", msg2.Message)
+	require.NotEqual(t, msg1.ID, msg2.ID)
+
+	// Verify only the updated message exists (old scheduled was deleted)
+	response = request(t, s, "GET", "/mytopic/json?poll=1&scheduled=1", "", nil)
+	require.Equal(t, 200, response.Code)
+	messages = toMessages(t, response.Body.String())
+	require.Equal(t, 1, len(messages))
+	require.Equal(t, "updated scheduled message", messages[0].Message)
+	require.Equal(t, msg2.ID, messages[0].ID)
+}
+
+func TestServer_DeleteScheduledMessage(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+
+	// Publish a scheduled message (future delivery)
+	response := request(t, s, "PUT", "/mytopic/delete-sched-seq?delay=1h", "scheduled message to delete", nil)
+	require.Equal(t, 200, response.Code)
+	msg := toMessage(t, response.Body.String())
+	require.Equal(t, "delete-sched-seq", msg.SequenceID)
+
+	// Verify scheduled message exists
+	response = request(t, s, "GET", "/mytopic/json?poll=1&scheduled=1", "", nil)
+	require.Equal(t, 200, response.Code)
+	messages := toMessages(t, response.Body.String())
+	require.Equal(t, 1, len(messages))
+	require.Equal(t, "scheduled message to delete", messages[0].Message)
+
+	// Delete the scheduled message
+	response = request(t, s, "DELETE", "/mytopic/delete-sched-seq", "", nil)
+	require.Equal(t, 200, response.Code)
+	deleteMsg := toMessage(t, response.Body.String())
+	require.Equal(t, "delete-sched-seq", deleteMsg.SequenceID)
+	require.Equal(t, "message_delete", deleteMsg.Event)
+
+	// Verify scheduled message was deleted, only delete event remains
+	response = request(t, s, "GET", "/mytopic/json?poll=1&scheduled=1", "", nil)
+	require.Equal(t, 200, response.Code)
+	messages = toMessages(t, response.Body.String())
+	require.Equal(t, 1, len(messages))
+	require.Equal(t, "message_delete", messages[0].Event)
+	require.Equal(t, "delete-sched-seq", messages[0].SequenceID)
+}
+
+func TestServer_UpdateScheduledMessage_TopicScoped(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+
+	// Publish scheduled messages with same sequence ID in different topics
+	response := request(t, s, "PUT", "/topic1/shared-seq?delay=1h", "topic1 scheduled", nil)
+	require.Equal(t, 200, response.Code)
+
+	response = request(t, s, "PUT", "/topic2/shared-seq?delay=1h", "topic2 scheduled", nil)
+	require.Equal(t, 200, response.Code)
+
+	// Update scheduled message in topic1 only
+	response = request(t, s, "PUT", "/topic1/shared-seq?delay=2h", "topic1 updated", nil)
+	require.Equal(t, 200, response.Code)
+
+	// Verify topic1 has only the updated message
+	response = request(t, s, "GET", "/topic1/json?poll=1&scheduled=1", "", nil)
+	require.Equal(t, 200, response.Code)
+	messages := toMessages(t, response.Body.String())
+	require.Equal(t, 1, len(messages))
+	require.Equal(t, "topic1 updated", messages[0].Message)
+
+	// Verify topic2 still has its original scheduled message (not affected)
+	response = request(t, s, "GET", "/topic2/json?poll=1&scheduled=1", "", nil)
+	require.Equal(t, 200, response.Code)
+	messages = toMessages(t, response.Body.String())
+	require.Equal(t, 1, len(messages))
+	require.Equal(t, "topic2 scheduled", messages[0].Message)
+}
+
+func TestServer_UpdateScheduledMessage_WithAttachment(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+
+	// Publish a scheduled message with an attachment
+	content := util.RandomString(5000) // > 4096 to trigger attachment
+	response := request(t, s, "PUT", "/mytopic/attach-seq?delay=1h", content, nil)
+	require.Equal(t, 200, response.Code)
+	msg1 := toMessage(t, response.Body.String())
+	require.Equal(t, "attach-seq", msg1.SequenceID)
+	require.NotNil(t, msg1.Attachment)
+
+	// Verify attachment file exists
+	attachmentFile1 := filepath.Join(s.config.AttachmentCacheDir, msg1.ID)
+	require.FileExists(t, attachmentFile1)
+
+	// Update the scheduled message with a new attachment
+	newContent := util.RandomString(5000)
+	response = request(t, s, "PUT", "/mytopic/attach-seq?delay=2h", newContent, nil)
+	require.Equal(t, 200, response.Code)
+	msg2 := toMessage(t, response.Body.String())
+	require.Equal(t, "attach-seq", msg2.SequenceID)
+	require.NotEqual(t, msg1.ID, msg2.ID)
+
+	// Verify old attachment file was deleted
+	require.NoFileExists(t, attachmentFile1)
+
+	// Verify new attachment file exists
+	attachmentFile2 := filepath.Join(s.config.AttachmentCacheDir, msg2.ID)
+	require.FileExists(t, attachmentFile2)
+}
+
+func TestServer_DeleteScheduledMessage_WithAttachment(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+
+	// Publish a scheduled message with an attachment
+	content := util.RandomString(5000) // > 4096 to trigger attachment
+	response := request(t, s, "PUT", "/mytopic/delete-attach-seq?delay=1h", content, nil)
+	require.Equal(t, 200, response.Code)
+	msg := toMessage(t, response.Body.String())
+	require.Equal(t, "delete-attach-seq", msg.SequenceID)
+	require.NotNil(t, msg.Attachment)
+
+	// Verify attachment file exists
+	attachmentFile := filepath.Join(s.config.AttachmentCacheDir, msg.ID)
+	require.FileExists(t, attachmentFile)
+
+	// Delete the scheduled message
+	response = request(t, s, "DELETE", "/mytopic/delete-attach-seq", "", nil)
+	require.Equal(t, 200, response.Code)
+	deleteMsg := toMessage(t, response.Body.String())
+	require.Equal(t, "message_delete", deleteMsg.Event)
+
+	// Verify attachment file was deleted
+	require.NoFileExists(t, attachmentFile)
+}
+
 func newTestConfig(t *testing.T) *Config {
 	conf := NewConfig()
 	conf.BaseURL = "http://127.0.0.1:12345"

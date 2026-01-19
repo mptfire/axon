@@ -1605,8 +1605,14 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 * Support for [updating and deleting notifications](publish.md#updating-deleting-notifications) ([#303](https://github.com/binwiederhier/ntfy/issues/303), [#1536](https://github.com/binwiederhier/ntfy/pull/1536),
   [ntfy-android#151](https://github.com/binwiederhier/ntfy-android/pull/151), thanks to [@wunter8](https://github.com/wunter8) for the initial implementation)
+* Support for heartbeat-style / [dead man's switch](https://en.wikipedia.org/wiki/Dead_man%27s_switch) notifications aka 
+  [updating and deleting scheduled notifications](publish.md#scheduled-delivery) ([#1556](https://github.com/binwiederhier/ntfy/pull/1556),
+  [#1142](https://github.com/binwiederhier/ntfy/pull/1142), [#954](https://github.com/binwiederhier/ntfy/issues/954),
+  thanks to [@GamerGirlandCo](https://github.com/GamerGirlandCo) for the initial implementation)
 * Configure [custom Twilio call format](config.md#phone-calls) for phone calls ([#1289](https://github.com/binwiederhier/ntfy/pull/1289), thanks to [@mmichaa](https://github.com/mmichaa) for the initial implementation) 
-* `ntfy serve` now works on Windows, including support for running it as a Windows service ([#1104](https://github.com/binwiederhier/ntfy/issues/1104), [#1552](https://github.com/binwiederhier/ntfy/pull/1552), originally [#1328](https://github.com/binwiederhier/ntfy/pull/1328), thanks to [@wtf911](https://github.com/wtf911))
+* `ntfy serve` now works on Windows, including support for running it as a Windows service ([#1104](https://github.com/binwiederhier/ntfy/issues/1104),
+  [#1552](https://github.com/binwiederhier/ntfy/pull/1552), originally [#1328](https://github.com/binwiederhier/ntfy/pull/1328), 
+  thanks to [@wtf911](https://github.com/wtf911))
 * Web app: "New version available" banner ([#1554](https://github.com/binwiederhier/ntfy/pull/1554))
 
 ### ntfy Android app v1.22.x (UNRELEASED)
