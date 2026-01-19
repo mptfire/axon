@@ -2397,8 +2397,11 @@ You can update or replace a scheduled message before it is delivered by publishi
 from the server and replaced with the new one. This is different from [updating notifications](#updating-notifications) 
 after delivery, where both messages are kept in the cache.
 
-This is particularly useful for implementing a [dead man's switch](https://en.wikipedia.org/wiki/Dead_man%27s_switch) — 
-a mechanism that triggers an alert if it's not periodically reset. For example, you could schedule a message to be 
+This is particularly useful for implementing a **watchdog that triggers when your script stops sending heartbeat messages**.
+This mechanism is also called a [dead man's switch](https://en.wikipedia.org/wiki/Dead_man%27s_switch). The idea is to have
+a mechanism that triggers an alert if it's not periodically reset.
+
+For example, you could schedule a message to be 
 delivered in 5 minutes, but continuously update it every minute to push the delivery time further into the future. 
 If your script or system stops running, the message will eventually be delivered as an alert.
 
@@ -2614,110 +2617,6 @@ scheduled message from the server so it will never be delivered, and emit a `mes
     file_get_contents('https://ntfy.sh/mytopic/break-reminder', false, stream_context_create([
         'http' => ['method' => 'DELETE']
     ]));
-    ```
-
-## Webhooks (publish via GET) 
-_Supported on:_ :material-android: :material-apple: :material-firefox:
-
-In addition to using PUT/POST, you can also send to topics via simple HTTP GET requests. This makes it easy to use 
-a ntfy topic as a [webhook](https://en.wikipedia.org/wiki/Webhook), or if your client has limited HTTP support.
-
-To send messages via HTTP GET, simply call the `/publish` endpoint (or its aliases `/send` and `/trigger`). Without 
-any arguments, this will send the message `triggered` to the topic. However, you can provide all arguments that are 
-also supported as HTTP headers as URL-encoded arguments. Be sure to check the list of all 
-[supported parameters and headers](#list-of-all-parameters) for details.
-
-For instance, assuming your topic is `mywebhook`, you can simply call `/mywebhook/trigger` to send a message 
-(aka trigger the webhook):
-
-=== "Command line (curl)"
-    ```
-    curl ntfy.sh/mywebhook/trigger
-    ```
-
-=== "ntfy CLI"
-    ```
-    ntfy trigger mywebhook
-    ```
-
-=== "HTTP"
-    ``` http
-    GET /mywebhook/trigger HTTP/1.1
-    Host: ntfy.sh
-    ```
-
-=== "JavaScript"
-    ``` javascript
-    fetch('https://ntfy.sh/mywebhook/trigger')
-    ```
-
-=== "Go"
-    ``` go
-    http.Get("https://ntfy.sh/mywebhook/trigger")
-    ```
-
-=== "PowerShell"
-    ``` powershell
-    Invoke-RestMethod "ntfy.sh/mywebhook/trigger"
-    ```    
-
-=== "Python"
-    ``` python
-    requests.get("https://ntfy.sh/mywebhook/trigger")
-    ```
-
-=== "PHP"
-    ``` php-inline
-    file_get_contents('https://ntfy.sh/mywebhook/trigger');
-    ```
-
-To add a custom message, simply append the `message=` URL parameter. And of course you can set the 
-[message priority](#message-priority), the [message title](#message-title), and [tags](#tags-emojis) as well. 
-For a full list of possible parameters, check the list of [supported parameters and headers](#list-of-all-parameters).
-
-Here's an example with a custom message, tags and a priority:
-
-=== "Command line (curl)"
-    ```
-    curl "ntfy.sh/mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull"
-    ```
-
-=== "ntfy CLI"
-    ```
-    ntfy publish \
-        -p 5 --tags=warning,skull \
-        mywebhook "Webhook triggered"
-    ```
-
-=== "HTTP"
-    ``` http
-    GET /mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull HTTP/1.1
-    Host: ntfy.sh
-    ```
-
-=== "JavaScript"
-    ``` javascript
-    fetch('https://ntfy.sh/mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull')
-    ```
-
-=== "Go"
-    ``` go
-    http.Get("https://ntfy.sh/mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull")
-    ```
-
-=== "PowerShell"
-    ``` powershell
-    Invoke-RestMethod "ntfy.sh/mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull"
-    ```
-
-=== "Python"
-    ``` python
-    requests.get("https://ntfy.sh/mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull")
-    ```
-
-=== "PHP"
-    ``` php-inline
-    file_get_contents('https://ntfy.sh/mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull');
     ```
 
 ## Message templating
@@ -3496,6 +3395,110 @@ all the supported fields:
 | `email`       | -        | *e-mail address*                 | `phil@example.com`                        | E-mail address for e-mail notifications                                                   |
 | `call`        | -        | *phone number or 'yes'*          | `+1222334444` or `yes`                    | Phone number to use for [voice call](#phone-calls)                                        |
 | `sequence_id` | -        | *string*                         | `my-sequence-123`                         | Sequence ID for [updating/deleting notifications](#updating-deleting-notifications)   |
+
+## Webhooks (publish via GET) 
+_Supported on:_ :material-android: :material-apple: :material-firefox:
+
+In addition to using PUT/POST, you can also send to topics via simple HTTP GET requests. This makes it easy to use 
+a ntfy topic as a [webhook](https://en.wikipedia.org/wiki/Webhook), or if your client has limited HTTP support.
+
+To send messages via HTTP GET, simply call the `/publish` endpoint (or its aliases `/send` and `/trigger`). Without 
+any arguments, this will send the message `triggered` to the topic. However, you can provide all arguments that are 
+also supported as HTTP headers as URL-encoded arguments. Be sure to check the list of all 
+[supported parameters and headers](#list-of-all-parameters) for details.
+
+For instance, assuming your topic is `mywebhook`, you can simply call `/mywebhook/trigger` to send a message 
+(aka trigger the webhook):
+
+=== "Command line (curl)"
+    ```
+    curl ntfy.sh/mywebhook/trigger
+    ```
+
+=== "ntfy CLI"
+    ```
+    ntfy trigger mywebhook
+    ```
+
+=== "HTTP"
+    ``` http
+    GET /mywebhook/trigger HTTP/1.1
+    Host: ntfy.sh
+    ```
+
+=== "JavaScript"
+    ``` javascript
+    fetch('https://ntfy.sh/mywebhook/trigger')
+    ```
+
+=== "Go"
+    ``` go
+    http.Get("https://ntfy.sh/mywebhook/trigger")
+    ```
+
+=== "PowerShell"
+    ``` powershell
+    Invoke-RestMethod "ntfy.sh/mywebhook/trigger"
+    ```    
+
+=== "Python"
+    ``` python
+    requests.get("https://ntfy.sh/mywebhook/trigger")
+    ```
+
+=== "PHP"
+    ``` php-inline
+    file_get_contents('https://ntfy.sh/mywebhook/trigger');
+    ```
+
+To add a custom message, simply append the `message=` URL parameter. And of course you can set the 
+[message priority](#message-priority), the [message title](#message-title), and [tags](#tags-emojis) as well. 
+For a full list of possible parameters, check the list of [supported parameters and headers](#list-of-all-parameters).
+
+Here's an example with a custom message, tags and a priority:
+
+=== "Command line (curl)"
+    ```
+    curl "ntfy.sh/mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull"
+    ```
+
+=== "ntfy CLI"
+    ```
+    ntfy publish \
+        -p 5 --tags=warning,skull \
+        mywebhook "Webhook triggered"
+    ```
+
+=== "HTTP"
+    ``` http
+    GET /mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull HTTP/1.1
+    Host: ntfy.sh
+    ```
+
+=== "JavaScript"
+    ``` javascript
+    fetch('https://ntfy.sh/mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull')
+    ```
+
+=== "Go"
+    ``` go
+    http.Get("https://ntfy.sh/mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull")
+    ```
+
+=== "PowerShell"
+    ``` powershell
+    Invoke-RestMethod "ntfy.sh/mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull"
+    ```
+
+=== "Python"
+    ``` python
+    requests.get("https://ntfy.sh/mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull")
+    ```
+
+=== "PHP"
+    ``` php-inline
+    file_get_contents('https://ntfy.sh/mywebhook/publish?message=Webhook+triggered&priority=high&tags=warning,skull');
+    ```
 
 ## Updating + deleting notifications
 _Supported on:_ :material-android: :material-firefox:
