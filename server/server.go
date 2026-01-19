@@ -969,15 +969,17 @@ func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *
 	if s.config.WebPushPublicKey != "" {
 		go s.publishToWebPushEndpoints(v, m)
 	}
-	// Delete any existing scheduled message with the same sequence ID
-	deletedIDs, err := s.messageCache.DeleteScheduledBySequenceID(t.ID, sequenceID)
-	if err != nil {
-		return err
-	}
-	// Delete attachment files for deleted scheduled messages
-	if s.fileCache != nil && len(deletedIDs) > 0 {
-		if err := s.fileCache.Remove(deletedIDs...); err != nil {
-			logvrm(v, r, m).Tag(tagPublish).Err(err).Warn("Error removing attachments for deleted scheduled messages")
+	if event == messageDeleteEvent {
+		// Delete any existing scheduled message with the same sequence ID
+		deletedIDs, err := s.messageCache.DeleteScheduledBySequenceID(t.ID, sequenceID)
+		if err != nil {
+			return err
+		}
+		// Delete attachment files for deleted scheduled messages
+		if s.fileCache != nil && len(deletedIDs) > 0 {
+			if err := s.fileCache.Remove(deletedIDs...); err != nil {
+				logvrm(v, r, m).Tag(tagPublish).Err(err).Warn("Error removing attachments for deleted scheduled messages")
+			}
 		}
 	}
 	// Add to message cache
