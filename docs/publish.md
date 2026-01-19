@@ -2402,12 +2402,10 @@ from the server and replaced with the new one. This is different from [updating 
 after delivery, where both messages are kept in the cache.
 
 This is particularly useful for implementing a **watchdog that triggers when your script stops sending heartbeat messages**.
-This mechanism is also called a [dead man's switch](https://en.wikipedia.org/wiki/Dead_man%27s_switch). The idea is to have
-a mechanism that triggers an alert if it's not periodically reset.
+This mechanism is also called a [dead man's switch](https://en.wikipedia.org/wiki/Dead_man%27s_switch).
 
-For example, you could schedule a message to be 
-delivered in 5 minutes, but continuously update it every minute to push the delivery time further into the future. 
-If your script or system stops running, the message will eventually be delivered as an alert.
+For example, you could schedule a message to be delivered in 5 minutes, but continuously update it every minute to push
+the delivery time further into the future. If your script or system stops running, the message will eventually be delivered as an alert.
 
 Here's an example of a dead man's switch that sends an alert if the script stops running for more than 5 minutes:
 
