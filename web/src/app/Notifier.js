@@ -1,5 +1,5 @@
 import { playSound, topicDisplayName, topicShortUrl, urlB64ToUint8Array } from "./utils";
-import { toNotificationParams } from "./notificationUtils";
+import { notificationTag, toNotificationParams } from "./notificationUtils";
 import prefs from "./Prefs";
 import routes from "../components/routes";
 
@@ -23,21 +23,23 @@ class Notifier {
     const registration = await this.serviceWorkerRegistration();
     await registration.showNotification(
       ...toNotificationParams({
-        subscriptionId: subscription.id,
         message: notification,
         defaultTitle,
         topicRoute: new URL(routes.forSubscription(subscription), window.location.origin).toString(),
+        baseUrl: subscription.baseUrl,
+        topic: subscription.topic,
       })
     );
   }
 
-  async cancel(notification) {
+  async cancel(subscription, notification) {
     if (!this.supported()) {
       return;
     }
     try {
-      const tag = notification.sequence_id || notification.id;
-      console.log(`[Notifier] Cancelling notification with ${tag}`);
+      const sequenceId = notification.sequence_id || notification.id;
+      const tag = notificationTag(subscription.baseUrl, subscription.topic, sequenceId);
+      console.log(`[Notifier] Cancelling notification with tag ${tag}`);
       const registration = await this.serviceWorkerRegistration();
       const notifications = await registration.getNotifications({ tag });
       notifications.forEach((n) => n.close());

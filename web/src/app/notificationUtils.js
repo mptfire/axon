@@ -50,8 +50,16 @@ export const isImage = (attachment) => {
 export const icon = "/static/images/ntfy.png";
 export const badge = "/static/images/mask-icon.svg";
 
-export const toNotificationParams = ({ message, defaultTitle, topicRoute }) => {
+/**
+ * Computes a unique notification tag scoped by baseUrl, topic, and sequence ID.
+ * This ensures notifications from different topics with the same sequence ID don't collide.
+ */
+export const notificationTag = (baseUrl, topic, sequenceId) => `${baseUrl}/${topic}/${sequenceId}`;
+
+export const toNotificationParams = ({ message, defaultTitle, topicRoute, baseUrl, topic }) => {
   const image = isImage(message.attachment) ? message.attachment.url : undefined;
+  const sequenceId = message.sequence_id || message.id;
+  const tag = notificationTag(baseUrl, topic, sequenceId);
 
   // https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API
   return [
@@ -62,7 +70,7 @@ export const toNotificationParams = ({ message, defaultTitle, topicRoute }) => {
       icon,
       image,
       timestamp: message.time * 1000,
-      tag: message.sequence_id || message.id, // Update notification if there is a sequence ID
+      tag, // Scoped by baseUrl/topic/sequenceId to avoid cross-topic collisions
       renotify: true,
       silent: false,
       // This is used by the notification onclick event

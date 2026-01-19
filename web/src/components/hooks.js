@@ -51,7 +51,7 @@ export const useConnectionListeners = (account, subscriptions, users, webPushTop
         }
       };
 
-      const handleNotification = async (subscriptionId, notification) => {
+      const handleNotification = async (subscription, notification) => {
         // This logic is (partially) duplicated in
         // - Android: SubscriberService::onNotificationReceived()
         // - Android: FirebaseService::onMessageReceived()
@@ -59,20 +59,20 @@ export const useConnectionListeners = (account, subscriptions, users, webPushTop
         // - Web app: sw.js:handleMessage(), sw.js:handleMessageClear(), ...
 
         if (notification.event === EVENT_MESSAGE_DELETE && notification.sequence_id) {
-          await subscriptionManager.deleteNotificationBySequenceId(subscriptionId, notification.sequence_id);
-          await notifier.cancel(notification);
+          await subscriptionManager.deleteNotificationBySequenceId(subscription.id, notification.sequence_id);
+          await notifier.cancel(subscription, notification);
         } else if (notification.event === EVENT_MESSAGE_CLEAR && notification.sequence_id) {
-          await subscriptionManager.markNotificationReadBySequenceId(subscriptionId, notification.sequence_id);
-          await notifier.cancel(notification);
+          await subscriptionManager.markNotificationReadBySequenceId(subscription.id, notification.sequence_id);
+          await notifier.cancel(subscription, notification);
         } else {
           // Regular message: delete existing and add new
           const sequenceId = notification.sequence_id || notification.id;
           if (sequenceId) {
-            await subscriptionManager.deleteNotificationBySequenceId(subscriptionId, sequenceId);
+            await subscriptionManager.deleteNotificationBySequenceId(subscription.id, sequenceId);
           }
-          const added = await subscriptionManager.addNotification(subscriptionId, notification);
+          const added = await subscriptionManager.addNotification(subscription.id, notification);
           if (added) {
-            await subscriptionManager.notify(subscriptionId, notification);
+            await subscriptionManager.notify(subscription.id, notification);
           }
         }
       };
@@ -89,7 +89,7 @@ export const useConnectionListeners = (account, subscriptions, users, webPushTop
         if (subscription.internal) {
           await handleInternalMessage(message);
         } else {
-          await handleNotification(subscriptionId, message);
+          await handleNotification(subscription, message);
         }
       };
 

@@ -4,7 +4,7 @@ import { NavigationRoute, registerRoute } from "workbox-routing";
 import { NetworkFirst } from "workbox-strategies";
 import { clientsClaim } from "workbox-core";
 import { dbAsync } from "../src/app/db";
-import { badge, icon, messageWithSequenceId, toNotificationParams } from "../src/app/notificationUtils";
+import { badge, icon, messageWithSequenceId, notificationTag, toNotificationParams } from "../src/app/notificationUtils";
 import initI18n from "../src/app/i18n";
 import {
   EVENT_MESSAGE,
@@ -38,6 +38,13 @@ const handlePushMessage = async (data) => {
 
   console.log("[ServiceWorker] Message received", data);
 
+  // Look up subscription for baseUrl and topic
+  const subscription = await db.subscriptions.get(subscriptionId);
+  if (!subscription) {
+    console.log("[ServiceWorker] Subscription not found", subscriptionId);
+    return;
+  }
+
   // Delete existing notification with same sequence ID (if any)
   const sequenceId = message.sequence_id || message.id;
   if (sequenceId) {
@@ -65,10 +72,11 @@ const handlePushMessage = async (data) => {
 
   await self.registration.showNotification(
     ...toNotificationParams({
-      subscriptionId,
       message,
       defaultTitle: message.topic,
       topicRoute: new URL(message.topic, self.location.origin).toString(),
+      baseUrl: subscription.baseUrl,
+      topic: subscription.topic,
     })
   );
 };
@@ -81,18 +89,23 @@ const handlePushMessageDelete = async (data) => {
   const db = await dbAsync();
   console.log("[ServiceWorker] Deleting notification sequence", data);
 
+  // Look up subscription for baseUrl and topic
+  const subscription = await db.subscriptions.get(subscriptionId);
+  if (!subscription) {
+    console.log("[ServiceWorker] Subscription not found", subscriptionId);
+    return;
+  }
+
   // Delete notification with the same sequence_id
   const sequenceId = message.sequence_id;
   if (sequenceId) {
     await db.notifications.where({ subscriptionId, sequenceId }).delete();
   }
 
-  // Close browser notification with matching tag
-  const tag = message.sequence_id || message.id;
-  if (tag) {
-    const notifications = await self.registration.getNotifications({ tag });
-    notifications.forEach((notification) => notification.close());
-  }
+  // Close browser notification with matching tag (scoped by topic)
+  const tag = notificationTag(subscription.baseUrl, subscription.topic, message.sequence_id || message.id);
+  const notifications = await self.registration.getNotifications({ tag });
+  notifications.forEach((notification) => notification.close());
 
   // Update subscription last message id (for ?since=... queries)
   await db.subscriptions.update(subscriptionId, {
@@ -108,18 +121,23 @@ const handlePushMessageClear = async (data) => {
   const db = await dbAsync();
   console.log("[ServiceWorker] Marking notification as read", data);
 
+  // Look up subscription for baseUrl and topic
+  const subscription = await db.subscriptions.get(subscriptionId);
+  if (!subscription) {
+    console.log("[ServiceWorker] Subscription not found", subscriptionId);
+    return;
+  }
+
   // Mark notification as read (set new = 0)
   const sequenceId = message.sequence_id;
   if (sequenceId) {
     await db.notifications.where({ subscriptionId, sequenceId }).modify({ new: 0 });
   }
 
-  // Close browser notification with matching tag
-  const tag = message.sequence_id || message.id;
-  if (tag) {
-    const notifications = await self.registration.getNotifications({ tag });
-    notifications.forEach((notification) => notification.close());
-  }
+  // Close browser notification with matching tag (scoped by topic)
+  const tag = notificationTag(subscription.baseUrl, subscription.topic, message.sequence_id || message.id);
+  const notifications = await self.registration.getNotifications({ tag });
+  notifications.forEach((notification) => notification.close());
 
   // Update subscription last message id (for ?since=... queries)
   await db.subscriptions.update(subscriptionId, {
