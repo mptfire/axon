@@ -3503,9 +3503,6 @@ Here's an example with a custom message, tags and a priority:
 ## Updating + deleting notifications
 _Supported on:_ :material-android: :material-firefox:
 
-!!! info
-    **This feature is not yet released.** It will be available in ntfy v2.16.x and later and ntfy Android v1.22.x and later.
-
 You can **update, clear (mark as read and dismiss), or delete notifications** that have already been delivered. This is useful for scenarios
 like download progress updates, replacing outdated information, or dismissing notifications that are no longer relevant.
 
