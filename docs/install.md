@@ -177,6 +177,8 @@ Manually installing the .deb file:
     ```
 
 ## Arch Linux
+<span class="community-badge" title="This package is maintained by the community, not the ntfy developers"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg> Community maintained</span>
+
 ntfy can be installed using an [AUR package](https://aur.archlinux.org/packages/ntfysh-bin/). 
 You can use an [AUR helper](https://wiki.archlinux.org/title/AUR_helpers) like `paru`, `yay` or others to download, 
 build and install ntfy and keep it up to date.
@@ -191,13 +193,23 @@ cd ntfysh-bin
 makepkg -si
 ```
 
-## NixOS / Nix
+## NixOS / Nix 
+<span class="community-badge" title="This package is maintained by the community, not the ntfy developers"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg> Community maintained</span>
+
 ntfy is packaged in nixpkgs as `ntfy-sh`. It can be installed by adding the package name to the configuration file and calling `nixos-rebuild`. Alternatively, the following command can be used to install ntfy in the current user environment:
 ```
 nix-env -iA ntfy-sh
 ```
 
 NixOS also supports [declarative setup of the ntfy server](https://search.nixos.org/options?channel=unstable&show=services.ntfy-sh.enable&from=0&size=50&sort=relevance&type=packages&query=ntfy). 
+
+## FreeBSD
+<span class="community-badge" title="This package is maintained by the community, not the ntfy developers"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg> Community maintained</span>
+
+ntfy is ported to FreeBSD and available via the ports collection as [sysutils/go-ntfy](https://www.freshports.org/sysutils/go-ntfy/). You can install it via `pkg`:
+```
+pkg install go-ntfy
+```
 
 ## macOS
 The [ntfy CLI](subscribe/cli.md) (`ntfy publish` and `ntfy subscribe` only) is supported on macOS as well. 
@@ -221,6 +233,8 @@ ntfy --help
     development as well. Check out the [build instructions](develop.md) for details.
 
 ## Homebrew
+<span class="community-badge" title="This package is maintained by the community, not the ntfy developers"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg> Community maintained</span>
+
 To install the [ntfy CLI](subscribe/cli.md) (`ntfy publish` and `ntfy subscribe` only) via Homebrew (Linux and macOS),
 simply run:
 ```
