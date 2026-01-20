@@ -1,6 +1,6 @@
 # Publishing
-Publishing messages can be done via HTTP PUT/POST or via the [ntfy CLI](install.md). Topics are created on the fly by 
-subscribing or publishing to them. Because there is no sign-up, **the topic is essentially a password**, so pick 
+Publishing messages can be done via HTTP PUT/POST or via the [ntfy CLI](subscribe/cli.md#publish-messages) ([install instructions](install.md).
+Topics are created on the fly by subscribing or publishing to them. Because there is no sign-up, **the topic is essentially a password**, so pick 
 something that's not easily guessable.
 
 Here's an example showing how to publish a simple message using a POST request:
@@ -2393,9 +2393,6 @@ Here are a few examples (assuming today's date is **12/10/2021, 9am, Eastern Tim
 
 ### Updating scheduled notifications
 
-!!! info
-    **This feature is not yet released.** It will be available in ntfy v2.16.x and later and ntfy Android v1.22.x and later.
-
 You can update or replace a scheduled message before it is delivered by publishing a new message with the same 
 [sequence ID](#updating-deleting-notifications). When you do this, the **original scheduled message is deleted** 
 from the server and replaced with the new one. This is different from [updating notifications](#updating-notifications) 
@@ -2517,9 +2514,6 @@ Here's an example of a dead man's switch that sends an alert if the script stops
     ```
 
 ### Canceling scheduled notifications
-
-!!! info
-    **This feature is not yet released.** It will be available in ntfy v2.16.x and later and ntfy Android v1.22.x and later.
 
 You can cancel a scheduled message before it is delivered by sending a DELETE request to the 
 `/<topic>/<sequence_id>` endpoint, just like [deleting notifications](#deleting-notifications). This will remove the 
