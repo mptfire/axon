@@ -7,10 +7,47 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 | Component        | Version | Release date |
 |------------------|---------|--------------|
 | ntfy server      | v2.16.0 | Jan 19, 2026 |
-| ntfy Android app | v1.21.1 | Jan 6, 2025  |
+| ntfy Android app | v1.22.1 | Jan 20, 2026 |
 | ntfy iOS app     | v1.3    | Nov 26, 2023 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+### ntfy Android app v1.22.1
+Released January 20, 2026
+
+This release adds support for [updating and deleting notifications](publish.md#updating--deleting-notifications) (requires server v2.16.0),
+as well as [certificate management for self-signed certs and mTLS client certificates](subscribe/phone.md#manage-certificates),
+and a new connection error dialog to help [troubleshoot connection issues](subscribe/phone.md#troubleshooting).
+
+<div id="v1221-screenshots-1" class="screenshots">
+    <a href="../../static/img/android-screenshot-notification-update-1.png"><img src="../../static/img/android-screenshot-notification-update-1.png"/></a>
+    <a href="../../static/img/android-screenshot-notification-update-2.png"><img src="../../static/img/android-screenshot-notification-update-2.png"/></a>
+</div>
+
+<div id="v1221-screenshots-2" class="screenshots">
+    <a href="../../static/img/android-screenshot-certs-warning-dialog.jpg"><img src="../../static/img/android-screenshot-certs-warning-dialog.jpg"/></a>
+    <a href="../../static/img/android-screenshot-certs-manage.jpg"><img src="../../static/img/android-screenshot-certs-manage.jpg"/></a>
+    <a href="../../static/img/android-screenshot-connection-error-dialog.jpg"><img src="../../static/img/android-screenshot-connection-error-dialog.jpg"/></a>
+</div>
+
+**Features:**
+
+* Support for [updating and deleting notifications](publish.md#updating-deleting-notifications)
+  ([#303](https://github.com/binwiederhier/ntfy/issues/303), [#1536](https://github.com/binwiederhier/ntfy/pull/1536),
+  [ntfy-android#151](https://github.com/binwiederhier/ntfy-android/pull/151), thanks to [@wunter8](https://github.com/wunter8)
+  for the initial implementation)
+* Support for self-signed certs and client certs for mTLS ([#215](https://github.com/binwiederhier/ntfy/issues/215),
+  [#530](https://github.com/binwiederhier/ntfy/issues/530), [ntfy-android#149](https://github.com/binwiederhier/ntfy-android/pull/149),
+  thanks to [@cyb3rko](https://github.com/cyb3rko) for reviewing)
+* Connection error dialog to help diagnose connection issues
+
+**Bug fixes + maintenance:**
+
+* Use server-specific user for attachment downloads ([#1529](https://github.com/binwiederhier/ntfy/issues/1529),
+  thanks to [@ManInDark](https://github.com/ManInDark) for reporting and testing)
+* Fix crash in sharing dialog (thanks to [@rogeliodh](https://github.com/rogeliodh))
+* Fix crash when exiting multi-delete in detail view
+* Fix potential crashes with icon downloader and backuper
 
 ## ntfy server v2.16.0
 Released January 19, 2026
@@ -40,6 +77,13 @@ Released January 6, 2026
 This is the first feature release in a long time. After all the SDK updates, fixes to comply with the Google Play policies
 and the framework updates, this release ships a lot of highly requested features: Sending messages through the app (WhatsApp-style),
 support for passing headers to your proxy, an in-app language switcher, and more.
+
+<div id="v1211-screenshots" class="screenshots">
+    <a href="../../static/img/android-screenshot-publish-message-bar.jpg"><img src="../../static/img/android-screenshot-publish-message-bar.jpg"/></a>
+    <a href="../../static/img/android-screenshot-publish-dialog.jpg"><img src="../../static/img/android-screenshot-publish-dialog.jpg"/></a>
+    <a href="../../static/img/android-screenshot-custom-headers.jpg"><img src="../../static/img/android-screenshot-custom-headers.jpg"/></a>
+    <a href="../../static/img/android-screenshot-language-selection.jpg"><img src="../../static/img/android-screenshot-language-selection.jpg"/></a>
+</div>
 
 If you are waiting for a feature, please 👍 the corresponding [GitHub issue](https://github.com/binwiederhier/ntfy/issues?q=is%3Aissue%20state%3Aopen%20sort%3Areactions-%2B1-desc).
 If you like ntfy, please consider purchasing [ntfy Pro](https://ntfy.sh/app) to support us.
@@ -1621,23 +1665,4 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-### ntfy Android app v1.22.x (UNRELEASED)
-
-**Features:**
-
-* Support for [updating and deleting notifications](publish.md#updating-deleting-notifications)
-  ([#303](https://github.com/binwiederhier/ntfy/issues/303), [#1536](https://github.com/binwiederhier/ntfy/pull/1536),
-  [ntfy-android#151](https://github.com/binwiederhier/ntfy-android/pull/151), thanks to [@wunter8](https://github.com/wunter8)
-  for the initial implementation)
-* Support for self-signed certs and client certs for mTLS ([#215](https://github.com/binwiederhier/ntfy/issues/215),
-  [#530](https://github.com/binwiederhier/ntfy/issues/530), [ntfy-android#149](https://github.com/binwiederhier/ntfy-android/pull/149),
-  thanks to [@cyb3rko](https://github.com/cyb3rko) for reviewing)
-* Connection error dialog to help diagnose connection issues
-
-**Bug fixes + maintenance:**
-
-* Use server-specific user for attachment downloads ([#1529](https://github.com/binwiederhier/ntfy/issues/1529),
-  thanks to [@ManInDark](https://github.com/ManInDark) for reporting and testing)
-* Fix crash in sharing dialog (thanks to [@rogeliodh](https://github.com/rogeliodh))
-* Fix crash when exiting multi-delete in detail view
-* Fix potential crashes with icon downloader and backuper
+_Nothing here_

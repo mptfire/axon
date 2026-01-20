@@ -641,7 +641,7 @@ You can format messages using [Markdown](https://www.markdownguide.org/basic-syn
 
 By default, messages sent to ntfy are rendered as plain text. To enable Markdown, set the `X-Markdown` header (or any of
 its aliases: `Markdown`, or `md`) to `true` (or `1` or `yes`), or set the `Content-Type` header to `text/markdown`.
-As of today, **Markdown is only supported in the web app.** Here's an example of how to enable Markdown formatting:
+Here's an example of how to enable Markdown formatting:
 
 === "Command line (curl)"
     ```
