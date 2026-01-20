@@ -641,7 +641,7 @@ func (s *Server) configResponse() *apiConfigResponse {
 // handleWebManifest serves the web app manifest for the progressive web app (PWA)
 func (s *Server) handleWebManifest(w http.ResponseWriter, _ *http.Request, _ *visitor) error {
 	response := &webManifestResponse{
-		Name:            "ntfy web",
+		Name:            "ntfy",
 		Description:     "ntfy lets you send push notifications via scripts from any computer or phone",
 		ShortName:       "ntfy",
 		Scope:           "/",

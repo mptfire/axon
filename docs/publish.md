@@ -1,5 +1,5 @@
 # Publishing
-Publishing messages can be done via HTTP PUT/POST or via the [ntfy CLI](subscribe/cli.md#publish-messages) ([install instructions](install.md).
+Publishing messages can be done via HTTP PUT/POST or via the [ntfy CLI](subscribe/cli.md#publish-messages) ([install instructions](install.md)).
 Topics are created on the fly by subscribing or publishing to them. Because there is no sign-up, **the topic is essentially a password**, so pick 
 something that's not easily guessable.
 
