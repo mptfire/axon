@@ -2154,7 +2154,7 @@ And the same example using [JSON publishing](#publish-as-json):
         method: 'POST',
         body: JSON.stringify({
             topic: "myhome",
-            message": "Garage door has been open for 15 minutes. Close it?",
+            "message": "Garage door has been open for 15 minutes. Close it?",
             actions: [
               {
                 "action": "http",
