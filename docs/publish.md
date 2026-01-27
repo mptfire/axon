@@ -1619,7 +1619,7 @@ And the same example using [JSON publishing](#publish-as-json):
         method: 'POST',
         body: JSON.stringify({
             topic: "myhome",
-            message": "Somebody retweeted your tweet.",
+            message: "Somebody retweeted your tweet.",
             actions: [
                 {
                     action: "view",
@@ -1879,7 +1879,7 @@ And the same example using [JSON publishing](#publish-as-json):
         method: 'POST',
         body: JSON.stringify({
             topic: "wifey",
-            message": "Your wife requested you send a picture of yourself.",
+            message: "Your wife requested you send a picture of yourself.",
             actions: [
                 {
                     "action": "broadcast",
@@ -2154,7 +2154,7 @@ And the same example using [JSON publishing](#publish-as-json):
         method: 'POST',
         body: JSON.stringify({
             topic: "myhome",
-            "message": "Garage door has been open for 15 minutes. Close it?",
+            message: "Garage door has been open for 15 minutes. Close it?",
             actions: [
               {
                 "action": "http",
