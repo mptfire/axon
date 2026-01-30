@@ -43,6 +43,7 @@ I've added a ⭐ to projects or posts that have a significant following, or had 
 - [Miniflux](https://miniflux.app/docs/ntfy.html) - Minimalist and opinionated feed reader
 - [Beszel](https://beszel.dev/guide/notifications/ntfy) - Server monitoring platform
 - [Simple Observability](https://simpleobservability.com/docs/alerts/ntfy) - Server monitoring and observability platform
+- [Uptime Monitor](https://github.com/Rabbit-Company/UptimeMonitor-Server) - Self-hosted, enterprise-grade uptime monitoring and alerting system
 
 ## Integration via HTTP/SMTP/etc.
 
