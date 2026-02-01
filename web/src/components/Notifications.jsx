@@ -33,7 +33,7 @@ import {
   maybeActionErrors,
   openUrl,
   shortUrl,
-  topicShortUrl,
+  topicUrl,
   unmatchedTags,
 } from "../app/utils";
 import { formatMessage, formatTitle, isImage } from "../app/notificationUtils";
@@ -588,7 +588,7 @@ const UserAction = (props) => {
 
 const NoNotifications = (props) => {
   const { t } = useTranslation();
-  const topicShortUrlResolved = topicShortUrl(props.subscription.baseUrl, props.subscription.topic);
+  const topicUrlResolved = topicUrl(props.subscription.baseUrl, props.subscription.topic);
   return (
     <VerticallyCenteredContainer maxWidth="xs">
       <Typography variant="h5" align="center" sx={{ paddingBottom: 1 }}>
@@ -601,7 +601,7 @@ const NoNotifications = (props) => {
         {t("notifications_example")}:<br />
         <tt>
           {'$ curl -d "Hi" '}
-          {topicShortUrlResolved}
+          {topicUrlResolved}
         </tt>
       </Paragraph>
       <Paragraph>
@@ -614,7 +614,7 @@ const NoNotifications = (props) => {
 const NoNotificationsWithoutSubscription = (props) => {
   const { t } = useTranslation();
   const subscription = props.subscriptions[0];
-  const topicShortUrlResolved = topicShortUrl(subscription.baseUrl, subscription.topic);
+  const topicUrlResolved = topicUrl(subscription.baseUrl, subscription.topic);
   return (
     <VerticallyCenteredContainer maxWidth="xs">
       <Typography variant="h5" align="center" sx={{ paddingBottom: 1 }}>
@@ -627,7 +627,7 @@ const NoNotificationsWithoutSubscription = (props) => {
         {t("notifications_example")}:<br />
         <tt>
           {'$ curl -d "Hi" '}
-          {topicShortUrlResolved}
+          {topicUrlResolved}
         </tt>
       </Paragraph>
       <Paragraph>
