@@ -429,13 +429,14 @@ const UserDialog = (props) => {
   const [password, setPassword] = useState("");
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const editMode = props.user !== null;
+  const baseUrlValid = baseUrl.length === 0 || validUrl(baseUrl);
+  const baseUrlExists = props.users?.map((user) => user.baseUrl).includes(baseUrl);
+  const baseUrlError = baseUrl.length > 0 && (!baseUrlValid || baseUrlExists);
   const addButtonEnabled = (() => {
     if (editMode) {
       return username.length > 0 && password.length > 0;
     }
-    const baseUrlValid = validUrl(baseUrl);
-    const baseUrlExists = props.users?.map((user) => user.baseUrl).includes(baseUrl);
-    return baseUrlValid && !baseUrlExists && username.length > 0 && password.length > 0;
+    return validUrl(baseUrl) && !baseUrlExists && username.length > 0 && password.length > 0;
   })();
   const handleSubmit = async () => {
     props.onSubmit({
@@ -467,6 +468,14 @@ const UserDialog = (props) => {
             type="url"
             fullWidth
             variant="standard"
+            error={baseUrlError}
+            helperText={
+              baseUrl.length > 0 && !baseUrlValid
+                ? t("prefs_users_dialog_base_url_invalid")
+                : baseUrlExists
+                ? t("prefs_users_dialog_base_url_exists")
+                : ""
+            }
           />
         )}
         <TextField

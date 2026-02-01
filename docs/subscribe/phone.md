@@ -82,9 +82,8 @@ you'll see as a permanent notification that looks like this:
   <figcaption>Instant delivery foreground notification</figcaption>
 </figure>
 
-Android does not allow you to dismiss this notification, unless you turn off the notification channel in the settings.
-To do so, long-press on the foreground notification (screenshot above) and navigate to the settings. Then toggle the 
-"Subscription Service" off:
+To turn off this notification, long-press on the foreground notification (screenshot above) and navigate to the 
+settings. Then toggle the "Subscription Service" off:
 
 <figure markdown>
   ![foreground service](../static/img/notification-settings.png){ width=500 }
@@ -101,6 +100,11 @@ notifications. Firebase is overall pretty bad at delivering messages in time, bu
 
 The ntfy Android app uses Firebase only for the main host `ntfy.sh`, and only in the Google Play flavor of the app.
 It won't use Firebase for any self-hosted servers, and not at all in the F-Droid flavor.
+
+!!! info "F-Droid: Always instant delivery"
+    Since the F-Droid build does not include Firebase, **all subscriptions use instant delivery by default**, and 
+    there is no option to disable it. The F-Droid app hides all mentions of "instant delivery" in the UI, since 
+    showing options that can't be changed would only be confusing.
 
 ## Publishing messages
 _Supported on:_ :material-android:

@@ -567,18 +567,18 @@ kubectl apply -k /ntfy
                       cpu: 150m
                       memory: 150Mi
               volumeMounts:
-                  - mountPath: /etc/ntfy
-                    subPath: server.yml
-                    name: config-volume # generated vie configMapGenerator from kustomization file
-                  - mountPath: /var/cache/ntfy
-                    name: cache-volume #cache volume mounted to persistent volume
-            volumes:
-              - name: config-volume
-                configMap:  # uses configmap generator to parse server.yml to configmap
-                  name: server-config
-              - name: cache-volume
-                persistentVolumeClaim: # stores /cache/ntfy in defined pv
-                  claimName: ntfy-pvc
+                - mountPath: /etc/ntfy/server.yml
+                  subPath: server.yml
+                  name: config-volume # generated via configMapGenerator from kustomization file
+                - mountPath: /var/cache/ntfy
+                  name: cache-volume # cache volume mounted to persistent volume
+          volumes:
+            - name: config-volume
+              configMap: # uses configmap generator to parse server.yml to configmap
+                name: server-config
+            - name: cache-volume
+              persistentVolumeClaim: # stores /cache/ntfy in defined pv
+                claimName: ntfy-pvc
     ```
   
 === "ntfy-pvc.yaml"

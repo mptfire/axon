@@ -357,6 +357,8 @@
   "prefs_users_dialog_title_add": "Add user",
   "prefs_users_dialog_title_edit": "Edit user",
   "prefs_users_dialog_base_url_label": "Service URL, e.g. https://ntfy.sh",
+  "prefs_users_dialog_base_url_invalid": "Invalid URL format. Must start with http:// or https://",
+  "prefs_users_dialog_base_url_exists": "A user for this service URL already exists",
   "prefs_users_dialog_username_label": "Username, e.g. phil",
   "prefs_users_dialog_password_label": "Password",
   "prefs_appearance_title": "Appearance",
