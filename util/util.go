@@ -12,6 +12,7 @@ import (
 	"net/netip"
 	"os"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -49,12 +50,7 @@ func FileExists(filename string) bool {
 
 // Contains returns true if needle is contained in haystack
 func Contains[T comparable](haystack []T, needle T) bool {
-	for _, s := range haystack {
-		if s == needle {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(haystack, needle)
 }
 
 // ContainsIP returns true if any one of the of prefixes contains the ip.
