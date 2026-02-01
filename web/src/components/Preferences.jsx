@@ -438,6 +438,14 @@ const UserDialog = (props) => {
     }
     return validUrl(baseUrl) && !baseUrlExists && username.length > 0 && password.length > 0;
   })();
+  const baseUrlHelperText = (() => {
+    if (baseUrl.length > 0 && !baseUrlValid) {
+      return t("prefs_users_dialog_base_url_invalid");
+    } else if (baseUrlExists) {
+      return t("prefs_users_dialog_base_url_exists");
+    }
+    return "";
+  })();
   const handleSubmit = async () => {
     props.onSubmit({
       baseUrl,
@@ -469,13 +477,7 @@ const UserDialog = (props) => {
             fullWidth
             variant="standard"
             error={baseUrlError}
-            helperText={
-              baseUrl.length > 0 && !baseUrlValid
-                ? t("prefs_users_dialog_base_url_invalid")
-                : baseUrlExists
-                ? t("prefs_users_dialog_base_url_exists")
-                : ""
-            }
+            helperText={baseUrlHelperText}
           />
         )}
         <TextField
