@@ -15,7 +15,7 @@ Please check out the release notes for [upcoming releases](#not-released-yet) be
 ### ntfy Android app v1.22.2
 Released January 20, 2026
 
-This release adds support for [updating and deleting notifications](publish.md#updating--deleting-notifications) (requires server v2.16.0),
+This release adds support for [updating and deleting notifications](publish.md#updating-deleting-notifications) (requires server v2.16.0),
 as well as [certificate management for self-signed certs and mTLS client certificates](subscribe/phone.md#manage-certificates),
 and a new connection error dialog to help [troubleshoot connection issues](subscribe/phone.md#troubleshooting).
 
