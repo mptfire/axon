@@ -12,7 +12,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
 
-### ntfy Android app v1.22.2
+## ntfy Android app v1.22.2
 Released January 20, 2026
 
 This release adds support for [updating and deleting notifications](publish.md#updating-deleting-notifications) (requires server v2.16.0),
@@ -1665,4 +1665,8 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-_Nothing here_
+### ntfy server v2.17.x (UNRELEASED)
+
+**Bug fixes + maintenance:**
+
+* Docs: Remove obsolete `version` field from docker-compose examples ([#1333](https://github.com/binwiederhier/ntfy/issues/1333), thanks to [@seals187](https://github.com/seals187) for reporting and [@cyb3rko](https://github.com/cyb3rko) for fixing)
