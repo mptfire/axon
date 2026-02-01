@@ -1669,6 +1669,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 **Bug fixes + maintenance:**
 
+* Web: Fix markdown message line height to match plain text (1.5 instead of 1.2) ([#1139](https://github.com/binwiederhier/ntfy/issues/1139), thanks to [@etfz](https://github.com/etfz))
 * Web: Add validation feedback for service URL when adding user ([#1566](https://github.com/binwiederhier/ntfy/issues/1566), thanks to [@jermanuts](https://github.com/jermanuts))
 * Docs: Remove obsolete `version` field from docker-compose examples ([#1333](https://github.com/binwiederhier/ntfy/issues/1333), thanks to [@seals187](https://github.com/seals187) for reporting and [@cyb3rko](https://github.com/cyb3rko) for fixing)
 * Docs: Fix Kustomize config - correct volumeMount path and volumes indentation ([#1367](https://github.com/binwiederhier/ntfy/issues/1367), thanks to [@toby-griffiths](https://github.com/toby-griffiths))

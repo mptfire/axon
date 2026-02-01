@@ -473,8 +473,8 @@ const UserDialog = (props) => {
               baseUrl.length > 0 && !baseUrlValid
                 ? t("prefs_users_dialog_base_url_invalid")
                 : baseUrlExists
-                  ? t("prefs_users_dialog_base_url_exists")
-                  : ""
+                ? t("prefs_users_dialog_base_url_exists")
+                : ""
             }
           />
         )}
