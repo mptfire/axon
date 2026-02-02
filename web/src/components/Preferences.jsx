@@ -441,7 +441,8 @@ const UserDialog = (props) => {
   const baseUrlHelperText = (() => {
     if (baseUrl.length > 0 && !baseUrlValid) {
       return t("prefs_users_dialog_base_url_invalid");
-    } else if (baseUrlExists) {
+    }
+    if (baseUrlExists) {
       return t("prefs_users_dialog_base_url_exists");
     }
     return "";
