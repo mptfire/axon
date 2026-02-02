@@ -1681,8 +1681,9 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 **Bug fixes + maintenance:**
 
-* Web: Fix Markdown message line height to match plain text (1.5 instead of 1.2) ([#1139](https://github.com/binwiederhier/ntfy/issues/1139), thanks to [@etfz](https://github.com/etfz))
-* Web: Fix long lines (e.g. JSON) being truncated by adding horizontal scroll ([#1363](https://github.com/binwiederhier/ntfy/issues/1363), thanks to [@v3DJG6GL](https://github.com/v3DJG6GL))
+* Web: Fix Markdown message line height to match plain text (1.5 instead of 1.2) ([#1139](https://github.com/binwiederhier/ntfy/issues/1139), thanks to [@etfz](https://github.com/etfz) for reporting)
+* Web: Fix long lines (e.g. JSON) being truncated by adding horizontal scroll ([#1363](https://github.com/binwiederhier/ntfy/issues/1363), thanks to [@v3DJG6GL](https://github.com/v3DJG6GL) for reporting)
+* Web: Fix Windows notification icon being cut off ([#884](https://github.com/binwiederhier/ntfy/issues/884), thanks to [@ZhangTianrong](https://github.com/ZhangTianrong) for reporting)
 * Web: Use full URL in curl example on empty topic pages ([#1435](https://github.com/binwiederhier/ntfy/issues/1435), [#1535](https://github.com/binwiederhier/ntfy/pull/1535), thanks to [@elmatadoor](https://github.com/elmatadoor) for reporting and [@jjasghar](https://github.com/jjasghar) for the PR)
 * Web: Add validation feedback for service URL when adding user ([#1566](https://github.com/binwiederhier/ntfy/issues/1566), thanks to [@jermanuts](https://github.com/jermanuts))
 * Refactor: Use `slices.Contains` from stdlib to simplify code ([#1406](https://github.com/binwiederhier/ntfy/pull/1406), thanks to [@tanhuaan](https://github.com/tanhuaan))
