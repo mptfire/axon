@@ -793,7 +793,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*message, e
 		return nil, err
 	}
 	m := newDefaultMessage(t.ID, "")
-	cache, firebase, email, call, template, unifiedpush, e := s.parsePublishParams(r, m)
+	cache, firebase, email, call, template, unifiedpush, priorityStr, e := s.parsePublishParams(r, m)
 	if e != nil {
 		return nil, e.With(t)
 	}
@@ -824,7 +824,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*message, e
 	if cache {
 		m.Expires = time.Unix(m.Time, 0).Add(v.Limits().MessageExpiryDuration).Unix()
 	}
-	if err := s.handlePublishBody(r, v, m, body, template, unifiedpush); err != nil {
+	if err := s.handlePublishBody(r, v, m, body, template, unifiedpush, priorityStr); err != nil {
 		return nil, err
 	}
 	if m.Message == "" {
@@ -1055,11 +1055,11 @@ func (s *Server) forwardPollRequest(v *visitor, m *message) {
 	}
 }
 
-func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, firebase bool, email, call string, template templateMode, unifiedpush bool, err *errHTTP) {
+func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, firebase bool, email, call string, template templateMode, unifiedpush bool, priorityStr string, err *errHTTP) {
 	if r.Method != http.MethodGet && updatePathRegex.MatchString(r.URL.Path) {
 		pathSequenceID, err := s.sequenceIDFromPath(r.URL.Path)
 		if err != nil {
-			return false, false, "", "", "", false, err
+			return false, false, "", "", "", false, "", err
 		}
 		m.SequenceID = pathSequenceID
 	} else {
@@ -1068,7 +1068,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 			if sequenceIDRegex.MatchString(sequenceID) {
 				m.SequenceID = sequenceID
 			} else {
-				return false, false, "", "", "", false, errHTTPBadRequestSequenceIDInvalid
+				return false, false, "", "", "", false, "", errHTTPBadRequestSequenceIDInvalid
 			}
 		} else {
 			m.SequenceID = m.ID
@@ -1089,7 +1089,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 	}
 	if attach != "" {
 		if !urlRegex.MatchString(attach) {
-			return false, false, "", "", "", false, errHTTPBadRequestAttachmentURLInvalid
+			return false, false, "", "", "", false, "", errHTTPBadRequestAttachmentURLInvalid
 		}
 		m.Attachment.URL = attach
 		if m.Attachment.Name == "" {
@@ -1107,19 +1107,19 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 	}
 	if icon != "" {
 		if !urlRegex.MatchString(icon) {
-			return false, false, "", "", "", false, errHTTPBadRequestIconURLInvalid
+			return false, false, "", "", "", false, "", errHTTPBadRequestIconURLInvalid
 		}
 		m.Icon = icon
 	}
 	email = readParam(r, "x-email", "x-e-mail", "email", "e-mail", "mail", "e")
 	if s.smtpSender == nil && email != "" {
-		return false, false, "", "", "", false, errHTTPBadRequestEmailDisabled
+		return false, false, "", "", "", false, "", errHTTPBadRequestEmailDisabled
 	}
 	call = readParam(r, "x-call", "call")
 	if call != "" && (s.config.TwilioAccount == "" || s.userManager == nil) {
-		return false, false, "", "", "", false, errHTTPBadRequestPhoneCallsDisabled
+		return false, false, "", "", "", false, "", errHTTPBadRequestPhoneCallsDisabled
 	} else if call != "" && !isBoolValue(call) && !phoneNumberRegex.MatchString(call) {
-		return false, false, "", "", "", false, errHTTPBadRequestPhoneNumberInvalid
+		return false, false, "", "", "", false, "", errHTTPBadRequestPhoneNumberInvalid
 	}
 	template = templateMode(readParam(r, "x-template", "template", "tpl"))
 	messageStr := readParam(r, "x-message", "message", "m")
@@ -1131,29 +1131,33 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 		m.Message = messageStr
 	}
 	var e error
-	m.Priority, e = util.ParsePriority(readParam(r, "x-priority", "priority", "prio", "p"))
-	if e != nil {
-		return false, false, "", "", "", false, errHTTPBadRequestPriorityInvalid
+	priorityStr = readParam(r, "x-priority", "priority", "prio", "p")
+	if !template.Enabled() {
+		m.Priority, e = util.ParsePriority(priorityStr)
+		if e != nil {
+			return false, false, "", "", "", false, "", errHTTPBadRequestPriorityInvalid
+		}
+		priorityStr = "" // Clear since it's already parsed
 	}
 	m.Tags = readCommaSeparatedParam(r, "x-tags", "tags", "tag", "ta")
 	delayStr := readParam(r, "x-delay", "delay", "x-at", "at", "x-in", "in")
 	if delayStr != "" {
 		if !cache {
-			return false, false, "", "", "", false, errHTTPBadRequestDelayNoCache
+			return false, false, "", "", "", false, "", errHTTPBadRequestDelayNoCache
 		}
 		if email != "" {
-			return false, false, "", "", "", false, errHTTPBadRequestDelayNoEmail // we cannot store the email address (yet)
+			return false, false, "", "", "", false, "", errHTTPBadRequestDelayNoEmail // we cannot store the email address (yet)
 		}
 		if call != "" {
-			return false, false, "", "", "", false, errHTTPBadRequestDelayNoCall // we cannot store the phone number (yet)
+			return false, false, "", "", "", false, "", errHTTPBadRequestDelayNoCall // we cannot store the phone number (yet)
 		}
 		delay, err := util.ParseFutureTime(delayStr, time.Now())
 		if err != nil {
-			return false, false, "", "", "", false, errHTTPBadRequestDelayCannotParse
+			return false, false, "", "", "", false, "", errHTTPBadRequestDelayCannotParse
 		} else if delay.Unix() < time.Now().Add(s.config.MessageDelayMin).Unix() {
-			return false, false, "", "", "", false, errHTTPBadRequestDelayTooSmall
+			return false, false, "", "", "", false, "", errHTTPBadRequestDelayTooSmall
 		} else if delay.Unix() > time.Now().Add(s.config.MessageDelayMax).Unix() {
-			return false, false, "", "", "", false, errHTTPBadRequestDelayTooLarge
+			return false, false, "", "", "", false, "", errHTTPBadRequestDelayTooLarge
 		}
 		m.Time = delay.Unix()
 	}
@@ -1161,7 +1165,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 	if actionsStr != "" {
 		m.Actions, e = parseActions(actionsStr)
 		if e != nil {
-			return false, false, "", "", "", false, errHTTPBadRequestActionsInvalid.Wrap("%s", e.Error())
+			return false, false, "", "", "", false, "", errHTTPBadRequestActionsInvalid.Wrap("%s", e.Error())
 		}
 	}
 	contentType, markdown := readParam(r, "content-type", "content_type"), readBoolParam(r, false, "x-markdown", "markdown", "md")
@@ -1180,7 +1184,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 		cache = false
 		email = ""
 	}
-	return cache, firebase, email, call, template, unifiedpush, nil
+	return cache, firebase, email, call, template, unifiedpush, priorityStr, nil
 }
 
 // handlePublishBody consumes the PUT/POST body and decides whether the body is an attachment or the message.
@@ -1199,7 +1203,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 //     If file.txt is <= 4096 (message limit) and valid UTF-8, treat it as a message
 //  7. curl -T file.txt ntfy.sh/mytopic
 //     In all other cases, mostly if file.txt is > message limit, treat it as an attachment
-func (s *Server) handlePublishBody(r *http.Request, v *visitor, m *message, body *util.PeekedReadCloser, template templateMode, unifiedpush bool) error {
+func (s *Server) handlePublishBody(r *http.Request, v *visitor, m *message, body *util.PeekedReadCloser, template templateMode, unifiedpush bool, priorityStr string) error {
 	if m.Event == pollRequestEvent { // Case 1
 		return s.handleBodyDiscard(body)
 	} else if unifiedpush {
@@ -1209,7 +1213,7 @@ func (s *Server) handlePublishBody(r *http.Request, v *visitor, m *message, body
 	} else if m.Attachment != nil && m.Attachment.Name != "" {
 		return s.handleBodyAsAttachment(r, v, m, body) // Case 4
 	} else if template.Enabled() {
-		return s.handleBodyAsTemplatedTextMessage(m, template, body) // Case 5
+		return s.handleBodyAsTemplatedTextMessage(m, template, body, priorityStr) // Case 5
 	} else if !body.LimitReached && utf8.Valid(body.PeekedBytes) {
 		return s.handleBodyAsTextMessage(m, body) // Case 6
 	}
@@ -1245,7 +1249,7 @@ func (s *Server) handleBodyAsTextMessage(m *message, body *util.PeekedReadCloser
 	return nil
 }
 
-func (s *Server) handleBodyAsTemplatedTextMessage(m *message, template templateMode, body *util.PeekedReadCloser) error {
+func (s *Server) handleBodyAsTemplatedTextMessage(m *message, template templateMode, body *util.PeekedReadCloser, priorityStr string) error {
 	body, err := util.Peek(body, max(s.config.MessageSizeLimit, jsonBodyBytesLimit))
 	if err != nil {
 		return err
@@ -1258,7 +1262,7 @@ func (s *Server) handleBodyAsTemplatedTextMessage(m *message, template templateM
 			return err
 		}
 	} else {
-		if err := s.renderTemplateFromParams(m, peekedBody); err != nil {
+		if err := s.renderTemplateFromParams(m, peekedBody, priorityStr); err != nil {
 			return err
 		}
 	}
@@ -1289,33 +1293,51 @@ func (s *Server) renderTemplateFromFile(m *message, templateName, peekedBody str
 	}
 	var err error
 	if tpl.Message != nil {
-		if m.Message, err = s.renderTemplate(*tpl.Message, peekedBody); err != nil {
+		if m.Message, err = s.renderTemplate(templateName+" (message)", *tpl.Message, peekedBody); err != nil {
 			return err
 		}
 	}
 	if tpl.Title != nil {
-		if m.Title, err = s.renderTemplate(*tpl.Title, peekedBody); err != nil {
+		if m.Title, err = s.renderTemplate(templateName+" (title)", *tpl.Title, peekedBody); err != nil {
 			return err
+		}
+	}
+	if tpl.Priority != nil {
+		renderedPriority, err := s.renderTemplate(templateName+" (priority)", *tpl.Priority, peekedBody)
+		if err != nil {
+			return err
+		}
+		if m.Priority, err = util.ParsePriority(renderedPriority); err != nil {
+			return errHTTPBadRequestPriorityInvalid
 		}
 	}
 	return nil
 }
 
 // renderTemplateFromParams transforms the JSON message body according to the inline template in the
-// message and title parameters.
-func (s *Server) renderTemplateFromParams(m *message, peekedBody string) error {
+// message, title, and priority parameters.
+func (s *Server) renderTemplateFromParams(m *message, peekedBody string, priorityStr string) error {
 	var err error
-	if m.Message, err = s.renderTemplate(m.Message, peekedBody); err != nil {
+	if m.Message, err = s.renderTemplate("priority query parameter", m.Message, peekedBody); err != nil {
 		return err
 	}
-	if m.Title, err = s.renderTemplate(m.Title, peekedBody); err != nil {
+	if m.Title, err = s.renderTemplate("title query parameter", m.Title, peekedBody); err != nil {
 		return err
+	}
+	if priorityStr != "" {
+		renderedPriority, err := s.renderTemplate("priority query parameter", priorityStr, peekedBody)
+		if err != nil {
+			return err
+		}
+		if m.Priority, err = util.ParsePriority(renderedPriority); err != nil {
+			return errHTTPBadRequestPriorityInvalid
+		}
 	}
 	return nil
 }
 
 // renderTemplate renders a template with the given JSON source data.
-func (s *Server) renderTemplate(tpl string, source string) (string, error) {
+func (s *Server) renderTemplate(name, tpl, source string) (string, error) {
 	if templateDisallowedRegex.MatchString(tpl) {
 		return "", errHTTPBadRequestTemplateDisallowedFunctionCalls
 	}
@@ -1330,7 +1352,7 @@ func (s *Server) renderTemplate(tpl string, source string) (string, error) {
 	var buf bytes.Buffer
 	limitWriter := util.NewLimitWriter(util.NewTimeoutWriter(&buf, templateMaxExecutionTime), util.NewFixedLimiter(templateMaxOutputBytes))
 	if err := t.Execute(limitWriter, data); err != nil {
-		return "", errHTTPBadRequestTemplateExecuteFailed.Wrap("%s", err.Error())
+		return "", errHTTPBadRequestTemplateExecuteFailed.Wrap("template %s: %s", name, err.Error())
 	}
 	return strings.TrimSpace(strings.ReplaceAll(buf.String(), "\\n", "\n")), nil // replace any remaining "\n" (those outside of template curly braces) with newlines
 }

@@ -1681,6 +1681,10 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ### ntfy server v2.17.x (UNRELEASED)
 
+**Features:**
+
+* Support templating in the priority field ([#1426](https://github.com/binwiederhier/ntfy/issues/1426), thanks to [@seantomburke](https://github.com/seantomburke) for reporting)
+
 **Bug fixes + maintenance:**
 
 * Fix crash when commit string is shorter than 7 characters in non-GitHub-Action builds ([#1493](https://github.com/binwiederhier/ntfy/issues/1493), thanks to [@cyrinux](https://github.com/cyrinux) for reporting)

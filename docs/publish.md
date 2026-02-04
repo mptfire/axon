@@ -2643,7 +2643,7 @@ You can enable templating by setting the `X-Template` header (or its aliases `Te
   will use a custom template file from the template directory (defaults to `/etc/ntfy/templates`, can be overridden with `template-dir`).
   See [custom templates](#custom-templates) for more details.
 * **Inline templating**: Setting the `X-Template` header or query parameter to `yes` or `1` (e.g. `?template=yes`)
-  will enable inline templating, which means that the `message` and/or `title` will be parsed as a Go template.
+  will enable inline templating, which means that the `message`, `title`, and/or `priority` will be parsed as a Go template.
   See [inline templating](#inline-templating) for more details.
 
 To learn the basics of Go's templating language, please see [template syntax](#template-syntax).
@@ -2686,7 +2686,7 @@ and set the `X-Template` header or query parameter to the name of the template f
 For example, if you have a template file `/etc/ntfy/templates/myapp.yml`, you can set the header `X-Template: myapp` or
 the query parameter `?template=myapp` to use it.
 
-Template files must have the `.yml` (not: `.yaml`!) extension and must be formatted as YAML. They may contain `title` and `message` keys,
+Template files must have the `.yml` (not: `.yaml`!) extension and must be formatted as YAML. They may contain `title`, `message`, and `priority` keys,
 which are interpreted as Go templates.
 
 Here's an **example custom template**:
@@ -2704,6 +2704,11 @@ Here's an **example custom template**:
       Status: {{ .status }}
       Type: {{ .type | upper }} ({{ .percent }}%)
       Server: {{ .server }}
+    priority: |
+      {{ if gt .percent 90.0 }}5
+      {{ else if gt .percent 75.0 }}4
+      {{ else }}3
+      {{ end }}
     ```
 
 Once you have the template file in place, you can send the payload to your topic using the `X-Template`
@@ -2785,7 +2790,7 @@ Which will result in a notification that looks like this:
 
 ### Inline templating
 
-When `X-Template: yes` (aliases: `Template: yes`, `Tpl: yes`) or `?template=yes` is set, you can use Go templates in the `message` and `title` fields of your
+When `X-Template: yes` (aliases: `Template: yes`, `Tpl: yes`) or `?template=yes` is set, you can use Go templates in the `message`, `title`, and `priority` fields of your
 webhook payload. 
 
 Inline templates are most useful for templated one-off messages, or if you do not control the ntfy server (e.g., if you're using ntfy.sh).
@@ -2841,12 +2846,12 @@ Here's an **easier example with a shorter JSON payload**:
     curl \
         --globoff \
         -d '{"hostname": "phil-pc", "error": {"level": "severe", "desc": "Disk has run out of space"}}' \
-        'ntfy.sh/mytopic?tpl=yes&t={{.hostname}}:+A+{{.error.level}}+error+has+occurred&m=Error+message:+{{.error.desc}}'
+        'ntfy.sh/mytopic?tpl=yes&t={{.hostname}}:+A+{{.error.level}}+error+has+occurred&m=Error+message:+{{.error.desc}}&p={{if+eq+.error.level+"severe"}}5{{else}}3{{end}}'
     ```
 
 === "HTTP"
     ``` http
-    POST /mytopic?tpl=yes&t={{.hostname}}:+A+{{.error.level}}+error+has+occurred&m=Error+message:+{{.error.desc}} HTTP/1.1
+    POST /mytopic?tpl=yes&t={{.hostname}}:+A+{{.error.level}}+error+has+occurred&m=Error+message:+{{.error.desc}}&p={{if+eq+.error.level+"severe"}}5{{else}}3{{end}} HTTP/1.1
     Host: ntfy.sh
 
     {"hostname": "phil-pc", "error": {"level": "severe", "desc": "Disk has run out of space"}}
@@ -2854,7 +2859,7 @@ Here's an **easier example with a shorter JSON payload**:
 
 === "JavaScript"
     ``` javascript
-    fetch('https://ntfy.sh/mytopic?tpl=yes&t={{.hostname}}:+A+{{.error.level}}+error+has+occurred&m=Error+message:+{{.error.desc}}', {
+    fetch('https://ntfy.sh/mytopic?tpl=yes&t={{.hostname}}:+A+{{.error.level}}+error+has+occurred&m=Error+message:+{{.error.desc}}&p={{if+eq+.error.level+"severe"}}5{{else}}3{{end}}', {
         method: 'POST',
         body: '{"hostname": "phil-pc", "error": {"level": "severe", "desc": "Disk has run out of space"}}'
     })
@@ -2863,7 +2868,7 @@ Here's an **easier example with a shorter JSON payload**:
 === "Go"
     ``` go
     body := `{"hostname": "phil-pc", "error": {"level": "severe", "desc": "Disk has run out of space"}}`
-    uri := "https://ntfy.sh/mytopic?tpl=yes&t={{.hostname}}:+A+{{.error.level}}+error+has+occurred&m=Error+message:+{{.error.desc}}"
+    uri := `https://ntfy.sh/mytopic?tpl=yes&t={{.hostname}}:+A+{{.error.level}}+error+has+occurred&m=Error+message:+{{.error.desc}}&p={{if eq .error.level "severe"}}5{{else}}3{{end}}`
     req, _ := http.NewRequest("POST", uri, strings.NewReader(body))
     http.DefaultClient.Do(req)
     ```
@@ -2873,7 +2878,7 @@ Here's an **easier example with a shorter JSON payload**:
     ``` powershell
     $Request = @{
         Method = "POST"
-        URI = "https://ntfy.sh/mytopic?tpl=yes&t={{.hostname}}:+A+{{.error.level}}+error+has+occurred&m=Error+message:+{{.error.desc}}"
+        URI = 'https://ntfy.sh/mytopic?tpl=yes&t={{.hostname}}:+A+{{.error.level}}+error+has+occurred&m=Error+message:+{{.error.desc}}&p={{if+eq+.error.level+"severe"}}5{{else}}3{{end}}'
         Body = '{"hostname": "phil-pc", "error": {"level": "severe", "desc": "Disk has run out of space"}}'
         ContentType = "application/json"
     }
@@ -2883,14 +2888,14 @@ Here's an **easier example with a shorter JSON payload**:
 === "Python"
     ``` python
     requests.post(
-        "https://ntfy.sh/mytopic?tpl=yes&t={{.hostname}}:+A+{{.error.level}}+error+has+occurred&m=Error+message:+{{.error.desc}}",
+        'https://ntfy.sh/mytopic?tpl=yes&t={{.hostname}}:+A+{{.error.level}}+error+has+occurred&m=Error+message:+{{.error.desc}}&p={{if+eq+.error.level+"severe"}}5{{else}}3{{end}}',
         data='{"hostname": "phil-pc", "error": {"level": "severe", "desc": "Disk has run out of space"}}'
     )
     ```
 
 === "PHP"
     ``` php-inline
-    file_get_contents("https://ntfy.sh/mytopic?tpl=yes&t={{.hostname}}:+A+{{.error.level}}+error+has+occurred&m=Error+message:+{{.error.desc}}", false, stream_context_create([
+    file_get_contents('https://ntfy.sh/mytopic?tpl=yes&t={{.hostname}}:+A+{{.error.level}}+error+has+occurred&m=Error+message:+{{.error.desc}}&p={{if+eq+.error.level+"severe"}}5{{else}}3{{end}}', false, stream_context_create([
         'http' => [
             'method' => 'POST',
             'header' => "Content-Type: application/json",
@@ -2899,9 +2904,9 @@ Here's an **easier example with a shorter JSON payload**:
     ]));
     ```
 
-This example uses the `message`/`m` and `title`/`t` query parameters, but obviously this also works with the corresponding
-`Message`/`Title` headers. It will send a notification with a title `phil-pc: A severe error has occurred` and a message
-`Error message: Disk has run out of space`.
+This example uses the `message`/`m`, `title`/`t`, and `priority`/`p` query parameters, but obviously this also works with the 
+corresponding headers. It will send a notification with a title `phil-pc: A severe error has occurred`, a message
+`Error message: Disk has run out of space`, and priority `5` (max) if the level is "severe", or `3` (default) otherwise.
 
 ### Template syntax
 ntfy uses [Go templates](https://pkg.go.dev/text/template) for its templates, which is arguably one of the most powerful,
@@ -2920,7 +2925,7 @@ your templates there first ([example for Grafana alert](https://repeatit.io/#/sh
 ntfy supports a subset of the **[Sprig template functions](publish/template-functions.md)** (originally copied from [Sprig](https://github.com/Masterminds/sprig),
 thank you to the Sprig developers 🙏). This is useful for advanced message templating and for transforming the data provided through the JSON payload.
 
-Below are the functions that are available to use inside your message/title templates.
+Below are the functions that are available to use inside your message, title, and priority templates.
 
 * [String Functions](publish/template-functions.md#string-functions): `trim`, `trunc`, `substr`, `plural`, etc.
 * [String List Functions](publish/template-functions.md#string-list-functions): `splitList`, `sortAlpha`, etc.

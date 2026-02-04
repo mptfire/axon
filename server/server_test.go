@@ -3290,6 +3290,117 @@ func TestServer_MessageTemplate_Until100_000(t *testing.T) {
 	require.Contains(t, toHTTPError(t, response.Body.String()).Message, "too many iterations")
 }
 
+func TestServer_MessageTemplate_Priority(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	response := request(t, s, "PUT", "/mytopic", `{"priority":"5"}`, map[string]string{
+		"X-Message":  "Test message",
+		"X-Priority": "{{.priority}}",
+		"X-Template": "1",
+	})
+
+	require.Equal(t, 200, response.Code)
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, "Test message", m.Message)
+	require.Equal(t, 5, m.Priority)
+}
+
+func TestServer_MessageTemplate_Priority_Conditional(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+
+	// Test with error status -> priority 5
+	response := request(t, s, "PUT", "/mytopic", `{"status":"Error","message":"Something went wrong"}`, map[string]string{
+		"X-Message":  "Status: {{.status}} - {{.message}}",
+		"X-Priority": `{{if eq .status "Error"}}5{{else}}3{{end}}`,
+		"X-Template": "1",
+	})
+	require.Equal(t, 200, response.Code)
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, "Status: Error - Something went wrong", m.Message)
+	require.Equal(t, 5, m.Priority)
+
+	// Test with success status -> priority 3
+	response = request(t, s, "PUT", "/mytopic", `{"status":"Success","message":"All good"}`, map[string]string{
+		"X-Message":  "Status: {{.status}} - {{.message}}",
+		"X-Priority": `{{if eq .status "Error"}}5{{else}}3{{end}}`,
+		"X-Template": "1",
+	})
+	require.Equal(t, 200, response.Code)
+	m = toMessage(t, response.Body.String())
+	require.Equal(t, "Status: Success - All good", m.Message)
+	require.Equal(t, 3, m.Priority)
+}
+
+func TestServer_MessageTemplate_Priority_NamedValue(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	response := request(t, s, "PUT", "/mytopic", `{"severity":"high"}`, map[string]string{
+		"X-Message":  "Alert",
+		"X-Priority": "{{.severity}}",
+		"X-Template": "1",
+	})
+
+	require.Equal(t, 200, response.Code)
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, 4, m.Priority) // "high" = 4
+}
+
+func TestServer_MessageTemplate_Priority_Invalid(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	response := request(t, s, "PUT", "/mytopic", `{"priority":"invalid"}`, map[string]string{
+		"X-Message":  "Test message",
+		"X-Priority": "{{.priority}}",
+		"X-Template": "1",
+	})
+
+	require.Equal(t, 400, response.Code)
+	require.Equal(t, 40007, toHTTPError(t, response.Body.String()).Code)
+}
+
+func TestServer_MessageTemplate_Priority_QueryParam(t *testing.T) {
+	t.Parallel()
+	s := newTestServer(t, newTestConfig(t))
+	response := request(t, s, "PUT", "/mytopic?template=1&priority={{.priority}}", `{"priority":"max"}`, nil)
+
+	require.Equal(t, 200, response.Code)
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, 5, m.Priority) // "max" = 5
+}
+
+func TestServer_MessageTemplate_Priority_FromTemplateFile(t *testing.T) {
+	t.Parallel()
+	c := newTestConfig(t)
+	c.TemplateDir = t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(c.TemplateDir, "priority-test.yml"), []byte(`
+title: "{{.title}}"
+message: "{{.message}}"
+priority: '{{if eq .level "critical"}}5{{else if eq .level "warning"}}4{{else}}3{{end}}'
+`), 0644))
+	s := newTestServer(t, c)
+
+	// Test with critical level
+	response := request(t, s, "POST", "/mytopic?template=priority-test", `{"title":"Alert","message":"System down","level":"critical"}`, nil)
+	require.Equal(t, 200, response.Code)
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, "Alert", m.Title)
+	require.Equal(t, "System down", m.Message)
+	require.Equal(t, 5, m.Priority)
+
+	// Test with warning level
+	response = request(t, s, "POST", "/mytopic?template=priority-test", `{"title":"Alert","message":"High load","level":"warning"}`, nil)
+	require.Equal(t, 200, response.Code)
+	m = toMessage(t, response.Body.String())
+	require.Equal(t, 4, m.Priority)
+
+	// Test with info level
+	response = request(t, s, "POST", "/mytopic?template=priority-test", `{"title":"Alert","message":"All good","level":"info"}`, nil)
+	require.Equal(t, 200, response.Code)
+	m = toMessage(t, response.Body.String())
+	require.Equal(t, 3, m.Priority)
+}
+
 func TestServer_DeleteMessage(t *testing.T) {
 	t.Parallel()
 	s := newTestServer(t, newTestConfig(t))
