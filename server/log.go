@@ -1,14 +1,16 @@
 package server
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
+	"strings"
+	"unicode/utf8"
+
 	"github.com/emersion/go-smtp"
 	"github.com/gorilla/websocket"
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/util"
-	"net/http"
-	"strings"
-	"unicode/utf8"
 )
 
 // Log tags
@@ -83,7 +85,8 @@ func httpContext(r *http.Request) log.Context {
 }
 
 func websocketErrorContext(err error) log.Context {
-	if c, ok := err.(*websocket.CloseError); ok {
+	var c *websocket.CloseError
+	if errors.As(err, &c) {
 		return log.Context{
 			"error":      c.Error(),
 			"error_code": c.Code,

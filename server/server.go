@@ -434,8 +434,14 @@ func (s *Server) handleError(w http.ResponseWriter, r *http.Request, v *visitor,
 		} else {
 			ev.Info("WebSocket error: %s", err.Error())
 		}
-		w.WriteHeader(httpErr.HTTPCode)
-		return // Do not attempt to write any body to upgraded connection
+		// Write error response only if the connection was not hijacked yet. Bytes written to hijacked
+		// connections are WebSocket frames, not HTTP, and will cause "http: response.WriteHeader on hijacked
+		// connection" log spam.
+		var postUpgradeErr *errWebSocketPostUpgrade
+		if !errors.As(err, &postUpgradeErr) {
+			w.WriteHeader(httpErr.HTTPCode)
+		}
+		return
 	}
 	if isNormalError {
 		ev.Debug("Connection closed with HTTP %d (ntfy error %d)", httpErr.HTTPCode, httpErr.Code)
@@ -1637,7 +1643,10 @@ func (s *Server) handleSubscribeWS(w http.ResponseWriter, r *http.Request, v *vi
 		logvr(v, r).Tag(tagWebsocket).Err(err).Fields(websocketErrorContext(err)).Trace("WebSocket connection closed")
 		return nil // Normal closures are not errors; note: "1006 (abnormal closure)" is treated as normal, because people disconnect a lot
 	}
-	return err
+	if err != nil {
+		return &errWebSocketPostUpgrade{err}
+	}
+	return nil
 }
 
 func parseSubscribeParams(r *http.Request) (poll bool, since sinceMarker, scheduled bool, filters *queryFilter, err error) {

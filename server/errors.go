@@ -78,6 +78,21 @@ func (e errHTTP) clone() errHTTP {
 	}
 }
 
+// errWebSocketPostUpgrade is a wrapper error indicating an error occurred after the WebSocket
+// upgrade completed (i.e., the connection was hijacked). This is used to avoid calling
+// WriteHeader on hijacked connections, which causes log spam.
+type errWebSocketPostUpgrade struct {
+	err error
+}
+
+func (e *errWebSocketPostUpgrade) Error() string {
+	return e.err.Error()
+}
+
+func (e *errWebSocketPostUpgrade) Unwrap() error {
+	return e.err
+}
+
 var (
 	errHTTPBadRequest                                = &errHTTP{40000, http.StatusBadRequest, "invalid request", "", nil}
 	errHTTPBadRequestEmailDisabled                   = &errHTTP{40001, http.StatusBadRequest, "e-mail notifications are not enabled", "https://ntfy.sh/docs/config/#e-mail-notifications", nil}

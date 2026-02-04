@@ -7,6 +7,7 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -3759,4 +3760,62 @@ func waitForWithMaxWait(t *testing.T, maxWait time.Duration, f func() bool) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatalf("Function f did not succeed after %v: %v", maxWait, string(debug.Stack()))
+}
+
+// mockResponseWriter is a mock ResponseWriter for testing
+type mockResponseWriter struct {
+	header         http.Header
+	statusCode     int
+	body           []byte
+	writeHeaderHit bool
+}
+
+func newMockResponseWriter() *mockResponseWriter {
+	return &mockResponseWriter{
+		header: make(http.Header),
+	}
+}
+
+func (m *mockResponseWriter) Header() http.Header {
+	return m.header
+}
+
+func (m *mockResponseWriter) Write(b []byte) (int, error) {
+	m.body = append(m.body, b...)
+	return len(b), nil
+}
+
+func (m *mockResponseWriter) WriteHeader(statusCode int) {
+	m.statusCode = statusCode
+	m.writeHeaderHit = true
+}
+
+func TestServer_HandleError_SkipsWriteHeaderOnHijackedConnection(t *testing.T) {
+	// Test that handleError does not call WriteHeader for WebSocket errors wrapped
+	// with errWebSocketPostUpgrade (indicating the connection was hijacked)
+	s := newTestServer(t, newTestConfig(t))
+
+	// Create a WebSocket upgrade request
+	r, _ := http.NewRequest("GET", "/mytopic/ws", nil)
+	r.Header.Set("Upgrade", "websocket")
+	r.Header.Set("Connection", "Upgrade")
+	v := newVisitor(s.config, s.messageCache, s.userManager, netip.MustParseAddr("1.2.3.4"), nil)
+
+	// Test post-upgrade errors wrapped with errWebSocketPostUpgrade (should NOT call WriteHeader)
+	postUpgradeErr := &errWebSocketPostUpgrade{errors.New("websocket: close 1000 (normal)")}
+	mock := newMockResponseWriter()
+	s.handleError(mock, r, v, postUpgradeErr)
+	require.False(t, mock.writeHeaderHit, "WriteHeader should not be called for post-upgrade errors")
+
+	// Test pre-upgrade errors (should call WriteHeader)
+	preUpgradeErrors := []error{
+		errHTTPBadRequestWebSocketsUpgradeHeaderMissing,
+		errHTTPTooManyRequestsLimitSubscriptions,
+		errHTTPInternalError,
+	}
+	for _, err := range preUpgradeErrors {
+		mock := newMockResponseWriter()
+		s.handleError(mock, r, v, err)
+		require.True(t, mock.writeHeaderHit, "WriteHeader should be called for error: %s", err.Error())
+	}
 }
