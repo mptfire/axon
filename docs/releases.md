@@ -1683,6 +1683,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 **Bug fixes + maintenance:**
 
+* Fix crash when commit string is shorter than 7 characters in non-GitHub-Action builds ([#1493](https://github.com/binwiederhier/ntfy/issues/1493), thanks to [@cyrinux](https://github.com/cyrinux) for reporting)
 * Fix log spam from `http: response.WriteHeader on hijacked connection` for WebSocket errors ([#1362](https://github.com/binwiederhier/ntfy/issues/1362), thanks to [@bonfiresh](https://github.com/bonfiresh) for reporting)
 * Web: Fix Markdown message line height to match plain text (1.5 instead of 1.2) ([#1139](https://github.com/binwiederhier/ntfy/issues/1139), thanks to [@etfz](https://github.com/etfz) for reporting)
 * Web: Fix long lines (e.g. JSON) being truncated by adding horizontal scroll ([#1363](https://github.com/binwiederhier/ntfy/issues/1363), thanks to [@v3DJG6GL](https://github.com/v3DJG6GL) for reporting)
