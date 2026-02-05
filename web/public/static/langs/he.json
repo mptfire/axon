@@ -31,5 +31,22 @@
     "action_bar_clear_notifications": "לפנות את כל ההתראות",
     "action_bar_mute_notifications": "השתקת התראות",
     "action_bar_unmute_notifications": "ביטול השתקת התראות",
-    "action_bar_unsubscribe": "ביטול מינוי"
+    "action_bar_unsubscribe": "ביטול מינוי",
+    "notifications_list_item": "התראה",
+    "notifications_mark_read": "סימון כנקראה",
+    "notifications_delete": "מחיקה",
+    "notifications_copied_to_clipboard": "הועתקה ללוח הגזירים",
+    "notifications_tags": "תגיות",
+    "notifications_priority_x": "עדיפות {{priority}}",
+    "notifications_new_indicator": "התראה חדשה",
+    "notifications_attachment_copy_url_button": "העתקת כתובת",
+    "notifications_attachment_open_title": "מעבר אל {{url}}",
+    "notifications_attachment_open_button": "פתיחת צרופה",
+    "notifications_attachment_link_expires": "תוקף הקישור פג ב־{{date}}",
+    "notifications_attachment_link_expired": "תוקף קישור ההורדה פג",
+    "notifications_actions_failed_notification": "פעולה לא מוצלחת",
+    "notifications_none_for_topic_title": "לא קיבלת התראות בנושא הזה עדיין.",
+    "notifications_none_for_topic_description": "כדי לשלוח התראות לנושא הזה, צריך לשלוח PUT או POST לכתובת הנושא הזה.",
+    "notifications_none_for_any_title": "לא קיבלת התראות כלל.",
+    "notifications_no_subscriptions_title": "נראה שלא נרשמת למינויים עדיין."
 }
