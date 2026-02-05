@@ -39,6 +39,7 @@ import {
 import { formatMessage, formatTitle, isImage } from "../app/notificationUtils";
 import { LightboxBackdrop, Paragraph, VerticallyCenteredContainer } from "./styles";
 import subscriptionManager from "../app/SubscriptionManager";
+import notifier from "../app/Notifier";
 import priority1 from "../img/priority-1.svg";
 import priority2 from "../img/priority-2.svg";
 import priority4 from "../img/priority-4.svg";
@@ -508,6 +509,15 @@ const updateActionStatus = (notification, action, progress, error) => {
   });
 };
 
+const clearNotification = async (notification) => {
+  console.log(`[Notifications] Clearing notification ${notification.id}`);
+  const subscription = await subscriptionManager.get(notification.subscriptionId);
+  if (subscription) {
+    await notifier.cancel(subscription, notification);
+  }
+  await subscriptionManager.markNotificationRead(notification.id);
+};
+
 const performHttpAction = async (notification, action) => {
   console.log(`[Notifications] Performing HTTP user action`, action);
   try {
@@ -523,6 +533,9 @@ const performHttpAction = async (notification, action) => {
     const success = response.status >= 200 && response.status <= 299;
     if (success) {
       updateActionStatus(notification, action, ACTION_PROGRESS_SUCCESS, null);
+      if (action.clear) {
+        await clearNotification(notification);
+      }
     } else {
       updateActionStatus(notification, action, ACTION_PROGRESS_FAILED, `${action.label}: Unexpected response HTTP ${response.status}`);
     }
@@ -548,10 +561,16 @@ const UserAction = (props) => {
     );
   }
   if (action.action === "view") {
+    const handleClick = () => {
+      openUrl(action.url);
+      if (action.clear) {
+        clearNotification(notification);
+      }
+    };
     return (
       <Tooltip title={t("notifications_actions_open_url_title", { url: action.url })}>
         <Button
-          onClick={() => openUrl(action.url)}
+          onClick={handleClick}
           aria-label={t("notifications_actions_open_url_title", {
             url: action.url,
           })}

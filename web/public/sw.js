@@ -237,8 +237,24 @@ const handleClick = async (event) => {
     if (event.action) {
       const action = event.notification.data.message.actions.find(({ label }) => event.action === label);
 
+      // Helper to clear notification and mark as read
+      const clearNotification = async () => {
+        event.notification.close();
+        const { subscriptionId, message: msg } = event.notification.data;
+        const seqId = msg.sequence_id || msg.id;
+        if (subscriptionId && seqId) {
+          const db = await dbAsync();
+          await db.notifications.where({ subscriptionId, sequenceId: seqId }).modify({ new: 0 });
+          const badgeCount = await db.notifications.where({ new: 1 }).count();
+          self.navigator.setAppBadge?.(badgeCount);
+        }
+      };
+
       if (action.action === "view") {
         self.clients.openWindow(action.url);
+        if (action.clear) {
+          await clearNotification();
+        }
       } else if (action.action === "http") {
         try {
           const response = await fetch(action.url, {
@@ -250,6 +266,11 @@ const handleClick = async (event) => {
           if (!response.ok) {
             throw new Error(`HTTP ${response.status} ${response.statusText}`);
           }
+
+          // Only clear on success
+          if (action.clear) {
+            await clearNotification();
+          }
         } catch (e) {
           console.error("[ServiceWorker] Error performing http action", e);
           self.registration.showNotification(`${t("notifications_actions_failed_notification")}: ${action.label} (${action.action})`, {
@@ -258,10 +279,6 @@ const handleClick = async (event) => {
             badge,
           });
         }
-      }
-
-      if (action.clear) {
-        event.notification.close();
       }
     } else if (message.click) {
       self.clients.openWindow(message.click);

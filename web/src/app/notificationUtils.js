@@ -60,6 +60,7 @@ export const toNotificationParams = ({ message, defaultTitle, topicRoute, baseUr
   const image = isImage(message.attachment) ? message.attachment.url : undefined;
   const sequenceId = message.sequence_id || message.id;
   const tag = notificationTag(baseUrl, topic, sequenceId);
+  const subscriptionId = `${baseUrl}/${topic}`;
 
   // https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API
   return [
@@ -75,6 +76,7 @@ export const toNotificationParams = ({ message, defaultTitle, topicRoute, baseUr
       silent: false,
       // This is used by the notification onclick event
       data: {
+        subscriptionId,
         message,
         topicRoute,
       },
