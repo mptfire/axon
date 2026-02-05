@@ -5,7 +5,7 @@ on GitHub ([Android](https://github.com/binwiederhier/ntfy-android), [iOS](https
 contribute, or [build your own](../develop.md).
 
 <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy"><img width="170" src="../../static/img/badge-googleplay.png"></a>
-<a href="https://f-droid.org/en/packages/io.heckel.ntfy/"><img width="170" src="../../static/img/badge-fdroid.png"></a>
+<a href="https://f-droid.org/en/packages/io.heckel.ntfy/"><img width="170" src="../../static/img/badge-fdroid.svg"></a>
 <a href="https://apps.apple.com/us/app/ntfy/id1625396347"><img width="150" src="../../static/img/badge-appstore.png"></a>
 
 You can get the Android app from [Google Play](https://play.google.com/store/apps/details?id=io.heckel.ntfy), 

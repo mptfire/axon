@@ -1698,3 +1698,4 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 * Refactor: Use `slices.Contains` from stdlib to simplify code ([#1406](https://github.com/binwiederhier/ntfy/pull/1406), thanks to [@tanhuaan](https://github.com/tanhuaan))
 * Docs: Remove obsolete `version` field from docker-compose examples ([#1333](https://github.com/binwiederhier/ntfy/issues/1333), thanks to [@seals187](https://github.com/seals187) for reporting and [@cyb3rko](https://github.com/cyb3rko) for fixing)
 * Docs: Fix Kustomize config in installation docs ([#1367](https://github.com/binwiederhier/ntfy/issues/1367), thanks to [@toby-griffiths](https://github.com/toby-griffiths))
+* Docs: Use SVG F-Droid badge and add app store badges to README ([#1170](https://github.com/binwiederhier/ntfy/issues/1170), thanks to [@PanderMusubi](https://github.com/PanderMusubi) for reporting)
