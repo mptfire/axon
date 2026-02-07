@@ -71,7 +71,7 @@ deb/rpm packages.
     The old repository [archive.heckel.io](https://archive.heckel.io/apt) is still available for now, but will likely
     go away soon. I suspect I will phase it out some time in early 2026.
 
-Installation via Debian/Ubuntu repository (fingerprint `55BA 774A 6F5E E674 31E4  6B7C CFDB 962D 4F1E C4AF`):
+Installation via Debian/Ubuntu repository (fingerprint `55BA 774A 6F5E E674 31E4  B6B7 CFDB 962D 4F1E C4AF`):
 
 === "x86_64/amd64"
     ```bash
