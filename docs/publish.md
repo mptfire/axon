@@ -1134,6 +1134,7 @@ As of today, the following actions are supported:
 * [`broadcast`](#send-android-broadcast): Sends an [Android broadcast](https://developer.android.com/guide/components/broadcasts) intent
   when the action button is tapped (only supported on Android)
 * [`http`](#send-http-request): Sends HTTP POST/GET/PUT request when the action button is tapped
+* [`copy`](#copy-to-clipboard): Copies a given value to the clipboard when the action button is tapped
 
 Here's an example of what a notification with actions can look like:
 
@@ -1164,9 +1165,12 @@ To define actions using the `X-Actions` header (or any of its aliases: `Actions`
 Multiple actions are separated by a semicolon (`;`), and key/value pairs are separated by commas (`,`). Values may be 
 quoted with double quotes (`"`) or single quotes (`'`) if the value itself contains commas or semicolons. 
 
-The `action=` and `label=` prefix are optional in all actions, and the `url=` prefix is optional in the `view` and 
-`http` action. The only limitation of this format is that depending on your language/library, UTF-8 characters may not 
-work. If they don't, use the [JSON array format](#using-a-json-array) instead.
+Each action type has a short format where some key prefixes can be omitted:
+
+* [`view`](#open-websiteapp): `view, <label>, <url>[, clear=true]`
+* [`broadcast`](#send-android-broadcast):`broadcast, <label>[, extras.<param>=<value>][, intent=<intent>][, clear=true]`
+* [`http`](#send-http-request): `http, <label>, <url>[, method=<method>][, headers.<header>=<value>][, body=<body>][, clear=true]`
+* [`copy`](#copy-to-clipboard): `copy, <label>, <value>[, clear=true]`
 
 As an example, here's how you can create the above notification using this format. Refer to the [`view` action](#open-websiteapp) and 
 [`http` action](#send-http-request) section for details on the specific actions:
@@ -1466,8 +1470,8 @@ Alternatively, the same actions can be defined as **JSON array**, if the notific
     ```
 
 The required/optional fields for each action depend on the type of the action itself. Please refer to 
-[`view` action](#open-websiteapp), [`broadcast` action](#send-android-broadcast), and [`http` action](#send-http-request) 
-for details.
+[`view` action](#open-websiteapp), [`broadcast` action](#send-android-broadcast), [`http` action](#send-http-request),
+and [`copy` action](#copy-to-clipboard) for details.
 
 ### Open website/app
 _Supported on:_ :material-android: :material-apple: :material-firefox:
@@ -1709,6 +1713,9 @@ And the same example using [JSON publishing](#publish-as-json):
         ]
     ]));
     ```
+
+The short format for the `view` action is `view, <label>, <url>` (e.g. `view, Open Google, https://google.com`),
+but you can always just use the `<key>=<value>` notation as well (e.g. `action=view, url=https://google.com, label=Open Google`).
 
 The `view` action supports the following fields:
 
@@ -1985,6 +1992,9 @@ And the same example using [JSON publishing](#publish-as-json):
         ]
     ]));
     ```
+
+The short format for the `broadcast` action is `broadcast, <label>, <url>` (e.g. `broadcast, Take picture, extras.cmd=pic`),
+but you can always just use the `<key>=<value>` notation as well (e.g. `action=broadcast, label=Take picture, extras.cmd=pic`).
 
 The `broadcast` action supports the following fields:
 
@@ -2273,6 +2283,9 @@ And the same example using [JSON publishing](#publish-as-json):
     ]));
     ```
 
+The short format for the `http` action is `http, <label>, <url>` (e.g. `http, Close door, https://api.mygarage.lan/close`),
+but you can always just use the `<key>=<value>` notation as well (e.g. `action=http, label=Close door, url=https://api.mygarage.lan/close`).
+
 The `http` action supports the following fields:
 
 | Field     | Required | Type               | Default   | Example                   | Description                                                                                                                                             |
@@ -2284,6 +2297,249 @@ The `http` action supports the following fields:
 | `headers` | -️       | *map of strings*   | -         | *see above*               | HTTP headers to pass in request. When publishing as JSON, headers are passed as a map. When the simple format is used, use `headers.<header1>=<value>`. |
 | `body`    | -️       | *string*           | *empty*   | `some body, somebody?`    | HTTP body                                                                                                                                               |
 | `clear`   | -️       | *boolean*          | `false`   | `true`                    | Clear notification after HTTP request succeeds. If the request fails, the notification is not cleared.                                                  |
+
+### Copy to clipboard
+_Supported on:_ :material-android: :material-firefox:
+
+The `copy` action **copies a given value to the clipboard when the action button is tapped**. This is useful for 
+one-time passcodes, tokens, or any other value you want to quickly copy without opening the full notification.
+
+Here's an example using the [`X-Actions` header](#using-a-header):
+
+=== "Command line (curl)"
+    ```
+    curl \
+        -d "Your one-time passcode is 123456" \
+        -H "Actions: copy, Copy code, 123456" \
+        ntfy.sh/myhome
+    ```
+
+=== "ntfy CLI"
+    ```
+    ntfy publish \
+        --actions="copy, Copy code, 123456" \
+        myhome \
+        "Your one-time passcode is 123456"
+    ```
+
+=== "HTTP"
+    ``` http
+    POST /myhome HTTP/1.1
+    Host: ntfy.sh
+    Actions: copy, Copy code, 123456
+
+    Your one-time passcode is 123456
+    ```
+
+=== "JavaScript"
+    ``` javascript
+    fetch('https://ntfy.sh/myhome', {
+        method: 'POST',
+        body: 'Your one-time passcode is 123456',
+        headers: { 
+            'Actions': 'copy, Copy code, 123456' 
+        }
+    })
+    ```
+
+=== "Go"
+    ``` go
+    req, _ := http.NewRequest("POST", "https://ntfy.sh/myhome", strings.NewReader("Your one-time passcode is 123456"))
+    req.Header.Set("Actions", "copy, Copy code, 123456")
+    http.DefaultClient.Do(req)
+    ```
+
+=== "PowerShell"
+    ``` powershell
+    $Request = @{
+      Method = "POST"
+      URI = "https://ntfy.sh/myhome"
+      Headers = @{
+        Actions = "copy, Copy code, 123456"
+      }
+      Body = "Your one-time passcode is 123456"
+    }
+    Invoke-RestMethod @Request
+    ```
+
+=== "Python"
+    ``` python
+    requests.post("https://ntfy.sh/myhome",
+        data="Your one-time passcode is 123456",
+        headers={ "Actions": "copy, Copy code, 123456" })
+    ```
+
+=== "PHP"
+    ``` php-inline
+    file_get_contents('https://ntfy.sh/myhome', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' =>
+                "Content-Type: text/plain\r\n" .
+                "Actions: copy, Copy code, 123456",
+            'content' => 'Your one-time passcode is 123456'
+        ]
+    ]));
+    ```
+
+And the same example using [JSON publishing](#publish-as-json):
+
+=== "Command line (curl)"
+    ```
+    curl ntfy.sh \
+      -d '{
+        "topic": "myhome",
+        "message": "Your one-time passcode is 123456",
+        "actions": [
+          {
+            "action": "copy",
+            "label": "Copy code",
+            "value": "123456"
+          }
+        ]
+      }'
+    ```
+
+=== "ntfy CLI"
+    ```
+    ntfy publish \
+        --actions '[
+            {
+                "action": "copy",
+                "label": "Copy code",
+                "value": "123456"
+            }
+        ]' \
+        myhome \
+        "Your one-time passcode is 123456"
+    ```
+
+=== "HTTP"
+    ``` http
+    POST / HTTP/1.1
+    Host: ntfy.sh
+
+    {
+        "topic": "myhome",
+        "message": "Your one-time passcode is 123456",
+        "actions": [
+          {
+            "action": "copy",
+            "label": "Copy code",
+            "value": "123456"
+          }
+        ]
+    }
+    ```
+
+=== "JavaScript"
+    ``` javascript
+    fetch('https://ntfy.sh', {
+        method: 'POST',
+        body: JSON.stringify({
+            topic: "myhome",
+            message: "Your one-time passcode is 123456",
+            actions: [
+                {
+                    action: "copy",
+                    label: "Copy code",
+                    value: "123456"
+                }
+            ]
+        })
+    })
+    ```
+
+=== "Go"
+    ``` go
+    // You should probably use json.Marshal() instead and make a proper struct,
+    // but for the sake of the example, this is easier.
+    
+    body := `{
+        "topic": "myhome",
+        "message": "Your one-time passcode is 123456",
+        "actions": [
+          {
+            "action": "copy",
+            "label": "Copy code",
+            "value": "123456"
+          }
+        ]
+    }`
+    req, _ := http.NewRequest("POST", "https://ntfy.sh/", strings.NewReader(body))
+    http.DefaultClient.Do(req)
+    ```
+
+=== "PowerShell"
+    ``` powershell
+    $Request = @{
+      Method = "POST"
+      URI = "https://ntfy.sh"
+      Body = ConvertTo-JSON @{
+        Topic = "myhome"
+        Message = "Your one-time passcode is 123456"
+        Actions = @(
+          @{
+            Action = "copy"
+            Label  = "Copy code"
+            Value  = "123456"
+          }
+        )
+      }
+      ContentType = "application/json"
+    }
+    Invoke-RestMethod @Request
+    ```
+
+=== "Python"
+    ``` python
+    requests.post("https://ntfy.sh/",
+        data=json.dumps({
+            "topic": "myhome",
+            "message": "Your one-time passcode is 123456",
+            "actions": [
+                {
+                    "action": "copy",
+                    "label": "Copy code",
+                    "value": "123456"
+                }
+            ]
+        })
+    )
+    ```
+
+=== "PHP"
+    ``` php-inline
+    file_get_contents('https://ntfy.sh/', false, stream_context_create([
+        'http' => [
+            'method' => 'POST',
+            'header' => "Content-Type: application/json",
+            'content' => json_encode([
+                "topic": "myhome",
+                "message": "Your one-time passcode is 123456",
+                "actions": [
+                    [
+                        "action": "copy",
+                        "label": "Copy code",
+                        "value": "123456"
+                    ]
+                ]
+            ])
+        ]
+    ]));
+    ```
+
+The short format for the `copy` action is `copy, <label>, <value>` (e.g. `copy, Copy code, 123456`),
+but you can always just use the `<key>=<value>` notation as well (e.g. `action=copy, label=Copy code, value=123456`).
+
+The `copy` action supports the following fields:
+
+| Field    | Required | Type      | Default | Example         | Description                                      |
+|----------|----------|-----------|---------|-----------------|--------------------------------------------------|
+| `action` | ✔️       | *string*  | -       | `copy`          | Action type (**must be `copy`**)                 |
+| `label`  | ✔️       | *string*  | -       | `Copy code`     | Label of the action button in the notification   |
+| `value`  | ✔️       | *string*  | -       | `123456`        | Value to copy to the clipboard                   |
+| `clear`  | -️       | *boolean* | `false` | `true`          | Clear notification after action button is tapped |
 
 ## Scheduled delivery
 _Supported on:_ :material-android: :material-apple: :material-firefox:
