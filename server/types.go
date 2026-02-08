@@ -319,6 +319,12 @@ type apiHealthResponse struct {
 	Healthy bool `json:"healthy"`
 }
 
+type apiVersionResponse struct {
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+	Date    string `json:"date"`
+}
+
 type apiStatsResponse struct {
 	Messages     int64   `json:"messages"`
 	MessagesRate float64 `json:"messages_rate"` // Average number of messages per second

@@ -1686,6 +1686,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 **Features:**
 
 * Server: Support templating in the priority field ([#1426](https://github.com/binwiederhier/ntfy/issues/1426), thanks to [@seantomburke](https://github.com/seantomburke) for reporting)
+* Server: Add admin-only `GET /v1/version` endpoint returning server version, build commit, and date ([#1599](https://github.com/binwiederhier/ntfy/issues/1599), thanks to [@crivchri](https://github.com/crivchri) for reporting)
 * Web: Show red notification dot on favicon when there are unread messages ([#1017](https://github.com/binwiederhier/ntfy/issues/1017), thanks to [@ad-si](https://github.com/ad-si) for reporting)
 
 **Bug fixes + maintenance:**
