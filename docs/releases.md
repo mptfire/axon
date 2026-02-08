@@ -1685,6 +1685,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 **Features:**
 
+* Web: Show red notification dot on favicon when there are unread messages ([#1017](https://github.com/binwiederhier/ntfy/issues/1017), thanks to [@ad-si](https://github.com/ad-si) for reporting)
 * Support templating in the priority field ([#1426](https://github.com/binwiederhier/ntfy/issues/1426), thanks to [@seantomburke](https://github.com/seantomburke) for reporting)
 
 **Bug fixes + maintenance:**
