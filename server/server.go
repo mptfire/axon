@@ -1463,7 +1463,8 @@ func (s *Server) handleSubscribeHTTP(w http.ResponseWriter, r *http.Request, v *
 		// This blocks until any in-flight sub() call finishes writing/flushing the response writer,
 		// then marks the connection as closed so future sub() calls are no-ops. This prevents a panic
 		// from writing to a response writer that has been cleaned up after the handler returns.
-		// See https://github.com/binwiederhier/ntfy/issues/338#issuecomment-1163425889.
+		// See https://github.com/binwiederhier/ntfy/issues/338#issuecomment-1163425889
+		// and https://github.com/binwiederhier/ntfy/pull/1598.
 		wlock.Lock()
 		closed = true
 		wlock.Unlock()
