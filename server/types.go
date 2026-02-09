@@ -86,7 +86,7 @@ type attachment struct {
 
 type action struct {
 	ID      string            `json:"id"`
-	Action  string            `json:"action"`            // "view", "broadcast", or "http"
+	Action  string            `json:"action"`            // "view", "broadcast", "http", or "copy"
 	Label   string            `json:"label"`             // action button label
 	Clear   bool              `json:"clear"`             // clear notification after successful execution
 	URL     string            `json:"url,omitempty"`     // used in "view" and "http" actions
@@ -95,6 +95,7 @@ type action struct {
 	Body    string            `json:"body,omitempty"`    // used in "http" action
 	Intent  string            `json:"intent,omitempty"`  // used in "broadcast" action
 	Extras  map[string]string `json:"extras,omitempty"`  // used in "broadcast" action
+	Value   string            `json:"value,omitempty"`   // used in "copy" action
 }
 
 func newAction() *action {

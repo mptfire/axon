@@ -36,6 +36,7 @@ import {
   topicUrl,
   unmatchedTags,
 } from "../app/utils";
+import { ACTION_BROADCAST, ACTION_COPY, ACTION_HTTP, ACTION_VIEW } from "../app/actions";
 import { formatMessage, formatTitle, isImage } from "../app/notificationUtils";
 import { LightboxBackdrop, Paragraph, VerticallyCenteredContainer } from "./styles";
 import subscriptionManager from "../app/SubscriptionManager";
@@ -345,7 +346,7 @@ const NotificationItem = (props) => {
               </Tooltip>
             </>
           )}
-          {hasUserActions && <UserActions notification={notification} />}
+          {hasUserActions && <UserActions notification={notification} onShowSnack={props.onShowSnack} />}
         </CardActions>
       )}
     </Card>
@@ -487,7 +488,7 @@ const Image = (props) => {
 const UserActions = (props) => (
   <>
     {props.notification.actions.map((action) => (
-      <UserAction key={action.id} notification={props.notification} action={action} />
+      <UserAction key={action.id} notification={props.notification} action={action} onShowSnack={props.onShowSnack} />
     ))}
   </>
 );
@@ -549,7 +550,7 @@ const UserAction = (props) => {
   const { t } = useTranslation();
   const { notification } = props;
   const { action } = props;
-  if (action.action === "broadcast") {
+  if (action.action === ACTION_BROADCAST) {
     return (
       <Tooltip title={t("notifications_actions_not_supported")}>
         <span>
@@ -560,7 +561,7 @@ const UserAction = (props) => {
       </Tooltip>
     );
   }
-  if (action.action === "view") {
+  if (action.action === ACTION_VIEW) {
     const handleClick = () => {
       openUrl(action.url);
       if (action.clear) {
@@ -580,7 +581,7 @@ const UserAction = (props) => {
       </Tooltip>
     );
   }
-  if (action.action === "http") {
+  if (action.action === ACTION_HTTP) {
     const method = action.method ?? "POST";
     const label = action.label + (ACTION_LABEL_SUFFIX[action.progress ?? 0] ?? "");
     return (
@@ -598,6 +599,22 @@ const UserAction = (props) => {
           })}
         >
           {label}
+        </Button>
+      </Tooltip>
+    );
+  }
+  if (action.action === ACTION_COPY) {
+    const handleClick = async () => {
+      await copyToClipboard(action.value);
+      props.onShowSnack();
+      if (action.clear) {
+        await clearNotification(notification);
+      }
+    };
+    return (
+      <Tooltip title={t("common_copy_to_clipboard")}>
+        <Button onClick={handleClick} aria-label={t("common_copy_to_clipboard")}>
+          {action.label}
         </Button>
       </Tooltip>
     );

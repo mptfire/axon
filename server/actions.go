@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"heckel.io/ntfy/v2/util"
 	"regexp"
 	"strings"
 	"unicode/utf8"
+
+	"heckel.io/ntfy/v2/util"
 )
 
 const (
@@ -20,12 +21,14 @@ const (
 	actionView      = "view"
 	actionBroadcast = "broadcast"
 	actionHTTP      = "http"
+	actionCopy      = "copy"
 )
 
 var (
-	actionsAll      = []string{actionView, actionBroadcast, actionHTTP}
-	actionsWithURL  = []string{actionView, actionHTTP}
-	actionsKeyRegex = regexp.MustCompile(`^([-.\w]+)\s*=\s*`)
+	actionsAll       = []string{actionView, actionBroadcast, actionHTTP, actionCopy}
+	actionsWithURL   = []string{actionView, actionHTTP} // Must be distinct from actionsWithValue, see populateAction()
+	actionsWithValue = []string{actionCopy}             // Must be distinct from actionsWithURL, see populateAction()
+	actionsKeyRegex  = regexp.MustCompile(`^([-.\w]+)\s*=\s*`)
 )
 
 type actionParser struct {
@@ -61,11 +64,13 @@ func parseActions(s string) (actions []*action, err error) {
 	}
 	for _, action := range actions {
 		if !util.Contains(actionsAll, action.Action) {
-			return nil, fmt.Errorf("parameter 'action' cannot be '%s', valid values are 'view', 'broadcast' and 'http'", action.Action)
+			return nil, fmt.Errorf("parameter 'action' cannot be '%s', valid values are 'view', 'broadcast', 'http' and 'copy'", action.Action)
 		} else if action.Label == "" {
 			return nil, fmt.Errorf("parameter 'label' is required")
 		} else if util.Contains(actionsWithURL, action.Action) && action.URL == "" {
 			return nil, fmt.Errorf("parameter 'url' is required for action '%s'", action.Action)
+		} else if util.Contains(actionsWithValue, action.Action) && action.Value == "" {
+			return nil, fmt.Errorf("parameter 'value' is required for action '%s'", action.Action)
 		} else if action.Action == actionHTTP && util.Contains([]string{"GET", "HEAD"}, action.Method) && action.Body != "" {
 			return nil, fmt.Errorf("parameter 'body' cannot be set if method is %s", action.Method)
 		}
@@ -158,6 +163,8 @@ func populateAction(newAction *action, section int, key, value string) error {
 		key = "label"
 	} else if key == "" && section == 2 && util.Contains(actionsWithURL, newAction.Action) {
 		key = "url"
+	} else if key == "" && section == 2 && util.Contains(actionsWithValue, newAction.Action) {
+		key = "value"
 	}
 
 	// Validate
@@ -188,6 +195,8 @@ func populateAction(newAction *action, section int, key, value string) error {
 			newAction.Method = value
 		case "body":
 			newAction.Body = value
+		case "value":
+			newAction.Value = value
 		case "intent":
 			newAction.Intent = value
 		default:

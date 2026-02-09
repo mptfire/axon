@@ -12,6 +12,15 @@ const registerSW = () => {
     return;
   }
 
+  // Listen for messages from the service worker (e.g., "copy" action)
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data?.type === "copy" && event.data?.value) {
+      navigator.clipboard?.writeText(event.data.value).catch((e) => {
+        console.error("[ServiceWorker] Failed to copy to clipboard", e);
+      });
+    }
+  });
+
   viteRegisterSW({
     onRegisteredSW(swUrl, registration) {
       console.log("[ServiceWorker] Registered:", { swUrl, registration });
