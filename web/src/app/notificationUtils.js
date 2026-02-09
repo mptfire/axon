@@ -2,7 +2,7 @@
 // and cannot be used in the service worker
 
 import emojisMapped from "./emojisMapped";
-import { ACTION_COPY, ACTION_HTTP, ACTION_VIEW } from "./actions";
+import { ACTION_HTTP, ACTION_VIEW } from "./actions";
 
 const toEmojis = (tags) => {
   if (!tags) return [];
@@ -82,7 +82,7 @@ export const toNotificationParams = ({ message, defaultTitle, topicRoute, baseUr
         topicRoute,
       },
       actions: message.actions
-        ?.filter(({ action }) => action === ACTION_VIEW || action === ACTION_HTTP || action === ACTION_COPY)
+        ?.filter(({ action }) => action === ACTION_VIEW || action === ACTION_HTTP)
         .map(({ label }) => ({
           action: label,
           title: label,

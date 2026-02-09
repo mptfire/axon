@@ -2304,6 +2304,11 @@ _Supported on:_ :material-android: :material-firefox:
 The `copy` action **copies a given value to the clipboard when the action button is tapped**. This is useful for 
 one-time passcodes, tokens, or any other value you want to quickly copy without opening the full notification.
 
+!!! info
+    The copy action button is only shown in the web app and Android app notification list, **not** in browser desktop
+    notifications. This is because browsers do not allow clipboard access from notification actions without direct 
+    user interaction with the page.
+
 Here's an example using the [`X-Actions` header](#using-a-header):
 
 === "Command line (curl)"
