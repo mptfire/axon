@@ -6,11 +6,44 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 | Component        | Version | Release date |
 |------------------|---------|--------------|
-| ntfy server      | v2.16.0 | Jan 19, 2026 |
+| ntfy server      | v2.17.0 | Feb 8, 2026  |
 | ntfy Android app | v1.22.2 | Jan 25, 2026 |
 | ntfy iOS app     | v1.3    | Nov 26, 2023 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+## ntfy server v2.17.0
+Released February 8, 2026
+
+This release adds support for templating in the priority field, a new "copy" action button to copy values to the clipboard,
+a red notification dot on the favicon for unread messages, and an admin-only version endpoint. It also includes several
+crash fixes, web app improvements, and documentation updates.
+
+❤️ If you like ntfy, **please consider sponsoring me** via [GitHub Sponsors](https://github.com/sponsors/binwiederhier), [Liberapay](https://en.liberapay.com/ntfy/), Bitcoin (`1626wjrw3uWk9adyjCfYwafw4sQWujyjn8`), 
+or by buying a [paid plan via the web app](https://ntfy.sh/app). ntfy will always remain open source.
+
+**Features:**
+
+* Server: Support templating in the priority field ([#1426](https://github.com/binwiederhier/ntfy/issues/1426), thanks to [@seantomburke](https://github.com/seantomburke) for reporting)
+* Server: Add admin-only `GET /v1/version` endpoint returning server version, build commit, and date ([#1599](https://github.com/binwiederhier/ntfy/issues/1599), thanks to [@crivchri](https://github.com/crivchri) for reporting)
+* Server/Web: [Support "copy" action](publish.md#copy-to-clipboard) button to copy a value to the clipboard ([#1364](https://github.com/binwiederhier/ntfy/issues/1364), thanks to [@SudoWatson](https://github.com/SudoWatson) for reporting)
+* Web: Show red notification dot on favicon when there are unread messages ([#1017](https://github.com/binwiederhier/ntfy/issues/1017), thanks to [@ad-si](https://github.com/ad-si) for reporting)
+
+**Bug fixes + maintenance:**
+
+* Server: Fix crash when commit string is shorter than 7 characters in non-GitHub-Action builds ([#1493](https://github.com/binwiederhier/ntfy/issues/1493), thanks to [@cyrinux](https://github.com/cyrinux) for reporting)
+* Server: Fix server crash (nil pointer panic) when subscriber disconnects during publish ([#1598](https://github.com/binwiederhier/ntfy/pull/1598))
+* Server: Fix log spam from `http: response.WriteHeader on hijacked connection` for WebSocket errors ([#1362](https://github.com/binwiederhier/ntfy/issues/1362), thanks to [@bonfiresh](https://github.com/bonfiresh) for reporting)
+* Server: Use `slices.Contains` from stdlib to simplify code ([#1406](https://github.com/binwiederhier/ntfy/pull/1406), thanks to [@tanhuaan](https://github.com/tanhuaan))
+* Web: Fix `clear=true` on action buttons not clearing the notification ([#1029](https://github.com/binwiederhier/ntfy/issues/1029), thanks to [@ElFishi](https://github.com/ElFishi) for reporting)
+* Web: Fix Markdown message line height to match plain text (1.5 instead of 1.2) ([#1139](https://github.com/binwiederhier/ntfy/issues/1139), thanks to [@etfz](https://github.com/etfz) for reporting)
+* Web: Fix long lines (e.g. JSON) being truncated by adding horizontal scroll ([#1363](https://github.com/binwiederhier/ntfy/issues/1363), thanks to [@v3DJG6GL](https://github.com/v3DJG6GL) for reporting)
+* Web: Fix Windows notification icon being cut off ([#884](https://github.com/binwiederhier/ntfy/issues/884), thanks to [@ZhangTianrong](https://github.com/ZhangTianrong) for reporting)
+* Web: Use full URL in curl example on empty topic pages ([#1435](https://github.com/binwiederhier/ntfy/issues/1435), [#1535](https://github.com/binwiederhier/ntfy/pull/1535), thanks to [@elmatadoor](https://github.com/elmatadoor) for reporting and [@jjasghar](https://github.com/jjasghar) for the PR)
+* Web: Add validation feedback for service URL when adding user ([#1566](https://github.com/binwiederhier/ntfy/issues/1566), thanks to [@jermanuts](https://github.com/jermanuts))
+* Docs: Remove obsolete `version` field from docker-compose examples ([#1333](https://github.com/binwiederhier/ntfy/issues/1333), thanks to [@seals187](https://github.com/seals187) for reporting and [@cyb3rko](https://github.com/cyb3rko) for fixing)
+* Docs: Fix Kustomize config in installation docs ([#1367](https://github.com/binwiederhier/ntfy/issues/1367), thanks to [@toby-griffiths](https://github.com/toby-griffiths))
+* Docs: Use SVG F-Droid badge and add app store badges to README ([#1170](https://github.com/binwiederhier/ntfy/issues/1170), thanks to [@PanderMusubi](https://github.com/PanderMusubi) for reporting)
 
 ## ntfy Android app v1.22.2
 Released January 20, 2026
@@ -1681,28 +1714,3 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 * Fix crash when default server URL is missing scheme by auto-prepending `https://` ([#1582](https://github.com/binwiederhier/ntfy/issues/1582), thanks to [@hard-zero1](https://github.com/hard-zero1))
 * Fix notification timestamp to use original send time instead of receive time ([#1112](https://github.com/binwiederhier/ntfy/issues/1112), thanks to [@voruti](https://github.com/voruti) for reporting)
 * Fix notifications being missed after service restart by using persisted lastNotificationId ([#1591](https://github.com/binwiederhier/ntfy/issues/1591), thanks to @Epifeny for reporting)
-
-### ntfy server v2.17.x (UNRELEASED)
-
-**Features:**
-
-* Server: Support templating in the priority field ([#1426](https://github.com/binwiederhier/ntfy/issues/1426), thanks to [@seantomburke](https://github.com/seantomburke) for reporting)
-* Server: Add admin-only `GET /v1/version` endpoint returning server version, build commit, and date ([#1599](https://github.com/binwiederhier/ntfy/issues/1599), thanks to [@crivchri](https://github.com/crivchri) for reporting)
-* Server/Web: Support "copy" action button to copy a value to the clipboard ([#1364](https://github.com/binwiederhier/ntfy/issues/1364), thanks to [@SudoWatson](https://github.com/SudoWatson) for reporting)
-* Web: Show red notification dot on favicon when there are unread messages ([#1017](https://github.com/binwiederhier/ntfy/issues/1017), thanks to [@ad-si](https://github.com/ad-si) for reporting)
-
-**Bug fixes + maintenance:**
-
-* Server: Fix crash when commit string is shorter than 7 characters in non-GitHub-Action builds ([#1493](https://github.com/binwiederhier/ntfy/issues/1493), thanks to [@cyrinux](https://github.com/cyrinux) for reporting)
-* Server: Fix server crash (nil pointer panic) when subscriber disconnects during publish ([#1598](https://github.com/binwiederhier/ntfy/pull/1598))
-* Server: Fix log spam from `http: response.WriteHeader on hijacked connection` for WebSocket errors ([#1362](https://github.com/binwiederhier/ntfy/issues/1362), thanks to [@bonfiresh](https://github.com/bonfiresh) for reporting)
-* Server: Use `slices.Contains` from stdlib to simplify code ([#1406](https://github.com/binwiederhier/ntfy/pull/1406), thanks to [@tanhuaan](https://github.com/tanhuaan))
-* Web: Fix `clear=true` on action buttons not clearing the notification ([#1029](https://github.com/binwiederhier/ntfy/issues/1029), thanks to [@ElFishi](https://github.com/ElFishi) for reporting)
-* Web: Fix Markdown message line height to match plain text (1.5 instead of 1.2) ([#1139](https://github.com/binwiederhier/ntfy/issues/1139), thanks to [@etfz](https://github.com/etfz) for reporting)
-* Web: Fix long lines (e.g. JSON) being truncated by adding horizontal scroll ([#1363](https://github.com/binwiederhier/ntfy/issues/1363), thanks to [@v3DJG6GL](https://github.com/v3DJG6GL) for reporting)
-* Web: Fix Windows notification icon being cut off ([#884](https://github.com/binwiederhier/ntfy/issues/884), thanks to [@ZhangTianrong](https://github.com/ZhangTianrong) for reporting)
-* Web: Use full URL in curl example on empty topic pages ([#1435](https://github.com/binwiederhier/ntfy/issues/1435), [#1535](https://github.com/binwiederhier/ntfy/pull/1535), thanks to [@elmatadoor](https://github.com/elmatadoor) for reporting and [@jjasghar](https://github.com/jjasghar) for the PR)
-* Web: Add validation feedback for service URL when adding user ([#1566](https://github.com/binwiederhier/ntfy/issues/1566), thanks to [@jermanuts](https://github.com/jermanuts))
-* Docs: Remove obsolete `version` field from docker-compose examples ([#1333](https://github.com/binwiederhier/ntfy/issues/1333), thanks to [@seals187](https://github.com/seals187) for reporting and [@cyb3rko](https://github.com/cyb3rko) for fixing)
-* Docs: Fix Kustomize config in installation docs ([#1367](https://github.com/binwiederhier/ntfy/issues/1367), thanks to [@toby-griffiths](https://github.com/toby-griffiths))
-* Docs: Use SVG F-Droid badge and add app store badges to README ([#1170](https://github.com/binwiederhier/ntfy/issues/1170), thanks to [@PanderMusubi](https://github.com/PanderMusubi) for reporting)
