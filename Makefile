@@ -1,4 +1,5 @@
 MAKEFLAGS := --jobs=1
+NPM := npm
 PYTHON := python3
 PIP := pip3
 VERSION := $(shell git describe --tag)
@@ -137,7 +138,7 @@ web: web-deps web-build
 
 web-build:
 	cd web \
-		&& npm run build \
+		&& $(NPM) run build \
 		&& mv build/index.html build/app.html \
 		&& rm -rf ../server/site \
 		&& mv build ../server/site \
@@ -145,20 +146,20 @@ web-build:
 			../server/site/config.js
 
 web-deps:
-	cd web && npm install
+	cd web && $(NPM) install
 	# If this fails for .svg files, optimize them with svgo
 
 web-deps-update:
-	cd web && npm update
+	cd web && $(NPM) update
 
 web-fmt:
-	cd web && npm run format
+	cd web && $(NPM) run format
 
 web-fmt-check:
-	cd web && npm run format:check
+	cd web && $(NPM) run format:check
 
 web-lint:
-	cd web && npm run lint
+	cd web && $(NPM) run lint
 
 # Main server/client build
 
