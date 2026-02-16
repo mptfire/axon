@@ -340,16 +340,14 @@ Then either follow the steps for building with or without Firebase.
 Without Firebase, you may want to still change the default `app_base_url` in [values.xml](https://github.com/binwiederhier/ntfy-android/blob/main/app/src/main/res/values/values.xml)
 if you're self-hosting the server. Then run:
 ```
-# Remove Google dependencies (FCM)
-sed -i -e '/google-services/d' build.gradle
-sed -i -e '/google-services/d' app/build.gradle
-
 # To build an unsigned .apk (app/build/outputs/apk/fdroid/*.apk)
 ./gradlew assembleFdroidRelease
 
 # To build a bundle .aab (app/fdroid/release/*.aab)
 ./gradlew bundleFdroidRelease
 ```
+
+The F-Droid flavor automatically excludes Google Services dependencies.
 
 ### Build Play flavor (FCM)
 !!! info
