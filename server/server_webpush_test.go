@@ -5,10 +5,6 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/SherClockHolmes/webpush-go"
-	"github.com/stretchr/testify/require"
-	"heckel.io/ntfy/v2/user"
-	"heckel.io/ntfy/v2/util"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +14,12 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/SherClockHolmes/webpush-go"
+	"github.com/stretchr/testify/require"
+	"heckel.io/ntfy/v2/user"
+	"heckel.io/ntfy/v2/util"
+	wpush "heckel.io/ntfy/v2/webpush"
 )
 
 const (
@@ -238,7 +240,7 @@ func TestServer_WebPush_Expiry(t *testing.T) {
 	addSubscription(t, s, pushService.URL+"/push-receive", "test-topic")
 	requireSubscriptionCount(t, s, "test-topic", 1)
 
-	_, err := s.webPush.db.Exec("UPDATE subscription SET updated_at = ?", time.Now().Add(-55*24*time.Hour).Unix())
+	_, err := s.webPush.(*wpush.SQLiteStore).DB().Exec("UPDATE subscription SET updated_at = ?", time.Now().Add(-55*24*time.Hour).Unix())
 	require.Nil(t, err)
 
 	s.pruneAndNotifyWebPushSubscriptions()
@@ -248,7 +250,7 @@ func TestServer_WebPush_Expiry(t *testing.T) {
 		return received.Load()
 	})
 
-	_, err = s.webPush.db.Exec("UPDATE subscription SET updated_at = ?", time.Now().Add(-60*24*time.Hour).Unix())
+	_, err = s.webPush.(*wpush.SQLiteStore).DB().Exec("UPDATE subscription SET updated_at = ?", time.Now().Add(-60*24*time.Hour).Unix())
 	require.Nil(t, err)
 
 	s.pruneAndNotifyWebPushSubscriptions()

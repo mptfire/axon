@@ -12,6 +12,7 @@ import (
 	"github.com/SherClockHolmes/webpush-go"
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/user"
+	wpush "heckel.io/ntfy/v2/webpush"
 )
 
 const (
@@ -128,7 +129,7 @@ func (s *Server) pruneAndNotifyWebPushSubscriptionsInternal() error {
 	if err != nil {
 		return err
 	}
-	warningSent := make([]*webPushSubscription, 0)
+	warningSent := make([]*wpush.Subscription, 0)
 	for _, subscription := range subscriptions {
 		if err := s.sendWebPushNotification(subscription, payload); err != nil {
 			log.Tag(tagWebPush).Err(err).With(subscription).Warn("Unable to publish expiry imminent warning")
@@ -143,7 +144,7 @@ func (s *Server) pruneAndNotifyWebPushSubscriptionsInternal() error {
 	return nil
 }
 
-func (s *Server) sendWebPushNotification(sub *webPushSubscription, message []byte, contexters ...log.Contexter) error {
+func (s *Server) sendWebPushNotification(sub *wpush.Subscription, message []byte, contexters ...log.Contexter) error {
 	log.Tag(tagWebPush).With(sub).With(contexters...).Debug("Sending web push message")
 	payload := &webpush.Subscription{
 		Endpoint: sub.Endpoint,

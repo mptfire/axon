@@ -1714,3 +1714,10 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 * Fix crash when default server URL is missing scheme by auto-prepending `https://` ([#1582](https://github.com/binwiederhier/ntfy/issues/1582), thanks to [@hard-zero1](https://github.com/hard-zero1))
 * Fix notification timestamp to use original send time instead of receive time ([#1112](https://github.com/binwiederhier/ntfy/issues/1112), thanks to [@voruti](https://github.com/voruti) for reporting)
 * Fix notifications being missed after service restart by using persisted lastNotificationId ([#1591](https://github.com/binwiederhier/ntfy/issues/1591), thanks to @Epifeny for reporting)
+* Fix crash in settings when fragment is detached during backup/restore or log operations
+
+### ntfy server v2.12.x (UNRELEASED)
+
+**Features:**
+
+* Add PostgreSQL as an alternative database backend for the web push subscription store via `database-url` config option

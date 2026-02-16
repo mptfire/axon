@@ -144,6 +144,20 @@ the message to the subscribers.
 Subscribers can retrieve cached messaging using the [`poll=1` parameter](subscribe/api.md#poll-for-messages), as well as the
 [`since=` parameter](subscribe/api.md#fetch-cached-messages).
 
+## PostgreSQL database
+By default, ntfy uses SQLite for all database-backed stores. As an alternative, you can configure ntfy to use PostgreSQL
+by setting the `database-url` option to a PostgreSQL connection string:
+
+```yaml
+database-url: "postgres://user:pass@host:5432/ntfy"
+```
+
+When `database-url` is set, ntfy will use PostgreSQL for the web push subscription store instead of SQLite. The
+`web-push-file` option is not required in this case. Support for PostgreSQL for the message cache and user manager
+will be added in future releases.
+
+You can also set this via the environment variable `NTFY_DATABASE_URL` or the command line flag `--database-url`.
+
 ## Attachments
 If desired, you may allow users to upload and [attach files to notifications](publish.md#attachments). To enable
 this feature, you have to simply configure an attachment cache directory and a base URL (`attachment-cache-dir`, `base-url`). 
@@ -1141,11 +1155,14 @@ a database to keep track of the browser's subscriptions, and an admin email addr
 
 - `web-push-public-key` is the generated VAPID public key, e.g. AA1234BBCCddvveekaabcdfqwertyuiopasdfghjklzxcvbnm1234567890
 - `web-push-private-key` is the generated VAPID private key, e.g. AA2BB1234567890abcdefzxcvbnm1234567890
-- `web-push-file` is a database file to keep track of browser subscription endpoints, e.g. `/var/cache/ntfy/webpush.db`
+- `web-push-file` is a database file to keep track of browser subscription endpoints, e.g. `/var/cache/ntfy/webpush.db` (not required if `database-url` is set)
 - `web-push-email-address` is the admin email address send to the push provider, e.g. `sysadmin@example.com`
 - `web-push-startup-queries` is an optional list of queries to run on startup`
 - `web-push-expiry-warning-duration` defines the duration after which unused subscriptions are sent a warning (default is `55d`)
 - `web-push-expiry-duration` defines the duration after which unused subscriptions will expire (default is `60d`)
+
+Alternatively, you can use PostgreSQL instead of SQLite for the web push subscription store by setting `database-url`
+(see [PostgreSQL database](#postgresql-database)).
 
 Limitations:
 
@@ -1172,9 +1189,10 @@ web-push-file: /var/cache/ntfy/webpush.db
 web-push-email-address: sysadmin@example.com
 ```
 
-The `web-push-file` is used to store the push subscriptions. Unused subscriptions will send out a warning after 55 days,
-and will automatically expire after 60 days (default). If the gateway returns an error (e.g. 410 Gone when a user has unsubscribed),
-subscriptions are also removed automatically.
+The `web-push-file` is used to store the push subscriptions in a local SQLite database. Alternatively, if `database-url`
+is set, subscriptions are stored in PostgreSQL and `web-push-file` is not required. Unused subscriptions will send out
+a warning after 55 days, and will automatically expire after 60 days (default). If the gateway returns an error
+(e.g. 410 Gone when a user has unsubscribed), subscriptions are also removed automatically.
 
 The web app refreshes subscriptions on start and regularly on an interval, but this file should be persisted across restarts. If the subscription
 file is deleted or lost, any web apps that aren't open will not receive new web push notifications until you open then.
@@ -1755,6 +1773,7 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `key-file`                                 | `NTFY_KEY_FILE`                                 | *filename*                                          | -                 | HTTPS/TLS private key file, only used if `listen-https` is set.                                                                                                                                                                 |
 | `cert-file`                                | `NTFY_CERT_FILE`                                | *filename*                                          | -                 | HTTPS/TLS certificate file, only used if `listen-https` is set.                                                                                                                                                                 |
 | `firebase-key-file`                        | `NTFY_FIREBASE_KEY_FILE`                        | *filename*                                          | -                 | If set, also publish messages to a Firebase Cloud Messaging (FCM) topic for your app. This is optional and only required to save battery when using the Android app. See [Firebase (FCM)](#firebase-fcm).                       |
+| `database-url`                             | `NTFY_DATABASE_URL`                             | *string (connection URL)*                           | -                 | PostgreSQL connection string (e.g. `postgres://user:pass@host:5432/ntfy`). If set, uses PostgreSQL for database-backed stores instead of SQLite. Currently applies to the web push store. See [PostgreSQL database](#postgresql-database). |
 | `cache-file`                               | `NTFY_CACHE_FILE`                               | *filename*                                          | -                 | If set, messages are cached in a local SQLite database instead of only in-memory. This allows for service restarts without losing messages in support of the since= parameter. See [message cache](#message-cache).             |
 | `cache-duration`                           | `NTFY_CACHE_DURATION`                           | *duration*                                          | 12h               | Duration for which messages will be buffered before they are deleted. This is required to support the `since=...` and `poll=1` parameter. Set this to `0` to disable the cache entirely.                                        |
 | `cache-startup-queries`                    | `NTFY_CACHE_STARTUP_QUERIES`                    | *string (SQL queries)*                              | -                 | SQL queries to run during database startup; this is useful for tuning and [enabling WAL mode](#message-cache)                                                                                                                   |

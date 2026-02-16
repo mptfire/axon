@@ -593,22 +593,6 @@ func newWebPushSubscriptionExpiringPayload() *webPushControlMessagePayload {
 	}
 }
 
-type webPushSubscription struct {
-	ID       string
-	Endpoint string
-	Auth     string
-	P256dh   string
-	UserID   string
-}
-
-func (w *webPushSubscription) Context() log.Context {
-	return map[string]any{
-		"web_push_subscription_id":       w.ID,
-		"web_push_subscription_user_id":  w.UserID,
-		"web_push_subscription_endpoint": w.Endpoint,
-	}
-}
-
 // https://developer.mozilla.org/en-US/docs/Web/Manifest
 type webManifestResponse struct {
 	Name            string             `json:"name"`

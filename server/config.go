@@ -88,6 +88,7 @@ var (
 // Config is the main config struct for the application. Use New to instantiate a default config struct.
 type Config struct {
 	File                                 string // Config file, only used for testing
+	DatabaseURL                          string // PostgreSQL connection string (e.g. "postgres://user:pass@host:5432/ntfy")
 	BaseURL                              string
 	ListenHTTP                           string
 	ListenHTTPS                          string
@@ -192,6 +193,7 @@ type Config struct {
 func NewConfig() *Config {
 	return &Config{
 		File:                                 DefaultConfigFile, // Only used for testing
+		DatabaseURL:                          "",
 		BaseURL:                              "",
 		ListenHTTP:                           DefaultListenHTTP,
 		ListenHTTPS:                          "",

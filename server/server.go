@@ -37,6 +37,7 @@ import (
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 	"heckel.io/ntfy/v2/util/sprig"
+	"heckel.io/ntfy/v2/webpush"
 )
 
 // Server is the main server, providing the UI and API for ntfy
@@ -57,7 +58,7 @@ type Server struct {
 	messagesHistory   []int64                             // Last n values of the messages counter, used to determine rate
 	userManager       *user.Manager                       // Might be nil!
 	messageCache      *messageCache                       // Database that stores the messages
-	webPush           *webPushStore                       // Database that stores web push subscriptions
+	webPush           webpush.Store                        // Database that stores web push subscriptions
 	fileCache         *fileCache                          // File system based cache that stores attachments
 	stripe            stripeAPI                           // Stripe API, can be replaced with a mock
 	priceCache        *util.LookupCache[map[string]int64] // Stripe price ID -> price as cents (USD implied!)
@@ -176,9 +177,13 @@ func New(conf *Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	var webPush *webPushStore
+	var wp webpush.Store
 	if conf.WebPushPublicKey != "" {
-		webPush, err = newWebPushStore(conf.WebPushFile, conf.WebPushStartupQueries)
+		if conf.DatabaseURL != "" {
+			wp, err = webpush.NewPostgresStore(conf.DatabaseURL)
+		} else {
+			wp, err = webpush.NewSQLiteStore(conf.WebPushFile, conf.WebPushStartupQueries)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -233,7 +238,7 @@ func New(conf *Config) (*Server, error) {
 	s := &Server{
 		config:          conf,
 		messageCache:    messageCache,
-		webPush:         webPush,
+		webPush:         wp,
 		fileCache:       fileCache,
 		firebaseClient:  firebaseClient,
 		smtpSender:      mailer,
