@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
-	wpush "heckel.io/ntfy/v2/webpush"
 )
 
 const (
@@ -241,7 +240,7 @@ func TestServer_WebPush_Expiry(t *testing.T) {
 	addSubscription(t, s, endpoint, "test-topic")
 	requireSubscriptionCount(t, s, "test-topic", 1)
 
-	require.Nil(t, s.webPush.(*wpush.SQLiteStore).SetSubscriptionUpdatedAt(endpoint, time.Now().Add(-55*24*time.Hour).Unix()))
+	require.Nil(t, s.webPush.SetSubscriptionUpdatedAt(endpoint, time.Now().Add(-55*24*time.Hour).Unix()))
 
 	s.pruneAndNotifyWebPushSubscriptions()
 	requireSubscriptionCount(t, s, "test-topic", 1)
@@ -250,7 +249,7 @@ func TestServer_WebPush_Expiry(t *testing.T) {
 		return received.Load()
 	})
 
-	require.Nil(t, s.webPush.(*wpush.SQLiteStore).SetSubscriptionUpdatedAt(endpoint, time.Now().Add(-60*24*time.Hour).Unix()))
+	require.Nil(t, s.webPush.SetSubscriptionUpdatedAt(endpoint, time.Now().Add(-60*24*time.Hour).Unix()))
 
 	s.pruneAndNotifyWebPushSubscriptions()
 	waitFor(t, func() bool {

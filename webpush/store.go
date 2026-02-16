@@ -29,6 +29,7 @@ type Store interface {
 	RemoveSubscriptionsByEndpoint(endpoint string) error
 	RemoveSubscriptionsByUserID(userID string) error
 	RemoveExpiredSubscriptions(expireAfter time.Duration) error
+	SetSubscriptionUpdatedAt(endpoint string, updatedAt int64) error
 	Close() error
 }
 

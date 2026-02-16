@@ -53,7 +53,7 @@ const (
 		INSERT INTO webpush_subscription (id, endpoint, key_auth, key_p256dh, user_id, subscriber_ip, updated_at, warned_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (endpoint)
-		DO UPDATE SET key_auth = EXCLUDED.key_auth, key_p256dh = EXCLUDED.key_p256dh, user_id = EXCLUDED.user_id, subscriber_ip = EXCLUDED.subscriber_ip, updated_at = EXCLUDED.updated_at, warned_at = EXCLUDED.warned_at
+		DO UPDATE SET key_auth = excluded.key_auth, key_p256dh = excluded.key_p256dh, user_id = excluded.user_id, subscriber_ip = excluded.subscriber_ip, updated_at = excluded.updated_at, warned_at = excluded.warned_at
 	`
 	pgUpdateSubscriptionWarningSentQuery = `UPDATE webpush_subscription SET warned_at = $1 WHERE id = $2`
 	pgDeleteSubscriptionByEndpointQuery  = `DELETE FROM webpush_subscription WHERE endpoint = $1`
@@ -95,7 +95,7 @@ func NewPostgresStore(dsn string) (*PostgresStore, error) {
 }
 
 func setupPostgresDB(db *sql.DB) error {
-	// If 'wp_schema_version' table does not exist, this must be a new database
+	// If 'webpush_schema_version' table does not exist, this must be a new database
 	rows, err := db.Query(pgSelectSchemaVersionQuery)
 	if err != nil {
 		return setupNewPostgresDB(db)
@@ -104,13 +104,18 @@ func setupPostgresDB(db *sql.DB) error {
 }
 
 func setupNewPostgresDB(db *sql.DB) error {
-	if _, err := db.Exec(pgCreateTablesQuery); err != nil {
+	tx, err := db.Begin()
+	if err != nil {
 		return err
 	}
-	if _, err := db.Exec(pgInsertSchemaVersion, pgCurrentSchemaVersion); err != nil {
+	defer tx.Rollback()
+	if _, err := tx.Exec(pgCreateTablesQuery); err != nil {
 		return err
 	}
-	return nil
+	if _, err := tx.Exec(pgInsertSchemaVersion, pgCurrentSchemaVersion); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // UpsertSubscription adds or updates Web Push subscriptions for the given topics and user ID.

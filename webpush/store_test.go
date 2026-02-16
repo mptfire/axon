@@ -12,7 +12,7 @@ import (
 
 const testWebPushEndpoint = "https://updates.push.services.mozilla.com/wpush/v1/AAABBCCCDDEEEFFF"
 
-func testStoreUpsertSubscription_SubscriptionsForTopic(t *testing.T, store webpush.Store) {
+func testStoreUpsertSubscriptionSubscriptionsForTopic(t *testing.T, store webpush.Store) {
 	require.Nil(t, store.UpsertSubscription(testWebPushEndpoint, "auth-key", "p256dh-key", "u_1234", netip.MustParseAddr("1.2.3.4"), []string{"test-topic", "mytopic"}))
 
 	subs, err := store.SubscriptionsForTopic("test-topic")
@@ -29,7 +29,7 @@ func testStoreUpsertSubscription_SubscriptionsForTopic(t *testing.T, store webpu
 	require.Equal(t, subs[0].Endpoint, subs2[0].Endpoint)
 }
 
-func testStoreUpsertSubscription_SubscriberIPLimitReached(t *testing.T, store webpush.Store) {
+func testStoreUpsertSubscriptionSubscriberIPLimitReached(t *testing.T, store webpush.Store) {
 	// Insert 10 subscriptions with the same IP address
 	for i := 0; i < 10; i++ {
 		endpoint := fmt.Sprintf(testWebPushEndpoint+"%d", i)
@@ -46,7 +46,7 @@ func testStoreUpsertSubscription_SubscriberIPLimitReached(t *testing.T, store we
 	require.Nil(t, store.UpsertSubscription(testWebPushEndpoint+"99", "auth-key", "p256dh-key", "u_1234", netip.MustParseAddr("9.9.9.9"), []string{"test-topic", "mytopic"}))
 }
 
-func testStoreUpsertSubscription_UpdateTopics(t *testing.T, store webpush.Store) {
+func testStoreUpsertSubscriptionUpdateTopics(t *testing.T, store webpush.Store) {
 	// Insert subscription with two topics, and another with one topic
 	require.Nil(t, store.UpsertSubscription(testWebPushEndpoint+"0", "auth-key", "p256dh-key", "u_1234", netip.MustParseAddr("1.2.3.4"), []string{"topic1", "topic2"}))
 	require.Nil(t, store.UpsertSubscription(testWebPushEndpoint+"1", "auth-key", "p256dh-key", "", netip.MustParseAddr("9.9.9.9"), []string{"topic1"}))
@@ -75,7 +75,51 @@ func testStoreUpsertSubscription_UpdateTopics(t *testing.T, store webpush.Store)
 	require.Len(t, subs, 0)
 }
 
-func testStoreRemoveSubscriptionsByEndpoint(t *testing.T, store webpush.Store) {
+func testStoreUpsertSubscriptionUpdateFields(t *testing.T, store webpush.Store) {
+	// Insert a subscription
+	require.Nil(t, store.UpsertSubscription(testWebPushEndpoint, "auth-key", "p256dh-key", "u_1234", netip.MustParseAddr("1.2.3.4"), []string{"topic1"}))
+
+	subs, err := store.SubscriptionsForTopic("topic1")
+	require.Nil(t, err)
+	require.Len(t, subs, 1)
+	require.Equal(t, "auth-key", subs[0].Auth)
+	require.Equal(t, "p256dh-key", subs[0].P256dh)
+	require.Equal(t, "u_1234", subs[0].UserID)
+
+	// Re-upsert the same endpoint with different auth, p256dh, and userID
+	require.Nil(t, store.UpsertSubscription(testWebPushEndpoint, "new-auth", "new-p256dh", "u_5678", netip.MustParseAddr("1.2.3.4"), []string{"topic1"}))
+
+	subs, err = store.SubscriptionsForTopic("topic1")
+	require.Nil(t, err)
+	require.Len(t, subs, 1)
+	require.Equal(t, testWebPushEndpoint, subs[0].Endpoint)
+	require.Equal(t, "new-auth", subs[0].Auth)
+	require.Equal(t, "new-p256dh", subs[0].P256dh)
+	require.Equal(t, "u_5678", subs[0].UserID)
+}
+
+func testStoreRemoveByUserIDMultiple(t *testing.T, store webpush.Store) {
+	// Insert two subscriptions for u_1234 and one for u_5678
+	require.Nil(t, store.UpsertSubscription(testWebPushEndpoint+"0", "auth-key", "p256dh-key", "u_1234", netip.MustParseAddr("1.2.3.4"), []string{"topic1"}))
+	require.Nil(t, store.UpsertSubscription(testWebPushEndpoint+"1", "auth-key", "p256dh-key", "u_1234", netip.MustParseAddr("1.2.3.4"), []string{"topic1"}))
+	require.Nil(t, store.UpsertSubscription(testWebPushEndpoint+"2", "auth-key", "p256dh-key", "u_5678", netip.MustParseAddr("9.9.9.9"), []string{"topic1"}))
+
+	subs, err := store.SubscriptionsForTopic("topic1")
+	require.Nil(t, err)
+	require.Len(t, subs, 3)
+
+	// Remove all subscriptions for u_1234
+	require.Nil(t, store.RemoveSubscriptionsByUserID("u_1234"))
+
+	// Only u_5678's subscription should remain
+	subs, err = store.SubscriptionsForTopic("topic1")
+	require.Nil(t, err)
+	require.Len(t, subs, 1)
+	require.Equal(t, testWebPushEndpoint+"2", subs[0].Endpoint)
+	require.Equal(t, "u_5678", subs[0].UserID)
+}
+
+func testStoreRemoveByEndpoint(t *testing.T, store webpush.Store) {
 	// Insert subscription with two topics
 	require.Nil(t, store.UpsertSubscription(testWebPushEndpoint, "auth-key", "p256dh-key", "u_1234", netip.MustParseAddr("1.2.3.4"), []string{"topic1", "topic2"}))
 	subs, err := store.SubscriptionsForTopic("topic1")
@@ -89,7 +133,7 @@ func testStoreRemoveSubscriptionsByEndpoint(t *testing.T, store webpush.Store) {
 	require.Len(t, subs, 0)
 }
 
-func testStoreRemoveSubscriptionsByUserID(t *testing.T, store webpush.Store) {
+func testStoreRemoveByUserID(t *testing.T, store webpush.Store) {
 	// Insert subscription with two topics
 	require.Nil(t, store.UpsertSubscription(testWebPushEndpoint, "auth-key", "p256dh-key", "u_1234", netip.MustParseAddr("1.2.3.4"), []string{"topic1", "topic2"}))
 	subs, err := store.SubscriptionsForTopic("topic1")
@@ -103,11 +147,11 @@ func testStoreRemoveSubscriptionsByUserID(t *testing.T, store webpush.Store) {
 	require.Len(t, subs, 0)
 }
 
-func testStoreRemoveSubscriptionsByUserID_Empty(t *testing.T, store webpush.Store) {
+func testStoreRemoveByUserIDEmpty(t *testing.T, store webpush.Store) {
 	require.Equal(t, webpush.ErrWebPushUserIDCannotBeEmpty, store.RemoveSubscriptionsByUserID(""))
 }
 
-func testStoreMarkExpiryWarningSent(t *testing.T, store webpush.Store, setUpdatedAt func(endpoint string, updatedAt int64) error) {
+func testStoreExpiryWarningSent(t *testing.T, store webpush.Store, setUpdatedAt func(endpoint string, updatedAt int64) error) {
 	// Insert subscription with two topics
 	require.Nil(t, store.UpsertSubscription(testWebPushEndpoint, "auth-key", "p256dh-key", "u_1234", netip.MustParseAddr("1.2.3.4"), []string{"topic1", "topic2"}))
 
@@ -129,7 +173,7 @@ func testStoreMarkExpiryWarningSent(t *testing.T, store webpush.Store, setUpdate
 	require.Len(t, subs, 0)
 }
 
-func testStoreSubscriptionsExpiring(t *testing.T, store webpush.Store, setUpdatedAt func(endpoint string, updatedAt int64) error) {
+func testStoreExpiring(t *testing.T, store webpush.Store, setUpdatedAt func(endpoint string, updatedAt int64) error) {
 	// Insert subscription with two topics
 	require.Nil(t, store.UpsertSubscription(testWebPushEndpoint, "auth-key", "p256dh-key", "u_1234", netip.MustParseAddr("1.2.3.4"), []string{"topic1", "topic2"}))
 	subs, err := store.SubscriptionsForTopic("topic1")
@@ -149,7 +193,7 @@ func testStoreSubscriptionsExpiring(t *testing.T, store webpush.Store, setUpdate
 	require.Equal(t, testWebPushEndpoint, subs[0].Endpoint)
 }
 
-func testStoreRemoveExpiredSubscriptions(t *testing.T, store webpush.Store, setUpdatedAt func(endpoint string, updatedAt int64) error) {
+func testStoreRemoveExpired(t *testing.T, store webpush.Store, setUpdatedAt func(endpoint string, updatedAt int64) error) {
 	// Insert subscription with two topics
 	require.Nil(t, store.UpsertSubscription(testWebPushEndpoint, "auth-key", "p256dh-key", "u_1234", netip.MustParseAddr("1.2.3.4"), []string{"topic1", "topic2"}))
 	subs, err := store.SubscriptionsForTopic("topic1")
