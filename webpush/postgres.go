@@ -94,11 +94,6 @@ func NewPostgresStore(dsn string) (*PostgresStore, error) {
 	}, nil
 }
 
-// DB returns the underlying database connection. This is exported for testing purposes.
-func (c *PostgresStore) DB() *sql.DB {
-	return c.db
-}
-
 func setupPostgresDB(db *sql.DB) error {
 	// If 'wp_schema_version' table does not exist, this must be a new database
 	rows, err := db.Query(pgSelectSchemaVersionQuery)
@@ -215,6 +210,13 @@ func (c *PostgresStore) RemoveExpiredSubscriptions(expireAfter time.Duration) er
 		return err
 	}
 	_, err = c.db.Exec(pgDeleteSubscriptionTopicWithoutSubscription)
+	return err
+}
+
+// SetSubscriptionUpdatedAt updates the updated_at timestamp for a subscription by endpoint. This is
+// exported for testing purposes and is not part of the Store interface.
+func (c *PostgresStore) SetSubscriptionUpdatedAt(endpoint string, updatedAt int64) error {
+	_, err := c.db.Exec("UPDATE webpush_subscription SET updated_at = $1 WHERE endpoint = $2", updatedAt, endpoint)
 	return err
 }
 

@@ -237,11 +237,11 @@ func TestServer_WebPush_Expiry(t *testing.T) {
 	}))
 	defer pushService.Close()
 
-	addSubscription(t, s, pushService.URL+"/push-receive", "test-topic")
+	endpoint := pushService.URL + "/push-receive"
+	addSubscription(t, s, endpoint, "test-topic")
 	requireSubscriptionCount(t, s, "test-topic", 1)
 
-	_, err := s.webPush.(*wpush.SQLiteStore).DB().Exec("UPDATE subscription SET updated_at = ?", time.Now().Add(-55*24*time.Hour).Unix())
-	require.Nil(t, err)
+	require.Nil(t, s.webPush.(*wpush.SQLiteStore).SetSubscriptionUpdatedAt(endpoint, time.Now().Add(-55*24*time.Hour).Unix()))
 
 	s.pruneAndNotifyWebPushSubscriptions()
 	requireSubscriptionCount(t, s, "test-topic", 1)
@@ -250,8 +250,7 @@ func TestServer_WebPush_Expiry(t *testing.T) {
 		return received.Load()
 	})
 
-	_, err = s.webPush.(*wpush.SQLiteStore).DB().Exec("UPDATE subscription SET updated_at = ?", time.Now().Add(-60*24*time.Hour).Unix())
-	require.Nil(t, err)
+	require.Nil(t, s.webPush.(*wpush.SQLiteStore).SetSubscriptionUpdatedAt(endpoint, time.Now().Add(-60*24*time.Hour).Unix()))
 
 	s.pruneAndNotifyWebPushSubscriptions()
 	waitFor(t, func() bool {

@@ -101,11 +101,6 @@ func NewSQLiteStore(filename, startupQueries string) (*SQLiteStore, error) {
 	}, nil
 }
 
-// DB returns the underlying database connection. This is exported for testing purposes.
-func (c *SQLiteStore) DB() *sql.DB {
-	return c.db
-}
-
 func setupSQLiteWebPushDB(db *sql.DB) error {
 	// If 'schemaVersion' table does not exist, this must be a new database
 	rows, err := db.Query(sqliteSelectWebPushSchemaVersionQuery)
@@ -253,6 +248,13 @@ func (c *SQLiteStore) RemoveExpiredSubscriptions(expireAfter time.Duration) erro
 		return err
 	}
 	_, err = c.db.Exec(sqliteDeleteWebPushSubscriptionTopicWithoutSubscription)
+	return err
+}
+
+// SetSubscriptionUpdatedAt updates the updated_at timestamp for a subscription by endpoint. This is
+// exported for testing purposes and is not part of the Store interface.
+func (c *SQLiteStore) SetSubscriptionUpdatedAt(endpoint string, updatedAt int64) error {
+	_, err := c.db.Exec("UPDATE subscription SET updated_at = ? WHERE endpoint = ?", updatedAt, endpoint)
 	return err
 }
 
