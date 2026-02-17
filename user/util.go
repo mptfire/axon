@@ -1,10 +1,12 @@
 package user
 
 import (
-	"golang.org/x/crypto/bcrypt"
-	"heckel.io/ntfy/v2/util"
+	"database/sql"
 	"regexp"
 	"strings"
+
+	"golang.org/x/crypto/bcrypt"
+	"heckel.io/ntfy/v2/util"
 )
 
 var (
@@ -76,4 +78,70 @@ func hashPassword(password string, cost int) (string, error) {
 		return "", err
 	}
 	return string(hash), nil
+}
+
+func nullString(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: s, Valid: true}
+}
+
+func nullInt64(v int64) sql.NullInt64 {
+	if v == 0 {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: v, Valid: true}
+}
+
+// execTx executes a function in a transaction. If the function returns an error, the transaction is rolled back.
+func execTx(db *sql.DB, f func(tx *sql.Tx) error) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := f(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// queryTx executes a function in a transaction and returns the result. If the function
+// returns an error, the transaction is rolled back.
+func queryTx[T any](db *sql.DB, f func(tx *sql.Tx) (T, error)) (T, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	defer tx.Rollback()
+	t, err := f(tx)
+	if err != nil {
+		return t, err
+	}
+	if err := tx.Commit(); err != nil {
+		return t, err
+	}
+	return t, nil
+}
+
+// toSQLWildcard converts a wildcard string to a SQL wildcard string. It only allows '*' as wildcards,
+// and escapes '_', assuming '\' as escape character.
+func toSQLWildcard(s string) string {
+	return escapeUnderscore(strings.ReplaceAll(s, "*", "%"))
+}
+
+// fromSQLWildcard converts a SQL wildcard string to a wildcard string. It converts '%' to '*',
+// and removes the '\_' escape character.
+func fromSQLWildcard(s string) string {
+	return strings.ReplaceAll(unescapeUnderscore(s), "%", "*")
+}
+
+func escapeUnderscore(s string) string {
+	return strings.ReplaceAll(s, "_", "\\_")
+}
+
+func unescapeUnderscore(s string) string {
+	return strings.ReplaceAll(s, "\\_", "_")
 }
