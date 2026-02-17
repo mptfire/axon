@@ -4,10 +4,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"net/netip"
+	"strings"
+	"time"
+
 	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/util"
-	"net/netip"
-	"time"
 )
 
 // Store is the interface for a user database store
@@ -976,17 +978,6 @@ func (s *commonStore) Close() error {
 
 // isUniqueConstraintError checks if the error is a unique constraint violation for both SQLite and PostgreSQL
 func isUniqueConstraintError(err error) bool {
-	// Check for SQLite unique constraint error
-	if sqliteErr, ok := err.(interface{ ExtendedCode() int }); ok {
-		if sqliteErr.ExtendedCode() == 2067 { // sqlite3.ErrConstraintUnique
-			return true
-		}
-	}
-	// Check for PostgreSQL unique violation (error code 23505)
-	if pgErr, ok := err.(interface{ Code() string }); ok {
-		if pgErr.Code() == "23505" {
-			return true
-		}
-	}
-	return false
+	errStr := err.Error()
+	return strings.Contains(errStr, "UNIQUE constraint failed") || strings.Contains(errStr, "23505")
 }
