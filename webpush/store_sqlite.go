@@ -2,6 +2,7 @@ package webpush
 
 import (
 	"database/sql"
+	"fmt"
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 )
@@ -82,10 +83,10 @@ func NewSQLiteStore(filename, startupQueries string) (Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := setupSQLiteWebPushDB(db); err != nil {
+	if err := setupSQLite(db); err != nil {
 		return nil, err
 	}
-	if err := runSQLiteWebPushStartupQueries(db, startupQueries); err != nil {
+	if err := runSQLiteStartupQueries(db, startupQueries); err != nil {
 		return nil, err
 	}
 	return &commonStore{
@@ -108,16 +109,19 @@ func NewSQLiteStore(filename, startupQueries string) (Store, error) {
 	}, nil
 }
 
-func setupSQLiteWebPushDB(db *sql.DB) error {
-	// If 'schemaVersion' table does not exist, this must be a new database
-	rows, err := db.Query(sqliteSelectWebPushSchemaVersionQuery)
+func setupSQLite(db *sql.DB) error {
+	var schemaVersion int
+	err := db.QueryRow(sqliteSelectWebPushSchemaVersionQuery).Scan(&schemaVersion)
 	if err != nil {
-		return setupNewSQLiteWebPushDB(db)
+		return setupNewSQLite(db)
 	}
-	return rows.Close()
+	if schemaVersion > sqliteCurrentWebPushSchemaVersion {
+		return fmt.Errorf("unexpected schema version: version %d is higher than current version %d", schemaVersion, sqliteCurrentWebPushSchemaVersion)
+	}
+	return nil
 }
 
-func setupNewSQLiteWebPushDB(db *sql.DB) error {
+func setupNewSQLite(db *sql.DB) error {
 	if _, err := db.Exec(sqliteCreateWebPushSubscriptionsTableQuery); err != nil {
 		return err
 	}
@@ -127,7 +131,7 @@ func setupNewSQLiteWebPushDB(db *sql.DB) error {
 	return nil
 }
 
-func runSQLiteWebPushStartupQueries(db *sql.DB, startupQueries string) error {
+func runSQLiteStartupQueries(db *sql.DB, startupQueries string) error {
 	if _, err := db.Exec(startupQueries); err != nil {
 		return err
 	}

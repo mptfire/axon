@@ -2,102 +2,11 @@ package user
 
 import (
 	"database/sql"
-	"fmt"
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 )
 
-// SQLite schema and queries
 const (
-	sqliteCreateTablesQueries = `
-		BEGIN;
-		CREATE TABLE IF NOT EXISTS tier (
-			id TEXT PRIMARY KEY,
-			code TEXT NOT NULL,
-			name TEXT NOT NULL,
-			messages_limit INT NOT NULL,
-			messages_expiry_duration INT NOT NULL,
-			emails_limit INT NOT NULL,
-			calls_limit INT NOT NULL,
-			reservations_limit INT NOT NULL,
-			attachment_file_size_limit INT NOT NULL,
-			attachment_total_size_limit INT NOT NULL,
-			attachment_expiry_duration INT NOT NULL,
-			attachment_bandwidth_limit INT NOT NULL,
-			stripe_monthly_price_id TEXT,
-			stripe_yearly_price_id TEXT
-		);
-		CREATE UNIQUE INDEX idx_tier_code ON tier (code);
-		CREATE UNIQUE INDEX idx_tier_stripe_monthly_price_id ON tier (stripe_monthly_price_id);
-		CREATE UNIQUE INDEX idx_tier_stripe_yearly_price_id ON tier (stripe_yearly_price_id);
-		CREATE TABLE IF NOT EXISTS user (
-		    id TEXT PRIMARY KEY,
-			tier_id TEXT,
-			user TEXT NOT NULL,
-			pass TEXT NOT NULL,
-			role TEXT CHECK (role IN ('anonymous', 'admin', 'user')) NOT NULL,
-			prefs JSON NOT NULL DEFAULT '{}',
-			sync_topic TEXT NOT NULL,
-			provisioned INT NOT NULL,
-			stats_messages INT NOT NULL DEFAULT (0),
-			stats_emails INT NOT NULL DEFAULT (0),
-			stats_calls INT NOT NULL DEFAULT (0),
-			stripe_customer_id TEXT,
-			stripe_subscription_id TEXT,
-			stripe_subscription_status TEXT,
-			stripe_subscription_interval TEXT,
-			stripe_subscription_paid_until INT,
-			stripe_subscription_cancel_at INT,
-			created INT NOT NULL,
-			deleted INT,
-		    FOREIGN KEY (tier_id) REFERENCES tier (id)
-		);
-		CREATE UNIQUE INDEX idx_user ON user (user);
-		CREATE UNIQUE INDEX idx_user_stripe_customer_id ON user (stripe_customer_id);
-		CREATE UNIQUE INDEX idx_user_stripe_subscription_id ON user (stripe_subscription_id);
-		CREATE TABLE IF NOT EXISTS user_access (
-			user_id TEXT NOT NULL,
-			topic TEXT NOT NULL,
-			read INT NOT NULL,
-			write INT NOT NULL,
-			owner_user_id INT,
-			provisioned INT NOT NULL,
-			PRIMARY KEY (user_id, topic),
-			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE,
-		    FOREIGN KEY (owner_user_id) REFERENCES user (id) ON DELETE CASCADE
-		);
-		CREATE TABLE IF NOT EXISTS user_token (
-			user_id TEXT NOT NULL,
-			token TEXT NOT NULL,
-			label TEXT NOT NULL,
-			last_access INT NOT NULL,
-			last_origin TEXT NOT NULL,
-			expires INT NOT NULL,
-			provisioned INT NOT NULL,
-			PRIMARY KEY (user_id, token),
-			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
-		);
-		CREATE UNIQUE INDEX idx_user_token ON user_token (token);
-		CREATE TABLE IF NOT EXISTS user_phone (
-			user_id TEXT NOT NULL,
-			phone_number TEXT NOT NULL,
-			PRIMARY KEY (user_id, phone_number),
-			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
-		);
-		CREATE TABLE IF NOT EXISTS schemaVersion (
-			id INT PRIMARY KEY,
-			version INT NOT NULL
-		);
-		INSERT INTO user (id, user, pass, role, sync_topic, provisioned, created)
-		VALUES ('` + everyoneID + `', '*', '', 'anonymous', '', false, UNIXEPOCH())
-		ON CONFLICT (id) DO NOTHING;
-		COMMIT;
-	`
-
-	sqliteBuiltinStartupQueries = `
-		PRAGMA foreign_keys = ON;
-	`
-
 	// User queries
 	sqliteSelectUserByID = `
 		SELECT u.id, u.user, u.pass, u.role, u.prefs, u.sync_topic, u.provisioned, u.stats_messages, u.stats_emails, u.stats_calls, u.stripe_customer_id, u.stripe_subscription_id, u.stripe_subscription_status, u.stripe_subscription_interval, u.stripe_subscription_paid_until, u.stripe_subscription_cancel_at, deleted, t.id, t.code, t.name, t.messages_limit, t.messages_expiry_duration, t.emails_limit, t.calls_limit, t.reservations_limit, t.attachment_file_size_limit, t.attachment_total_size_limit, t.attachment_expiry_duration, t.attachment_bandwidth_limit, t.stripe_monthly_price_id, t.stripe_yearly_price_id
@@ -295,126 +204,70 @@ func NewSQLiteStore(filename, startupQueries string) (Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := setupSQLiteDB(db); err != nil {
+	if err := setupSQLite(db); err != nil {
 		return nil, err
 	}
 	if err := runSQLiteStartupQueries(db, startupQueries); err != nil {
 		return nil, err
 	}
 	return &commonStore{
-		db:      db,
-		queries: sqliteQueries(),
+		db: db,
+		queries: storeQueries{
+			selectUserByID:              sqliteSelectUserByID,
+			selectUserByName:            sqliteSelectUserByName,
+			selectUserByToken:           sqliteSelectUserByToken,
+			selectUserByStripeID:        sqliteSelectUserByStripeID,
+			selectUsernames:             sqliteSelectUsernames,
+			selectUserCount:             sqliteSelectUserCount,
+			selectUserIDFromUsername:    sqliteSelectUserIDFromUsername,
+			insertUser:                  sqliteInsertUser,
+			updateUserPass:              sqliteUpdateUserPass,
+			updateUserRole:              sqliteUpdateUserRole,
+			updateUserProvisioned:       sqliteUpdateUserProvisioned,
+			updateUserPrefs:             sqliteUpdateUserPrefs,
+			updateUserStats:             sqliteUpdateUserStats,
+			updateUserStatsResetAll:     sqliteUpdateUserStatsResetAll,
+			updateUserTier:              sqliteUpdateUserTier,
+			updateUserDeleted:           sqliteUpdateUserDeleted,
+			deleteUser:                  sqliteDeleteUser,
+			deleteUserTier:              sqliteDeleteUserTier,
+			deleteUsersMarked:           sqliteDeleteUsersMarked,
+			selectTopicPerms:            sqliteSelectTopicPerms,
+			selectUserAllAccess:         sqliteSelectUserAllAccess,
+			selectUserAccess:            sqliteSelectUserAccess,
+			selectUserReservations:      sqliteSelectUserReservations,
+			selectUserReservationsCount: sqliteSelectUserReservationsCount,
+			selectUserReservationsOwner: sqliteSelectUserReservationsOwner,
+			selectUserHasReservation:    sqliteSelectUserHasReservation,
+			selectOtherAccessCount:      sqliteSelectOtherAccessCount,
+			upsertUserAccess:            sqliteUpsertUserAccess,
+			deleteUserAccess:            sqliteDeleteUserAccess,
+			deleteUserAccessProvisioned: sqliteDeleteUserAccessProvisioned,
+			deleteTopicAccess:           sqliteDeleteTopicAccess,
+			deleteAllAccess:             sqliteDeleteAllAccess,
+			selectToken:                 sqliteSelectToken,
+			selectTokens:                sqliteSelectTokens,
+			selectTokenCount:            sqliteSelectTokenCount,
+			selectAllProvisionedTokens:  sqliteSelectAllProvisionedTokens,
+			upsertToken:                 sqliteUpsertToken,
+			updateTokenLabel:            sqliteUpdateTokenLabel,
+			updateTokenExpiry:           sqliteUpdateTokenExpiry,
+			updateTokenLastAccess:       sqliteUpdateTokenLastAccess,
+			deleteToken:                 sqliteDeleteToken,
+			deleteProvisionedToken:      sqliteDeleteProvisionedToken,
+			deleteAllToken:              sqliteDeleteAllToken,
+			deleteExpiredTokens:         sqliteDeleteExpiredTokens,
+			deleteExcessTokens:          sqliteDeleteExcessTokens,
+			insertTier:                  sqliteInsertTier,
+			selectTiers:                 sqliteSelectTiers,
+			selectTierByCode:            sqliteSelectTierByCode,
+			selectTierByPriceID:         sqliteSelectTierByPriceID,
+			updateTier:                  sqliteUpdateTier,
+			deleteTier:                  sqliteDeleteTier,
+			selectPhoneNumbers:          sqliteSelectPhoneNumbers,
+			insertPhoneNumber:           sqliteInsertPhoneNumber,
+			deletePhoneNumber:           sqliteDeletePhoneNumber,
+			updateBilling:               sqliteUpdateBilling,
+		},
 	}, nil
-}
-
-func sqliteQueries() storeQueries {
-	return storeQueries{
-		selectUserByID:              sqliteSelectUserByID,
-		selectUserByName:            sqliteSelectUserByName,
-		selectUserByToken:           sqliteSelectUserByToken,
-		selectUserByStripeID:        sqliteSelectUserByStripeID,
-		selectUsernames:             sqliteSelectUsernames,
-		selectUserCount:             sqliteSelectUserCount,
-		selectUserIDFromUsername:    sqliteSelectUserIDFromUsername,
-		insertUser:                  sqliteInsertUser,
-		updateUserPass:              sqliteUpdateUserPass,
-		updateUserRole:              sqliteUpdateUserRole,
-		updateUserProvisioned:       sqliteUpdateUserProvisioned,
-		updateUserPrefs:             sqliteUpdateUserPrefs,
-		updateUserStats:             sqliteUpdateUserStats,
-		updateUserStatsResetAll:     sqliteUpdateUserStatsResetAll,
-		updateUserTier:              sqliteUpdateUserTier,
-		updateUserDeleted:           sqliteUpdateUserDeleted,
-		deleteUser:                  sqliteDeleteUser,
-		deleteUserTier:              sqliteDeleteUserTier,
-		deleteUsersMarked:           sqliteDeleteUsersMarked,
-		selectTopicPerms:            sqliteSelectTopicPerms,
-		selectUserAllAccess:         sqliteSelectUserAllAccess,
-		selectUserAccess:            sqliteSelectUserAccess,
-		selectUserReservations:      sqliteSelectUserReservations,
-		selectUserReservationsCount: sqliteSelectUserReservationsCount,
-		selectUserReservationsOwner: sqliteSelectUserReservationsOwner,
-		selectUserHasReservation:    sqliteSelectUserHasReservation,
-		selectOtherAccessCount:      sqliteSelectOtherAccessCount,
-		upsertUserAccess:            sqliteUpsertUserAccess,
-		deleteUserAccess:            sqliteDeleteUserAccess,
-		deleteUserAccessProvisioned: sqliteDeleteUserAccessProvisioned,
-		deleteTopicAccess:           sqliteDeleteTopicAccess,
-		deleteAllAccess:             sqliteDeleteAllAccess,
-		selectToken:                 sqliteSelectToken,
-		selectTokens:                sqliteSelectTokens,
-		selectTokenCount:            sqliteSelectTokenCount,
-		selectAllProvisionedTokens:  sqliteSelectAllProvisionedTokens,
-		upsertToken:                 sqliteUpsertToken,
-		updateTokenLabel:            sqliteUpdateTokenLabel,
-		updateTokenExpiry:           sqliteUpdateTokenExpiry,
-		updateTokenLastAccess:       sqliteUpdateTokenLastAccess,
-		deleteToken:                 sqliteDeleteToken,
-		deleteProvisionedToken:      sqliteDeleteProvisionedToken,
-		deleteAllToken:              sqliteDeleteAllToken,
-		deleteExpiredTokens:         sqliteDeleteExpiredTokens,
-		deleteExcessTokens:          sqliteDeleteExcessTokens,
-		insertTier:                  sqliteInsertTier,
-		selectTiers:                 sqliteSelectTiers,
-		selectTierByCode:            sqliteSelectTierByCode,
-		selectTierByPriceID:         sqliteSelectTierByPriceID,
-		updateTier:                  sqliteUpdateTier,
-		deleteTier:                  sqliteDeleteTier,
-		selectPhoneNumbers:          sqliteSelectPhoneNumbers,
-		insertPhoneNumber:           sqliteInsertPhoneNumber,
-		deletePhoneNumber:           sqliteDeletePhoneNumber,
-		updateBilling:               sqliteUpdateBilling,
-	}
-}
-
-func setupSQLiteDB(db *sql.DB) error {
-	rowsSV, err := db.Query(selectSchemaVersionQuery)
-	if err != nil {
-		return setupNewSQLiteDB(db)
-	}
-	defer rowsSV.Close()
-	schemaVersion := 0
-	if !rowsSV.Next() {
-		return fmt.Errorf("cannot determine schema version: database file may be corrupt")
-	}
-	if err := rowsSV.Scan(&schemaVersion); err != nil {
-		return err
-	}
-	rowsSV.Close()
-	if schemaVersion == currentSchemaVersion {
-		return nil
-	} else if schemaVersion > currentSchemaVersion {
-		return fmt.Errorf("unexpected schema version: version %d is higher than current version %d", schemaVersion, currentSchemaVersion)
-	}
-	for i := schemaVersion; i < currentSchemaVersion; i++ {
-		fn, ok := migrations[i]
-		if !ok {
-			return fmt.Errorf("cannot find migration step from schema version %d to %d", i, i+1)
-		} else if err := fn(db); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func setupNewSQLiteDB(db *sql.DB) error {
-	if _, err := db.Exec(sqliteCreateTablesQueries); err != nil {
-		return err
-	}
-	if _, err := db.Exec(insertSchemaVersion, currentSchemaVersion); err != nil {
-		return err
-	}
-	return nil
-}
-
-func runSQLiteStartupQueries(db *sql.DB, startupQueries string) error {
-	if _, err := db.Exec(sqliteBuiltinStartupQueries); err != nil {
-		return err
-	}
-	if startupQueries != "" {
-		if _, err := db.Exec(startupQueries); err != nil {
-			return err
-		}
-	}
-	return nil
 }

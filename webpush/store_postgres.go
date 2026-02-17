@@ -2,6 +2,7 @@ package webpush
 
 import (
 	"database/sql"
+	"fmt"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
 )
@@ -102,14 +103,13 @@ func NewPostgresStore(dsn string) (Store, error) {
 }
 
 func setupPostgresDB(db *sql.DB) error {
-	// If 'schema_version' table does not exist or no webpush row, this must be a new database
-	rows, err := db.Query(pgSelectSchemaVersionQuery)
+	var schemaVersion int
+	err := db.QueryRow(pgSelectSchemaVersionQuery).Scan(&schemaVersion)
 	if err != nil {
 		return setupNewPostgresDB(db)
 	}
-	defer rows.Close()
-	if !rows.Next() {
-		return setupNewPostgresDB(db)
+	if schemaVersion > pgCurrentSchemaVersion {
+		return fmt.Errorf("unexpected schema version: version %d is higher than current version %d", schemaVersion, pgCurrentSchemaVersion)
 	}
 	return nil
 }

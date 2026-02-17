@@ -3,14 +3,15 @@ package user
 import (
 	"database/sql"
 	"fmt"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/bcrypt"
-	"heckel.io/ntfy/v2/util"
 	"net/netip"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/bcrypt"
+	"heckel.io/ntfy/v2/util"
 )
 
 const minBcryptTimingMillis = int64(40) // Ideally should be >100ms, but this should also run on a Raspberry Pi without massive resources
@@ -1563,7 +1564,7 @@ func checkSchemaVersion(t *testing.T, db *sql.DB) {
 
 	var schemaVersion int
 	require.Nil(t, rows.Scan(&schemaVersion))
-	require.Equal(t, currentSchemaVersion, schemaVersion)
+	require.Equal(t, sqliteCurrentSchemaVersion, schemaVersion)
 	require.Nil(t, rows.Close())
 }
 
