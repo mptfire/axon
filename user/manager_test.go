@@ -224,7 +224,7 @@ func TestManager_MarkUserRemoved_RemoveDeletedUsers(t *testing.T) {
 	require.Nil(t, err)
 	require.True(t, u.Deleted)
 
-	_, err = a.db.Exec("UPDATE user SET deleted = ? WHERE id = ?", time.Now().Add(-1*(userHardDeleteAfterDuration+time.Hour)).Unix(), u.ID)
+	_, err = testDB(a).Exec("UPDATE user SET deleted = ? WHERE id = ?", time.Now().Add(-1*(userHardDeleteAfterDuration+time.Hour)).Unix(), u.ID)
 	require.Nil(t, err)
 	require.Nil(t, a.RemoveDeletedUsers())
 
@@ -604,14 +604,14 @@ func TestManager_Token_Expire(t *testing.T) {
 	require.Nil(t, err)
 
 	// Modify token expiration in database
-	_, err = a.db.Exec("UPDATE user_token SET expires = 1 WHERE token = ?", token1.Value)
+	_, err = testDB(a).Exec("UPDATE user_token SET expires = 1 WHERE token = ?", token1.Value)
 	require.Nil(t, err)
 
 	// Now token1 shouldn't work anymore
 	_, err = a.AuthenticateToken(token1.Value)
 	require.Equal(t, ErrUnauthenticated, err)
 
-	result, err := a.db.Query("SELECT * from user_token WHERE token = ?", token1.Value)
+	result, err := testDB(a).Query("SELECT * from user_token WHERE token = ?", token1.Value)
 	require.Nil(t, err)
 	require.True(t, result.Next()) // Still a matching row
 	require.Nil(t, result.Close())
@@ -619,7 +619,7 @@ func TestManager_Token_Expire(t *testing.T) {
 	// Expire tokens and check database rows
 	require.Nil(t, a.RemoveExpiredTokens())
 
-	result, err = a.db.Query("SELECT * from user_token WHERE token = ?", token1.Value)
+	result, err = testDB(a).Query("SELECT * from user_token WHERE token = ?", token1.Value)
 	require.Nil(t, err)
 	require.False(t, result.Next()) // No matching row!
 	require.Nil(t, result.Close())
@@ -687,7 +687,7 @@ func TestManager_Token_MaxCount_AutoDelete(t *testing.T) {
 		benTokens = append(benTokens, token.Value)
 
 		// Manually modify expiry date to avoid sorting issues (this is a hack)
-		_, err = a.db.Exec(`UPDATE user_token SET expires=? WHERE token=?`, baseTime.Add(time.Duration(i)*time.Minute).Unix(), token.Value)
+		_, err = testDB(a).Exec(`UPDATE user_token SET expires=? WHERE token=?`, baseTime.Add(time.Duration(i)*time.Minute).Unix(), token.Value)
 		require.Nil(t, err)
 	}
 
@@ -715,14 +715,14 @@ func TestManager_Token_MaxCount_AutoDelete(t *testing.T) {
 	}
 
 	var benCount int
-	rows, err := a.db.Query(`SELECT COUNT(*) FROM user_token WHERE user_id=?`, ben.ID)
+	rows, err := testDB(a).Query(`SELECT COUNT(*) FROM user_token WHERE user_id=?`, ben.ID)
 	require.Nil(t, err)
 	require.True(t, rows.Next())
 	require.Nil(t, rows.Scan(&benCount))
 	require.Equal(t, 60, benCount)
 
 	var philCount int
-	rows, err = a.db.Query(`SELECT COUNT(*) FROM user_token WHERE user_id=?`, phil.ID)
+	rows, err = testDB(a).Query(`SELECT COUNT(*) FROM user_token WHERE user_id=?`, phil.ID)
 	require.Nil(t, err)
 	require.True(t, rows.Next())
 	require.Nil(t, rows.Scan(&philCount))
@@ -730,15 +730,13 @@ func TestManager_Token_MaxCount_AutoDelete(t *testing.T) {
 }
 
 func TestManager_EnqueueStats_ResetStats(t *testing.T) {
+	filename := filepath.Join(t.TempDir(), "db")
 	conf := &Config{
-		Filename:            filepath.Join(t.TempDir(), "db"),
-		StartupQueries:      "",
 		DefaultAccess:       PermissionReadWrite,
 		BcryptCost:          bcrypt.MinCost,
 		QueueWriterInterval: 1500 * time.Millisecond,
 	}
-	a, err := NewManager(conf)
-	require.Nil(t, err)
+	a := newTestManagerFromStoreConfig(t, filename, conf)
 	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 	// Baseline: No messages or emails
@@ -779,15 +777,13 @@ func TestManager_EnqueueStats_ResetStats(t *testing.T) {
 }
 
 func TestManager_EnqueueTokenUpdate(t *testing.T) {
+	filename := filepath.Join(t.TempDir(), "db")
 	conf := &Config{
-		Filename:            filepath.Join(t.TempDir(), "db"),
-		StartupQueries:      "",
 		DefaultAccess:       PermissionReadWrite,
 		BcryptCost:          bcrypt.MinCost,
 		QueueWriterInterval: 500 * time.Millisecond,
 	}
-	a, err := NewManager(conf)
-	require.Nil(t, err)
+	a := newTestManagerFromStoreConfig(t, filename, conf)
 	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 	// Create user and token
@@ -819,15 +815,13 @@ func TestManager_EnqueueTokenUpdate(t *testing.T) {
 }
 
 func TestManager_ChangeSettings(t *testing.T) {
+	filename := filepath.Join(t.TempDir(), "db")
 	conf := &Config{
-		Filename:            filepath.Join(t.TempDir(), "db"),
-		StartupQueries:      "",
 		DefaultAccess:       PermissionReadWrite,
 		BcryptCost:          bcrypt.MinCost,
 		QueueWriterInterval: 1500 * time.Millisecond,
 	}
-	a, err := NewManager(conf)
-	require.Nil(t, err)
+	a := newTestManagerFromStoreConfig(t, filename, conf)
 	require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 	// No settings
@@ -1053,7 +1047,7 @@ func TestUser_PhoneNumberAddListRemove(t *testing.T) {
 	require.Equal(t, 0, len(phoneNumbers))
 
 	// Paranoia check: We do NOT want to keep phone numbers in there
-	rows, err := a.db.Query(`SELECT * FROM user_phone`)
+	rows, err := testDB(a).Query(`SELECT * FROM user_phone`)
 	require.Nil(t, err)
 	require.False(t, rows.Next())
 	require.Nil(t, rows.Close())
@@ -1098,7 +1092,6 @@ func TestManager_Topic_Wildcard_With_Underscore(t *testing.T) {
 func TestManager_WithProvisionedUsers(t *testing.T) {
 	f := filepath.Join(t.TempDir(), "user.db")
 	conf := &Config{
-		Filename:         f,
 		DefaultAccess:    PermissionReadWrite,
 		ProvisionEnabled: true,
 		Users: []*User{
@@ -1117,8 +1110,7 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 			},
 		},
 	}
-	a, err := NewManager(conf)
-	require.Nil(t, err)
+	a := newTestManagerFromStoreConfig(t, f, conf)
 
 	// Manually add user
 	require.Nil(t, a.AddUser("philmanual", "manual", RoleUser, false))
@@ -1154,13 +1146,11 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	// Update the token last access time and origin (so we can check that it is persisted)
 	lastAccessTime := time.Now().Add(time.Hour)
 	lastOrigin := netip.MustParseAddr("1.1.9.9")
-	err = execTx(a.db, func(tx *sql.Tx) error {
-		return a.updateTokenLastAccessTx(tx, tokens[0].Value, lastAccessTime.Unix(), lastOrigin.String())
-	})
+	err = a.store.UpdateTokenLastAccess(tokens[0].Value, lastAccessTime, lastOrigin)
 	require.Nil(t, err)
 
 	// Re-open the DB (second app start)
-	require.Nil(t, a.db.Close())
+	require.Nil(t, a.Close())
 	conf.Users = []*User{
 		{Name: "philuser", Hash: "$2a$10$AAAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
 	}
@@ -1176,8 +1166,7 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 			{Value: "tk_u48wqendnkx9er21pqqcadlytbutx", Label: "Another token"},
 		},
 	}
-	a, err = NewManager(conf)
-	require.Nil(t, err)
+	a = newTestManagerFromStoreConfig(t, f, conf)
 
 	// Check that the provisioned users are there
 	users, err = a.Users()
@@ -1212,12 +1201,11 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	require.Error(t, a.ChangePassword("philuser", "new-pass", false))
 
 	// Re-open the DB again (third app start)
-	require.Nil(t, a.db.Close())
+	require.Nil(t, a.Close())
 	conf.Users = []*User{}
 	conf.Access = map[string][]*Grant{}
 	conf.Tokens = map[string][]*Token{}
-	a, err = NewManager(conf)
-	require.Nil(t, err)
+	a = newTestManagerFromStoreConfig(t, f, conf)
 
 	// Check that the provisioned users are all gone
 	users, err = a.Users()
@@ -1237,17 +1225,16 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	require.Equal(t, 0, len(tokens))
 
 	var count int
-	a.db.QueryRow("SELECT COUNT(*) FROM user WHERE provisioned = 1").Scan(&count)
+	testDB(a).QueryRow("SELECT COUNT(*) FROM user WHERE provisioned = 1").Scan(&count)
 	require.Equal(t, 0, count)
-	a.db.QueryRow("SELECT COUNT(*) FROM user_grant WHERE provisioned = 1").Scan(&count)
+	testDB(a).QueryRow("SELECT COUNT(*) FROM user_access WHERE provisioned = 1").Scan(&count)
 	require.Equal(t, 0, count)
-	a.db.QueryRow("SELECT COUNT(*) FROM user_token WHERE provisioned = 1").Scan(&count)
+	testDB(a).QueryRow("SELECT COUNT(*) FROM user_token WHERE provisioned = 1").Scan(&count)
 }
 
 func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
 	f := filepath.Join(t.TempDir(), "user.db")
 	conf := &Config{
-		Filename:         f,
 		DefaultAccess:    PermissionReadWrite,
 		ProvisionEnabled: true,
 		Users:            []*User{},
@@ -1257,8 +1244,7 @@ func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
 			},
 		},
 	}
-	a, err := NewManager(conf)
-	require.Nil(t, err)
+	a := newTestManagerFromStoreConfig(t, f, conf)
 
 	// Manually add user
 	require.Nil(t, a.AddUser("philuser", "manual", RoleUser, false))
@@ -1290,7 +1276,7 @@ func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
 	require.True(t, grants[0].Provisioned) // Provisioned entry
 
 	// Re-open the DB (second app start)
-	require.Nil(t, a.db.Close())
+	require.Nil(t, a.Close())
 	conf.Users = []*User{
 		{Name: "philuser", Hash: "$2a$10$AAAAU21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
 	}
@@ -1299,8 +1285,7 @@ func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
 			{TopicPattern: "stats", Permission: PermissionReadWrite},
 		},
 	}
-	a, err = NewManager(conf)
-	require.Nil(t, err)
+	a = newTestManagerFromStoreConfig(t, f, conf)
 
 	// Check that the user was "upgraded" to a provisioned user
 	users, err = a.Users()
@@ -1383,7 +1368,7 @@ func TestMigrationFrom1(t *testing.T) {
 
 	// Create manager to trigger migration
 	a := newTestManagerFromFile(t, filename, "", PermissionDenyAll, bcrypt.MinCost, DefaultUserStatsQueueWriterInterval)
-	checkSchemaVersion(t, a.db)
+	checkSchemaVersion(t, testDB(a))
 
 	users, err := a.Users()
 	require.Nil(t, err)
@@ -1526,7 +1511,7 @@ func TestMigrationFrom4(t *testing.T) {
 
 	// Create manager to trigger migration
 	a := newTestManagerFromFile(t, filename, "", PermissionDenyAll, bcrypt.MinCost, DefaultUserStatsQueueWriterInterval)
-	checkSchemaVersion(t, a.db)
+	checkSchemaVersion(t, testDB(a))
 
 	// Add another
 	require.Nil(t, a.AllowAccess(Everyone, "left_*", PermissionReadWrite))
@@ -1587,14 +1572,26 @@ func newTestManager(t *testing.T, defaultAccess Permission) *Manager {
 }
 
 func newTestManagerFromFile(t *testing.T, filename, startupQueries string, defaultAccess Permission, bcryptCost int, statsWriterInterval time.Duration) *Manager {
+	store, err := NewSQLiteStore(filename, startupQueries)
+	require.Nil(t, err)
 	conf := &Config{
-		Filename:            filename,
-		StartupQueries:      startupQueries,
 		DefaultAccess:       defaultAccess,
 		BcryptCost:          bcryptCost,
 		QueueWriterInterval: statsWriterInterval,
 	}
-	a, err := NewManager(conf)
+	a, err := NewManager(store, conf)
+	require.Nil(t, err)
+	return a
+}
+
+func testDB(a *Manager) *sql.DB {
+	return a.store.(*commonStore).db
+}
+
+func newTestManagerFromStoreConfig(t *testing.T, filename string, conf *Config) *Manager {
+	store, err := NewSQLiteStore(filename, "")
+	require.Nil(t, err)
+	a, err := NewManager(store, conf)
 	require.Nil(t, err)
 	return a
 }

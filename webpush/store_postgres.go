@@ -25,8 +25,8 @@ const (
 			PRIMARY KEY (subscription_id, topic)
 		);
 		CREATE INDEX IF NOT EXISTS idx_webpush_topic ON webpush_subscription_topic (topic);
-		CREATE TABLE IF NOT EXISTS webpush_schema_version (
-			id INT PRIMARY KEY,
+		CREATE TABLE IF NOT EXISTS schema_version (
+			store TEXT PRIMARY KEY,
 			version INT NOT NULL
 		);
 	`
@@ -65,8 +65,8 @@ const (
 // PostgreSQL schema management queries
 const (
 	pgCurrentSchemaVersion     = 1
-	pgInsertSchemaVersion      = `INSERT INTO webpush_schema_version VALUES (1, $1)`
-	pgSelectSchemaVersionQuery = `SELECT version FROM webpush_schema_version WHERE id = 1`
+	pgInsertSchemaVersion      = `INSERT INTO schema_version (store, version) VALUES ('webpush', $1)`
+	pgSelectSchemaVersionQuery = `SELECT version FROM schema_version WHERE store = 'webpush'`
 )
 
 // NewPostgresStore creates a new PostgreSQL-backed web push store.
@@ -102,12 +102,16 @@ func NewPostgresStore(dsn string) (Store, error) {
 }
 
 func setupPostgresDB(db *sql.DB) error {
-	// If 'webpush_schema_version' table does not exist, this must be a new database
+	// If 'schema_version' table does not exist or no webpush row, this must be a new database
 	rows, err := db.Query(pgSelectSchemaVersionQuery)
 	if err != nil {
 		return setupNewPostgresDB(db)
 	}
-	return rows.Close()
+	defer rows.Close()
+	if !rows.Next() {
+		return setupNewPostgresDB(db)
+	}
+	return nil
 }
 
 func setupNewPostgresDB(db *sql.DB) error {

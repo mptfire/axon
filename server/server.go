@@ -204,9 +204,10 @@ func New(conf *Config) (*Server, error) {
 		}
 	}
 	var userManager *user.Manager
-	if conf.AuthFile != "" {
+	if conf.AuthFile != "" || conf.DatabaseURL != "" {
 		authConfig := &user.Config{
 			Filename:            conf.AuthFile,
+			DatabaseURL:         conf.DatabaseURL,
 			StartupQueries:      conf.AuthStartupQueries,
 			DefaultAccess:       conf.AuthDefault,
 			ProvisionEnabled:    true, // Enable provisioning of users and access
@@ -216,7 +217,16 @@ func New(conf *Config) (*Server, error) {
 			BcryptCost:          conf.AuthBcryptCost,
 			QueueWriterInterval: conf.AuthStatsQueueWriterInterval,
 		}
-		userManager, err = user.NewManager(authConfig)
+		var store user.Store
+		if conf.DatabaseURL != "" {
+			store, err = user.NewPostgresStore(conf.DatabaseURL)
+		} else {
+			store, err = user.NewSQLiteStore(conf.AuthFile, conf.AuthStartupQueries)
+		}
+		if err != nil {
+			return nil, err
+		}
+		userManager, err = user.NewManager(store, authConfig)
 		if err != nil {
 			return nil, err
 		}

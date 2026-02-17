@@ -2,11 +2,12 @@ package user
 
 import (
 	"database/sql"
+
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/util"
 )
 
-// Schema management queries
+// SQLite migrations
 const (
 	currentSchemaVersion     = 6
 	insertSchemaVersion      = `INSERT INTO schemaVersion VALUES (1, ?)`

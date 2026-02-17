@@ -242,6 +242,20 @@ const (
 	everyoneID = "u_everyone"
 )
 
+// Config holds the configuration for the user Manager
+type Config struct {
+	Filename            string              // Database filename, e.g. "/var/lib/ntfy/user.db" (SQLite)
+	DatabaseURL         string              // Database connection string (PostgreSQL)
+	StartupQueries      string              // Queries to run on startup, e.g. to create initial users or tiers (SQLite only)
+	DefaultAccess       Permission          // Default permission if no ACL matches
+	ProvisionEnabled    bool                // Hack: Enable auto-provisioning of users and access grants, disabled for "ntfy user" commands
+	Users               []*User             // Predefined users to create on startup
+	Access              map[string][]*Grant // Predefined access grants to create on startup (username -> []*Grant)
+	Tokens              map[string][]*Token // Predefined users to create on startup (username -> []*Token)
+	QueueWriterInterval time.Duration       // Interval for the async queue writer to flush stats and token updates to the database
+	BcryptCost          int                 // Cost of generated passwords; lowering makes testing faster
+}
+
 // Error constants used by the package
 var (
 	ErrUnauthenticated        = errors.New("unauthenticated")
