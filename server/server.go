@@ -58,7 +58,7 @@ type Server struct {
 	messagesHistory   []int64                             // Last n values of the messages counter, used to determine rate
 	userManager       *user.Manager                       // Might be nil!
 	messageCache      *messageCache                       // Database that stores the messages
-	webPush           webpush.Store                        // Database that stores web push subscriptions
+	webPush           webpush.Store                       // Database that stores web push subscriptions
 	fileCache         *fileCache                          // File system based cache that stores attachments
 	stripe            stripeAPI                           // Stripe API, can be replaced with a mock
 	priceCache        *util.LookupCache[map[string]int64] // Stripe price ID -> price as cents (USD implied!)

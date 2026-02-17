@@ -12,7 +12,7 @@ import (
 	"heckel.io/ntfy/v2/webpush"
 )
 
-func newTestPostgresStore(t *testing.T) *webpush.PostgresStore {
+func newTestPostgresStore(t *testing.T) webpush.Store {
 	dsn := os.Getenv("NTFY_TEST_DATABASE_URL")
 	if dsn == "" {
 		t.Skip("NTFY_TEST_DATABASE_URL not set, skipping PostgreSQL tests")

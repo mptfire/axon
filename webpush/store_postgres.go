@@ -2,13 +2,8 @@ package webpush
 
 import (
 	"database/sql"
-	"errors"
-	"net/netip"
-	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
-
-	"heckel.io/ntfy/v2/util"
 )
 
 const (
@@ -74,13 +69,8 @@ const (
 	pgSelectSchemaVersionQuery = `SELECT version FROM webpush_schema_version WHERE id = 1`
 )
 
-// PostgresStore is a web push subscription store backed by PostgreSQL.
-type PostgresStore struct {
-	db *sql.DB
-}
-
 // NewPostgresStore creates a new PostgreSQL-backed web push store.
-func NewPostgresStore(dsn string) (*PostgresStore, error) {
+func NewPostgresStore(dsn string) (Store, error) {
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {
 		return nil, err
@@ -91,8 +81,23 @@ func NewPostgresStore(dsn string) (*PostgresStore, error) {
 	if err := setupPostgresDB(db); err != nil {
 		return nil, err
 	}
-	return &PostgresStore{
+	return &commonStore{
 		db: db,
+		queries: storeQueries{
+			selectSubscriptionIDByEndpoint:             pgSelectSubscriptionIDByEndpoint,
+			selectSubscriptionCountBySubscriberIP:      pgSelectSubscriptionCountBySubscriberIP,
+			selectSubscriptionsForTopic:                pgSelectSubscriptionsForTopicQuery,
+			selectSubscriptionsExpiringSoon:            pgSelectSubscriptionsExpiringSoonQuery,
+			insertSubscription:                         pgInsertSubscriptionQuery,
+			updateSubscriptionWarningSent:              pgUpdateSubscriptionWarningSentQuery,
+			updateSubscriptionUpdatedAt:                pgUpdateSubscriptionUpdatedAtQuery,
+			deleteSubscriptionByEndpoint:               pgDeleteSubscriptionByEndpointQuery,
+			deleteSubscriptionByUserID:                 pgDeleteSubscriptionByUserIDQuery,
+			deleteSubscriptionByAge:                    pgDeleteSubscriptionByAgeQuery,
+			insertSubscriptionTopic:                    pgInsertSubscriptionTopicQuery,
+			deleteSubscriptionTopicAll:                 pgDeleteSubscriptionTopicAllQuery,
+			deleteSubscriptionTopicWithoutSubscription: pgDeleteSubscriptionTopicWithoutSubscription,
+		},
 	}, nil
 }
 
@@ -118,116 +123,4 @@ func setupNewPostgresDB(db *sql.DB) error {
 		return err
 	}
 	return tx.Commit()
-}
-
-// UpsertSubscription adds or updates Web Push subscriptions for the given topics and user ID.
-func (c *PostgresStore) UpsertSubscription(endpoint string, auth, p256dh, userID string, subscriberIP netip.Addr, topics []string) error {
-	tx, err := c.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	// Read number of subscriptions for subscriber IP address
-	var subscriptionCount int
-	if err := tx.QueryRow(pgSelectSubscriptionCountBySubscriberIP, subscriberIP.String()).Scan(&subscriptionCount); err != nil {
-		return err
-	}
-	// Read existing subscription ID for endpoint (or create new ID)
-	var subscriptionID string
-	err = tx.QueryRow(pgSelectSubscriptionIDByEndpoint, endpoint).Scan(&subscriptionID)
-	if errors.Is(err, sql.ErrNoRows) {
-		if subscriptionCount >= subscriptionEndpointLimitPerSubscriberIP {
-			return ErrWebPushTooManySubscriptions
-		}
-		subscriptionID = util.RandomStringPrefix(subscriptionIDPrefix, subscriptionIDLength)
-	} else if err != nil {
-		return err
-	}
-	// Insert or update subscription
-	updatedAt, warnedAt := time.Now().Unix(), 0
-	if _, err = tx.Exec(pgInsertSubscriptionQuery, subscriptionID, endpoint, auth, p256dh, userID, subscriberIP.String(), updatedAt, warnedAt); err != nil {
-		return err
-	}
-	// Replace all subscription topics
-	if _, err := tx.Exec(pgDeleteSubscriptionTopicAllQuery, subscriptionID); err != nil {
-		return err
-	}
-	for _, topic := range topics {
-		if _, err = tx.Exec(pgInsertSubscriptionTopicQuery, subscriptionID, topic); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
-// SubscriptionsForTopic returns all subscriptions for the given topic.
-func (c *PostgresStore) SubscriptionsForTopic(topic string) ([]*Subscription, error) {
-	rows, err := c.db.Query(pgSelectSubscriptionsForTopicQuery, topic)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return subscriptionsFromRows(rows)
-}
-
-// SubscriptionsExpiring returns all subscriptions that have not been updated for a given time period.
-func (c *PostgresStore) SubscriptionsExpiring(warnAfter time.Duration) ([]*Subscription, error) {
-	rows, err := c.db.Query(pgSelectSubscriptionsExpiringSoonQuery, time.Now().Add(-warnAfter).Unix())
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return subscriptionsFromRows(rows)
-}
-
-// MarkExpiryWarningSent marks the given subscriptions as having received a warning about expiring soon.
-func (c *PostgresStore) MarkExpiryWarningSent(subscriptions []*Subscription) error {
-	tx, err := c.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	for _, subscription := range subscriptions {
-		if _, err := tx.Exec(pgUpdateSubscriptionWarningSentQuery, time.Now().Unix(), subscription.ID); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
-// RemoveSubscriptionsByEndpoint removes the subscription for the given endpoint.
-func (c *PostgresStore) RemoveSubscriptionsByEndpoint(endpoint string) error {
-	_, err := c.db.Exec(pgDeleteSubscriptionByEndpointQuery, endpoint)
-	return err
-}
-
-// RemoveSubscriptionsByUserID removes all subscriptions for the given user ID.
-func (c *PostgresStore) RemoveSubscriptionsByUserID(userID string) error {
-	if userID == "" {
-		return ErrWebPushUserIDCannotBeEmpty
-	}
-	_, err := c.db.Exec(pgDeleteSubscriptionByUserIDQuery, userID)
-	return err
-}
-
-// RemoveExpiredSubscriptions removes all subscriptions that have not been updated for a given time period.
-func (c *PostgresStore) RemoveExpiredSubscriptions(expireAfter time.Duration) error {
-	_, err := c.db.Exec(pgDeleteSubscriptionByAgeQuery, time.Now().Add(-expireAfter).Unix())
-	if err != nil {
-		return err
-	}
-	_, err = c.db.Exec(pgDeleteSubscriptionTopicWithoutSubscription)
-	return err
-}
-
-// SetSubscriptionUpdatedAt updates the updated_at timestamp for a subscription by endpoint. This is
-// exported for testing purposes and is not part of the Store interface.
-func (c *PostgresStore) SetSubscriptionUpdatedAt(endpoint string, updatedAt int64) error {
-	_, err := c.db.Exec(pgUpdateSubscriptionUpdatedAtQuery, updatedAt, endpoint)
-	return err
-}
-
-// Close closes the underlying database connection.
-func (c *PostgresStore) Close() error {
-	return c.db.Close()
 }

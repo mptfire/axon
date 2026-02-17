@@ -2,12 +2,8 @@ package webpush
 
 import (
 	"database/sql"
-	"net/netip"
-	"time"
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
-
-	"heckel.io/ntfy/v2/util"
 )
 
 const (
@@ -80,13 +76,8 @@ const (
 	sqliteSelectWebPushSchemaVersionQuery = `SELECT version FROM schemaVersion WHERE id = 1`
 )
 
-// SQLiteStore is a web push subscription store backed by SQLite.
-type SQLiteStore struct {
-	db *sql.DB
-}
-
 // NewSQLiteStore creates a new SQLite-backed web push store.
-func NewSQLiteStore(filename, startupQueries string) (*SQLiteStore, error) {
+func NewSQLiteStore(filename, startupQueries string) (Store, error) {
 	db, err := sql.Open("sqlite3", filename)
 	if err != nil {
 		return nil, err
@@ -97,8 +88,23 @@ func NewSQLiteStore(filename, startupQueries string) (*SQLiteStore, error) {
 	if err := runSQLiteWebPushStartupQueries(db, startupQueries); err != nil {
 		return nil, err
 	}
-	return &SQLiteStore{
+	return &commonStore{
 		db: db,
+		queries: storeQueries{
+			selectSubscriptionIDByEndpoint:             sqliteSelectWebPushSubscriptionIDByEndpoint,
+			selectSubscriptionCountBySubscriberIP:      sqliteSelectWebPushSubscriptionCountBySubscriberIP,
+			selectSubscriptionsForTopic:                sqliteSelectWebPushSubscriptionsForTopicQuery,
+			selectSubscriptionsExpiringSoon:            sqliteSelectWebPushSubscriptionsExpiringSoonQuery,
+			insertSubscription:                         sqliteInsertWebPushSubscriptionQuery,
+			updateSubscriptionWarningSent:              sqliteUpdateWebPushSubscriptionWarningSentQuery,
+			updateSubscriptionUpdatedAt:                sqliteUpdateWebPushSubscriptionUpdatedAtQuery,
+			deleteSubscriptionByEndpoint:               sqliteDeleteWebPushSubscriptionByEndpointQuery,
+			deleteSubscriptionByUserID:                 sqliteDeleteWebPushSubscriptionByUserIDQuery,
+			deleteSubscriptionByAge:                    sqliteDeleteWebPushSubscriptionByAgeQuery,
+			insertSubscriptionTopic:                    sqliteInsertWebPushSubscriptionTopicQuery,
+			deleteSubscriptionTopicAll:                 sqliteDeleteWebPushSubscriptionTopicAllQuery,
+			deleteSubscriptionTopicWithoutSubscription: sqliteDeleteWebPushSubscriptionTopicWithoutSubscription,
+		},
 	}, nil
 }
 
@@ -129,137 +135,4 @@ func runSQLiteWebPushStartupQueries(db *sql.DB, startupQueries string) error {
 		return err
 	}
 	return nil
-}
-
-// UpsertSubscription adds or updates Web Push subscriptions for the given topics and user ID. It always first deletes all
-// existing entries for a given endpoint.
-func (c *SQLiteStore) UpsertSubscription(endpoint string, auth, p256dh, userID string, subscriberIP netip.Addr, topics []string) error {
-	tx, err := c.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	// Read number of subscriptions for subscriber IP address
-	rowsCount, err := tx.Query(sqliteSelectWebPushSubscriptionCountBySubscriberIP, subscriberIP.String())
-	if err != nil {
-		return err
-	}
-	defer rowsCount.Close()
-	var subscriptionCount int
-	if !rowsCount.Next() {
-		return ErrWebPushNoRows
-	}
-	if err := rowsCount.Scan(&subscriptionCount); err != nil {
-		return err
-	}
-	if err := rowsCount.Close(); err != nil {
-		return err
-	}
-	// Read existing subscription ID for endpoint (or create new ID)
-	rows, err := tx.Query(sqliteSelectWebPushSubscriptionIDByEndpoint, endpoint)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	var subscriptionID string
-	if rows.Next() {
-		if err := rows.Scan(&subscriptionID); err != nil {
-			return err
-		}
-	} else {
-		if subscriptionCount >= subscriptionEndpointLimitPerSubscriberIP {
-			return ErrWebPushTooManySubscriptions
-		}
-		subscriptionID = util.RandomStringPrefix(subscriptionIDPrefix, subscriptionIDLength)
-	}
-	if err := rows.Close(); err != nil {
-		return err
-	}
-	// Insert or update subscription
-	updatedAt, warnedAt := time.Now().Unix(), 0
-	if _, err = tx.Exec(sqliteInsertWebPushSubscriptionQuery, subscriptionID, endpoint, auth, p256dh, userID, subscriberIP.String(), updatedAt, warnedAt); err != nil {
-		return err
-	}
-	// Replace all subscription topics
-	if _, err := tx.Exec(sqliteDeleteWebPushSubscriptionTopicAllQuery, subscriptionID); err != nil {
-		return err
-	}
-	for _, topic := range topics {
-		if _, err = tx.Exec(sqliteInsertWebPushSubscriptionTopicQuery, subscriptionID, topic); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
-// SubscriptionsForTopic returns all subscriptions for the given topic.
-func (c *SQLiteStore) SubscriptionsForTopic(topic string) ([]*Subscription, error) {
-	rows, err := c.db.Query(sqliteSelectWebPushSubscriptionsForTopicQuery, topic)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return subscriptionsFromRows(rows)
-}
-
-// SubscriptionsExpiring returns all subscriptions that have not been updated for a given time period.
-func (c *SQLiteStore) SubscriptionsExpiring(warnAfter time.Duration) ([]*Subscription, error) {
-	rows, err := c.db.Query(sqliteSelectWebPushSubscriptionsExpiringSoonQuery, time.Now().Add(-warnAfter).Unix())
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return subscriptionsFromRows(rows)
-}
-
-// MarkExpiryWarningSent marks the given subscriptions as having received a warning about expiring soon.
-func (c *SQLiteStore) MarkExpiryWarningSent(subscriptions []*Subscription) error {
-	tx, err := c.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	for _, subscription := range subscriptions {
-		if _, err := tx.Exec(sqliteUpdateWebPushSubscriptionWarningSentQuery, time.Now().Unix(), subscription.ID); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
-// RemoveSubscriptionsByEndpoint removes the subscription for the given endpoint.
-func (c *SQLiteStore) RemoveSubscriptionsByEndpoint(endpoint string) error {
-	_, err := c.db.Exec(sqliteDeleteWebPushSubscriptionByEndpointQuery, endpoint)
-	return err
-}
-
-// RemoveSubscriptionsByUserID removes all subscriptions for the given user ID.
-func (c *SQLiteStore) RemoveSubscriptionsByUserID(userID string) error {
-	if userID == "" {
-		return ErrWebPushUserIDCannotBeEmpty
-	}
-	_, err := c.db.Exec(sqliteDeleteWebPushSubscriptionByUserIDQuery, userID)
-	return err
-}
-
-// RemoveExpiredSubscriptions removes all subscriptions that have not been updated for a given time period.
-func (c *SQLiteStore) RemoveExpiredSubscriptions(expireAfter time.Duration) error {
-	_, err := c.db.Exec(sqliteDeleteWebPushSubscriptionByAgeQuery, time.Now().Add(-expireAfter).Unix())
-	if err != nil {
-		return err
-	}
-	_, err = c.db.Exec(sqliteDeleteWebPushSubscriptionTopicWithoutSubscription)
-	return err
-}
-
-// SetSubscriptionUpdatedAt updates the updated_at timestamp for a subscription by endpoint. This is
-// exported for testing purposes and is not part of the Store interface.
-func (c *SQLiteStore) SetSubscriptionUpdatedAt(endpoint string, updatedAt int64) error {
-	_, err := c.db.Exec(sqliteUpdateWebPushSubscriptionUpdatedAtQuery, updatedAt, endpoint)
-	return err
-}
-
-// Close closes the underlying database connection.
-func (c *SQLiteStore) Close() error {
-	return c.db.Close()
 }

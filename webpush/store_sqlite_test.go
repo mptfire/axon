@@ -8,7 +8,7 @@ import (
 	"heckel.io/ntfy/v2/webpush"
 )
 
-func newTestSQLiteStore(t *testing.T) *webpush.SQLiteStore {
+func newTestSQLiteStore(t *testing.T) webpush.Store {
 	store, err := webpush.NewSQLiteStore(filepath.Join(t.TempDir(), "webpush.db"), "")
 	require.Nil(t, err)
 	t.Cleanup(func() { store.Close() })
