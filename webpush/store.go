@@ -6,7 +6,6 @@ import (
 	"net/netip"
 	"time"
 
-	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/util"
 )
 
@@ -16,6 +15,7 @@ const (
 	subscriptionEndpointLimitPerSubscriberIP = 10
 )
 
+// Errors returned by the store
 var (
 	ErrWebPushTooManySubscriptions = errors.New("too many subscriptions")
 	ErrWebPushUserIDCannotBeEmpty  = errors.New("user ID cannot be empty")
@@ -55,42 +55,6 @@ type storeQueries struct {
 type commonStore struct {
 	db      *sql.DB
 	queries storeQueries
-}
-
-// Subscription represents a web push subscription.
-type Subscription struct {
-	ID       string
-	Endpoint string
-	Auth     string
-	P256dh   string
-	UserID   string
-}
-
-// Context returns the logging context for the subscription.
-func (w *Subscription) Context() log.Context {
-	return map[string]any{
-		"web_push_subscription_id":       w.ID,
-		"web_push_subscription_user_id":  w.UserID,
-		"web_push_subscription_endpoint": w.Endpoint,
-	}
-}
-
-func subscriptionsFromRows(rows *sql.Rows) ([]*Subscription, error) {
-	subscriptions := make([]*Subscription, 0)
-	for rows.Next() {
-		var id, endpoint, auth, p256dh, userID string
-		if err := rows.Scan(&id, &endpoint, &auth, &p256dh, &userID); err != nil {
-			return nil, err
-		}
-		subscriptions = append(subscriptions, &Subscription{
-			ID:       id,
-			Endpoint: endpoint,
-			Auth:     auth,
-			P256dh:   p256dh,
-			UserID:   userID,
-		})
-	}
-	return subscriptions, nil
 }
 
 // UpsertSubscription adds or updates Web Push subscriptions for the given topics and user ID.
@@ -203,4 +167,22 @@ func (s *commonStore) SetSubscriptionUpdatedAt(endpoint string, updatedAt int64)
 // Close closes the underlying database connection.
 func (s *commonStore) Close() error {
 	return s.db.Close()
+}
+
+func subscriptionsFromRows(rows *sql.Rows) ([]*Subscription, error) {
+	subscriptions := make([]*Subscription, 0)
+	for rows.Next() {
+		var id, endpoint, auth, p256dh, userID string
+		if err := rows.Scan(&id, &endpoint, &auth, &p256dh, &userID); err != nil {
+			return nil, err
+		}
+		subscriptions = append(subscriptions, &Subscription{
+			ID:       id,
+			Endpoint: endpoint,
+			Auth:     auth,
+			P256dh:   p256dh,
+			UserID:   userID,
+		})
+	}
+	return subscriptions, nil
 }
