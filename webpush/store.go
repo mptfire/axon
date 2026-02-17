@@ -1,6 +1,7 @@
 package webpush
 
 import (
+	"database/sql"
 	"errors"
 	"net/netip"
 	"time"
@@ -9,9 +10,9 @@ import (
 )
 
 const (
-	SubscriptionIDPrefix                     = "wps_"
-	SubscriptionIDLength                     = 10
-	SubscriptionEndpointLimitPerSubscriberIP = 10
+	subscriptionIDPrefix                     = "wps_"
+	subscriptionIDLength                     = 10
+	subscriptionEndpointLimitPerSubscriberIP = 10
 )
 
 var (
@@ -49,4 +50,22 @@ func (w *Subscription) Context() log.Context {
 		"web_push_subscription_user_id":  w.UserID,
 		"web_push_subscription_endpoint": w.Endpoint,
 	}
+}
+
+func subscriptionsFromRows(rows *sql.Rows) ([]*Subscription, error) {
+	subscriptions := make([]*Subscription, 0)
+	for rows.Next() {
+		var id, endpoint, auth, p256dh, userID string
+		if err := rows.Scan(&id, &endpoint, &auth, &p256dh, &userID); err != nil {
+			return nil, err
+		}
+		subscriptions = append(subscriptions, &Subscription{
+			ID:       id,
+			Endpoint: endpoint,
+			Auth:     auth,
+			P256dh:   p256dh,
+			UserID:   userID,
+		})
+	}
+	return subscriptions, nil
 }

@@ -2,6 +2,7 @@ package webpush
 
 import (
 	"database/sql"
+	"errors"
 	"net/netip"
 	"time"
 
@@ -133,11 +134,11 @@ func (c *PostgresStore) UpsertSubscription(endpoint string, auth, p256dh, userID
 	// Read existing subscription ID for endpoint (or create new ID)
 	var subscriptionID string
 	err = tx.QueryRow(pgSelectSubscriptionIDByEndpoint, endpoint).Scan(&subscriptionID)
-	if err == sql.ErrNoRows {
-		if subscriptionCount >= SubscriptionEndpointLimitPerSubscriberIP {
+	if errors.Is(err, sql.ErrNoRows) {
+		if subscriptionCount >= subscriptionEndpointLimitPerSubscriberIP {
 			return ErrWebPushTooManySubscriptions
 		}
-		subscriptionID = util.RandomStringPrefix(SubscriptionIDPrefix, SubscriptionIDLength)
+		subscriptionID = util.RandomStringPrefix(subscriptionIDPrefix, subscriptionIDLength)
 	} else if err != nil {
 		return err
 	}

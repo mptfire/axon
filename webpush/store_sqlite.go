@@ -166,10 +166,10 @@ func (c *SQLiteStore) UpsertSubscription(endpoint string, auth, p256dh, userID s
 			return err
 		}
 	} else {
-		if subscriptionCount >= SubscriptionEndpointLimitPerSubscriberIP {
+		if subscriptionCount >= subscriptionEndpointLimitPerSubscriberIP {
 			return ErrWebPushTooManySubscriptions
 		}
-		subscriptionID = util.RandomStringPrefix(SubscriptionIDPrefix, SubscriptionIDLength)
+		subscriptionID = util.RandomStringPrefix(subscriptionIDPrefix, subscriptionIDLength)
 	}
 	if err := rows.Close(); err != nil {
 		return err
@@ -261,22 +261,4 @@ func (c *SQLiteStore) SetSubscriptionUpdatedAt(endpoint string, updatedAt int64)
 // Close closes the underlying database connection.
 func (c *SQLiteStore) Close() error {
 	return c.db.Close()
-}
-
-func subscriptionsFromRows(rows *sql.Rows) ([]*Subscription, error) {
-	subscriptions := make([]*Subscription, 0)
-	for rows.Next() {
-		var id, endpoint, auth, p256dh, userID string
-		if err := rows.Scan(&id, &endpoint, &auth, &p256dh, &userID); err != nil {
-			return nil, err
-		}
-		subscriptions = append(subscriptions, &Subscription{
-			ID:       id,
-			Endpoint: endpoint,
-			Auth:     auth,
-			P256dh:   p256dh,
-			UserID:   userID,
-		})
-	}
-	return subscriptions, nil
 }
