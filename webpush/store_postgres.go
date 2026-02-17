@@ -57,6 +57,7 @@ const (
 		DO UPDATE SET key_auth = excluded.key_auth, key_p256dh = excluded.key_p256dh, user_id = excluded.user_id, subscriber_ip = excluded.subscriber_ip, updated_at = excluded.updated_at, warned_at = excluded.warned_at
 	`
 	pgUpdateSubscriptionWarningSentQuery = `UPDATE webpush_subscription SET warned_at = $1 WHERE id = $2`
+	pgUpdateSubscriptionUpdatedAtQuery   = `UPDATE webpush_subscription SET updated_at = $1 WHERE endpoint = $2`
 	pgDeleteSubscriptionByEndpointQuery  = `DELETE FROM webpush_subscription WHERE endpoint = $1`
 	pgDeleteSubscriptionByUserIDQuery    = `DELETE FROM webpush_subscription WHERE user_id = $1`
 	pgDeleteSubscriptionByAgeQuery       = `DELETE FROM webpush_subscription WHERE updated_at <= $1`
@@ -222,7 +223,7 @@ func (c *PostgresStore) RemoveExpiredSubscriptions(expireAfter time.Duration) er
 // SetSubscriptionUpdatedAt updates the updated_at timestamp for a subscription by endpoint. This is
 // exported for testing purposes and is not part of the Store interface.
 func (c *PostgresStore) SetSubscriptionUpdatedAt(endpoint string, updatedAt int64) error {
-	_, err := c.db.Exec("UPDATE webpush_subscription SET updated_at = $1 WHERE endpoint = $2", updatedAt, endpoint)
+	_, err := c.db.Exec(pgUpdateSubscriptionUpdatedAtQuery, updatedAt, endpoint)
 	return err
 }
 

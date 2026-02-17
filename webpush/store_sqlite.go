@@ -63,6 +63,7 @@ const (
 		DO UPDATE SET key_auth = excluded.key_auth, key_p256dh = excluded.key_p256dh, user_id = excluded.user_id, subscriber_ip = excluded.subscriber_ip, updated_at = excluded.updated_at, warned_at = excluded.warned_at
 	`
 	sqliteUpdateWebPushSubscriptionWarningSentQuery = `UPDATE subscription SET warned_at = ? WHERE id = ?`
+	sqliteUpdateWebPushSubscriptionUpdatedAtQuery   = `UPDATE subscription SET updated_at = ? WHERE endpoint = ?`
 	sqliteDeleteWebPushSubscriptionByEndpointQuery  = `DELETE FROM subscription WHERE endpoint = ?`
 	sqliteDeleteWebPushSubscriptionByUserIDQuery    = `DELETE FROM subscription WHERE user_id = ?`
 	sqliteDeleteWebPushSubscriptionByAgeQuery       = `DELETE FROM subscription WHERE updated_at <= ?` // Full table scan!
@@ -254,7 +255,7 @@ func (c *SQLiteStore) RemoveExpiredSubscriptions(expireAfter time.Duration) erro
 // SetSubscriptionUpdatedAt updates the updated_at timestamp for a subscription by endpoint. This is
 // exported for testing purposes and is not part of the Store interface.
 func (c *SQLiteStore) SetSubscriptionUpdatedAt(endpoint string, updatedAt int64) error {
-	_, err := c.db.Exec("UPDATE subscription SET updated_at = ? WHERE endpoint = ?", updatedAt, endpoint)
+	_, err := c.db.Exec(sqliteUpdateWebPushSubscriptionUpdatedAtQuery, updatedAt, endpoint)
 	return err
 }
 
