@@ -19,6 +19,7 @@ type Store interface {
 	User(username string) (*User, error)
 	UserByToken(token string) (*User, error)
 	UserByStripeCustomer(customerID string) (*User, error)
+	UserIDByUsername(username string) (string, error)
 	Users() ([]*User, error)
 	UsersCount() (int64, error)
 	AddUser(username, hash string, role Role, provisioned bool) error
@@ -33,6 +34,7 @@ type Store interface {
 	ResetTier(username string) error
 	UpdateStats(userID string, stats *Stats) error
 	ResetStats() error
+
 	// Token operations
 	CreateToken(userID, token, label string, lastAccess time.Time, lastOrigin netip.Addr, expires time.Time, provisioned bool) (*Token, error)
 	Token(userID, token string) (*Token, error)
@@ -45,6 +47,7 @@ type Store interface {
 	RemoveExpiredTokens() error
 	TokenCount(userID string) (int, error)
 	RemoveExcessTokens(userID string, maxCount int) error
+
 	// Access operations
 	AuthorizeTopicAccess(usernameOrEveryone, topic string) (read, write, found bool, err error)
 	AllGrants() (map[string][]Grant, error)
@@ -57,6 +60,7 @@ type Store interface {
 	ReservationsCount(username string) (int64, error)
 	ReservationOwner(topic string) (string, error)
 	OtherAccessCount(username, topic string) (int, error)
+
 	// Tier operations
 	AddTier(tier *Tier) error
 	UpdateTier(tier *Tier) error
@@ -64,15 +68,14 @@ type Store interface {
 	Tiers() ([]*Tier, error)
 	Tier(code string) (*Tier, error)
 	TierByStripePrice(priceID string) (*Tier, error)
+
 	// Phone operations
 	PhoneNumbers(userID string) ([]string, error)
 	AddPhoneNumber(userID, phoneNumber string) error
 	RemovePhoneNumber(userID, phoneNumber string) error
-	// Billing
+
+	// Other stuff
 	ChangeBilling(username string, billing *Billing) error
-	// Internal helpers
-	UserIDByUsername(username string) (string, error)
-	// System
 	Close() error
 }
 
