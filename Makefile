@@ -265,6 +265,8 @@ cli-build-results:
 
 check: test web-fmt-check fmt-check vet web-lint lint staticcheck
 
+checkv: testv web-fmt-check fmt-check vet web-lint lint staticcheck
+
 test: .PHONY
 	go test $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
 

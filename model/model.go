@@ -19,10 +19,10 @@ const (
 	PollRequestEvent   = "poll_request"
 )
 
-const (
-	MessageIDLength = 12
-)
+// MessageIDLength is the length of a randomly generated message ID
+const MessageIDLength = 12
 
+// Errors for message operations
 var (
 	ErrUnexpectedMessageType = errors.New("unexpected message type")
 	ErrMessageNotFound       = errors.New("message not found")
@@ -197,6 +197,7 @@ func (t SinceMarker) ID() string {
 	return t.id
 }
 
+// Common SinceMarker values for subscribing to messages
 var (
 	SinceAllMessages   = SinceMarker{time.Unix(0, 0), ""}
 	SinceNoMessages    = SinceMarker{time.Unix(1, 0), ""}

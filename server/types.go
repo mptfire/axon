@@ -19,13 +19,16 @@ const (
 	messageIDLength    = model.MessageIDLength
 )
 
-// Sentinel values and errors
+// SinceMarker aliases
 var (
-	sinceAllMessages         = model.SinceAllMessages
-	sinceNoMessages          = model.SinceNoMessages
-	sinceLatestMessage       = model.SinceLatestMessage
-	errUnexpectedMessageType = model.ErrUnexpectedMessageType
-	errMessageNotFound       = model.ErrMessageNotFound
+	sinceAllMessages   = model.SinceAllMessages
+	sinceNoMessages    = model.SinceNoMessages
+	sinceLatestMessage = model.SinceLatestMessage
+)
+
+// Error aliases
+var (
+	errMessageNotFound = model.ErrMessageNotFound
 )
 
 // Constructors and helpers
