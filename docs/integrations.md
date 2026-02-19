@@ -185,6 +185,7 @@ I've added a ⭐ to projects or posts that have a significant following, or had 
 - [Uptime Monitor](https://uptime-monitor.org) - Self-hosted, enterprise-grade uptime monitoring and alerting system (TS)
 - [send_to_ntfy_extension](https://github.com/TheDuffman85/send_to_ntfy_extension/) ⭐ - A browser extension to send the notifications to ntfy (JS)
 - [SIA-Server](https://github.com/ZebMcKayhan/SIA-Server) - A light weight, self-hosted notification Server for Honywell Galaxy Flex alarm systems (Python)
+- [zabbix-ntfy](https://github.com/torgrimt/zabbix-ntfy) - Zabbix server Mediatype to add support for ntfy.sh services
 
 ## Blog + forum posts
 
