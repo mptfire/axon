@@ -11,6 +11,7 @@ import (
 
 	"github.com/SherClockHolmes/webpush-go"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/user"
 	wpush "heckel.io/ntfy/v2/webpush"
 )
@@ -83,14 +84,14 @@ func (s *Server) handleWebPushDelete(w http.ResponseWriter, r *http.Request, _ *
 	return s.writeJSON(w, newSuccessResponse())
 }
 
-func (s *Server) publishToWebPushEndpoints(v *visitor, m *message) {
+func (s *Server) publishToWebPushEndpoints(v *visitor, m *model.Message) {
 	subscriptions, err := s.webPush.SubscriptionsForTopic(m.Topic)
 	if err != nil {
 		logvm(v, m).Err(err).With(v, m).Warn("Unable to publish web push messages")
 		return
 	}
 	log.Tag(tagWebPush).With(v, m).Debug("Publishing web push message to %d subscribers", len(subscriptions))
-	payload, err := json.Marshal(newWebPushPayload(fmt.Sprintf("%s/%s", s.config.BaseURL, m.Topic), m.forJSON()))
+	payload, err := json.Marshal(newWebPushPayload(fmt.Sprintf("%s/%s", s.config.BaseURL, m.Topic), m.ForJSON()))
 	if err != nil {
 		log.Tag(tagWebPush).Err(err).With(v, m).Warn("Unable to marshal expiring payload")
 		return

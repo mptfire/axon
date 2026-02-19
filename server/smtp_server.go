@@ -19,6 +19,7 @@ import (
 
 	"github.com/emersion/go-smtp"
 	"github.com/microcosm-cc/bluemonday"
+	"heckel.io/ntfy/v2/model"
 )
 
 var (
@@ -183,7 +184,7 @@ func (s *smtpSession) Data(r io.Reader) error {
 	})
 }
 
-func (s *smtpSession) publishMessage(m *message) error {
+func (s *smtpSession) publishMessage(m *model.Message) error {
 	// Extract remote address (for rate limiting)
 	remoteAddr, _, err := net.SplitHostPort(s.conn.Conn().RemoteAddr().String())
 	if err != nil {

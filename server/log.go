@@ -10,6 +10,7 @@ import (
 	"github.com/emersion/go-smtp"
 	"github.com/gorilla/websocket"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/util"
 )
 
@@ -55,12 +56,12 @@ func logvr(v *visitor, r *http.Request) *log.Event {
 }
 
 // logvrm creates a new log event with HTTP request, visitor fields and message fields
-func logvrm(v *visitor, r *http.Request, m *message) *log.Event {
+func logvrm(v *visitor, r *http.Request, m *model.Message) *log.Event {
 	return logvr(v, r).With(m)
 }
 
 // logvrm creates a new log event with visitor fields and message fields
-func logvm(v *visitor, m *message) *log.Event {
+func logvm(v *visitor, m *model.Message) *log.Event {
 	return logv(v).With(m)
 }
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/user"
 	"net/netip"
 	"strings"
@@ -131,7 +132,7 @@ func TestToFirebaseMessage_Message_Normal_Allowed(t *testing.T) {
 	m.Click = "https://google.com"
 	m.Icon = "https://ntfy.sh/static/img/ntfy.png"
 	m.Title = "some title"
-	m.Actions = []*action{
+	m.Actions = []*model.Action{
 		{
 			ID:     "123",
 			Action: "view",
@@ -150,7 +151,7 @@ func TestToFirebaseMessage_Message_Normal_Allowed(t *testing.T) {
 			},
 		},
 	}
-	m.Attachment = &attachment{
+	m.Attachment = &model.Attachment{
 		Name:    "some file.jpg",
 		Type:    "image/jpeg",
 		Size:    12345,
@@ -346,16 +347,16 @@ func TestToFirebaseSender_Abuse(t *testing.T) {
 	client := newFirebaseClient(sender, &testAuther{})
 	visitor := newVisitor(newTestConfig(t), newMemTestCache(t), nil, netip.MustParseAddr("1.2.3.4"), nil)
 
-	require.Nil(t, client.Send(visitor, &message{Topic: "mytopic"}))
+	require.Nil(t, client.Send(visitor, &model.Message{Topic: "mytopic"}))
 	require.Equal(t, 1, len(sender.Messages()))
 
-	require.Nil(t, client.Send(visitor, &message{Topic: "mytopic"}))
+	require.Nil(t, client.Send(visitor, &model.Message{Topic: "mytopic"}))
 	require.Equal(t, 2, len(sender.Messages()))
 
-	require.Equal(t, errFirebaseQuotaExceeded, client.Send(visitor, &message{Topic: "mytopic"}))
+	require.Equal(t, errFirebaseQuotaExceeded, client.Send(visitor, &model.Message{Topic: "mytopic"}))
 	require.Equal(t, 2, len(sender.Messages()))
 
 	sender.messages = make([]*messaging.Message, 0) // Reset to test that time limit is working
-	require.Equal(t, errFirebaseTemporarilyBanned, client.Send(visitor, &message{Topic: "mytopic"}))
+	require.Equal(t, errFirebaseTemporarilyBanned, client.Send(visitor, &model.Message{Topic: "mytopic"}))
 	require.Equal(t, 0, len(sender.Messages()))
 }

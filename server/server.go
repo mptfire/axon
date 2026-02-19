@@ -33,6 +33,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v2"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/message"
+	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
@@ -57,7 +59,7 @@ type Server struct {
 	messages          int64                               // Total number of messages (persisted if messageCache enabled)
 	messagesHistory   []int64                             // Last n values of the messages counter, used to determine rate
 	userManager       *user.Manager                       // Might be nil!
-	messageCache      *messageCache                       // Database that stores the messages
+	messageCache      message.Store                       // Database that stores the messages
 	webPush           webpush.Store                       // Database that stores web push subscriptions
 	fileCache         *fileCache                          // File system based cache that stores attachments
 	stripe            stripeAPI                           // Stripe API, can be replaced with a mock
@@ -188,9 +190,13 @@ func New(conf *Config) (*Server, error) {
 			return nil, err
 		}
 	}
-	topics, err := messageCache.Topics()
+	topicIDs, err := messageCache.Topics()
 	if err != nil {
 		return nil, err
+	}
+	topics := make(map[string]*topic, len(topicIDs))
+	for _, id := range topicIDs {
+		topics[id] = newTopic(id)
 	}
 	messages, err := messageCache.Stats()
 	if err != nil {
@@ -263,13 +269,15 @@ func New(conf *Config) (*Server, error) {
 	return s, nil
 }
 
-func createMessageCache(conf *Config) (*messageCache, error) {
+func createMessageCache(conf *Config) (message.Store, error) {
 	if conf.CacheDuration == 0 {
-		return newNopCache()
+		return message.NewNopStore()
+	} else if conf.DatabaseURL != "" {
+		return message.NewPostgresStore(conf.DatabaseURL, conf.CacheBatchSize, conf.CacheBatchTimeout)
 	} else if conf.CacheFile != "" {
-		return newSqliteCache(conf.CacheFile, conf.CacheStartupQueries, conf.CacheDuration, conf.CacheBatchSize, conf.CacheBatchTimeout, false)
+		return message.NewSQLiteStore(conf.CacheFile, conf.CacheStartupQueries, conf.CacheDuration, conf.CacheBatchSize, conf.CacheBatchTimeout, false)
 	}
-	return newMemCache()
+	return message.NewMemStore()
 }
 
 // Run executes the main server. It listens on HTTP (+ HTTPS, if configured), and starts
@@ -750,7 +758,7 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request, v *visitor) 
 		if s.config.CacheBatchTimeout > 0 {
 			// Strange edge case: If we immediately after upload request the file (the web app does this for images),
 			// and messages are persisted asynchronously, retry fetching from the database
-			m, err = util.Retry(func() (*message, error) {
+			m, err = util.Retry(func() (*model.Message, error) {
 				return s.messageCache.Message(messageID)
 			}, s.config.CacheBatchTimeout, 100*time.Millisecond, 300*time.Millisecond, 600*time.Millisecond)
 		}
@@ -796,7 +804,7 @@ func (s *Server) handleMatrixDiscovery(w http.ResponseWriter) error {
 	return writeMatrixDiscoveryResponse(w)
 }
 
-func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*message, error) {
+func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Message, error) {
 	start := time.Now()
 	t, err := fromContext[*topic](r, contextTopic)
 	if err != nil {
@@ -924,7 +932,7 @@ func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request, v *visito
 		return err
 	}
 	minc(metricMessagesPublishedSuccess)
-	return s.writeJSON(w, m.forJSON())
+	return s.writeJSON(w, m.ForJSON())
 }
 
 func (s *Server) handlePublishMatrix(w http.ResponseWriter, r *http.Request, v *visitor) error {
@@ -1014,10 +1022,10 @@ func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *
 	s.mu.Lock()
 	s.messages++
 	s.mu.Unlock()
-	return s.writeJSON(w, m.forJSON())
+	return s.writeJSON(w, m.ForJSON())
 }
 
-func (s *Server) sendToFirebase(v *visitor, m *message) {
+func (s *Server) sendToFirebase(v *visitor, m *model.Message) {
 	logvm(v, m).Tag(tagFirebase).Debug("Publishing to Firebase")
 	if err := s.firebaseClient.Send(v, m); err != nil {
 		minc(metricFirebasePublishedFailure)
@@ -1031,7 +1039,7 @@ func (s *Server) sendToFirebase(v *visitor, m *message) {
 	minc(metricFirebasePublishedSuccess)
 }
 
-func (s *Server) sendEmail(v *visitor, m *message, email string) {
+func (s *Server) sendEmail(v *visitor, m *model.Message, email string) {
 	logvm(v, m).Tag(tagEmail).Field("email", email).Debug("Sending email to %s", email)
 	if err := s.smtpSender.Send(v, m, email); err != nil {
 		logvm(v, m).Tag(tagEmail).Field("email", email).Err(err).Warn("Unable to send email to %s: %v", email, err.Error())
@@ -1041,7 +1049,7 @@ func (s *Server) sendEmail(v *visitor, m *message, email string) {
 	minc(metricEmailsPublishedSuccess)
 }
 
-func (s *Server) forwardPollRequest(v *visitor, m *message) {
+func (s *Server) forwardPollRequest(v *visitor, m *model.Message) {
 	topicURL := fmt.Sprintf("%s/%s", s.config.BaseURL, m.Topic)
 	topicHash := fmt.Sprintf("%x", sha256.Sum256([]byte(topicURL)))
 	forwardURL := fmt.Sprintf("%s/%s", s.config.UpstreamBaseURL, topicHash)
@@ -1073,7 +1081,7 @@ func (s *Server) forwardPollRequest(v *visitor, m *message) {
 	}
 }
 
-func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, firebase bool, email, call string, template templateMode, unifiedpush bool, priorityStr string, err *errHTTP) {
+func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bool, firebase bool, email, call string, template templateMode, unifiedpush bool, priorityStr string, err *errHTTP) {
 	if r.Method != http.MethodGet && updatePathRegex.MatchString(r.URL.Path) {
 		pathSequenceID, err := s.sequenceIDFromPath(r.URL.Path)
 		if err != nil {
@@ -1100,7 +1108,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 	filename := readParam(r, "x-filename", "filename", "file", "f")
 	attach := readParam(r, "x-attach", "attach", "a")
 	if attach != "" || filename != "" {
-		m.Attachment = &attachment{}
+		m.Attachment = &model.Attachment{}
 	}
 	if filename != "" {
 		m.Attachment.Name = filename
@@ -1221,7 +1229,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *message) (cache bool, fi
 //     If file.txt is <= 4096 (message limit) and valid UTF-8, treat it as a message
 //  7. curl -T file.txt ntfy.sh/mytopic
 //     In all other cases, mostly if file.txt is > message limit, treat it as an attachment
-func (s *Server) handlePublishBody(r *http.Request, v *visitor, m *message, body *util.PeekedReadCloser, template templateMode, unifiedpush bool, priorityStr string) error {
+func (s *Server) handlePublishBody(r *http.Request, v *visitor, m *model.Message, body *util.PeekedReadCloser, template templateMode, unifiedpush bool, priorityStr string) error {
 	if m.Event == pollRequestEvent { // Case 1
 		return s.handleBodyDiscard(body)
 	} else if unifiedpush {
@@ -1244,7 +1252,7 @@ func (s *Server) handleBodyDiscard(body *util.PeekedReadCloser) error {
 	return err
 }
 
-func (s *Server) handleBodyAsMessageAutoDetect(m *message, body *util.PeekedReadCloser) error {
+func (s *Server) handleBodyAsMessageAutoDetect(m *model.Message, body *util.PeekedReadCloser) error {
 	if utf8.Valid(body.PeekedBytes) {
 		m.Message = string(body.PeekedBytes) // Do not trim
 	} else {
@@ -1254,7 +1262,7 @@ func (s *Server) handleBodyAsMessageAutoDetect(m *message, body *util.PeekedRead
 	return nil
 }
 
-func (s *Server) handleBodyAsTextMessage(m *message, body *util.PeekedReadCloser) error {
+func (s *Server) handleBodyAsTextMessage(m *model.Message, body *util.PeekedReadCloser) error {
 	if !utf8.Valid(body.PeekedBytes) {
 		return errHTTPBadRequestMessageNotUTF8.With(m)
 	}
@@ -1267,7 +1275,7 @@ func (s *Server) handleBodyAsTextMessage(m *message, body *util.PeekedReadCloser
 	return nil
 }
 
-func (s *Server) handleBodyAsTemplatedTextMessage(m *message, template templateMode, body *util.PeekedReadCloser, priorityStr string) error {
+func (s *Server) handleBodyAsTemplatedTextMessage(m *model.Message, template templateMode, body *util.PeekedReadCloser, priorityStr string) error {
 	body, err := util.Peek(body, max(s.config.MessageSizeLimit, jsonBodyBytesLimit))
 	if err != nil {
 		return err
@@ -1292,7 +1300,7 @@ func (s *Server) handleBodyAsTemplatedTextMessage(m *message, template templateM
 
 // renderTemplateFromFile transforms the JSON message body according to a template from the filesystem.
 // The template file must be in the templates directory, or in the configured template directory.
-func (s *Server) renderTemplateFromFile(m *message, templateName, peekedBody string) error {
+func (s *Server) renderTemplateFromFile(m *model.Message, templateName, peekedBody string) error {
 	if !templateNameRegex.MatchString(templateName) {
 		return errHTTPBadRequestTemplateFileNotFound
 	}
@@ -1334,7 +1342,7 @@ func (s *Server) renderTemplateFromFile(m *message, templateName, peekedBody str
 
 // renderTemplateFromParams transforms the JSON message body according to the inline template in the
 // message, title, and priority parameters.
-func (s *Server) renderTemplateFromParams(m *message, peekedBody string, priorityStr string) error {
+func (s *Server) renderTemplateFromParams(m *model.Message, peekedBody string, priorityStr string) error {
 	var err error
 	if m.Message, err = s.renderTemplate("priority query parameter", m.Message, peekedBody); err != nil {
 		return err
@@ -1375,7 +1383,7 @@ func (s *Server) renderTemplate(name, tpl, source string) (string, error) {
 	return strings.TrimSpace(strings.ReplaceAll(buf.String(), "\\n", "\n")), nil // replace any remaining "\n" (those outside of template curly braces) with newlines
 }
 
-func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *message, body *util.PeekedReadCloser) error {
+func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *model.Message, body *util.PeekedReadCloser) error {
 	if s.fileCache == nil || s.config.BaseURL == "" || s.config.AttachmentCacheDir == "" {
 		return errHTTPBadRequestAttachmentsDisallowed.With(m)
 	}
@@ -1399,7 +1407,7 @@ func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *message,
 		}
 	}
 	if m.Attachment == nil {
-		m.Attachment = &attachment{}
+		m.Attachment = &model.Attachment{}
 	}
 	var ext string
 	m.Attachment.Expires = attachmentExpiry
@@ -1426,9 +1434,9 @@ func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *message,
 }
 
 func (s *Server) handleSubscribeJSON(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	encoder := func(msg *message) (string, error) {
+	encoder := func(msg *model.Message) (string, error) {
 		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(msg.forJSON()); err != nil {
+		if err := json.NewEncoder(&buf).Encode(msg.ForJSON()); err != nil {
 			return "", err
 		}
 		return buf.String(), nil
@@ -1437,9 +1445,9 @@ func (s *Server) handleSubscribeJSON(w http.ResponseWriter, r *http.Request, v *
 }
 
 func (s *Server) handleSubscribeSSE(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	encoder := func(msg *message) (string, error) {
+	encoder := func(msg *model.Message) (string, error) {
 		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(msg.forJSON()); err != nil {
+		if err := json.NewEncoder(&buf).Encode(msg.ForJSON()); err != nil {
 			return "", err
 		}
 		if msg.Event != messageEvent && msg.Event != messageDeleteEvent && msg.Event != messageClearEvent {
@@ -1451,7 +1459,7 @@ func (s *Server) handleSubscribeSSE(w http.ResponseWriter, r *http.Request, v *v
 }
 
 func (s *Server) handleSubscribeRaw(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	encoder := func(msg *message) (string, error) {
+	encoder := func(msg *model.Message) (string, error) {
 		if msg.Event == messageEvent { // only handle default events
 			return strings.ReplaceAll(msg.Message, "\n", " ") + "\n", nil
 		}
@@ -1487,7 +1495,7 @@ func (s *Server) handleSubscribeHTTP(w http.ResponseWriter, r *http.Request, v *
 		closed = true
 		wlock.Unlock()
 	}()
-	sub := func(v *visitor, msg *message) error {
+	sub := func(v *visitor, msg *model.Message) error {
 		if !filters.Pass(msg) {
 			return nil
 		}
@@ -1649,7 +1657,7 @@ func (s *Server) handleSubscribeWS(w http.ResponseWriter, r *http.Request, v *vi
 			}
 		}
 	})
-	sub := func(v *visitor, msg *message) error {
+	sub := func(v *visitor, msg *model.Message) error {
 		if !filters.Pass(msg) {
 			return nil
 		}
@@ -1696,7 +1704,7 @@ func (s *Server) handleSubscribeWS(w http.ResponseWriter, r *http.Request, v *vi
 	return nil
 }
 
-func parseSubscribeParams(r *http.Request) (poll bool, since sinceMarker, scheduled bool, filters *queryFilter, err error) {
+func parseSubscribeParams(r *http.Request) (poll bool, since model.SinceMarker, scheduled bool, filters *queryFilter, err error) {
 	poll = readBoolParam(r, false, "x-poll", "poll", "po")
 	scheduled = readBoolParam(r, false, "x-scheduled", "scheduled", "sched")
 	since, err = parseSince(r, poll)
@@ -1777,11 +1785,11 @@ func (s *Server) setRateVisitors(r *http.Request, v *visitor, rateTopics []*topi
 
 // sendOldMessages selects old messages from the messageCache and calls sub for each of them. It uses since as the
 // marker, returning only messages that are newer than the marker.
-func (s *Server) sendOldMessages(topics []*topic, since sinceMarker, scheduled bool, v *visitor, sub subscriber) error {
+func (s *Server) sendOldMessages(topics []*topic, since model.SinceMarker, scheduled bool, v *visitor, sub subscriber) error {
 	if since.IsNone() {
 		return nil
 	}
-	messages := make([]*message, 0)
+	messages := make([]*model.Message, 0)
 	for _, t := range topics {
 		topicMessages, err := s.messageCache.Messages(t.ID, since, scheduled)
 		if err != nil {
@@ -1804,7 +1812,7 @@ func (s *Server) sendOldMessages(topics []*topic, since sinceMarker, scheduled b
 //
 // Values in the "since=..." parameter can be either a unix timestamp or a duration (e.g. 12h),
 // "all" for all messages, or "latest" for the most recent message for a topic
-func parseSince(r *http.Request, poll bool) (sinceMarker, error) {
+func parseSince(r *http.Request, poll bool) (model.SinceMarker, error) {
 	since := readParam(r, "x-since", "since", "si")
 
 	// Easy cases (empty, all, none)
@@ -2035,7 +2043,7 @@ func (s *Server) sendDelayedMessages() error {
 	return nil
 }
 
-func (s *Server) sendDelayedMessage(v *visitor, m *message) error {
+func (s *Server) sendDelayedMessage(v *visitor, m *model.Message) error {
 	logvm(v, m).Debug("Sending delayed message")
 	s.mu.RLock()
 	t, ok := s.topics[m.Topic] // If no subscribers, just mark message as published

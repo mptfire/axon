@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/message"
+	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 )
@@ -382,7 +384,7 @@ func TestServer_PublishAt(t *testing.T) {
 
 	// Update message time to the past
 	fakeTime := time.Now().Add(-10 * time.Second).Unix()
-	_, err := s.messageCache.db.Exec(`UPDATE messages SET time=?`, fakeTime)
+	_, err := s.messageCache.DB().Exec(`UPDATE messages SET time=?`, fakeTime)
 	require.Nil(t, err)
 
 	// Trigger delayed message sending
@@ -418,7 +420,7 @@ func TestServer_PublishAt_FromUser(t *testing.T) {
 
 	// Update message time to the past
 	fakeTime := time.Now().Add(-10 * time.Second).Unix()
-	_, err := s.messageCache.db.Exec(`UPDATE messages SET time=?`, fakeTime)
+	_, err := s.messageCache.DB().Exec(`UPDATE messages SET time=?`, fakeTime)
 	require.Nil(t, err)
 
 	// Trigger delayed message sending
@@ -596,8 +598,8 @@ func TestServer_PublishAndPollSince(t *testing.T) {
 	require.Equal(t, 40008, toHTTPError(t, response.Body.String()).Code)
 }
 
-func newMessageWithTimestamp(topic, message string, timestamp int64) *message {
-	m := newDefaultMessage(topic, message)
+func newMessageWithTimestamp(topic, msg string, timestamp int64) *model.Message {
+	m := newDefaultMessage(topic, msg)
 	m.Time = timestamp
 	return m
 }
@@ -1209,7 +1211,7 @@ type testMailer struct {
 	mu    sync.Mutex
 }
 
-func (t *testMailer) Send(v *visitor, m *message, to string) error {
+func (t *testMailer) Send(v *visitor, m *model.Message, to string) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.count++
@@ -1414,7 +1416,7 @@ func TestServer_PublishAndExpungeTopicAfter16Hours(t *testing.T) {
 	s := newTestServer(t, newTestConfig(t))
 	defer s.messageCache.Close()
 
-	subFn := func(v *visitor, msg *message) error {
+	subFn := func(v *visitor, msg *model.Message) error {
 		return nil
 	}
 
@@ -2410,14 +2412,14 @@ func TestServer_PublishWhileUpdatingStatsWithLotsOfMessages(t *testing.T) {
 	// Add lots of messages
 	log.Info("Adding %d messages", count)
 	start := time.Now()
-	messages := make([]*message, 0)
+	messages := make([]*model.Message, 0)
 	for i := 0; i < count; i++ {
 		topicID := fmt.Sprintf("topic%d", i)
 		_, err := s.topicsFromIDs(topicID) // Add topic to internal s.topics array
 		require.Nil(t, err)
 		messages = append(messages, newDefaultMessage(topicID, "some message"))
 	}
-	require.Nil(t, s.messageCache.addMessages(messages))
+	require.Nil(t, s.messageCache.AddMessages(messages))
 	log.Info("Done: Adding %d messages; took %s", count, time.Since(start).Round(time.Millisecond))
 
 	// Update stats
@@ -3763,6 +3765,12 @@ func TestServer_DeleteScheduledMessage_WithAttachment(t *testing.T) {
 	require.NoFileExists(t, attachmentFile)
 }
 
+func newMemTestCache(t *testing.T) message.Store {
+	c, err := message.NewMemStore()
+	require.Nil(t, err)
+	return c
+}
+
 func newTestConfig(t *testing.T) *Config {
 	conf := NewConfig()
 	conf.BaseURL = "http://127.0.0.1:12345"
@@ -3829,8 +3837,8 @@ func subscribe(t *testing.T, s *Server, url string, rr *httptest.ResponseRecorde
 	return cancelAndWaitForDone
 }
 
-func toMessages(t *testing.T, s string) []*message {
-	messages := make([]*message, 0)
+func toMessages(t *testing.T, s string) []*model.Message {
+	messages := make([]*model.Message, 0)
 	scanner := bufio.NewScanner(strings.NewReader(s))
 	for scanner.Scan() {
 		messages = append(messages, toMessage(t, scanner.Text()))
@@ -3838,8 +3846,8 @@ func toMessages(t *testing.T, s string) []*message {
 	return messages
 }
 
-func toMessage(t *testing.T, s string) *message {
-	var m message
+func toMessage(t *testing.T, s string) *model.Message {
+	var m model.Message
 	require.Nil(t, json.NewDecoder(strings.NewReader(s)).Decode(&m))
 	return &m
 }

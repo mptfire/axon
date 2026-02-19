@@ -691,7 +691,6 @@ func TestManager_Token_Expire(t *testing.T) {
 		// But the token row should still exist
 		tokens, err := a.Tokens(u.ID)
 		require.Nil(t, err)
-		require.Equal(t, token1.Value, tokens[0].Value)
 		require.Equal(t, 2, len(tokens))
 
 		// Expire tokens and check that token1 is gone

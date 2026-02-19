@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/util"
 )
 
@@ -39,7 +40,7 @@ type actionParser struct {
 // parseActions parses the actions string as described in https://ntfy.sh/docs/publish/#action-buttons.
 // It supports both a JSON representation (if the string begins with "[", see parseActionsFromJSON),
 // and the "simple" format, which is more human-readable, but harder to parse (see parseActionsFromSimple).
-func parseActions(s string) (actions []*action, err error) {
+func parseActions(s string) (actions []*model.Action, err error) {
 	// Parse JSON or simple format
 	s = strings.TrimSpace(s)
 	if strings.HasPrefix(s, "[") {
@@ -80,8 +81,8 @@ func parseActions(s string) (actions []*action, err error) {
 }
 
 // parseActionsFromJSON converts a JSON array into an array of actions
-func parseActionsFromJSON(s string) ([]*action, error) {
-	actions := make([]*action, 0)
+func parseActionsFromJSON(s string) ([]*model.Action, error) {
+	actions := make([]*model.Action, 0)
 	if err := json.Unmarshal([]byte(s), &actions); err != nil {
 		return nil, fmt.Errorf("JSON error: %w", err)
 	}
@@ -107,7 +108,7 @@ func parseActionsFromJSON(s string) ([]*action, error) {
 //	https://github.com/adampresley/sample-ini-parser/blob/master/services/lexer/lexer/Lexer.go
 //	https://github.com/benbjohnson/sql-parser/blob/master/scanner.go
 //	https://blog.gopheracademy.com/advent-2014/parsers-lexers/
-func parseActionsFromSimple(s string) ([]*action, error) {
+func parseActionsFromSimple(s string) ([]*model.Action, error) {
 	if !utf8.ValidString(s) {
 		return nil, errors.New("invalid utf-8 string")
 	}
@@ -119,8 +120,8 @@ func parseActionsFromSimple(s string) ([]*action, error) {
 }
 
 // Parse loops trough parseAction() until the end of the string is reached
-func (p *actionParser) Parse() ([]*action, error) {
-	actions := make([]*action, 0)
+func (p *actionParser) Parse() ([]*model.Action, error) {
+	actions := make([]*model.Action, 0)
 	for !p.eof() {
 		a, err := p.parseAction()
 		if err != nil {
@@ -134,7 +135,7 @@ func (p *actionParser) Parse() ([]*action, error) {
 // parseAction parses the individual sections of an action using parseSection into key/value pairs,
 // and then uses populateAction to interpret the keys/values. The function terminates
 // when EOF or ";" is reached.
-func (p *actionParser) parseAction() (*action, error) {
+func (p *actionParser) parseAction() (*model.Action, error) {
 	a := newAction()
 	section := 0
 	for {
@@ -155,7 +156,7 @@ func (p *actionParser) parseAction() (*action, error) {
 
 // populateAction is the "business logic" of the parser. It applies the key/value
 // pair to the action instance.
-func populateAction(newAction *action, section int, key, value string) error {
+func populateAction(newAction *model.Action, section int, key, value string) error {
 	// Auto-expand keys based on their index
 	if key == "" && section == 0 {
 		key = "action"

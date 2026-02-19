@@ -2,107 +2,50 @@ package server
 
 import (
 	"net/http"
-	"net/netip"
-	"time"
 
-	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 )
 
-// List of possible events
+// Event constants
 const (
-	openEvent          = "open"
-	keepaliveEvent     = "keepalive"
-	messageEvent       = "message"
-	messageDeleteEvent = "message_delete"
-	messageClearEvent  = "message_clear"
-	pollRequestEvent   = "poll_request"
+	openEvent          = model.OpenEvent
+	keepaliveEvent     = model.KeepaliveEvent
+	messageEvent       = model.MessageEvent
+	messageDeleteEvent = model.MessageDeleteEvent
+	messageClearEvent  = model.MessageClearEvent
+	pollRequestEvent   = model.PollRequestEvent
+	messageIDLength    = model.MessageIDLength
 )
 
-const (
-	messageIDLength = 12
+// Sentinel values and errors
+var (
+	sinceAllMessages         = model.SinceAllMessages
+	sinceNoMessages          = model.SinceNoMessages
+	sinceLatestMessage       = model.SinceLatestMessage
+	errUnexpectedMessageType = model.ErrUnexpectedMessageType
+	errMessageNotFound       = model.ErrMessageNotFound
 )
 
-// message represents a message published to a topic
-type message struct {
-	ID          string      `json:"id"`                    // Random message ID
-	SequenceID  string      `json:"sequence_id,omitempty"` // Message sequence ID for updating message contents (omitted if same as ID)
-	Time        int64       `json:"time"`                  // Unix time in seconds
-	Expires     int64       `json:"expires,omitempty"`     // Unix time in seconds (not required for open/keepalive)
-	Event       string      `json:"event"`                 // One of the above
-	Topic       string      `json:"topic"`
-	Title       string      `json:"title,omitempty"`
-	Message     string      `json:"message,omitempty"`
-	Priority    int         `json:"priority,omitempty"`
-	Tags        []string    `json:"tags,omitempty"`
-	Click       string      `json:"click,omitempty"`
-	Icon        string      `json:"icon,omitempty"`
-	Actions     []*action   `json:"actions,omitempty"`
-	Attachment  *attachment `json:"attachment,omitempty"`
-	PollID      string      `json:"poll_id,omitempty"`
-	ContentType string      `json:"content_type,omitempty"` // text/plain by default (if empty), or text/markdown
-	Encoding    string      `json:"encoding,omitempty"`     // Empty for raw UTF-8, or "base64" for encoded bytes
-	Sender      netip.Addr  `json:"-"`                      // IP address of uploader, used for rate limiting
-	User        string      `json:"-"`                      // UserID of the uploader, used to associated attachments
-}
+// Constructors and helpers
+var (
+	newMessage          = model.NewMessage
+	newDefaultMessage   = model.NewDefaultMessage
+	newOpenMessage      = model.NewOpenMessage
+	newKeepaliveMessage = model.NewKeepaliveMessage
+	newActionMessage    = model.NewActionMessage
+	newAction           = model.NewAction
+	newSinceTime        = model.NewSinceTime
+	newSinceID          = model.NewSinceID
+	validMessageID      = model.ValidMessageID
+)
 
-func (m *message) Context() log.Context {
-	fields := map[string]any{
-		"topic":               m.Topic,
-		"message_id":          m.ID,
-		"message_sequence_id": m.SequenceID,
-		"message_time":        m.Time,
-		"message_event":       m.Event,
-		"message_body_size":   len(m.Message),
-	}
-	if m.Sender.IsValid() {
-		fields["message_sender"] = m.Sender.String()
-	}
-	if m.User != "" {
-		fields["message_user"] = m.User
-	}
-	return fields
-}
-
-// forJSON returns a copy of the message suitable for JSON output.
-// It clears the SequenceID if it equals the ID to reduce redundancy.
-func (m *message) forJSON() *message {
-	if m.SequenceID == m.ID {
-		clone := *m
-		clone.SequenceID = ""
-		return &clone
-	}
+// newPollRequestMessage is a convenience method to create a poll request message
+func newPollRequestMessage(topic, pollID string) *model.Message {
+	m := newMessage(pollRequestEvent, topic, newMessageBody)
+	m.PollID = pollID
 	return m
-}
-
-type attachment struct {
-	Name    string `json:"name"`
-	Type    string `json:"type,omitempty"`
-	Size    int64  `json:"size,omitempty"`
-	Expires int64  `json:"expires,omitempty"`
-	URL     string `json:"url"`
-}
-
-type action struct {
-	ID      string            `json:"id"`
-	Action  string            `json:"action"`            // "view", "broadcast", "http", or "copy"
-	Label   string            `json:"label"`             // action button label
-	Clear   bool              `json:"clear"`             // clear notification after successful execution
-	URL     string            `json:"url,omitempty"`     // used in "view" and "http" actions
-	Method  string            `json:"method,omitempty"`  // used in "http" action, default is POST (!)
-	Headers map[string]string `json:"headers,omitempty"` // used in "http" action
-	Body    string            `json:"body,omitempty"`    // used in "http" action
-	Intent  string            `json:"intent,omitempty"`  // used in "broadcast" action
-	Extras  map[string]string `json:"extras,omitempty"`  // used in "broadcast" action
-	Value   string            `json:"value,omitempty"`   // used in "copy" action
-}
-
-func newAction() *action {
-	return &action{
-		Headers: make(map[string]string),
-		Extras:  make(map[string]string),
-	}
 }
 
 // publishMessage is used as input when publishing as JSON
@@ -115,7 +58,7 @@ type publishMessage struct {
 	Tags       []string `json:"tags"`
 	Click      string   `json:"click"`
 	Icon       string   `json:"icon"`
-	Actions    []action `json:"actions"`
+	Actions    []model.Action `json:"actions"`
 	Attach     string   `json:"attach"`
 	Markdown   bool     `json:"markdown"`
 	Filename   string   `json:"filename"`
@@ -127,94 +70,7 @@ type publishMessage struct {
 }
 
 // messageEncoder is a function that knows how to encode a message
-type messageEncoder func(msg *message) (string, error)
-
-// newMessage creates a new message with the current timestamp
-func newMessage(event, topic, msg string) *message {
-	return &message{
-		ID:      util.RandomString(messageIDLength),
-		Time:    time.Now().Unix(),
-		Event:   event,
-		Topic:   topic,
-		Message: msg,
-	}
-}
-
-// newOpenMessage is a convenience method to create an open message
-func newOpenMessage(topic string) *message {
-	return newMessage(openEvent, topic, "")
-}
-
-// newKeepaliveMessage is a convenience method to create a keepalive message
-func newKeepaliveMessage(topic string) *message {
-	return newMessage(keepaliveEvent, topic, "")
-}
-
-// newDefaultMessage is a convenience method to create a notification message
-func newDefaultMessage(topic, msg string) *message {
-	return newMessage(messageEvent, topic, msg)
-}
-
-// newPollRequestMessage is a convenience method to create a poll request message
-func newPollRequestMessage(topic, pollID string) *message {
-	m := newMessage(pollRequestEvent, topic, newMessageBody)
-	m.PollID = pollID
-	return m
-}
-
-// newActionMessage creates a new action message (message_delete or message_clear)
-func newActionMessage(event, topic, sequenceID string) *message {
-	m := newMessage(event, topic, "")
-	m.SequenceID = sequenceID
-	return m
-}
-
-func validMessageID(s string) bool {
-	return util.ValidRandomString(s, messageIDLength)
-}
-
-type sinceMarker struct {
-	time time.Time
-	id   string
-}
-
-func newSinceTime(timestamp int64) sinceMarker {
-	return sinceMarker{time.Unix(timestamp, 0), ""}
-}
-
-func newSinceID(id string) sinceMarker {
-	return sinceMarker{time.Unix(0, 0), id}
-}
-
-func (t sinceMarker) IsAll() bool {
-	return t == sinceAllMessages
-}
-
-func (t sinceMarker) IsNone() bool {
-	return t == sinceNoMessages
-}
-
-func (t sinceMarker) IsLatest() bool {
-	return t == sinceLatestMessage
-}
-
-func (t sinceMarker) IsID() bool {
-	return t.id != "" && t.id != "latest"
-}
-
-func (t sinceMarker) Time() time.Time {
-	return t.time
-}
-
-func (t sinceMarker) ID() string {
-	return t.id
-}
-
-var (
-	sinceAllMessages   = sinceMarker{time.Unix(0, 0), ""}
-	sinceNoMessages    = sinceMarker{time.Unix(1, 0), ""}
-	sinceLatestMessage = sinceMarker{time.Unix(0, 0), "latest"}
-)
+type messageEncoder func(msg *model.Message) (string, error)
 
 type queryFilter struct {
 	ID       string
@@ -246,7 +102,7 @@ func parseQueryFilters(r *http.Request) (*queryFilter, error) {
 	}, nil
 }
 
-func (q *queryFilter) Pass(msg *message) bool {
+func (q *queryFilter) Pass(msg *model.Message) bool {
 	if msg.Event != messageEvent && msg.Event != messageDeleteEvent && msg.Event != messageClearEvent {
 		return true // filters only apply to messages
 	} else if q.ID != "" && msg.ID != q.ID {
@@ -572,10 +428,10 @@ const (
 type webPushPayload struct {
 	Event          string   `json:"event"`
 	SubscriptionID string   `json:"subscription_id"`
-	Message        *message `json:"message"`
+	Message        *model.Message `json:"message"`
 }
 
-func newWebPushPayload(subscriptionID string, message *message) *webPushPayload {
+func newWebPushPayload(subscriptionID string, message *model.Message) *webPushPayload {
 	return &webPushPayload{
 		Event:          webPushMessageEvent,
 		SubscriptionID: subscriptionID,
