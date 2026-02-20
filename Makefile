@@ -268,10 +268,10 @@ check: test web-fmt-check fmt-check vet web-lint lint staticcheck
 checkv: testv web-fmt-check fmt-check vet web-lint lint staticcheck
 
 test: .PHONY
-	go test $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
+	go test -parallel 3 $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
 
 testv: .PHONY
-	go test -v $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
+	go test -v -parallel 3 $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
 
 race: .PHONY
 	go test -v -race $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
