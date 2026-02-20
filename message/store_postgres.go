@@ -110,6 +110,7 @@ func NewPostgresStore(dsn string, batchSize int, batchTimeout time.Duration) (St
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(25)
 	if err := db.Ping(); err != nil {
 		return nil, err
 	}

@@ -14,7 +14,7 @@ import (
 )
 
 func TestServer_Twilio_Call_Add_Verify_Call_Delete_Success(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		var called, verified atomic.Bool
 		var code atomic.Pointer[string]
 		twilioVerifyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +51,7 @@ func TestServer_Twilio_Call_Add_Verify_Call_Delete_Success(t *testing.T) {
 		}))
 		defer twilioCallsServer.Close()
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.TwilioVerifyBaseURL = twilioVerifyServer.URL
 		c.TwilioCallsBaseURL = twilioCallsServer.URL
 		c.TwilioAccount = "AC1234567890"
@@ -117,7 +117,7 @@ func TestServer_Twilio_Call_Add_Verify_Call_Delete_Success(t *testing.T) {
 }
 
 func TestServer_Twilio_Call_Success(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		var called atomic.Bool
 		twilioServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if called.Load() {
@@ -132,7 +132,7 @@ func TestServer_Twilio_Call_Success(t *testing.T) {
 		}))
 		defer twilioServer.Close()
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.TwilioCallsBaseURL = twilioServer.URL
 		c.TwilioAccount = "AC1234567890"
 		c.TwilioAuthToken = "AAEAA1234567890"
@@ -164,7 +164,7 @@ func TestServer_Twilio_Call_Success(t *testing.T) {
 }
 
 func TestServer_Twilio_Call_Success_With_Yes(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		var called atomic.Bool
 		twilioServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if called.Load() {
@@ -179,7 +179,7 @@ func TestServer_Twilio_Call_Success_With_Yes(t *testing.T) {
 		}))
 		defer twilioServer.Close()
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.TwilioCallsBaseURL = twilioServer.URL
 		c.TwilioAccount = "AC1234567890"
 		c.TwilioAuthToken = "AAEAA1234567890"
@@ -211,7 +211,7 @@ func TestServer_Twilio_Call_Success_With_Yes(t *testing.T) {
 }
 
 func TestServer_Twilio_Call_Success_with_custom_twiml(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		var called atomic.Bool
 		twilioServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if called.Load() {
@@ -226,7 +226,7 @@ func TestServer_Twilio_Call_Success_with_custom_twiml(t *testing.T) {
 		}))
 		defer twilioServer.Close()
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.TwilioCallsBaseURL = twilioServer.URL
 		c.TwilioAccount = "AC1234567890"
 		c.TwilioAuthToken = "AAEAA1234567890"
@@ -274,8 +274,8 @@ func TestServer_Twilio_Call_Success_with_custom_twiml(t *testing.T) {
 }
 
 func TestServer_Twilio_Call_UnverifiedNumber(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.TwilioCallsBaseURL = "http://dummy.invalid"
 		c.TwilioAccount = "AC1234567890"
 		c.TwilioAuthToken = "AAEAA1234567890"
@@ -301,8 +301,8 @@ func TestServer_Twilio_Call_UnverifiedNumber(t *testing.T) {
 }
 
 func TestServer_Twilio_Call_InvalidNumber(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.TwilioCallsBaseURL = "https://127.0.0.1"
 		c.TwilioAccount = "AC1234567890"
 		c.TwilioAuthToken = "AAEAA1234567890"
@@ -317,8 +317,8 @@ func TestServer_Twilio_Call_InvalidNumber(t *testing.T) {
 }
 
 func TestServer_Twilio_Call_Anonymous(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.TwilioCallsBaseURL = "https://127.0.0.1"
 		c.TwilioAccount = "AC1234567890"
 		c.TwilioAuthToken = "AAEAA1234567890"
@@ -333,8 +333,8 @@ func TestServer_Twilio_Call_Anonymous(t *testing.T) {
 }
 
 func TestServer_Twilio_Call_Unconfigured(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "POST", "/mytopic", "test", map[string]string{
 			"x-call": "+1234",
 		})

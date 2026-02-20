@@ -21,11 +21,11 @@ import (
 )
 
 func TestPayments_Tiers(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		stripeMock := &testStripeAPI{}
 		defer stripeMock.AssertExpectations(t)
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.StripeSecretKey = "secret key"
 		c.StripeWebhookKey = "webhook key"
 		c.VisitorRequestLimitReplenish = 12 * time.Hour
@@ -133,11 +133,11 @@ func TestPayments_Tiers(t *testing.T) {
 }
 
 func TestPayments_SubscriptionCreate_NotAStripeCustomer_Success(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		stripeMock := &testStripeAPI{}
 		defer stripeMock.AssertExpectations(t)
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.StripeSecretKey = "secret key"
 		c.StripeWebhookKey = "webhook key"
 		s := newTestServer(t, c)
@@ -168,11 +168,11 @@ func TestPayments_SubscriptionCreate_NotAStripeCustomer_Success(t *testing.T) {
 }
 
 func TestPayments_SubscriptionCreate_StripeCustomer_Success(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		stripeMock := &testStripeAPI{}
 		defer stripeMock.AssertExpectations(t)
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.StripeSecretKey = "secret key"
 		c.StripeWebhookKey = "webhook key"
 		s := newTestServer(t, c)
@@ -214,11 +214,11 @@ func TestPayments_SubscriptionCreate_StripeCustomer_Success(t *testing.T) {
 }
 
 func TestPayments_AccountDelete_Cancels_Subscription(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		stripeMock := &testStripeAPI{}
 		defer stripeMock.AssertExpectations(t)
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.EnableSignup = true
 		c.StripeSecretKey = "secret key"
 		c.StripeWebhookKey = "webhook key"
@@ -261,7 +261,7 @@ func TestPayments_AccountDelete_Cancels_Subscription(t *testing.T) {
 }
 
 func TestPayments_Checkout_Success_And_Increase_Rate_Limits_Reset_Visitor(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		// This test is too overloaded, but it's also a great end-to-end a test.
 		//
 		// It tests:
@@ -273,7 +273,7 @@ func TestPayments_Checkout_Success_And_Increase_Rate_Limits_Reset_Visitor(t *tes
 		stripeMock := &testStripeAPI{}
 		defer stripeMock.AssertExpectations(t)
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.StripeSecretKey = "secret key"
 		c.StripeWebhookKey = "webhook key"
 		c.VisitorRequestLimitBurst = 5
@@ -428,7 +428,7 @@ func TestPayments_Checkout_Success_And_Increase_Rate_Limits_Reset_Visitor(t *tes
 }
 
 func TestPayments_Webhook_Subscription_Updated_Downgrade_From_PastDue_To_Active(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
 
 		// This tests incoming webhooks from Stripe to update a subscription:
@@ -439,7 +439,7 @@ func TestPayments_Webhook_Subscription_Updated_Downgrade_From_PastDue_To_Active(
 		stripeMock := &testStripeAPI{}
 		defer stripeMock.AssertExpectations(t)
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.StripeSecretKey = "secret key"
 		c.StripeWebhookKey = "webhook key"
 		s := newTestServer(t, c)
@@ -559,7 +559,7 @@ func TestPayments_Webhook_Subscription_Updated_Downgrade_From_PastDue_To_Active(
 }
 
 func TestPayments_Webhook_Subscription_Deleted(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		// This tests incoming webhooks from Stripe to delete a subscription. It verifies that the database is
 		// updated (all Stripe fields are deleted, and the tier is removed).
 		//
@@ -568,7 +568,7 @@ func TestPayments_Webhook_Subscription_Deleted(t *testing.T) {
 		stripeMock := &testStripeAPI{}
 		defer stripeMock.AssertExpectations(t)
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.StripeSecretKey = "secret key"
 		c.StripeWebhookKey = "webhook key"
 		s := newTestServer(t, c)
@@ -626,11 +626,11 @@ func TestPayments_Webhook_Subscription_Deleted(t *testing.T) {
 }
 
 func TestPayments_Subscription_Update_Different_Tier(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		stripeMock := &testStripeAPI{}
 		defer stripeMock.AssertExpectations(t)
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.StripeSecretKey = "secret key"
 		c.StripeWebhookKey = "webhook key"
 		s := newTestServer(t, c)
@@ -692,11 +692,11 @@ func TestPayments_Subscription_Update_Different_Tier(t *testing.T) {
 }
 
 func TestPayments_Subscription_Delete_At_Period_End(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		stripeMock := &testStripeAPI{}
 		defer stripeMock.AssertExpectations(t)
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.StripeSecretKey = "secret key"
 		c.StripeWebhookKey = "webhook key"
 		s := newTestServer(t, c)
@@ -725,11 +725,11 @@ func TestPayments_Subscription_Delete_At_Period_End(t *testing.T) {
 }
 
 func TestPayments_CreatePortalSession(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		stripeMock := &testStripeAPI{}
 		defer stripeMock.AssertExpectations(t)
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.StripeSecretKey = "secret key"
 		c.StripeWebhookKey = "webhook key"
 		s := newTestServer(t, c)

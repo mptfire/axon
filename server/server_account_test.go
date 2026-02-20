@@ -15,8 +15,8 @@ import (
 )
 
 func TestAccount_Signup_Success(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.EnableSignup = true
 		s := newTestServer(t, conf)
 		defer s.closeDatabases()
@@ -54,8 +54,8 @@ func TestAccount_Signup_Success(t *testing.T) {
 }
 
 func TestAccount_Signup_UserExists(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.EnableSignup = true
 		s := newTestServer(t, conf)
 		defer s.closeDatabases()
@@ -70,8 +70,8 @@ func TestAccount_Signup_UserExists(t *testing.T) {
 }
 
 func TestAccount_Signup_LimitReached(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.EnableSignup = true
 		s := newTestServer(t, conf)
 		defer s.closeDatabases()
@@ -87,8 +87,8 @@ func TestAccount_Signup_LimitReached(t *testing.T) {
 }
 
 func TestAccount_Signup_AsUser(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.EnableSignup = true
 		s := newTestServer(t, conf)
 		defer s.closeDatabases()
@@ -111,8 +111,8 @@ func TestAccount_Signup_AsUser(t *testing.T) {
 }
 
 func TestAccount_Signup_Disabled(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.EnableSignup = false
 		s := newTestServer(t, conf)
 		defer s.closeDatabases()
@@ -124,8 +124,8 @@ func TestAccount_Signup_Disabled(t *testing.T) {
 }
 
 func TestAccount_Signup_Rate_Limit(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.EnableSignup = true
 		s := newTestServer(t, conf)
 
@@ -140,8 +140,8 @@ func TestAccount_Signup_Rate_Limit(t *testing.T) {
 }
 
 func TestAccount_Get_Anonymous(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.VisitorRequestLimitReplenish = 86 * time.Second
 		conf.VisitorEmailLimitReplenish = time.Hour
 		conf.VisitorAttachmentTotalSizeLimit = 5123
@@ -185,8 +185,8 @@ func TestAccount_Get_Anonymous(t *testing.T) {
 }
 
 func TestAccount_ChangeSettings(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 		defer s.closeDatabases()
 
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
@@ -216,8 +216,8 @@ func TestAccount_ChangeSettings(t *testing.T) {
 }
 
 func TestAccount_Subscription_AddUpdateDelete(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 		defer s.closeDatabases()
 
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
@@ -269,8 +269,8 @@ func TestAccount_Subscription_AddUpdateDelete(t *testing.T) {
 }
 
 func TestAccount_ChangePassword(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.AuthUsers = []*user.User{
 			{Name: "philuser", Hash: "$2a$10$U4WSIYY6evyGmZaraavM2e2JeVG6EMGUKN1uUwufUeeRd4Jpg6cGC", Role: user.RoleUser}, // philuser:philpass
 		}
@@ -314,8 +314,8 @@ func TestAccount_ChangePassword(t *testing.T) {
 }
 
 func TestAccount_ChangePassword_NoAccount(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 		defer s.closeDatabases()
 
 		rr := request(t, s, "POST", "/v1/account/password", `{"password": "new password"}`, nil)
@@ -324,9 +324,9 @@ func TestAccount_ChangePassword_NoAccount(t *testing.T) {
 }
 
 func TestAccount_ExtendToken(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 		defer s.closeDatabases()
 
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
@@ -363,8 +363,8 @@ func TestAccount_ExtendToken(t *testing.T) {
 }
 
 func TestAccount_ExtendToken_NoTokenProvided(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 		defer s.closeDatabases()
 
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
@@ -378,8 +378,8 @@ func TestAccount_ExtendToken_NoTokenProvided(t *testing.T) {
 }
 
 func TestAccount_DeleteToken(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 		defer s.closeDatabases()
 
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
@@ -420,8 +420,8 @@ func TestAccount_DeleteToken(t *testing.T) {
 }
 
 func TestAccount_Delete_Success(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.EnableSignup = true
 		s := newTestServer(t, conf)
 
@@ -451,8 +451,8 @@ func TestAccount_Delete_Success(t *testing.T) {
 }
 
 func TestAccount_Delete_Not_Allowed(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.EnableSignup = true
 		s := newTestServer(t, conf)
 
@@ -474,8 +474,8 @@ func TestAccount_Delete_Not_Allowed(t *testing.T) {
 }
 
 func TestAccount_Reservation_AddWithoutTierFails(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.EnableSignup = true
 		s := newTestServer(t, conf)
 
@@ -490,8 +490,8 @@ func TestAccount_Reservation_AddWithoutTierFails(t *testing.T) {
 }
 
 func TestAccount_Reservation_AddAdminSuccess(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.EnableSignup = true
 		s := newTestServer(t, conf)
 
@@ -544,8 +544,8 @@ func TestAccount_Reservation_AddAdminSuccess(t *testing.T) {
 }
 
 func TestAccount_Reservation_AddRemoveUserWithTierSuccess(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.EnableSignup = true
 		conf.EnableReservations = true
 		conf.TwilioAccount = "dummy"
@@ -632,8 +632,8 @@ func TestAccount_Reservation_AddRemoveUserWithTierSuccess(t *testing.T) {
 }
 
 func TestAccount_Reservation_PublishByAnonymousFails(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.AuthDefault = user.PermissionReadWrite
 		conf.EnableSignup = true
 		s := newTestServer(t, conf)
@@ -668,9 +668,9 @@ func TestAccount_Reservation_PublishByAnonymousFails(t *testing.T) {
 }
 
 func TestAccount_Reservation_Delete_Messages_And_Attachments(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		conf := newTestConfigWithAuthFile(t)
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.AuthDefault = user.PermissionReadWrite
 		s := newTestServer(t, conf)
 
@@ -760,7 +760,7 @@ func TestAccount_Reservation_Delete_Messages_And_Attachments(t *testing.T) {
 }
 
 /*func TestAccount_Persist_UserStats_After_Tier_Change(t *testing.T) {
-	conf := newTestConfigWithAuthFile(t)
+	conf := newTestConfigWithAuthFile(t, databaseURL)
 	conf.AuthDefault = user.PermissionReadWrite
 	conf.AuthStatsQueueWriterInterval = 300 * time.Millisecond
 	s := newTestServer(t, conf)

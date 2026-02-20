@@ -11,8 +11,8 @@ import (
 )
 
 func TestVersion_Admin(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.BuildVersion = "1.2.3"
 		c.BuildCommit = "abcdef0"
 		c.BuildDate = "2026-02-08T00:00:00Z"
@@ -48,8 +48,8 @@ func TestVersion_Admin(t *testing.T) {
 }
 
 func TestUser_AddRemove(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 		defer s.closeDatabases()
 
 		// Create admin, tier
@@ -106,8 +106,8 @@ func TestUser_AddRemove(t *testing.T) {
 }
 
 func TestUser_AddWithPasswordHash(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 		defer s.closeDatabases()
 
 		// Create admin
@@ -137,8 +137,8 @@ func TestUser_AddWithPasswordHash(t *testing.T) {
 }
 
 func TestUser_ChangeUserPassword(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 		defer s.closeDatabases()
 
 		// Create admin
@@ -177,8 +177,8 @@ func TestUser_ChangeUserPassword(t *testing.T) {
 }
 
 func TestUser_ChangeUserTier(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 		defer s.closeDatabases()
 
 		// Create admin, tier
@@ -219,8 +219,8 @@ func TestUser_ChangeUserTier(t *testing.T) {
 }
 
 func TestUser_ChangeUserPasswordAndTier(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 		defer s.closeDatabases()
 
 		// Create admin, tier
@@ -273,8 +273,8 @@ func TestUser_ChangeUserPasswordAndTier(t *testing.T) {
 }
 
 func TestUser_ChangeUserPasswordWithHash(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 		defer s.closeDatabases()
 
 		// Create admin
@@ -307,8 +307,8 @@ func TestUser_ChangeUserPasswordWithHash(t *testing.T) {
 }
 
 func TestUser_DontChangeAdminPassword(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 		defer s.closeDatabases()
 
 		// Create admin
@@ -324,8 +324,8 @@ func TestUser_DontChangeAdminPassword(t *testing.T) {
 }
 
 func TestUser_AddRemove_Failures(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 		defer s.closeDatabases()
 
 		// Create admin
@@ -365,8 +365,8 @@ func TestUser_AddRemove_Failures(t *testing.T) {
 }
 
 func TestAccess_AllowReset(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.AuthDefault = user.PermissionDenyAll
 		s := newTestServer(t, c)
 		defer s.closeDatabases()
@@ -408,8 +408,8 @@ func TestAccess_AllowReset(t *testing.T) {
 }
 
 func TestAccess_AllowReset_NonAdminAttempt(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.AuthDefault = user.PermissionDenyAll
 		s := newTestServer(t, c)
 		defer s.closeDatabases()
@@ -426,8 +426,8 @@ func TestAccess_AllowReset_NonAdminAttempt(t *testing.T) {
 }
 
 func TestAccess_AllowReset_KillConnection(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.AuthDefault = user.PermissionDenyAll
 		s := newTestServer(t, c)
 		defer s.closeDatabases()

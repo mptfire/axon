@@ -1411,7 +1411,7 @@ what's up
 type smtpHandlerFunc func(http.ResponseWriter, *http.Request)
 
 func newTestSMTPServer(t *testing.T, handler smtpHandlerFunc) (s *smtp.Server, c net.Conn, conf *Config, scanner *bufio.Scanner) {
-	conf = newTestConfig(t)
+	conf = newTestConfig(t, "")
 	conf.SMTPServerListen = ":25"
 	conf.SMTPServerDomain = "ntfy.sh"
 	conf.SMTPServerAddrPrefix = "ntfy-"

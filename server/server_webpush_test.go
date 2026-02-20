@@ -26,21 +26,21 @@ const (
 )
 
 func TestServer_WebPush_Enabled(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfig(t, databaseURL)
 		conf.WebRoot = "" // Disable web app
 		s := newTestServer(t, conf)
 
 		rr := request(t, s, "GET", "/manifest.webmanifest", "", nil)
 		require.Equal(t, 404, rr.Code)
 
-		conf2 := newTestConfig(t)
+		conf2 := newTestConfig(t, databaseURL)
 		s2 := newTestServer(t, conf2)
 
 		rr = request(t, s2, "GET", "/manifest.webmanifest", "", nil)
 		require.Equal(t, 404, rr.Code)
 
-		conf3 := newTestConfigWithWebPush(t)
+		conf3 := newTestConfigWithWebPush(t, databaseURL)
 		s3 := newTestServer(t, conf3)
 
 		rr = request(t, s3, "GET", "/manifest.webmanifest", "", nil)
@@ -50,8 +50,8 @@ func TestServer_WebPush_Enabled(t *testing.T) {
 	})
 }
 func TestServer_WebPush_Disabled(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "POST", "/v1/webpush", payloadForTopics(t, []string{"test-topic"}, testWebPushEndpoint), nil)
 		require.Equal(t, 404, response.Code)
@@ -59,8 +59,8 @@ func TestServer_WebPush_Disabled(t *testing.T) {
 }
 
 func TestServer_WebPush_TopicAdd(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithWebPush(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithWebPush(t, databaseURL))
 
 		response := request(t, s, "POST", "/v1/webpush", payloadForTopics(t, []string{"test-topic"}, testWebPushEndpoint), nil)
 		require.Equal(t, 200, response.Code)
@@ -78,8 +78,8 @@ func TestServer_WebPush_TopicAdd(t *testing.T) {
 }
 
 func TestServer_WebPush_TopicAdd_InvalidEndpoint(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithWebPush(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithWebPush(t, databaseURL))
 
 		response := request(t, s, "POST", "/v1/webpush", payloadForTopics(t, []string{"test-topic"}, "https://ddos-target.example.com/webpush"), nil)
 		require.Equal(t, 400, response.Code)
@@ -88,8 +88,8 @@ func TestServer_WebPush_TopicAdd_InvalidEndpoint(t *testing.T) {
 }
 
 func TestServer_WebPush_TopicAdd_TooManyTopics(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithWebPush(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithWebPush(t, databaseURL))
 
 		topicList := make([]string, 51)
 		for i := range topicList {
@@ -103,8 +103,8 @@ func TestServer_WebPush_TopicAdd_TooManyTopics(t *testing.T) {
 }
 
 func TestServer_WebPush_TopicUnsubscribe(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithWebPush(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithWebPush(t, databaseURL))
 
 		addSubscription(t, s, testWebPushEndpoint, "test-topic")
 		requireSubscriptionCount(t, s, "test-topic", 1)
@@ -118,8 +118,8 @@ func TestServer_WebPush_TopicUnsubscribe(t *testing.T) {
 }
 
 func TestServer_WebPush_Delete(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithWebPush(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithWebPush(t, databaseURL))
 
 		addSubscription(t, s, testWebPushEndpoint, "test-topic")
 		requireSubscriptionCount(t, s, "test-topic", 1)
@@ -133,8 +133,8 @@ func TestServer_WebPush_Delete(t *testing.T) {
 }
 
 func TestServer_WebPush_TopicSubscribeProtected_Allowed(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		config := configureAuth(t, newTestConfigWithWebPush(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		config := configureAuth(t, newTestConfigWithWebPush(t, databaseURL))
 		config.AuthDefault = user.PermissionDenyAll
 		s := newTestServer(t, config)
 
@@ -155,8 +155,8 @@ func TestServer_WebPush_TopicSubscribeProtected_Allowed(t *testing.T) {
 }
 
 func TestServer_WebPush_TopicSubscribeProtected_Denied(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		config := configureAuth(t, newTestConfigWithWebPush(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		config := configureAuth(t, newTestConfigWithWebPush(t, databaseURL))
 		config.AuthDefault = user.PermissionDenyAll
 		s := newTestServer(t, config)
 
@@ -168,8 +168,8 @@ func TestServer_WebPush_TopicSubscribeProtected_Denied(t *testing.T) {
 }
 
 func TestServer_WebPush_DeleteAccountUnsubscribe(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		config := configureAuth(t, newTestConfigWithWebPush(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		config := configureAuth(t, newTestConfigWithWebPush(t, databaseURL))
 		s := newTestServer(t, config)
 
 		require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser, false))
@@ -193,8 +193,8 @@ func TestServer_WebPush_DeleteAccountUnsubscribe(t *testing.T) {
 }
 
 func TestServer_WebPush_Publish(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithWebPush(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithWebPush(t, databaseURL))
 
 		var received atomic.Bool
 		pushService := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -217,8 +217,8 @@ func TestServer_WebPush_Publish(t *testing.T) {
 }
 
 func TestServer_WebPush_Publish_RemoveOnError(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithWebPush(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithWebPush(t, databaseURL))
 
 		var received atomic.Bool
 		pushService := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -247,8 +247,8 @@ func TestServer_WebPush_Publish_RemoveOnError(t *testing.T) {
 }
 
 func TestServer_WebPush_Expiry(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithWebPush(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithWebPush(t, databaseURL))
 
 		var received atomic.Bool
 
@@ -307,8 +307,8 @@ func requireSubscriptionCount(t *testing.T, s *Server, topic string, expectedLen
 	require.Len(t, subs, expectedLength)
 }
 
-func newTestConfigWithWebPush(t *testing.T) *Config {
-	conf := newTestConfig(t)
+func newTestConfigWithWebPush(t *testing.T, databaseURL string) *Config {
+	conf := newTestConfig(t, databaseURL)
 	privateKey, publicKey, err := webpush.GenerateVAPIDKeys()
 	require.Nil(t, err)
 	if conf.DatabaseURL == "" {

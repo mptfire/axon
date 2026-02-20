@@ -40,8 +40,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestServer_PublishAndPoll(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response1 := request(t, s, "PUT", "/mytopic", "my first message", nil)
 		msg1 := toMessage(t, response1.Body.String())
@@ -76,9 +76,9 @@ func TestServer_PublishAndPoll(t *testing.T) {
 }
 
 func TestServer_PublishWithFirebase(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		sender := newTestFirebaseSender(10)
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		s.firebaseClient = newFirebaseClient(sender, &testAuther{Allow: true})
 
 		response := request(t, s, "PUT", "/mytopic", "my first message", nil)
@@ -95,9 +95,9 @@ func TestServer_PublishWithFirebase(t *testing.T) {
 }
 
 func TestServer_PublishWithoutFirebase(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		sender := newTestFirebaseSender(10)
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		s.firebaseClient = newFirebaseClient(sender, &testAuther{Allow: true})
 
 		response := request(t, s, "PUT", "/mytopic", "my first message", map[string]string{
@@ -113,7 +113,7 @@ func TestServer_PublishWithoutFirebase(t *testing.T) {
 }
 
 func TestServer_PublishWithFirebase_WithoutUsers_AndWithoutPanic(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		// This tests issue #641, which used to panic before the fix
 
 		firebaseKeyFile := filepath.Join(t.TempDir(), "firebase.json")
@@ -131,7 +131,7 @@ func TestServer_PublishWithFirebase_WithoutUsers_AndWithoutPanic(t *testing.T) {
 }
 `
 		require.Nil(t, os.WriteFile(firebaseKeyFile, []byte(contents), 0600))
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.FirebaseKeyFile = firebaseKeyFile
 		s := newTestServer(t, c)
 
@@ -141,9 +141,9 @@ func TestServer_PublishWithFirebase_WithoutUsers_AndWithoutPanic(t *testing.T) {
 }
 
 func TestServer_SubscribeOpenAndKeepalive(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.KeepaliveInterval = time.Second
 		s := newTestServer(t, c)
 
@@ -182,9 +182,9 @@ func TestServer_SubscribeOpenAndKeepalive(t *testing.T) {
 }
 
 func TestServer_PublishAndSubscribe(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		subscribeRR := httptest.NewRecorder()
 		subscribeCancel := subscribe(t, s, "/mytopic/json", subscribeRR)
@@ -224,8 +224,8 @@ func TestServer_PublishAndSubscribe(t *testing.T) {
 }
 
 func TestServer_Publish_Disallowed_Topic(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.DisallowedTopics = []string{"about", "time", "this", "got", "added"}
 		s := newTestServer(t, c)
 
@@ -239,8 +239,8 @@ func TestServer_Publish_Disallowed_Topic(t *testing.T) {
 }
 
 func TestServer_StaticSites(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		rr := request(t, s, "GET", "/", "", nil)
 		require.Equal(t, 200, rr.Code)
@@ -267,8 +267,8 @@ func TestServer_StaticSites(t *testing.T) {
 }
 
 func TestServer_WebEnabled(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfig(t, databaseURL)
 		conf.WebRoot = "" // Disable web app
 		s := newTestServer(t, conf)
 
@@ -287,7 +287,7 @@ func TestServer_WebEnabled(t *testing.T) {
 		rr = request(t, s, "GET", "/static/css/home.css", "", nil)
 		require.Equal(t, 404, rr.Code)
 
-		conf2 := newTestConfig(t)
+		conf2 := newTestConfig(t, databaseURL)
 		conf2.WebRoot = "/"
 		s2 := newTestServer(t, conf2)
 
@@ -305,8 +305,8 @@ func TestServer_WebEnabled(t *testing.T) {
 	})
 }
 func TestServer_PublishLargeMessage(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.AttachmentCacheDir = "" // Disable attachments
 		s := newTestServer(t, c)
 
@@ -317,8 +317,8 @@ func TestServer_PublishLargeMessage(t *testing.T) {
 }
 
 func TestServer_PublishPriority(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		for prio := 1; prio <= 5; prio++ {
 			response := request(t, s, "GET", fmt.Sprintf("/mytopic/publish?priority=%d", prio), fmt.Sprintf("priority %d", prio), nil)
@@ -350,8 +350,8 @@ func TestServer_PublishPriority(t *testing.T) {
 }
 
 func TestServer_PublishPriority_SpecialHTTPHeader(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "POST", "/mytopic", "test", map[string]string{
 			"Priority":   "u=4",
@@ -373,18 +373,18 @@ func TestServer_PublishPriority_SpecialHTTPHeader(t *testing.T) {
 }
 
 func TestServer_PublishGETOnlyOneTopic(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		// This tests a bug that allowed publishing topics with a comma in the name (no ticket)
 
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "GET", "/mytopic,mytopic2/publish?m=hi", "", nil)
 		require.Equal(t, 404, response.Code)
 	})
 }
 
 func TestServer_PublishNoCache(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "PUT", "/mytopic", "this message is not cached", map[string]string{
 			"Cache": "no",
@@ -401,9 +401,9 @@ func TestServer_PublishNoCache(t *testing.T) {
 }
 
 func TestServer_PublishAt(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "PUT", "/mytopic", "a message", map[string]string{
 			"In": "1h",
@@ -437,9 +437,9 @@ func TestServer_PublishAt(t *testing.T) {
 }
 
 func TestServer_PublishAt_FromUser(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
 		response := request(t, s, "PUT", "/mytopic", "a message", map[string]string{
@@ -476,8 +476,8 @@ func TestServer_PublishAt_FromUser(t *testing.T) {
 }
 
 func TestServer_PublishAt_Expires(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "PUT", "/mytopic", "a message", map[string]string{
 			"In": "2 days",
@@ -490,8 +490,8 @@ func TestServer_PublishAt_Expires(t *testing.T) {
 }
 
 func TestServer_PublishAtWithCacheError(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "PUT", "/mytopic", "a message", map[string]string{
 			"Cache": "no",
@@ -503,8 +503,8 @@ func TestServer_PublishAtWithCacheError(t *testing.T) {
 }
 
 func TestServer_PublishAtTooShortDelay(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "PUT", "/mytopic", "a message", map[string]string{
 			"In": "1s",
@@ -514,8 +514,8 @@ func TestServer_PublishAtTooShortDelay(t *testing.T) {
 }
 
 func TestServer_PublishAtTooLongDelay(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", "a message", map[string]string{
 			"In": "99999999h",
 		})
@@ -524,8 +524,8 @@ func TestServer_PublishAtTooLongDelay(t *testing.T) {
 }
 
 func TestServer_PublishAtInvalidDelay(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic?delay=INVALID", "a message", nil)
 		err := toHTTPError(t, response.Body.String())
 		require.Equal(t, 400, response.Code)
@@ -534,8 +534,8 @@ func TestServer_PublishAtInvalidDelay(t *testing.T) {
 }
 
 func TestServer_PublishAtTooLarge(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic?x-in=99999h", "a message", nil)
 		err := toHTTPError(t, response.Body.String())
 		require.Equal(t, 400, response.Code)
@@ -544,8 +544,8 @@ func TestServer_PublishAtTooLarge(t *testing.T) {
 }
 
 func TestServer_PublishAtAndPrune(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "PUT", "/mytopic", "a message", map[string]string{
 			"In": "1h",
@@ -563,8 +563,8 @@ func TestServer_PublishAtAndPrune(t *testing.T) {
 }
 
 func TestServer_PublishAndMultiPoll(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "PUT", "/mytopic1", "message 1", nil)
 		msg := toMessage(t, response.Body.String())
@@ -595,8 +595,8 @@ func TestServer_PublishAndMultiPoll(t *testing.T) {
 }
 
 func TestServer_PublishWithNopCache(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.CacheDuration = 0
 		s := newTestServer(t, c)
 
@@ -620,9 +620,9 @@ func TestServer_PublishWithNopCache(t *testing.T) {
 }
 
 func TestServer_PublishAndPollSince(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		request(t, s, "PUT", "/mytopic", "test 1", nil)
 		time.Sleep(1100 * time.Millisecond)
@@ -662,8 +662,8 @@ func newMessageWithTimestamp(topic, msg string, timestamp int64) *model.Message 
 }
 
 func TestServer_PollSinceID_MultipleTopics(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		require.Nil(t, s.messageCache.AddMessage(newMessageWithTimestamp("mytopic1", "test 1", 1655740277)))
 		markerMessage := newMessageWithTimestamp("mytopic2", "test 2", 1655740283)
@@ -688,8 +688,8 @@ func TestServer_PollSinceID_MultipleTopics(t *testing.T) {
 }
 
 func TestServer_PollSinceID_MultipleTopics_IDDoesNotMatch(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		require.Nil(t, s.messageCache.AddMessage(newMessageWithTimestamp("mytopic1", "test 3", 1655740289)))
 		require.Nil(t, s.messageCache.AddMessage(newMessageWithTimestamp("mytopic2", "test 4", 1655740293)))
@@ -707,8 +707,8 @@ func TestServer_PollSinceID_MultipleTopics_IDDoesNotMatch(t *testing.T) {
 }
 
 func TestServer_PublishViaGET(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "GET", "/mytopic/trigger", "", nil)
 		msg := toMessage(t, response.Body.String())
@@ -727,8 +727,8 @@ func TestServer_PublishViaGET(t *testing.T) {
 }
 
 func TestServer_PublishMessageInHeaderWithNewlines(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "PUT", "/mytopic", "", map[string]string{
 			"Message": "Line 1\\nLine 2",
@@ -740,8 +740,8 @@ func TestServer_PublishMessageInHeaderWithNewlines(t *testing.T) {
 }
 
 func TestServer_PublishInvalidTopic(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		s.smtpSender = &testMailer{}
 		response := request(t, s, "PUT", "/docs", "fail", nil)
 		require.Equal(t, 40010, toHTTPError(t, response.Body.String()).Code)
@@ -749,8 +749,8 @@ func TestServer_PublishInvalidTopic(t *testing.T) {
 }
 
 func TestServer_PublishWithSIDInPath(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "POST", "/mytopic/sid", "message", nil)
 		msg := toMessage(t, response.Body.String())
@@ -760,8 +760,8 @@ func TestServer_PublishWithSIDInPath(t *testing.T) {
 }
 
 func TestServer_PublishWithSIDInHeader(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "POST", "/mytopic", "message", map[string]string{
 			"sid": "sid",
@@ -773,8 +773,8 @@ func TestServer_PublishWithSIDInHeader(t *testing.T) {
 }
 
 func TestServer_PublishWithSIDInPathAndHeader(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "PUT", "/mytopic/sid1", "message", map[string]string{
 			"sid": "sid2",
@@ -786,8 +786,8 @@ func TestServer_PublishWithSIDInPathAndHeader(t *testing.T) {
 }
 
 func TestServer_PublishWithSIDInQuery(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "PUT", "/mytopic?sid=sid1", "message", nil)
 		msg := toMessage(t, response.Body.String())
@@ -797,8 +797,8 @@ func TestServer_PublishWithSIDInQuery(t *testing.T) {
 }
 
 func TestServer_PublishWithSIDViaGet(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "GET", "/mytopic/publish?sid=sid1", "message", nil)
 		msg := toMessage(t, response.Body.String())
@@ -808,8 +808,8 @@ func TestServer_PublishWithSIDViaGet(t *testing.T) {
 }
 
 func TestServer_PublishAsJSON_WithSequenceID(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		body := `{"topic":"mytopic","message":"A message","sequence_id":"my-sequence-123"}`
 		response := request(t, s, "PUT", "/", body, nil)
@@ -822,8 +822,8 @@ func TestServer_PublishAsJSON_WithSequenceID(t *testing.T) {
 }
 
 func TestServer_PublishWithInvalidSIDInPath(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "POST", "/mytopic/.", "message", nil)
 
@@ -832,8 +832,8 @@ func TestServer_PublishWithInvalidSIDInPath(t *testing.T) {
 }
 
 func TestServer_PublishWithInvalidSIDInHeader(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "POST", "/mytopic", "message", map[string]string{
 			"X-Sequence-ID": "*&?",
@@ -845,8 +845,8 @@ func TestServer_PublishWithInvalidSIDInHeader(t *testing.T) {
 }
 
 func TestServer_PollWithQueryFilters(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "PUT", "/mytopic?priority=1&tags=tag1,tag2", "my first message", nil)
 		msg := toMessage(t, response.Body.String())
@@ -916,9 +916,9 @@ func TestServer_PollWithQueryFilters(t *testing.T) {
 }
 
 func TestServer_SubscribeWithQueryFilters(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.KeepaliveInterval = 800 * time.Millisecond
 		s := newTestServer(t, c)
 
@@ -945,8 +945,8 @@ func TestServer_SubscribeWithQueryFilters(t *testing.T) {
 }
 
 func TestServer_Auth_Success_Admin(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		s := newTestServer(t, c)
 
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
@@ -960,8 +960,8 @@ func TestServer_Auth_Success_Admin(t *testing.T) {
 }
 
 func TestServer_Auth_Success_User(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.AuthDefault = user.PermissionDenyAll
 		s := newTestServer(t, c)
 
@@ -976,8 +976,8 @@ func TestServer_Auth_Success_User(t *testing.T) {
 }
 
 func TestServer_Auth_Success_User_MultipleTopics(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.AuthDefault = user.PermissionDenyAll
 		s := newTestServer(t, c)
 
@@ -998,8 +998,8 @@ func TestServer_Auth_Success_User_MultipleTopics(t *testing.T) {
 }
 
 func TestServer_Auth_Fail_InvalidPass(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.AuthDefault = user.PermissionDenyAll
 		s := newTestServer(t, c)
 
@@ -1013,8 +1013,8 @@ func TestServer_Auth_Fail_InvalidPass(t *testing.T) {
 }
 
 func TestServer_Auth_Fail_Unauthorized(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.AuthDefault = user.PermissionDenyAll
 		s := newTestServer(t, c)
 
@@ -1029,8 +1029,8 @@ func TestServer_Auth_Fail_Unauthorized(t *testing.T) {
 }
 
 func TestServer_Auth_Fail_CannotPublish(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.AuthDefault = user.PermissionReadWrite // Open by default
 		s := newTestServer(t, c)
 
@@ -1061,8 +1061,8 @@ func TestServer_Auth_Fail_CannotPublish(t *testing.T) {
 }
 
 func TestServer_Auth_Fail_Rate_Limiting(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.VisitorAuthFailureLimitBurst = 10
 		s := newTestServer(t, c)
 
@@ -1082,8 +1082,8 @@ func TestServer_Auth_Fail_Rate_Limiting(t *testing.T) {
 }
 
 func TestServer_Auth_ViaQuery(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.AuthDefault = user.PermissionDenyAll
 		s := newTestServer(t, c)
 
@@ -1100,8 +1100,8 @@ func TestServer_Auth_ViaQuery(t *testing.T) {
 }
 
 func TestServer_Auth_NonBasicHeader(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfigWithAuthFile(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithAuthFile(t, databaseURL))
 
 		response := request(t, s, "PUT", "/mytopic", "test", map[string]string{
 			"Authorization": "WebPush not-supported",
@@ -1121,14 +1121,14 @@ func TestServer_Auth_NonBasicHeader(t *testing.T) {
 }
 
 func TestServer_StatsResetter(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
 		// This tests the stats resetter for
 		// - an anonymous user
 		// - a user without a tier (treated like the same as the anonymous user)
 		// - a user with a tier
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.VisitorStatsResetTime = time.Now().Add(2 * time.Second)
 		s := newTestServer(t, c)
 		go s.runStatsResetter()
@@ -1227,11 +1227,11 @@ func TestServer_StatsResetter(t *testing.T) {
 }
 
 func TestServer_StatsResetter_MessageLimiter_EmailsLimiter(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		// This tests that the messageLimiter (the only fixed limiter) and the emailsLimiter (token bucket)
 		// is reset by the stats resetter
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		s := newTestServer(t, c)
 		s.smtpSender = &testMailer{}
 
@@ -1274,13 +1274,13 @@ func TestServer_StatsResetter_MessageLimiter_EmailsLimiter(t *testing.T) {
 }
 
 func TestServer_DailyMessageQuotaFromDatabase(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
 
 		// This tests that the daily message quota is prefilled originally from the database,
 		// if the visitor is unknown
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.AuthStatsQueueWriterInterval = 100 * time.Millisecond
 		s := newTestServer(t, c)
 
@@ -1339,8 +1339,8 @@ func (t *testMailer) Count() int {
 }
 
 func TestServer_PublishTooManyRequests_Defaults(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		for i := 0; i < 60; i++ {
 			response := request(t, s, "PUT", "/mytopic", fmt.Sprintf("message %d", i), nil)
 			require.Equal(t, 200, response.Code)
@@ -1351,8 +1351,8 @@ func TestServer_PublishTooManyRequests_Defaults(t *testing.T) {
 }
 
 func TestServer_PublishTooManyRequests_Defaults_IPv6(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		overrideRemoteAddr1 := func(r *http.Request) {
 			r.RemoteAddr = "[2001:db8:9999:8888:1::1]:1234"
 		}
@@ -1373,8 +1373,8 @@ func TestServer_PublishTooManyRequests_Defaults_IPv6(t *testing.T) {
 }
 
 func TestServer_PublishTooManyRequests_IPv6_Slash48(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.VisitorRequestLimitBurst = 6
 		c.VisitorPrefixBitsIPv6 = 48 // Use /48 for IPv6 prefixes
 		s := newTestServer(t, c)
@@ -1398,8 +1398,8 @@ func TestServer_PublishTooManyRequests_IPv6_Slash48(t *testing.T) {
 }
 
 func TestServer_PublishTooManyRequests_Defaults_ExemptHosts(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.VisitorRequestLimitBurst = 3
 		c.VisitorRequestExemptPrefixes = []netip.Prefix{netip.MustParsePrefix("9.9.9.9/32")} // see request()
 		s := newTestServer(t, c)
@@ -1411,8 +1411,8 @@ func TestServer_PublishTooManyRequests_Defaults_ExemptHosts(t *testing.T) {
 }
 
 func TestServer_PublishTooManyRequests_Defaults_ExemptHosts_IPv6(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.VisitorRequestLimitBurst = 3
 		c.VisitorRequestExemptPrefixes = []netip.Prefix{netip.MustParsePrefix("2001:db8:9999::/48")}
 		s := newTestServer(t, c)
@@ -1427,8 +1427,8 @@ func TestServer_PublishTooManyRequests_Defaults_ExemptHosts_IPv6(t *testing.T) {
 }
 
 func TestServer_PublishTooManyRequests_Defaults_ExemptHosts_MessageDailyLimit(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.VisitorRequestLimitBurst = 10
 		c.VisitorMessageDailyLimit = 4
 		c.VisitorRequestExemptPrefixes = []netip.Prefix{netip.MustParsePrefix("9.9.9.9/32")} // see request()
@@ -1441,9 +1441,9 @@ func TestServer_PublishTooManyRequests_Defaults_ExemptHosts_MessageDailyLimit(t 
 }
 
 func TestServer_PublishTooManyRequests_ShortReplenish(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.VisitorRequestLimitBurst = 60
 		c.VisitorRequestLimitReplenish = time.Second
 		s := newTestServer(t, c)
@@ -1461,8 +1461,8 @@ func TestServer_PublishTooManyRequests_ShortReplenish(t *testing.T) {
 }
 
 func TestServer_PublishTooManyEmails_Defaults(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		s.smtpSender = &testMailer{}
 		for i := 0; i < 16; i++ {
 			response := request(t, s, "PUT", "/mytopic", fmt.Sprintf("message %d", i), map[string]string{
@@ -1478,9 +1478,9 @@ func TestServer_PublishTooManyEmails_Defaults(t *testing.T) {
 }
 
 func TestServer_PublishTooManyEmails_Replenish(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.VisitorEmailLimitReplenish = 500 * time.Millisecond
 		s := newTestServer(t, c)
 		s.smtpSender = &testMailer{}
@@ -1509,8 +1509,8 @@ func TestServer_PublishTooManyEmails_Replenish(t *testing.T) {
 }
 
 func TestServer_PublishDelayedEmail_Fail(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		s.smtpSender = &testMailer{}
 		response := request(t, s, "PUT", "/mytopic", "fail", map[string]string{
 			"E-Mail": "test@example.com",
@@ -1521,8 +1521,8 @@ func TestServer_PublishDelayedEmail_Fail(t *testing.T) {
 }
 
 func TestServer_PublishDelayedCall_Fail(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.TwilioAccount = "AC1234567890"
 		c.TwilioAuthToken = "AAEAA1234567890"
 		c.TwilioPhoneNumber = "+1234567890"
@@ -1536,8 +1536,8 @@ func TestServer_PublishDelayedCall_Fail(t *testing.T) {
 }
 
 func TestServer_PublishEmailNoMailer_Fail(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", "fail", map[string]string{
 			"E-Mail": "test@example.com",
 		})
@@ -1546,9 +1546,9 @@ func TestServer_PublishEmailNoMailer_Fail(t *testing.T) {
 }
 
 func TestServer_PublishAndExpungeTopicAfter16Hours(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		defer s.messageCache.Close()
 
 		subFn := func(v *visitor, msg *model.Message) error {
@@ -1597,9 +1597,9 @@ func TestServer_PublishAndExpungeTopicAfter16Hours(t *testing.T) {
 }
 
 func TestServer_TopicKeepaliveOnPoll(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Create topic by polling once
 		response := request(t, s, "GET", "/mytopic/json?poll=1", "", nil)
@@ -1617,8 +1617,8 @@ func TestServer_TopicKeepaliveOnPoll(t *testing.T) {
 }
 
 func TestServer_UnifiedPushDiscovery(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "GET", "/mytopic?up=1", "", nil)
 		require.Equal(t, 200, response.Code)
 		require.Equal(t, `{"unifiedpush":{"version":1}}`+"\n", response.Body.String())
@@ -1626,12 +1626,12 @@ func TestServer_UnifiedPushDiscovery(t *testing.T) {
 }
 
 func TestServer_PublishUnifiedPushBinary_AndPoll(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		b := make([]byte, 12) // Max length
 		_, err := rand.Read(b)
 		require.Nil(t, err)
 
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Register a UnifiedPush subscriber
 		response := request(t, s, "GET", "/up123456789012/json?poll=1", "", nil)
@@ -1659,12 +1659,12 @@ func TestServer_PublishUnifiedPushBinary_AndPoll(t *testing.T) {
 }
 
 func TestServer_PublishUnifiedPushBinary_Truncated(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		b := make([]byte, 5000) // Longer than max length
 		_, err := rand.Read(b)
 		require.Nil(t, err)
 
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Register a UnifiedPush subscriber
 		response := request(t, s, "GET", "/mytopic/json?poll=1", "", nil)
@@ -1684,8 +1684,8 @@ func TestServer_PublishUnifiedPushBinary_Truncated(t *testing.T) {
 }
 
 func TestServer_PublishUnifiedPushText(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Register a UnifiedPush subscriber
 		response := request(t, s, "GET", "/mytopic/json?poll=1", "", nil)
@@ -1702,8 +1702,8 @@ func TestServer_PublishUnifiedPushText(t *testing.T) {
 }
 
 func TestServer_MatrixGateway_Discovery_Success(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "GET", "/_matrix/push/v1/notify", "", nil)
 		require.Equal(t, 200, response.Code)
 		require.Equal(t, `{"unifiedpush":{"gateway":"matrix"}}`+"\n", response.Body.String())
@@ -1711,8 +1711,8 @@ func TestServer_MatrixGateway_Discovery_Success(t *testing.T) {
 }
 
 func TestServer_MatrixGateway_Discovery_Failure_Unconfigured(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.BaseURL = ""
 		s := newTestServer(t, c)
 		response := request(t, s, "GET", "/_matrix/push/v1/notify", "", nil)
@@ -1723,8 +1723,8 @@ func TestServer_MatrixGateway_Discovery_Failure_Unconfigured(t *testing.T) {
 }
 
 func TestServer_MatrixGateway_Push_Success(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "GET", "/mytopic/json?poll=1", "", nil)
 		require.Equal(t, 200, response.Code)
@@ -1742,8 +1742,8 @@ func TestServer_MatrixGateway_Push_Success(t *testing.T) {
 }
 
 func TestServer_MatrixGateway_Push_Failure_NoSubscriber(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.VisitorSubscriberRateLimiting = true
 		s := newTestServer(t, c)
 		notification := `{"notification":{"devices":[{"pushkey":"http://127.0.0.1:12345/mytopic?up=1"}]}}`
@@ -1754,8 +1754,8 @@ func TestServer_MatrixGateway_Push_Failure_NoSubscriber(t *testing.T) {
 }
 
 func TestServer_MatrixGateway_Push_Failure_NoSubscriber_After13Hours(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.VisitorSubscriberRateLimiting = true
 		s := newTestServer(t, c)
 		notification := `{"notification":{"devices":[{"pushkey":"http://127.0.0.1:12345/mytopic?up=1"}]}}`
@@ -1782,8 +1782,8 @@ func TestServer_MatrixGateway_Push_Failure_NoSubscriber_After13Hours(t *testing.
 }
 
 func TestServer_MatrixGateway_Push_Failure_InvalidPushkey(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		notification := `{"notification":{"devices":[{"pushkey":"http://wrong-base-url.com/mytopic?up=1"}]}}`
 		response := request(t, s, "POST", "/_matrix/push/v1/notify", notification, nil)
 		require.Equal(t, 200, response.Code)
@@ -1796,8 +1796,8 @@ func TestServer_MatrixGateway_Push_Failure_InvalidPushkey(t *testing.T) {
 }
 
 func TestServer_MatrixGateway_Push_Failure_EverythingIsWrong(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		notification := `{"message":"this is not really a Matrix message"}`
 		response := request(t, s, "POST", "/_matrix/push/v1/notify", notification, nil)
 		require.Equal(t, 400, response.Code)
@@ -1811,8 +1811,8 @@ func TestServer_MatrixGateway_Push_Failure_EverythingIsWrong(t *testing.T) {
 }
 
 func TestServer_MatrixGateway_Push_Failure_Unconfigured(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.BaseURL = ""
 		s := newTestServer(t, c)
 		notification := `{"notification":{"devices":[{"pushkey":"http://127.0.0.1:12345/mytopic?up=1"}]}}`
@@ -1823,8 +1823,8 @@ func TestServer_MatrixGateway_Push_Failure_Unconfigured(t *testing.T) {
 }
 
 func TestServer_PublishActions_AndPoll(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", "my message", map[string]string{
 			"Actions": "view, Open portal, https://home.nest.com/; http, Turn down, https://api.nest.com/device/XZ1D2, body=target_temp_f=65",
 		})
@@ -1845,8 +1845,8 @@ func TestServer_PublishActions_AndPoll(t *testing.T) {
 }
 
 func TestServer_PublishMarkdown(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", "**make this bold**", map[string]string{
 			"Content-Type": "text/markdown",
 		})
@@ -1859,8 +1859,8 @@ func TestServer_PublishMarkdown(t *testing.T) {
 }
 
 func TestServer_PublishMarkdown_QueryParam(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic?md=1", "**make this bold**", nil)
 		require.Equal(t, 200, response.Code)
 
@@ -1871,8 +1871,8 @@ func TestServer_PublishMarkdown_QueryParam(t *testing.T) {
 }
 
 func TestServer_PublishMarkdown_NotMarkdown(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", "**make this bold**", map[string]string{
 			"Content-Type": "not-markdown",
 		})
@@ -1884,8 +1884,8 @@ func TestServer_PublishMarkdown_NotMarkdown(t *testing.T) {
 }
 
 func TestServer_PublishAsJSON(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		body := `{"topic":"mytopic","message":"A message","title":"a title\nwith lines","tags":["tag1","tag 2"],` +
 			`"not-a-thing":"ok", "attach":"http://google.com","filename":"google.pdf", "click":"http://ntfy.sh","priority":4,` +
 			`"icon":"https://ntfy.sh/static/img/ntfy.png", "delay":"30min"}`
@@ -1910,8 +1910,8 @@ func TestServer_PublishAsJSON(t *testing.T) {
 }
 
 func TestServer_PublishAsJSON_Markdown(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		body := `{"topic":"mytopic","message":"**This is bold**","markdown":true}`
 		response := request(t, s, "PUT", "/", body, nil)
 		require.Equal(t, 200, response.Code)
@@ -1924,10 +1924,10 @@ func TestServer_PublishAsJSON_Markdown(t *testing.T) {
 }
 
 func TestServer_PublishAsJSON_RateLimit_MessageDailyLimit(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		// Publishing as JSON follows a different path. This ensures that rate
 		// limiting works for this endpoint as well
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.VisitorMessageDailyLimit = 3
 		s := newTestServer(t, c)
 
@@ -1942,10 +1942,10 @@ func TestServer_PublishAsJSON_RateLimit_MessageDailyLimit(t *testing.T) {
 }
 
 func TestServer_PublishAsJSON_WithEmail(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
 		mailer := &testMailer{}
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		s.smtpSender = mailer
 		body := `{"topic":"mytopic","message":"A message","email":"phil@example.com"}`
 		response := request(t, s, "PUT", "/", body, nil)
@@ -1960,8 +1960,8 @@ func TestServer_PublishAsJSON_WithEmail(t *testing.T) {
 }
 
 func TestServer_PublishAsJSON_WithActions(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		body := `{
 		"topic":"mytopic",
 		"message":"A message",
@@ -1997,8 +1997,8 @@ func TestServer_PublishAsJSON_WithActions(t *testing.T) {
 }
 
 func TestServer_PublishAsJSON_NoCache(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		body := `{"topic":"mytopic","message": "this message is not cached","cache":"no"}`
 		response := request(t, s, "PUT", "/", body, nil)
 		msg := toMessage(t, response.Body.String())
@@ -2013,9 +2013,9 @@ func TestServer_PublishAsJSON_NoCache(t *testing.T) {
 }
 
 func TestServer_PublishAsJSON_WithoutFirebase(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		sender := newTestFirebaseSender(10)
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		s.firebaseClient = newFirebaseClient(sender, &testAuther{Allow: true})
 
 		body := `{"topic":"mytopic","message": "my first message","firebase":"no"}`
@@ -2030,8 +2030,8 @@ func TestServer_PublishAsJSON_WithoutFirebase(t *testing.T) {
 }
 
 func TestServer_PublishAsJSON_Invalid(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		body := `{"topic":"mytopic",INVALID`
 		response := request(t, s, "PUT", "/", body, nil)
 		require.Equal(t, 400, response.Code)
@@ -2039,8 +2039,8 @@ func TestServer_PublishAsJSON_Invalid(t *testing.T) {
 }
 
 func TestServer_PublishWithTierBasedMessageLimitAndExpiry(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		s := newTestServer(t, c)
 
 		// Create tier with certain limits
@@ -2077,9 +2077,9 @@ func TestServer_PublishWithTierBasedMessageLimitAndExpiry(t *testing.T) {
 }
 
 func TestServer_PublishAttachment(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		content := "text file!" + util.RandomString(4990) // > 4096
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", content, nil)
 		msg := toMessage(t, response.Body.String())
 		require.Equal(t, "attachment.txt", msg.Attachment.Name)
@@ -2111,8 +2111,8 @@ func TestServer_PublishAttachment(t *testing.T) {
 }
 
 func TestServer_PublishAttachmentShortWithFilename(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.BehindProxy = true
 		s := newTestServer(t, c)
 		content := "this is an ATTACHMENT"
@@ -2142,8 +2142,8 @@ func TestServer_PublishAttachmentShortWithFilename(t *testing.T) {
 }
 
 func TestServer_PublishAttachmentExternalWithoutFilename(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", "", map[string]string{
 			"Attach": "https://upload.wikimedia.org/wikipedia/commons/f/fd/Pink_flower.jpg",
 		})
@@ -2164,8 +2164,8 @@ func TestServer_PublishAttachmentExternalWithoutFilename(t *testing.T) {
 }
 
 func TestServer_PublishAttachmentExternalWithFilename(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", "This is a custom message", map[string]string{
 			"X-Attach": "https://upload.wikimedia.org/wikipedia/commons/f/fd/Pink_flower.jpg",
 			"File":     "some file.jpg",
@@ -2182,8 +2182,8 @@ func TestServer_PublishAttachmentExternalWithFilename(t *testing.T) {
 }
 
 func TestServer_PublishAttachmentBadURL(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		s := newTestServer(t, newTestConfig(t))
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic?a=not+a+URL", "", nil)
 		err := toHTTPError(t, response.Body.String())
 		require.Equal(t, 400, response.Code)
@@ -2193,9 +2193,9 @@ func TestServer_PublishAttachmentBadURL(t *testing.T) {
 }
 
 func TestServer_PublishAttachmentTooLargeContentLength(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		content := util.RandomString(5000) // > 4096
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", content, map[string]string{
 			"Content-Length": "20000000",
 		})
@@ -2207,9 +2207,9 @@ func TestServer_PublishAttachmentTooLargeContentLength(t *testing.T) {
 }
 
 func TestServer_PublishAttachmentTooLargeBodyAttachmentFileSizeLimit(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		content := util.RandomString(5001) // > 5000, see below
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.AttachmentFileSizeLimit = 5000
 		s := newTestServer(t, c)
 		response := request(t, s, "PUT", "/mytopic", content, nil)
@@ -2221,8 +2221,8 @@ func TestServer_PublishAttachmentTooLargeBodyAttachmentFileSizeLimit(t *testing.
 }
 
 func TestServer_PublishAttachmentExpiryBeforeDelivery(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.AttachmentExpiryDuration = 10 * time.Minute
 		s := newTestServer(t, c)
 		response := request(t, s, "PUT", "/mytopic", util.RandomString(5000), map[string]string{
@@ -2236,8 +2236,8 @@ func TestServer_PublishAttachmentExpiryBeforeDelivery(t *testing.T) {
 }
 
 func TestServer_PublishAttachmentTooLargeBodyVisitorAttachmentTotalSizeLimit(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.VisitorAttachmentTotalSizeLimit = 10000
 		s := newTestServer(t, c)
 
@@ -2257,11 +2257,11 @@ func TestServer_PublishAttachmentTooLargeBodyVisitorAttachmentTotalSizeLimit(t *
 }
 
 func TestServer_PublishAttachmentAndExpire(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
 		content := util.RandomString(5000) // > 4096
 
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.AttachmentExpiryDuration = time.Millisecond // Hack
 		s := newTestServer(t, c)
 
@@ -2288,11 +2288,11 @@ func TestServer_PublishAttachmentAndExpire(t *testing.T) {
 }
 
 func TestServer_PublishAttachmentWithTierBasedExpiry(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
 		content := util.RandomString(5000) // > 4096
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.AttachmentExpiryDuration = time.Millisecond // Hack
 		s := newTestServer(t, c)
 
@@ -2337,10 +2337,10 @@ func TestServer_PublishAttachmentWithTierBasedExpiry(t *testing.T) {
 }
 
 func TestServer_PublishAttachmentWithTierBasedBandwidthLimit(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		content := util.RandomString(5000) // > 4096
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.VisitorAttachmentDailyBandwidthLimit = 1000 // Much lower than tier bandwidth!
 		s := newTestServer(t, c)
 
@@ -2376,11 +2376,11 @@ func TestServer_PublishAttachmentWithTierBasedBandwidthLimit(t *testing.T) {
 }
 
 func TestServer_PublishAttachmentWithTierBasedLimits(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		smallFile := util.RandomString(20_000)
 		largeFile := util.RandomString(50_000)
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.AttachmentFileSizeLimit = 20_000
 		c.VisitorAttachmentTotalSizeLimit = 40_000
 		s := newTestServer(t, c)
@@ -2434,10 +2434,10 @@ func TestServer_PublishAttachmentWithTierBasedLimits(t *testing.T) {
 }
 
 func TestServer_PublishAttachmentBandwidthLimit(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		content := util.RandomString(5000) // > 4096
 
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.VisitorAttachmentDailyBandwidthLimit = 5*5000 + 123 // A little more than 1 upload and 3 downloads
 		s := newTestServer(t, c)
 
@@ -2463,10 +2463,10 @@ func TestServer_PublishAttachmentBandwidthLimit(t *testing.T) {
 }
 
 func TestServer_PublishAttachmentBandwidthLimitUploadOnly(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		content := util.RandomString(5000) // > 4096
 
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.VisitorAttachmentDailyBandwidthLimit = 5*5000 + 500 // 5 successful uploads
 		s := newTestServer(t, c)
 
@@ -2486,11 +2486,11 @@ func TestServer_PublishAttachmentBandwidthLimitUploadOnly(t *testing.T) {
 }
 
 func TestServer_PublishAttachmentAndImmediatelyGetItWithCacheTimeout(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		// This tests the awkward util.Retry in handleFile: Due to the async persisting of messages,
 		// the message is not immediately available when attempting to download it.
 
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.CacheBatchTimeout = 500 * time.Millisecond
 		c.CacheBatchSize = 10
 		s := newTestServer(t, c)
@@ -2507,10 +2507,10 @@ func TestServer_PublishAttachmentAndImmediatelyGetItWithCacheTimeout(t *testing.
 }
 
 func TestServer_PublishAttachmentAccountStats(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		content := util.RandomString(4999) // > 4096
 
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.AttachmentFileSizeLimit = 5000
 		c.VisitorAttachmentTotalSizeLimit = 6000
 		s := newTestServer(t, c)
@@ -2534,8 +2534,8 @@ func TestServer_PublishAttachmentAccountStats(t *testing.T) {
 }
 
 func TestServer_Visitor_XForwardedFor_None(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.BehindProxy = true
 		s := newTestServer(t, c)
 		r, _ := http.NewRequest("GET", "/bla", nil)
@@ -2548,8 +2548,8 @@ func TestServer_Visitor_XForwardedFor_None(t *testing.T) {
 }
 
 func TestServer_Visitor_XForwardedFor_Single(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.BehindProxy = true
 		s := newTestServer(t, c)
 		r, _ := http.NewRequest("GET", "/bla", nil)
@@ -2562,8 +2562,8 @@ func TestServer_Visitor_XForwardedFor_Single(t *testing.T) {
 }
 
 func TestServer_Visitor_XForwardedFor_Multiple(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.BehindProxy = true
 		s := newTestServer(t, c)
 		r, _ := http.NewRequest("GET", "/bla", nil)
@@ -2576,8 +2576,8 @@ func TestServer_Visitor_XForwardedFor_Multiple(t *testing.T) {
 }
 
 func TestServer_Visitor_Custom_ClientIP_Header(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.BehindProxy = true
 		c.ProxyForwardedHeader = "X-Client-IP"
 		s := newTestServer(t, c)
@@ -2591,8 +2591,8 @@ func TestServer_Visitor_Custom_ClientIP_Header(t *testing.T) {
 }
 
 func TestServer_Visitor_Custom_ClientIP_Header_IPv6(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.BehindProxy = true
 		c.ProxyForwardedHeader = "X-Client-IP"
 		s := newTestServer(t, c)
@@ -2606,8 +2606,8 @@ func TestServer_Visitor_Custom_ClientIP_Header_IPv6(t *testing.T) {
 }
 
 func TestServer_Visitor_Custom_Forwarded_Header(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.BehindProxy = true
 		c.ProxyForwardedHeader = "Forwarded"
 		c.ProxyTrustedPrefixes = []netip.Prefix{netip.MustParsePrefix("1.2.3.0/24")}
@@ -2622,8 +2622,8 @@ func TestServer_Visitor_Custom_Forwarded_Header(t *testing.T) {
 }
 
 func TestServer_Visitor_Custom_Forwarded_Header_IPv6(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.BehindProxy = true
 		c.ProxyForwardedHeader = "Forwarded"
 		c.ProxyTrustedPrefixes = []netip.Prefix{netip.MustParsePrefix("2001:db8:1111::/64")}
@@ -2638,10 +2638,10 @@ func TestServer_Visitor_Custom_Forwarded_Header_IPv6(t *testing.T) {
 }
 
 func TestServer_PublishWhileUpdatingStatsWithLotsOfMessages(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
 		count := 50000
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.TotalTopicLimit = 50001
 		c.CacheStartupQueries = "pragma journal_mode = WAL; pragma synchronous = normal; pragma temp_store = memory;"
 		s := newTestServer(t, c)
@@ -2690,8 +2690,8 @@ func TestServer_PublishWhileUpdatingStatsWithLotsOfMessages(t *testing.T) {
 }
 
 func TestServer_AnonymousUser_And_NonTierUser_Are_Same_Visitor(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		conf := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
 		s := newTestServer(t, conf)
 		defer s.closeDatabases()
 
@@ -2723,8 +2723,8 @@ func TestServer_AnonymousUser_And_NonTierUser_Are_Same_Visitor(t *testing.T) {
 }
 
 func TestServer_SubscriberRateLimiting_Success(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.VisitorRequestLimitBurst = 3
 		c.VisitorSubscriberRateLimiting = true
 		s := newTestServer(t, c)
@@ -2779,8 +2779,8 @@ func TestServer_SubscriberRateLimiting_Success(t *testing.T) {
 }
 
 func TestServer_SubscriberRateLimiting_NotWrongTopic(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.VisitorSubscriberRateLimiting = true
 		s := newTestServer(t, c)
 
@@ -2797,8 +2797,8 @@ func TestServer_SubscriberRateLimiting_NotWrongTopic(t *testing.T) {
 }
 
 func TestServer_SubscriberRateLimiting_NotEnabled_Failed(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.VisitorRequestLimitBurst = 3
 		c.VisitorSubscriberRateLimiting = false
 		s := newTestServer(t, c)
@@ -2834,8 +2834,8 @@ func TestServer_SubscriberRateLimiting_NotEnabled_Failed(t *testing.T) {
 }
 
 func TestServer_SubscriberRateLimiting_UP_Only(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.VisitorRequestLimitBurst = 3
 		c.VisitorSubscriberRateLimiting = true
 		s := newTestServer(t, c)
@@ -2860,8 +2860,8 @@ func TestServer_SubscriberRateLimiting_UP_Only(t *testing.T) {
 }
 
 func TestServer_Matrix_SubscriberRateLimiting_UP_Only(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.VisitorRequestLimitBurst = 3
 		c.VisitorSubscriberRateLimiting = true
 		s := newTestServer(t, c)
@@ -2890,8 +2890,8 @@ func TestServer_Matrix_SubscriberRateLimiting_UP_Only(t *testing.T) {
 }
 
 func TestServer_SubscriberRateLimiting_VisitorExpiration(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.VisitorRequestLimitBurst = 3
 		c.VisitorSubscriberRateLimiting = true
 		s := newTestServer(t, c)
@@ -2926,8 +2926,8 @@ func TestServer_SubscriberRateLimiting_VisitorExpiration(t *testing.T) {
 }
 
 func TestServer_SubscriberRateLimiting_ProtectedTopics_WithDefaultReadWrite(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfigWithAuthFile(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.AuthDefault = user.PermissionReadWrite
 		c.VisitorSubscriberRateLimiting = true
 		s := newTestServer(t, c)
@@ -2948,8 +2948,8 @@ func TestServer_SubscriberRateLimiting_ProtectedTopics_WithDefaultReadWrite(t *t
 }
 
 func TestServer_MessageHistoryAndStatsEndpoint(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
-		c := newTestConfig(t)
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
 		c.ManagerInterval = 2 * time.Second
 		s := newTestServer(t, c)
 
@@ -2996,9 +2996,9 @@ func TestServer_MessageHistoryAndStatsEndpoint(t *testing.T) {
 }
 
 func TestServer_MessageHistoryMaxSize(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		for i := 0; i < 20; i++ {
 			s.messages = int64(i)
 			s.execManager()
@@ -3008,9 +3008,9 @@ func TestServer_MessageHistoryMaxSize(t *testing.T) {
 }
 
 func TestServer_MessageCountPersistence(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		s := newTestServer(t, c)
 		s.messages = 1234
 		s.execManager()
@@ -3026,9 +3026,9 @@ func TestServer_MessageCountPersistence(t *testing.T) {
 }
 
 func TestServer_PublishWithUTF8MimeHeader(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		response := request(t, s, "POST", "/mytopic", "some attachment", map[string]string{
 			"X-Filename": "some =?UTF-8?q?=C3=A4?=ttachment.txt",
@@ -3054,7 +3054,7 @@ func TestServer_PublishWithUTF8MimeHeader(t *testing.T) {
 }
 
 func TestServer_UpstreamBaseURL_Success(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
 		var pollID atomic.Pointer[string]
 		upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -3067,7 +3067,7 @@ func TestServer_UpstreamBaseURL_Success(t *testing.T) {
 		}))
 		defer upstreamServer.Close()
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.BaseURL = "http://myserver.internal"
 		c.UpstreamBaseURL = upstreamServer.URL
 		s := newTestServer(t, c)
@@ -3086,7 +3086,7 @@ func TestServer_UpstreamBaseURL_Success(t *testing.T) {
 }
 
 func TestServer_UpstreamBaseURL_With_Access_Token_Success(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
 		var pollID atomic.Pointer[string]
 		upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -3100,7 +3100,7 @@ func TestServer_UpstreamBaseURL_With_Access_Token_Success(t *testing.T) {
 		}))
 		defer upstreamServer.Close()
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.BaseURL = "http://myserver.internal"
 		c.UpstreamBaseURL = upstreamServer.URL
 		c.UpstreamAccessToken = "tk_1234567890"
@@ -3120,14 +3120,14 @@ func TestServer_UpstreamBaseURL_With_Access_Token_Success(t *testing.T) {
 }
 
 func TestServer_UpstreamBaseURL_DoNotForwardUnifiedPush(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
 		upstreamServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Fatal("UnifiedPush messages should not be forwarded")
 		}))
 		defer upstreamServer.Close()
 
-		c := newTestConfigWithAuthFile(t)
+		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.BaseURL = "http://myserver.internal"
 		c.UpstreamBaseURL = upstreamServer.URL
 		s := newTestServer(t, c)
@@ -3146,9 +3146,9 @@ func TestServer_UpstreamBaseURL_DoNotForwardUnifiedPush(t *testing.T) {
 }
 
 func TestServer_MessageTemplate(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", `{"foo":"bar", "nested":{"title":"here"}}`, map[string]string{
 			"X-Message":  "{{.foo}}",
 			"X-Title":    "{{.nested.title}}",
@@ -3163,9 +3163,9 @@ func TestServer_MessageTemplate(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_RepeatPlaceholder(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", `{"foo":"bar", "nested":{"title":"here"}}`, map[string]string{
 			"Message":  "{{.foo}} is {{.foo}}",
 			"Title":    "{{.nested.title}} is {{.nested.title}}",
@@ -3180,9 +3180,9 @@ func TestServer_MessageTemplate_RepeatPlaceholder(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_JSONBody(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		body := `{"topic": "mytopic", "message": "{\"foo\":\"bar\",\"nested\":{\"title\":\"here\"}}"}`
 		response := request(t, s, "PUT", "/", body, map[string]string{
 			"m":   "{{.foo}}",
@@ -3198,9 +3198,9 @@ func TestServer_MessageTemplate_JSONBody(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_MalformedJSONBody(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		body := `{"topic": "mytopic", "message": "{\"foo\":\"bar\",\"nested\":{\"title\":\"here\"INVALID"}`
 		response := request(t, s, "PUT", "/", body, map[string]string{
 			"X-Message":  "{{.foo}}",
@@ -3214,9 +3214,9 @@ func TestServer_MessageTemplate_MalformedJSONBody(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_PlaceholderTypo(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", `{"foo":"bar", "nested":{"title":"here"}}`, map[string]string{
 			"X-Message":  "{{.food}}",
 			"X-Title":    "{{.neste.title}}",
@@ -3231,9 +3231,9 @@ func TestServer_MessageTemplate_PlaceholderTypo(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_MultiplePlaceholders(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", `{"foo":"bar", "nested":{"title":"here"}}`, map[string]string{
 			"X-Message":  "{{.foo}} is {{.nested.title}}",
 			"X-Template": "1",
@@ -3246,9 +3246,9 @@ func TestServer_MessageTemplate_MultiplePlaceholders(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_Range(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		jsonBody := `{"foo": "bar", "errors": [{"level": "severe", "url": "https://severe1.com"},{"level": "warning", "url": "https://warning.com"},{"level": "severe", "url": "https://severe2.com"}]}`
 		response := request(t, s, "PUT", "/mytopic", jsonBody, map[string]string{
 			"X-Message":  `Severe URLs:\n{{range .errors}}{{if eq .level "severe"}}- {{.url}}\n{{end}}{{end}}`,
@@ -3262,9 +3262,9 @@ func TestServer_MessageTemplate_Range(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_ExceedMessageSize_TemplatedMessageOK(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.MessageSizeLimit = 25 // 25 < len(HTTP body) < 32k, and len(m.Message) < 25
 		s := newTestServer(t, c)
 		response := request(t, s, "PUT", "/mytopic", `{"foo":"bar", "nested":{"title":"here"}}`, map[string]string{
@@ -3281,9 +3281,9 @@ func TestServer_MessageTemplate_ExceedMessageSize_TemplatedMessageOK(t *testing.
 }
 
 func TestServer_MessageTemplate_ExceedMessageSize_TemplatedMessageTooLong(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.MessageSizeLimit = 21 // 21 < len(HTTP body) < 32k, but !len(m.Message) < 21
 		s := newTestServer(t, c)
 		response := request(t, s, "PUT", "/mytopic", `{"foo":"This is a long message"}`, map[string]string{
@@ -3297,9 +3297,9 @@ func TestServer_MessageTemplate_ExceedMessageSize_TemplatedMessageTooLong(t *tes
 }
 
 func TestServer_MessageTemplate_Grafana(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		body := `{"receiver":"ntfy\\.example\\.com/alerts","status":"resolved","alerts":[{"status":"resolved","labels":{"alertname":"Load avg 15m too high","grafana_folder":"Node alerts","instance":"10.108.0.2:9100","job":"node-exporter"},"annotations":{"summary":"15m load average too high"},"startsAt":"2024-03-15T02:28:00Z","endsAt":"2024-03-15T02:42:00Z","generatorURL":"localhost:3000/alerting/grafana/NW9oDw-4z/view","fingerprint":"becbfb94bd81ef48","silenceURL":"localhost:3000/alerting/silence/new?alertmanager=grafana&matcher=alertname%3DLoad+avg+15m+too+high&matcher=grafana_folder%3DNode+alerts&matcher=instance%3D10.108.0.2%3A9100&matcher=job%3Dnode-exporter","dashboardURL":"","panelURL":"","values":{"B":18.98211314475876,"C":0},"valueString":"[ var='B' labels={__name__=node_load15, instance=10.108.0.2:9100, job=node-exporter} value=18.98211314475876 ], [ var='C' labels={__name__=node_load15, instance=10.108.0.2:9100, job=node-exporter} value=0 ]"}],"groupLabels":{"alertname":"Load avg 15m too high","grafana_folder":"Node alerts"},"commonLabels":{"alertname":"Load avg 15m too high","grafana_folder":"Node alerts","instance":"10.108.0.2:9100","job":"node-exporter"},"commonAnnotations":{"summary":"15m load average too high"},"externalURL":"localhost:3000/","version":"1","groupKey":"{}:{alertname=\"Load avg 15m too high\", grafana_folder=\"Node alerts\"}","truncatedAlerts":0,"orgId":1,"title":"[RESOLVED] Load avg 15m too high Node alerts (10.108.0.2:9100 node-exporter)","state":"ok","message":"**Resolved**\n\nValue: B=18.98211314475876, C=0\nLabels:\n - alertname = Load avg 15m too high\n - grafana_folder = Node alerts\n - instance = 10.108.0.2:9100\n - job = node-exporter\nAnnotations:\n - summary = 15m load average too high\nSource: localhost:3000/alerting/grafana/NW9oDw-4z/view\nSilence: localhost:3000/alerting/silence/new?alertmanager=grafana&matcher=alertname%3DLoad+avg+15m+too+high&matcher=grafana_folder%3DNode+alerts&matcher=instance%3D10.108.0.2%3A9100&matcher=job%3Dnode-exporter\n"}`
 		response := request(t, s, "PUT", "/mytopic?tpl=yes&title=Grafana+alert:+{{.title}}&message={{.message}}", body, nil)
 		require.Equal(t, 200, response.Code)
@@ -3321,9 +3321,9 @@ Silence: localhost:3000/alerting/silence/new?alertmanager=grafana&matcher=alertn
 }
 
 func TestServer_MessageTemplate_GitHub(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		body := `{"action":"opened","number":1,"pull_request":{"url":"https://api.github.com/repos/binwiederhier/dabble/pulls/1","id":1783420972,"node_id":"PR_kwDOHAbdo85qTNgs","html_url":"https://github.com/binwiederhier/dabble/pull/1","diff_url":"https://github.com/binwiederhier/dabble/pull/1.diff","patch_url":"https://github.com/binwiederhier/dabble/pull/1.patch","issue_url":"https://api.github.com/repos/binwiederhier/dabble/issues/1","number":1,"state":"open","locked":false,"title":"A sample PR from Phil","user":{"login":"binwiederhier","id":664597,"node_id":"MDQ6VXNlcjY2NDU5Nw==","avatar_url":"https://avatars.githubusercontent.com/u/664597?v=4","gravatar_id":"","url":"https://api.github.com/users/binwiederhier","html_url":"https://github.com/binwiederhier","followers_url":"https://api.github.com/users/binwiederhier/followers","following_url":"https://api.github.com/users/binwiederhier/following{/other_user}","gists_url":"https://api.github.com/users/binwiederhier/gists{/gist_id}","starred_url":"https://api.github.com/users/binwiederhier/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/binwiederhier/subscriptions","organizations_url":"https://api.github.com/users/binwiederhier/orgs","repos_url":"https://api.github.com/users/binwiederhier/repos","events_url":"https://api.github.com/users/binwiederhier/events{/privacy}","received_events_url":"https://api.github.com/users/binwiederhier/received_events","type":"User","site_admin":false},"body":null,"created_at":"2024-03-21T02:52:09Z","updated_at":"2024-03-21T02:52:09Z","closed_at":null,"merged_at":null,"merge_commit_sha":null,"assignee":null,"assignees":[],"requested_reviewers":[],"requested_teams":[],"labels":[],"milestone":null,"draft":false,"commits_url":"https://api.github.com/repos/binwiederhier/dabble/pulls/1/commits","review_comments_url":"https://api.github.com/repos/binwiederhier/dabble/pulls/1/comments","review_comment_url":"https://api.github.com/repos/binwiederhier/dabble/pulls/comments{/number}","comments_url":"https://api.github.com/repos/binwiederhier/dabble/issues/1/comments","statuses_url":"https://api.github.com/repos/binwiederhier/dabble/statuses/5703842cc5715ed1e358d23ebb693db09747ae9b","head":{"label":"binwiederhier:aa","ref":"aa","sha":"5703842cc5715ed1e358d23ebb693db09747ae9b","user":{"login":"binwiederhier","id":664597,"node_id":"MDQ6VXNlcjY2NDU5Nw==","avatar_url":"https://avatars.githubusercontent.com/u/664597?v=4","gravatar_id":"","url":"https://api.github.com/users/binwiederhier","html_url":"https://github.com/binwiederhier","followers_url":"https://api.github.com/users/binwiederhier/followers","following_url":"https://api.github.com/users/binwiederhier/following{/other_user}","gists_url":"https://api.github.com/users/binwiederhier/gists{/gist_id}","starred_url":"https://api.github.com/users/binwiederhier/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/binwiederhier/subscriptions","organizations_url":"https://api.github.com/users/binwiederhier/orgs","repos_url":"https://api.github.com/users/binwiederhier/repos","events_url":"https://api.github.com/users/binwiederhier/events{/privacy}","received_events_url":"https://api.github.com/users/binwiederhier/received_events","type":"User","site_admin":false},"repo":{"id":470212003,"node_id":"R_kgDOHAbdow","name":"dabble","full_name":"binwiederhier/dabble","private":false,"owner":{"login":"binwiederhier","id":664597,"node_id":"MDQ6VXNlcjY2NDU5Nw==","avatar_url":"https://avatars.githubusercontent.com/u/664597?v=4","gravatar_id":"","url":"https://api.github.com/users/binwiederhier","html_url":"https://github.com/binwiederhier","followers_url":"https://api.github.com/users/binwiederhier/followers","following_url":"https://api.github.com/users/binwiederhier/following{/other_user}","gists_url":"https://api.github.com/users/binwiederhier/gists{/gist_id}","starred_url":"https://api.github.com/users/binwiederhier/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/binwiederhier/subscriptions","organizations_url":"https://api.github.com/users/binwiederhier/orgs","repos_url":"https://api.github.com/users/binwiederhier/repos","events_url":"https://api.github.com/users/binwiederhier/events{/privacy}","received_events_url":"https://api.github.com/users/binwiederhier/received_events","type":"User","site_admin":false},"html_url":"https://github.com/binwiederhier/dabble","description":"A repo for dabbling","fork":false,"url":"https://api.github.com/repos/binwiederhier/dabble","forks_url":"https://api.github.com/repos/binwiederhier/dabble/forks","keys_url":"https://api.github.com/repos/binwiederhier/dabble/keys{/key_id}","collaborators_url":"https://api.github.com/repos/binwiederhier/dabble/collaborators{/collaborator}","teams_url":"https://api.github.com/repos/binwiederhier/dabble/teams","hooks_url":"https://api.github.com/repos/binwiederhier/dabble/hooks","issue_events_url":"https://api.github.com/repos/binwiederhier/dabble/issues/events{/number}","events_url":"https://api.github.com/repos/binwiederhier/dabble/events","assignees_url":"https://api.github.com/repos/binwiederhier/dabble/assignees{/user}","branches_url":"https://api.github.com/repos/binwiederhier/dabble/branches{/branch}","tags_url":"https://api.github.com/repos/binwiederhier/dabble/tags","blobs_url":"https://api.github.com/repos/binwiederhier/dabble/git/blobs{/sha}","git_tags_url":"https://api.github.com/repos/binwiederhier/dabble/git/tags{/sha}","git_refs_url":"https://api.github.com/repos/binwiederhier/dabble/git/refs{/sha}","trees_url":"https://api.github.com/repos/binwiederhier/dabble/git/trees{/sha}","statuses_url":"https://api.github.com/repos/binwiederhier/dabble/statuses/{sha}","languages_url":"https://api.github.com/repos/binwiederhier/dabble/languages","stargazers_url":"https://api.github.com/repos/binwiederhier/dabble/stargazers","contributors_url":"https://api.github.com/repos/binwiederhier/dabble/contributors","subscribers_url":"https://api.github.com/repos/binwiederhier/dabble/subscribers","subscription_url":"https://api.github.com/repos/binwiederhier/dabble/subscription","commits_url":"https://api.github.com/repos/binwiederhier/dabble/commits{/sha}","git_commits_url":"https://api.github.com/repos/binwiederhier/dabble/git/commits{/sha}","comments_url":"https://api.github.com/repos/binwiederhier/dabble/comments{/number}","issue_comment_url":"https://api.github.com/repos/binwiederhier/dabble/issues/comments{/number}","contents_url":"https://api.github.com/repos/binwiederhier/dabble/contents/{+path}","compare_url":"https://api.github.com/repos/binwiederhier/dabble/compare/{base}...{head}","merges_url":"https://api.github.com/repos/binwiederhier/dabble/merges","archive_url":"https://api.github.com/repos/binwiederhier/dabble/{archive_format}{/ref}","downloads_url":"https://api.github.com/repos/binwiederhier/dabble/downloads","issues_url":"https://api.github.com/repos/binwiederhier/dabble/issues{/number}","pulls_url":"https://api.github.com/repos/binwiederhier/dabble/pulls{/number}","milestones_url":"https://api.github.com/repos/binwiederhier/dabble/milestones{/number}","notifications_url":"https://api.github.com/repos/binwiederhier/dabble/notifications{?since,all,participating}","labels_url":"https://api.github.com/repos/binwiederhier/dabble/labels{/name}","releases_url":"https://api.github.com/repos/binwiederhier/dabble/releases{/id}","deployments_url":"https://api.github.com/repos/binwiederhier/dabble/deployments","created_at":"2022-03-15T15:06:17Z","updated_at":"2022-03-15T15:06:17Z","pushed_at":"2024-03-21T02:52:10Z","git_url":"git://github.com/binwiederhier/dabble.git","ssh_url":"git@github.com:binwiederhier/dabble.git","clone_url":"https://github.com/binwiederhier/dabble.git","svn_url":"https://github.com/binwiederhier/dabble","homepage":null,"size":1,"stargazers_count":0,"watchers_count":0,"language":null,"has_issues":true,"has_projects":true,"has_downloads":true,"has_wiki":true,"has_pages":false,"has_discussions":false,"forks_count":0,"mirror_url":null,"archived":false,"disabled":false,"open_issues_count":1,"license":null,"allow_forking":true,"is_template":false,"web_commit_signoff_required":false,"topics":[],"visibility":"public","forks":0,"open_issues":1,"watchers":0,"default_branch":"main","allow_squash_merge":true,"allow_merge_commit":true,"allow_rebase_merge":true,"allow_auto_merge":false,"delete_branch_on_merge":false,"allow_update_branch":false,"use_squash_pr_title_as_default":false,"squash_merge_commit_message":"COMMIT_MESSAGES","squash_merge_commit_title":"COMMIT_OR_PR_TITLE","merge_commit_message":"PR_TITLE","merge_commit_title":"MERGE_MESSAGE"}},"base":{"label":"binwiederhier:main","ref":"main","sha":"72d931a20bb83d123ab45accaf761150c8b01211","user":{"login":"binwiederhier","id":664597,"node_id":"MDQ6VXNlcjY2NDU5Nw==","avatar_url":"https://avatars.githubusercontent.com/u/664597?v=4","gravatar_id":"","url":"https://api.github.com/users/binwiederhier","html_url":"https://github.com/binwiederhier","followers_url":"https://api.github.com/users/binwiederhier/followers","following_url":"https://api.github.com/users/binwiederhier/following{/other_user}","gists_url":"https://api.github.com/users/binwiederhier/gists{/gist_id}","starred_url":"https://api.github.com/users/binwiederhier/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/binwiederhier/subscriptions","organizations_url":"https://api.github.com/users/binwiederhier/orgs","repos_url":"https://api.github.com/users/binwiederhier/repos","events_url":"https://api.github.com/users/binwiederhier/events{/privacy}","received_events_url":"https://api.github.com/users/binwiederhier/received_events","type":"User","site_admin":false},"repo":{"id":470212003,"node_id":"R_kgDOHAbdow","name":"dabble","full_name":"binwiederhier/dabble","private":false,"owner":{"login":"binwiederhier","id":664597,"node_id":"MDQ6VXNlcjY2NDU5Nw==","avatar_url":"https://avatars.githubusercontent.com/u/664597?v=4","gravatar_id":"","url":"https://api.github.com/users/binwiederhier","html_url":"https://github.com/binwiederhier","followers_url":"https://api.github.com/users/binwiederhier/followers","following_url":"https://api.github.com/users/binwiederhier/following{/other_user}","gists_url":"https://api.github.com/users/binwiederhier/gists{/gist_id}","starred_url":"https://api.github.com/users/binwiederhier/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/binwiederhier/subscriptions","organizations_url":"https://api.github.com/users/binwiederhier/orgs","repos_url":"https://api.github.com/users/binwiederhier/repos","events_url":"https://api.github.com/users/binwiederhier/events{/privacy}","received_events_url":"https://api.github.com/users/binwiederhier/received_events","type":"User","site_admin":false},"html_url":"https://github.com/binwiederhier/dabble","description":"A repo for dabbling","fork":false,"url":"https://api.github.com/repos/binwiederhier/dabble","forks_url":"https://api.github.com/repos/binwiederhier/dabble/forks","keys_url":"https://api.github.com/repos/binwiederhier/dabble/keys{/key_id}","collaborators_url":"https://api.github.com/repos/binwiederhier/dabble/collaborators{/collaborator}","teams_url":"https://api.github.com/repos/binwiederhier/dabble/teams","hooks_url":"https://api.github.com/repos/binwiederhier/dabble/hooks","issue_events_url":"https://api.github.com/repos/binwiederhier/dabble/issues/events{/number}","events_url":"https://api.github.com/repos/binwiederhier/dabble/events","assignees_url":"https://api.github.com/repos/binwiederhier/dabble/assignees{/user}","branches_url":"https://api.github.com/repos/binwiederhier/dabble/branches{/branch}","tags_url":"https://api.github.com/repos/binwiederhier/dabble/tags","blobs_url":"https://api.github.com/repos/binwiederhier/dabble/git/blobs{/sha}","git_tags_url":"https://api.github.com/repos/binwiederhier/dabble/git/tags{/sha}","git_refs_url":"https://api.github.com/repos/binwiederhier/dabble/git/refs{/sha}","trees_url":"https://api.github.com/repos/binwiederhier/dabble/git/trees{/sha}","statuses_url":"https://api.github.com/repos/binwiederhier/dabble/statuses/{sha}","languages_url":"https://api.github.com/repos/binwiederhier/dabble/languages","stargazers_url":"https://api.github.com/repos/binwiederhier/dabble/stargazers","contributors_url":"https://api.github.com/repos/binwiederhier/dabble/contributors","subscribers_url":"https://api.github.com/repos/binwiederhier/dabble/subscribers","subscription_url":"https://api.github.com/repos/binwiederhier/dabble/subscription","commits_url":"https://api.github.com/repos/binwiederhier/dabble/commits{/sha}","git_commits_url":"https://api.github.com/repos/binwiederhier/dabble/git/commits{/sha}","comments_url":"https://api.github.com/repos/binwiederhier/dabble/comments{/number}","issue_comment_url":"https://api.github.com/repos/binwiederhier/dabble/issues/comments{/number}","contents_url":"https://api.github.com/repos/binwiederhier/dabble/contents/{+path}","compare_url":"https://api.github.com/repos/binwiederhier/dabble/compare/{base}...{head}","merges_url":"https://api.github.com/repos/binwiederhier/dabble/merges","archive_url":"https://api.github.com/repos/binwiederhier/dabble/{archive_format}{/ref}","downloads_url":"https://api.github.com/repos/binwiederhier/dabble/downloads","issues_url":"https://api.github.com/repos/binwiederhier/dabble/issues{/number}","pulls_url":"https://api.github.com/repos/binwiederhier/dabble/pulls{/number}","milestones_url":"https://api.github.com/repos/binwiederhier/dabble/milestones{/number}","notifications_url":"https://api.github.com/repos/binwiederhier/dabble/notifications{?since,all,participating}","labels_url":"https://api.github.com/repos/binwiederhier/dabble/labels{/name}","releases_url":"https://api.github.com/repos/binwiederhier/dabble/releases{/id}","deployments_url":"https://api.github.com/repos/binwiederhier/dabble/deployments","created_at":"2022-03-15T15:06:17Z","updated_at":"2022-03-15T15:06:17Z","pushed_at":"2024-03-21T02:52:10Z","git_url":"git://github.com/binwiederhier/dabble.git","ssh_url":"git@github.com:binwiederhier/dabble.git","clone_url":"https://github.com/binwiederhier/dabble.git","svn_url":"https://github.com/binwiederhier/dabble","homepage":null,"size":1,"stargazers_count":0,"watchers_count":0,"language":null,"has_issues":true,"has_projects":true,"has_downloads":true,"has_wiki":true,"has_pages":false,"has_discussions":false,"forks_count":0,"mirror_url":null,"archived":false,"disabled":false,"open_issues_count":1,"license":null,"allow_forking":true,"is_template":false,"web_commit_signoff_required":false,"topics":[],"visibility":"public","forks":0,"open_issues":1,"watchers":0,"default_branch":"main","allow_squash_merge":true,"allow_merge_commit":true,"allow_rebase_merge":true,"allow_auto_merge":false,"delete_branch_on_merge":false,"allow_update_branch":false,"use_squash_pr_title_as_default":false,"squash_merge_commit_message":"COMMIT_MESSAGES","squash_merge_commit_title":"COMMIT_OR_PR_TITLE","merge_commit_message":"PR_TITLE","merge_commit_title":"MERGE_MESSAGE"}},"_links":{"self":{"href":"https://api.github.com/repos/binwiederhier/dabble/pulls/1"},"html":{"href":"https://github.com/binwiederhier/dabble/pull/1"},"issue":{"href":"https://api.github.com/repos/binwiederhier/dabble/issues/1"},"comments":{"href":"https://api.github.com/repos/binwiederhier/dabble/issues/1/comments"},"review_comments":{"href":"https://api.github.com/repos/binwiederhier/dabble/pulls/1/comments"},"review_comment":{"href":"https://api.github.com/repos/binwiederhier/dabble/pulls/comments{/number}"},"commits":{"href":"https://api.github.com/repos/binwiederhier/dabble/pulls/1/commits"},"statuses":{"href":"https://api.github.com/repos/binwiederhier/dabble/statuses/5703842cc5715ed1e358d23ebb693db09747ae9b"}},"author_association":"OWNER","auto_merge":null,"active_lock_reason":null,"merged":false,"mergeable":null,"rebaseable":null,"mergeable_state":"unknown","merged_by":null,"comments":0,"review_comments":0,"maintainer_can_modify":false,"commits":1,"additions":1,"deletions":1,"changed_files":1},"repository":{"id":470212003,"node_id":"R_kgDOHAbdow","name":"dabble","full_name":"binwiederhier/dabble","private":false,"owner":{"login":"binwiederhier","id":664597,"node_id":"MDQ6VXNlcjY2NDU5Nw==","avatar_url":"https://avatars.githubusercontent.com/u/664597?v=4","gravatar_id":"","url":"https://api.github.com/users/binwiederhier","html_url":"https://github.com/binwiederhier","followers_url":"https://api.github.com/users/binwiederhier/followers","following_url":"https://api.github.com/users/binwiederhier/following{/other_user}","gists_url":"https://api.github.com/users/binwiederhier/gists{/gist_id}","starred_url":"https://api.github.com/users/binwiederhier/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/binwiederhier/subscriptions","organizations_url":"https://api.github.com/users/binwiederhier/orgs","repos_url":"https://api.github.com/users/binwiederhier/repos","events_url":"https://api.github.com/users/binwiederhier/events{/privacy}","received_events_url":"https://api.github.com/users/binwiederhier/received_events","type":"User","site_admin":false},"html_url":"https://github.com/binwiederhier/dabble","description":"A repo for dabbling","fork":false,"url":"https://api.github.com/repos/binwiederhier/dabble","forks_url":"https://api.github.com/repos/binwiederhier/dabble/forks","keys_url":"https://api.github.com/repos/binwiederhier/dabble/keys{/key_id}","collaborators_url":"https://api.github.com/repos/binwiederhier/dabble/collaborators{/collaborator}","teams_url":"https://api.github.com/repos/binwiederhier/dabble/teams","hooks_url":"https://api.github.com/repos/binwiederhier/dabble/hooks","issue_events_url":"https://api.github.com/repos/binwiederhier/dabble/issues/events{/number}","events_url":"https://api.github.com/repos/binwiederhier/dabble/events","assignees_url":"https://api.github.com/repos/binwiederhier/dabble/assignees{/user}","branches_url":"https://api.github.com/repos/binwiederhier/dabble/branches{/branch}","tags_url":"https://api.github.com/repos/binwiederhier/dabble/tags","blobs_url":"https://api.github.com/repos/binwiederhier/dabble/git/blobs{/sha}","git_tags_url":"https://api.github.com/repos/binwiederhier/dabble/git/tags{/sha}","git_refs_url":"https://api.github.com/repos/binwiederhier/dabble/git/refs{/sha}","trees_url":"https://api.github.com/repos/binwiederhier/dabble/git/trees{/sha}","statuses_url":"https://api.github.com/repos/binwiederhier/dabble/statuses/{sha}","languages_url":"https://api.github.com/repos/binwiederhier/dabble/languages","stargazers_url":"https://api.github.com/repos/binwiederhier/dabble/stargazers","contributors_url":"https://api.github.com/repos/binwiederhier/dabble/contributors","subscribers_url":"https://api.github.com/repos/binwiederhier/dabble/subscribers","subscription_url":"https://api.github.com/repos/binwiederhier/dabble/subscription","commits_url":"https://api.github.com/repos/binwiederhier/dabble/commits{/sha}","git_commits_url":"https://api.github.com/repos/binwiederhier/dabble/git/commits{/sha}","comments_url":"https://api.github.com/repos/binwiederhier/dabble/comments{/number}","issue_comment_url":"https://api.github.com/repos/binwiederhier/dabble/issues/comments{/number}","contents_url":"https://api.github.com/repos/binwiederhier/dabble/contents/{+path}","compare_url":"https://api.github.com/repos/binwiederhier/dabble/compare/{base}...{head}","merges_url":"https://api.github.com/repos/binwiederhier/dabble/merges","archive_url":"https://api.github.com/repos/binwiederhier/dabble/{archive_format}{/ref}","downloads_url":"https://api.github.com/repos/binwiederhier/dabble/downloads","issues_url":"https://api.github.com/repos/binwiederhier/dabble/issues{/number}","pulls_url":"https://api.github.com/repos/binwiederhier/dabble/pulls{/number}","milestones_url":"https://api.github.com/repos/binwiederhier/dabble/milestones{/number}","notifications_url":"https://api.github.com/repos/binwiederhier/dabble/notifications{?since,all,participating}","labels_url":"https://api.github.com/repos/binwiederhier/dabble/labels{/name}","releases_url":"https://api.github.com/repos/binwiederhier/dabble/releases{/id}","deployments_url":"https://api.github.com/repos/binwiederhier/dabble/deployments","created_at":"2022-03-15T15:06:17Z","updated_at":"2022-03-15T15:06:17Z","pushed_at":"2024-03-21T02:52:10Z","git_url":"git://github.com/binwiederhier/dabble.git","ssh_url":"git@github.com:binwiederhier/dabble.git","clone_url":"https://github.com/binwiederhier/dabble.git","svn_url":"https://github.com/binwiederhier/dabble","homepage":null,"size":1,"stargazers_count":0,"watchers_count":0,"language":null,"has_issues":true,"has_projects":true,"has_downloads":true,"has_wiki":true,"has_pages":false,"has_discussions":false,"forks_count":0,"mirror_url":null,"archived":false,"disabled":false,"open_issues_count":1,"license":null,"allow_forking":true,"is_template":false,"web_commit_signoff_required":false,"topics":[],"visibility":"public","forks":0,"open_issues":1,"watchers":0,"default_branch":"main"},"sender":{"login":"binwiederhier","id":664597,"node_id":"MDQ6VXNlcjY2NDU5Nw==","avatar_url":"https://avatars.githubusercontent.com/u/664597?v=4","gravatar_id":"","url":"https://api.github.com/users/binwiederhier","html_url":"https://github.com/binwiederhier","followers_url":"https://api.github.com/users/binwiederhier/followers","following_url":"https://api.github.com/users/binwiederhier/following{/other_user}","gists_url":"https://api.github.com/users/binwiederhier/gists{/gist_id}","starred_url":"https://api.github.com/users/binwiederhier/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/binwiederhier/subscriptions","organizations_url":"https://api.github.com/users/binwiederhier/orgs","repos_url":"https://api.github.com/users/binwiederhier/repos","events_url":"https://api.github.com/users/binwiederhier/events{/privacy}","received_events_url":"https://api.github.com/users/binwiederhier/received_events","type":"User","site_admin":false}}`
 		response := request(t, s, "PUT", `/mytopic?tpl=yes&message=[{{.pull_request.head.repo.full_name}}]+Pull+request+{{if+eq+.action+"opened"}}OPENED{{else}}CLOSED{{end}}:+{{.pull_request.title}}`, body, nil)
 		require.Equal(t, 200, response.Code)
@@ -3334,9 +3334,9 @@ func TestServer_MessageTemplate_GitHub(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_GitHub2(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		body := `{"action":"opened","number":1,"pull_request":{"url":"https://api.github.com/repos/binwiederhier/dabble/pulls/1","id":1783420972,"node_id":"PR_kwDOHAbdo85qTNgs","html_url":"https://github.com/binwiederhier/dabble/pull/1","diff_url":"https://github.com/binwiederhier/dabble/pull/1.diff","patch_url":"https://github.com/binwiederhier/dabble/pull/1.patch","issue_url":"https://api.github.com/repos/binwiederhier/dabble/issues/1","number":1,"state":"open","locked":false,"title":"A sample PR from Phil","user":{"login":"binwiederhier","id":664597,"node_id":"MDQ6VXNlcjY2NDU5Nw==","avatar_url":"https://avatars.githubusercontent.com/u/664597?v=4","gravatar_id":"","url":"https://api.github.com/users/binwiederhier","html_url":"https://github.com/binwiederhier","followers_url":"https://api.github.com/users/binwiederhier/followers","following_url":"https://api.github.com/users/binwiederhier/following{/other_user}","gists_url":"https://api.github.com/users/binwiederhier/gists{/gist_id}","starred_url":"https://api.github.com/users/binwiederhier/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/binwiederhier/subscriptions","organizations_url":"https://api.github.com/users/binwiederhier/orgs","repos_url":"https://api.github.com/users/binwiederhier/repos","events_url":"https://api.github.com/users/binwiederhier/events{/privacy}","received_events_url":"https://api.github.com/users/binwiederhier/received_events","type":"User","site_admin":false},"body":null,"created_at":"2024-03-21T02:52:09Z","updated_at":"2024-03-21T02:52:09Z","closed_at":null,"merged_at":null,"merge_commit_sha":null,"assignee":null,"assignees":[],"requested_reviewers":[],"requested_teams":[],"labels":[],"milestone":null,"draft":false,"commits_url":"https://api.github.com/repos/binwiederhier/dabble/pulls/1/commits","review_comments_url":"https://api.github.com/repos/binwiederhier/dabble/pulls/1/comments","review_comment_url":"https://api.github.com/repos/binwiederhier/dabble/pulls/comments{/number}","comments_url":"https://api.github.com/repos/binwiederhier/dabble/issues/1/comments","statuses_url":"https://api.github.com/repos/binwiederhier/dabble/statuses/5703842cc5715ed1e358d23ebb693db09747ae9b","head":{"label":"binwiederhier:aa","ref":"aa","sha":"5703842cc5715ed1e358d23ebb693db09747ae9b","user":{"login":"binwiederhier","id":664597,"node_id":"MDQ6VXNlcjY2NDU5Nw==","avatar_url":"https://avatars.githubusercontent.com/u/664597?v=4","gravatar_id":"","url":"https://api.github.com/users/binwiederhier","html_url":"https://github.com/binwiederhier","followers_url":"https://api.github.com/users/binwiederhier/followers","following_url":"https://api.github.com/users/binwiederhier/following{/other_user}","gists_url":"https://api.github.com/users/binwiederhier/gists{/gist_id}","starred_url":"https://api.github.com/users/binwiederhier/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/binwiederhier/subscriptions","organizations_url":"https://api.github.com/users/binwiederhier/orgs","repos_url":"https://api.github.com/users/binwiederhier/repos","events_url":"https://api.github.com/users/binwiederhier/events{/privacy}","received_events_url":"https://api.github.com/users/binwiederhier/received_events","type":"User","site_admin":false},"repo":{"id":470212003,"node_id":"R_kgDOHAbdow","name":"dabble","full_name":"binwiederhier/dabble","private":false,"owner":{"login":"binwiederhier","id":664597,"node_id":"MDQ6VXNlcjY2NDU5Nw==","avatar_url":"https://avatars.githubusercontent.com/u/664597?v=4","gravatar_id":"","url":"https://api.github.com/users/binwiederhier","html_url":"https://github.com/binwiederhier","followers_url":"https://api.github.com/users/binwiederhier/followers","following_url":"https://api.github.com/users/binwiederhier/following{/other_user}","gists_url":"https://api.github.com/users/binwiederhier/gists{/gist_id}","starred_url":"https://api.github.com/users/binwiederhier/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/binwiederhier/subscriptions","organizations_url":"https://api.github.com/users/binwiederhier/orgs","repos_url":"https://api.github.com/users/binwiederhier/repos","events_url":"https://api.github.com/users/binwiederhier/events{/privacy}","received_events_url":"https://api.github.com/users/binwiederhier/received_events","type":"User","site_admin":false},"html_url":"https://github.com/binwiederhier/dabble","description":"A repo for dabbling","fork":false,"url":"https://api.github.com/repos/binwiederhier/dabble","forks_url":"https://api.github.com/repos/binwiederhier/dabble/forks","keys_url":"https://api.github.com/repos/binwiederhier/dabble/keys{/key_id}","collaborators_url":"https://api.github.com/repos/binwiederhier/dabble/collaborators{/collaborator}","teams_url":"https://api.github.com/repos/binwiederhier/dabble/teams","hooks_url":"https://api.github.com/repos/binwiederhier/dabble/hooks","issue_events_url":"https://api.github.com/repos/binwiederhier/dabble/issues/events{/number}","events_url":"https://api.github.com/repos/binwiederhier/dabble/events","assignees_url":"https://api.github.com/repos/binwiederhier/dabble/assignees{/user}","branches_url":"https://api.github.com/repos/binwiederhier/dabble/branches{/branch}","tags_url":"https://api.github.com/repos/binwiederhier/dabble/tags","blobs_url":"https://api.github.com/repos/binwiederhier/dabble/git/blobs{/sha}","git_tags_url":"https://api.github.com/repos/binwiederhier/dabble/git/tags{/sha}","git_refs_url":"https://api.github.com/repos/binwiederhier/dabble/git/refs{/sha}","trees_url":"https://api.github.com/repos/binwiederhier/dabble/git/trees{/sha}","statuses_url":"https://api.github.com/repos/binwiederhier/dabble/statuses/{sha}","languages_url":"https://api.github.com/repos/binwiederhier/dabble/languages","stargazers_url":"https://api.github.com/repos/binwiederhier/dabble/stargazers","contributors_url":"https://api.github.com/repos/binwiederhier/dabble/contributors","subscribers_url":"https://api.github.com/repos/binwiederhier/dabble/subscribers","subscription_url":"https://api.github.com/repos/binwiederhier/dabble/subscription","commits_url":"https://api.github.com/repos/binwiederhier/dabble/commits{/sha}","git_commits_url":"https://api.github.com/repos/binwiederhier/dabble/git/commits{/sha}","comments_url":"https://api.github.com/repos/binwiederhier/dabble/comments{/number}","issue_comment_url":"https://api.github.com/repos/binwiederhier/dabble/issues/comments{/number}","contents_url":"https://api.github.com/repos/binwiederhier/dabble/contents/{+path}","compare_url":"https://api.github.com/repos/binwiederhier/dabble/compare/{base}...{head}","merges_url":"https://api.github.com/repos/binwiederhier/dabble/merges","archive_url":"https://api.github.com/repos/binwiederhier/dabble/{archive_format}{/ref}","downloads_url":"https://api.github.com/repos/binwiederhier/dabble/downloads","issues_url":"https://api.github.com/repos/binwiederhier/dabble/issues{/number}","pulls_url":"https://api.github.com/repos/binwiederhier/dabble/pulls{/number}","milestones_url":"https://api.github.com/repos/binwiederhier/dabble/milestones{/number}","notifications_url":"https://api.github.com/repos/binwiederhier/dabble/notifications{?since,all,participating}","labels_url":"https://api.github.com/repos/binwiederhier/dabble/labels{/name}","releases_url":"https://api.github.com/repos/binwiederhier/dabble/releases{/id}","deployments_url":"https://api.github.com/repos/binwiederhier/dabble/deployments","created_at":"2022-03-15T15:06:17Z","updated_at":"2022-03-15T15:06:17Z","pushed_at":"2024-03-21T02:52:10Z","git_url":"git://github.com/binwiederhier/dabble.git","ssh_url":"git@github.com:binwiederhier/dabble.git","clone_url":"https://github.com/binwiederhier/dabble.git","svn_url":"https://github.com/binwiederhier/dabble","homepage":null,"size":1,"stargazers_count":0,"watchers_count":0,"language":null,"has_issues":true,"has_projects":true,"has_downloads":true,"has_wiki":true,"has_pages":false,"has_discussions":false,"forks_count":0,"mirror_url":null,"archived":false,"disabled":false,"open_issues_count":1,"license":null,"allow_forking":true,"is_template":false,"web_commit_signoff_required":false,"topics":[],"visibility":"public","forks":0,"open_issues":1,"watchers":0,"default_branch":"main","allow_squash_merge":true,"allow_merge_commit":true,"allow_rebase_merge":true,"allow_auto_merge":false,"delete_branch_on_merge":false,"allow_update_branch":false,"use_squash_pr_title_as_default":false,"squash_merge_commit_message":"COMMIT_MESSAGES","squash_merge_commit_title":"COMMIT_OR_PR_TITLE","merge_commit_message":"PR_TITLE","merge_commit_title":"MERGE_MESSAGE"}},"base":{"label":"binwiederhier:main","ref":"main","sha":"72d931a20bb83d123ab45accaf761150c8b01211","user":{"login":"binwiederhier","id":664597,"node_id":"MDQ6VXNlcjY2NDU5Nw==","avatar_url":"https://avatars.githubusercontent.com/u/664597?v=4","gravatar_id":"","url":"https://api.github.com/users/binwiederhier","html_url":"https://github.com/binwiederhier","followers_url":"https://api.github.com/users/binwiederhier/followers","following_url":"https://api.github.com/users/binwiederhier/following{/other_user}","gists_url":"https://api.github.com/users/binwiederhier/gists{/gist_id}","starred_url":"https://api.github.com/users/binwiederhier/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/binwiederhier/subscriptions","organizations_url":"https://api.github.com/users/binwiederhier/orgs","repos_url":"https://api.github.com/users/binwiederhier/repos","events_url":"https://api.github.com/users/binwiederhier/events{/privacy}","received_events_url":"https://api.github.com/users/binwiederhier/received_events","type":"User","site_admin":false},"repo":{"id":470212003,"node_id":"R_kgDOHAbdow","name":"dabble","full_name":"binwiederhier/dabble","private":false,"owner":{"login":"binwiederhier","id":664597,"node_id":"MDQ6VXNlcjY2NDU5Nw==","avatar_url":"https://avatars.githubusercontent.com/u/664597?v=4","gravatar_id":"","url":"https://api.github.com/users/binwiederhier","html_url":"https://github.com/binwiederhier","followers_url":"https://api.github.com/users/binwiederhier/followers","following_url":"https://api.github.com/users/binwiederhier/following{/other_user}","gists_url":"https://api.github.com/users/binwiederhier/gists{/gist_id}","starred_url":"https://api.github.com/users/binwiederhier/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/binwiederhier/subscriptions","organizations_url":"https://api.github.com/users/binwiederhier/orgs","repos_url":"https://api.github.com/users/binwiederhier/repos","events_url":"https://api.github.com/users/binwiederhier/events{/privacy}","received_events_url":"https://api.github.com/users/binwiederhier/received_events","type":"User","site_admin":false},"html_url":"https://github.com/binwiederhier/dabble","description":"A repo for dabbling","fork":false,"url":"https://api.github.com/repos/binwiederhier/dabble","forks_url":"https://api.github.com/repos/binwiederhier/dabble/forks","keys_url":"https://api.github.com/repos/binwiederhier/dabble/keys{/key_id}","collaborators_url":"https://api.github.com/repos/binwiederhier/dabble/collaborators{/collaborator}","teams_url":"https://api.github.com/repos/binwiederhier/dabble/teams","hooks_url":"https://api.github.com/repos/binwiederhier/dabble/hooks","issue_events_url":"https://api.github.com/repos/binwiederhier/dabble/issues/events{/number}","events_url":"https://api.github.com/repos/binwiederhier/dabble/events","assignees_url":"https://api.github.com/repos/binwiederhier/dabble/assignees{/user}","branches_url":"https://api.github.com/repos/binwiederhier/dabble/branches{/branch}","tags_url":"https://api.github.com/repos/binwiederhier/dabble/tags","blobs_url":"https://api.github.com/repos/binwiederhier/dabble/git/blobs{/sha}","git_tags_url":"https://api.github.com/repos/binwiederhier/dabble/git/tags{/sha}","git_refs_url":"https://api.github.com/repos/binwiederhier/dabble/git/refs{/sha}","trees_url":"https://api.github.com/repos/binwiederhier/dabble/git/trees{/sha}","statuses_url":"https://api.github.com/repos/binwiederhier/dabble/statuses/{sha}","languages_url":"https://api.github.com/repos/binwiederhier/dabble/languages","stargazers_url":"https://api.github.com/repos/binwiederhier/dabble/stargazers","contributors_url":"https://api.github.com/repos/binwiederhier/dabble/contributors","subscribers_url":"https://api.github.com/repos/binwiederhier/dabble/subscribers","subscription_url":"https://api.github.com/repos/binwiederhier/dabble/subscription","commits_url":"https://api.github.com/repos/binwiederhier/dabble/commits{/sha}","git_commits_url":"https://api.github.com/repos/binwiederhier/dabble/git/commits{/sha}","comments_url":"https://api.github.com/repos/binwiederhier/dabble/comments{/number}","issue_comment_url":"https://api.github.com/repos/binwiederhier/dabble/issues/comments{/number}","contents_url":"https://api.github.com/repos/binwiederhier/dabble/contents/{+path}","compare_url":"https://api.github.com/repos/binwiederhier/dabble/compare/{base}...{head}","merges_url":"https://api.github.com/repos/binwiederhier/dabble/merges","archive_url":"https://api.github.com/repos/binwiederhier/dabble/{archive_format}{/ref}","downloads_url":"https://api.github.com/repos/binwiederhier/dabble/downloads","issues_url":"https://api.github.com/repos/binwiederhier/dabble/issues{/number}","pulls_url":"https://api.github.com/repos/binwiederhier/dabble/pulls{/number}","milestones_url":"https://api.github.com/repos/binwiederhier/dabble/milestones{/number}","notifications_url":"https://api.github.com/repos/binwiederhier/dabble/notifications{?since,all,participating}","labels_url":"https://api.github.com/repos/binwiederhier/dabble/labels{/name}","releases_url":"https://api.github.com/repos/binwiederhier/dabble/releases{/id}","deployments_url":"https://api.github.com/repos/binwiederhier/dabble/deployments","created_at":"2022-03-15T15:06:17Z","updated_at":"2022-03-15T15:06:17Z","pushed_at":"2024-03-21T02:52:10Z","git_url":"git://github.com/binwiederhier/dabble.git","ssh_url":"git@github.com:binwiederhier/dabble.git","clone_url":"https://github.com/binwiederhier/dabble.git","svn_url":"https://github.com/binwiederhier/dabble","homepage":null,"size":1,"stargazers_count":0,"watchers_count":0,"language":null,"has_issues":true,"has_projects":true,"has_downloads":true,"has_wiki":true,"has_pages":false,"has_discussions":false,"forks_count":0,"mirror_url":null,"archived":false,"disabled":false,"open_issues_count":1,"license":null,"allow_forking":true,"is_template":false,"web_commit_signoff_required":false,"topics":[],"visibility":"public","forks":0,"open_issues":1,"watchers":0,"default_branch":"main","allow_squash_merge":true,"allow_merge_commit":true,"allow_rebase_merge":true,"allow_auto_merge":false,"delete_branch_on_merge":false,"allow_update_branch":false,"use_squash_pr_title_as_default":false,"squash_merge_commit_message":"COMMIT_MESSAGES","squash_merge_commit_title":"COMMIT_OR_PR_TITLE","merge_commit_message":"PR_TITLE","merge_commit_title":"MERGE_MESSAGE"}},"_links":{"self":{"href":"https://api.github.com/repos/binwiederhier/dabble/pulls/1"},"html":{"href":"https://github.com/binwiederhier/dabble/pull/1"},"issue":{"href":"https://api.github.com/repos/binwiederhier/dabble/issues/1"},"comments":{"href":"https://api.github.com/repos/binwiederhier/dabble/issues/1/comments"},"review_comments":{"href":"https://api.github.com/repos/binwiederhier/dabble/pulls/1/comments"},"review_comment":{"href":"https://api.github.com/repos/binwiederhier/dabble/pulls/comments{/number}"},"commits":{"href":"https://api.github.com/repos/binwiederhier/dabble/pulls/1/commits"},"statuses":{"href":"https://api.github.com/repos/binwiederhier/dabble/statuses/5703842cc5715ed1e358d23ebb693db09747ae9b"}},"author_association":"OWNER","auto_merge":null,"active_lock_reason":null,"merged":false,"mergeable":null,"rebaseable":null,"mergeable_state":"unknown","merged_by":null,"comments":0,"review_comments":0,"maintainer_can_modify":false,"commits":1,"additions":1,"deletions":1,"changed_files":1},"repository":{"id":470212003,"node_id":"R_kgDOHAbdow","name":"dabble","full_name":"binwiederhier/dabble","private":false,"owner":{"login":"binwiederhier","id":664597,"node_id":"MDQ6VXNlcjY2NDU5Nw==","avatar_url":"https://avatars.githubusercontent.com/u/664597?v=4","gravatar_id":"","url":"https://api.github.com/users/binwiederhier","html_url":"https://github.com/binwiederhier","followers_url":"https://api.github.com/users/binwiederhier/followers","following_url":"https://api.github.com/users/binwiederhier/following{/other_user}","gists_url":"https://api.github.com/users/binwiederhier/gists{/gist_id}","starred_url":"https://api.github.com/users/binwiederhier/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/binwiederhier/subscriptions","organizations_url":"https://api.github.com/users/binwiederhier/orgs","repos_url":"https://api.github.com/users/binwiederhier/repos","events_url":"https://api.github.com/users/binwiederhier/events{/privacy}","received_events_url":"https://api.github.com/users/binwiederhier/received_events","type":"User","site_admin":false},"html_url":"https://github.com/binwiederhier/dabble","description":"A repo for dabbling","fork":false,"url":"https://api.github.com/repos/binwiederhier/dabble","forks_url":"https://api.github.com/repos/binwiederhier/dabble/forks","keys_url":"https://api.github.com/repos/binwiederhier/dabble/keys{/key_id}","collaborators_url":"https://api.github.com/repos/binwiederhier/dabble/collaborators{/collaborator}","teams_url":"https://api.github.com/repos/binwiederhier/dabble/teams","hooks_url":"https://api.github.com/repos/binwiederhier/dabble/hooks","issue_events_url":"https://api.github.com/repos/binwiederhier/dabble/issues/events{/number}","events_url":"https://api.github.com/repos/binwiederhier/dabble/events","assignees_url":"https://api.github.com/repos/binwiederhier/dabble/assignees{/user}","branches_url":"https://api.github.com/repos/binwiederhier/dabble/branches{/branch}","tags_url":"https://api.github.com/repos/binwiederhier/dabble/tags","blobs_url":"https://api.github.com/repos/binwiederhier/dabble/git/blobs{/sha}","git_tags_url":"https://api.github.com/repos/binwiederhier/dabble/git/tags{/sha}","git_refs_url":"https://api.github.com/repos/binwiederhier/dabble/git/refs{/sha}","trees_url":"https://api.github.com/repos/binwiederhier/dabble/git/trees{/sha}","statuses_url":"https://api.github.com/repos/binwiederhier/dabble/statuses/{sha}","languages_url":"https://api.github.com/repos/binwiederhier/dabble/languages","stargazers_url":"https://api.github.com/repos/binwiederhier/dabble/stargazers","contributors_url":"https://api.github.com/repos/binwiederhier/dabble/contributors","subscribers_url":"https://api.github.com/repos/binwiederhier/dabble/subscribers","subscription_url":"https://api.github.com/repos/binwiederhier/dabble/subscription","commits_url":"https://api.github.com/repos/binwiederhier/dabble/commits{/sha}","git_commits_url":"https://api.github.com/repos/binwiederhier/dabble/git/commits{/sha}","comments_url":"https://api.github.com/repos/binwiederhier/dabble/comments{/number}","issue_comment_url":"https://api.github.com/repos/binwiederhier/dabble/issues/comments{/number}","contents_url":"https://api.github.com/repos/binwiederhier/dabble/contents/{+path}","compare_url":"https://api.github.com/repos/binwiederhier/dabble/compare/{base}...{head}","merges_url":"https://api.github.com/repos/binwiederhier/dabble/merges","archive_url":"https://api.github.com/repos/binwiederhier/dabble/{archive_format}{/ref}","downloads_url":"https://api.github.com/repos/binwiederhier/dabble/downloads","issues_url":"https://api.github.com/repos/binwiederhier/dabble/issues{/number}","pulls_url":"https://api.github.com/repos/binwiederhier/dabble/pulls{/number}","milestones_url":"https://api.github.com/repos/binwiederhier/dabble/milestones{/number}","notifications_url":"https://api.github.com/repos/binwiederhier/dabble/notifications{?since,all,participating}","labels_url":"https://api.github.com/repos/binwiederhier/dabble/labels{/name}","releases_url":"https://api.github.com/repos/binwiederhier/dabble/releases{/id}","deployments_url":"https://api.github.com/repos/binwiederhier/dabble/deployments","created_at":"2022-03-15T15:06:17Z","updated_at":"2022-03-15T15:06:17Z","pushed_at":"2024-03-21T02:52:10Z","git_url":"git://github.com/binwiederhier/dabble.git","ssh_url":"git@github.com:binwiederhier/dabble.git","clone_url":"https://github.com/binwiederhier/dabble.git","svn_url":"https://github.com/binwiederhier/dabble","homepage":null,"size":1,"stargazers_count":0,"watchers_count":0,"language":null,"has_issues":true,"has_projects":true,"has_downloads":true,"has_wiki":true,"has_pages":false,"has_discussions":false,"forks_count":0,"mirror_url":null,"archived":false,"disabled":false,"open_issues_count":1,"license":null,"allow_forking":true,"is_template":false,"web_commit_signoff_required":false,"topics":[],"visibility":"public","forks":0,"open_issues":1,"watchers":0,"default_branch":"main"},"sender":{"login":"binwiederhier","id":664597,"node_id":"MDQ6VXNlcjY2NDU5Nw==","avatar_url":"https://avatars.githubusercontent.com/u/664597?v=4","gravatar_id":"","url":"https://api.github.com/users/binwiederhier","html_url":"https://github.com/binwiederhier","followers_url":"https://api.github.com/users/binwiederhier/followers","following_url":"https://api.github.com/users/binwiederhier/following{/other_user}","gists_url":"https://api.github.com/users/binwiederhier/gists{/gist_id}","starred_url":"https://api.github.com/users/binwiederhier/starred{/owner}{/repo}","subscriptions_url":"https://api.github.com/users/binwiederhier/subscriptions","organizations_url":"https://api.github.com/users/binwiederhier/orgs","repos_url":"https://api.github.com/users/binwiederhier/repos","events_url":"https://api.github.com/users/binwiederhier/events{/privacy}","received_events_url":"https://api.github.com/users/binwiederhier/received_events","type":"User","site_admin":false}}`
 		response := request(t, s, "PUT", `/mytopic?tpl=yes&title={{if+eq+.action+"opened"}}New+PR:+%23{{.number}}+by+{{.pull_request.user.login}}{{else}}[{{.action}}]+PR:+%23{{.number}}+by+{{.pull_request.user.login}}{{end}}&message={{.pull_request.title}}+in+{{.repository.full_name}}.+View+more+at+{{.pull_request.html_url}}`, body, nil)
 		require.Equal(t, 200, response.Code)
@@ -3347,9 +3347,9 @@ func TestServer_MessageTemplate_GitHub2(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_DisallowedCalls(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		disallowedTemplates := []string{
 			`{{template ""}}`,
 			`{{- template ""}}`,
@@ -3377,9 +3377,9 @@ template ""}}`,
 }
 
 func TestServer_MessageTemplate_SprigFunctions(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		bodies := []string{
 			`{"foo":"bar","nested":{"title":"here"}}`,
 			`{"topic":"ntfy-test"}`,
@@ -3412,9 +3412,9 @@ func TestServer_MessageTemplate_SprigFunctions(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_UnsafeSprigFunctions(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
 			"X-Message":  `{{ env "PATH" }}`,
 			"X-Template": "1",
@@ -3426,9 +3426,9 @@ func TestServer_MessageTemplate_UnsafeSprigFunctions(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_InlineNewlines(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", `{}`, map[string]string{
 			"X-Message":  `{{"New\nlines"}}`,
 			"X-Title":    `{{"New\nlines"}}`,
@@ -3445,9 +3445,9 @@ lines`, m.Title)
 }
 
 func TestServer_MessageTemplate_InlineNewlinesOutsideOfTemplate(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", `{"foo":"bar","food":"bag"}`, map[string]string{
 			"X-Message":  `{{.foo}}{{"\n"}}{{.food}}`,
 			"X-Title":    `{{.food}}{{"\n"}}{{.foo}}`,
@@ -3464,9 +3464,9 @@ bar`, m.Title)
 }
 
 func TestServer_MessageTemplate_TemplateFileNewlines(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.TemplateDir = t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(c.TemplateDir, "newline.yml"), []byte(`
 title: |
@@ -3495,9 +3495,9 @@ var (
 )
 
 func TestServer_MessageTemplate_FromNamedTemplate_GitHubCommentCreated(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "POST", "/mytopic?template=github", githubCommentCreatedJSON, nil)
 		require.Equal(t, 200, response.Code)
 		m := toMessage(t, response.Body.String())
@@ -3516,9 +3516,9 @@ These are the things you need to do to get iOS push notifications to work:
 }
 
 func TestServer_MessageTemplate_FromNamedTemplate_GitHubIssueOpened(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "POST", "/mytopic?template=github", githubIssueOpenedJSON, nil)
 		require.Equal(t, 200, response.Code)
 		m := toMessage(t, response.Body.String())
@@ -3546,9 +3546,9 @@ Looks like this has already been fixed by #498, regression?`, m.Message)
 }
 
 func TestServer_MessageTemplate_FromNamedTemplate_GitHubIssueOpened_OverrideConfigTemplate(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.TemplateDir = t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(c.TemplateDir, "github.yml"), []byte(`
 title: |
@@ -3567,9 +3567,9 @@ message: |
 }
 
 func TestServer_MessageTemplate_Repeat9999_TooLarge(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
 			"X-Message":  `{{ repeat 9999 "mystring" }}`,
 			"X-Template": "1",
@@ -3581,9 +3581,9 @@ func TestServer_MessageTemplate_Repeat9999_TooLarge(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_Repeat10001_TooLarge(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
 			"X-Message":  `{{ repeat 10001 "mystring" }}`,
 			"X-Template": "1",
@@ -3595,9 +3595,9 @@ func TestServer_MessageTemplate_Repeat10001_TooLarge(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_Until100_000(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
 			"X-Message":  `{{ range $i, $e := until 100_000 }}{{end}}`,
 			"X-Template": "1",
@@ -3609,9 +3609,9 @@ func TestServer_MessageTemplate_Until100_000(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_Priority(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", `{"priority":"5"}`, map[string]string{
 			"X-Message":  "Test message",
 			"X-Priority": "{{.priority}}",
@@ -3626,9 +3626,9 @@ func TestServer_MessageTemplate_Priority(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_Priority_Conditional(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Test with error status -> priority 5
 		response := request(t, s, "PUT", "/mytopic", `{"status":"Error","message":"Something went wrong"}`, map[string]string{
@@ -3655,9 +3655,9 @@ func TestServer_MessageTemplate_Priority_Conditional(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_Priority_NamedValue(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", `{"severity":"high"}`, map[string]string{
 			"X-Message":  "Alert",
 			"X-Priority": "{{.severity}}",
@@ -3671,9 +3671,9 @@ func TestServer_MessageTemplate_Priority_NamedValue(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_Priority_Invalid(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic", `{"priority":"invalid"}`, map[string]string{
 			"X-Message":  "Test message",
 			"X-Priority": "{{.priority}}",
@@ -3686,9 +3686,9 @@ func TestServer_MessageTemplate_Priority_Invalid(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_Priority_QueryParam(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		response := request(t, s, "PUT", "/mytopic?template=1&priority={{.priority}}", `{"priority":"max"}`, nil)
 
 		require.Equal(t, 200, response.Code)
@@ -3698,9 +3698,9 @@ func TestServer_MessageTemplate_Priority_QueryParam(t *testing.T) {
 }
 
 func TestServer_MessageTemplate_Priority_FromTemplateFile(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.TemplateDir = t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(c.TemplateDir, "priority-test.yml"), []byte(`
 title: "{{.title}}"
@@ -3732,9 +3732,9 @@ priority: '{{if eq .level "critical"}}5{{else if eq .level "warning"}}4{{else}}3
 }
 
 func TestServer_DeleteMessage(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Publish a message with a sequence ID
 		response := request(t, s, "PUT", "/mytopic/seq123", "original message", nil)
@@ -3766,9 +3766,9 @@ func TestServer_DeleteMessage(t *testing.T) {
 }
 
 func TestServer_ClearMessage(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Publish a message with a sequence ID
 		response := request(t, s, "PUT", "/mytopic/seq456", "original message", nil)
@@ -3800,10 +3800,10 @@ func TestServer_ClearMessage(t *testing.T) {
 }
 
 func TestServer_ClearMessage_ReadEndpoint(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		// Test that /topic/seq/read also works
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Publish a message
 		response := request(t, s, "PUT", "/mytopic/seq789", "original message", nil)
@@ -3819,9 +3819,9 @@ func TestServer_ClearMessage_ReadEndpoint(t *testing.T) {
 }
 
 func TestServer_UpdateMessage(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Publish original message
 		response := request(t, s, "PUT", "/mytopic/update-seq", "original message", nil)
@@ -3854,9 +3854,9 @@ func TestServer_UpdateMessage(t *testing.T) {
 }
 
 func TestServer_UpdateMessage_UsingMessageID(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Publish original message without a sequence ID
 		response := request(t, s, "PUT", "/mytopic", "original message", nil)
@@ -3890,9 +3890,9 @@ func TestServer_UpdateMessage_UsingMessageID(t *testing.T) {
 }
 
 func TestServer_DeleteAndClear_InvalidSequenceID(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Test invalid sequence ID for delete (returns 404 because route doesn't match)
 		response := request(t, s, "DELETE", "/mytopic/invalid*seq", "", nil)
@@ -3905,9 +3905,9 @@ func TestServer_DeleteAndClear_InvalidSequenceID(t *testing.T) {
 }
 
 func TestServer_DeleteMessage_WithFirebase(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		sender := newTestFirebaseSender(10)
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		s.firebaseClient = newFirebaseClient(sender, &testAuther{Allow: true})
 
 		// Publish a message
@@ -3930,9 +3930,9 @@ func TestServer_DeleteMessage_WithFirebase(t *testing.T) {
 }
 
 func TestServer_ClearMessage_WithFirebase(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		sender := newTestFirebaseSender(10)
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 		s.firebaseClient = newFirebaseClient(sender, &testAuther{Allow: true})
 
 		// Publish a message
@@ -3954,9 +3954,9 @@ func TestServer_ClearMessage_WithFirebase(t *testing.T) {
 }
 
 func TestServer_UpdateScheduledMessage(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Publish a scheduled message (future delivery)
 		response := request(t, s, "PUT", "/mytopic/sched-seq?delay=1h", "original scheduled message", nil)
@@ -3991,9 +3991,9 @@ func TestServer_UpdateScheduledMessage(t *testing.T) {
 }
 
 func TestServer_DeleteScheduledMessage(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Publish a scheduled message (future delivery)
 		response := request(t, s, "PUT", "/mytopic/delete-sched-seq?delay=1h", "scheduled message to delete", nil)
@@ -4026,9 +4026,9 @@ func TestServer_DeleteScheduledMessage(t *testing.T) {
 }
 
 func TestServer_UpdateScheduledMessage_TopicScoped(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Publish scheduled messages with same sequence ID in different topics
 		response := request(t, s, "PUT", "/topic1/shared-seq?delay=1h", "topic1 scheduled", nil)
@@ -4058,9 +4058,9 @@ func TestServer_UpdateScheduledMessage_TopicScoped(t *testing.T) {
 }
 
 func TestServer_UpdateScheduledMessage_WithAttachment(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Publish a scheduled message with an attachment
 		content := util.RandomString(5000) // > 4096 to trigger attachment
@@ -4092,9 +4092,9 @@ func TestServer_UpdateScheduledMessage_WithAttachment(t *testing.T) {
 }
 
 func TestServer_DeleteScheduledMessage_WithAttachment(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Publish a scheduled message with an attachment
 		content := util.RandomString(5000) // > 4096 to trigger attachment
@@ -4125,11 +4125,9 @@ func newMemTestCache(t *testing.T) message.Store {
 	return c
 }
 
-var testBackendDatabaseURLs sync.Map
-
-func forEachBackend(t *testing.T, f func(t *testing.T)) {
+func forEachBackend(t *testing.T, f func(t *testing.T, databaseURL string)) {
 	t.Run("sqlite", func(t *testing.T) {
-		f(t)
+		f(t, "")
 	})
 	t.Run("postgres", func(t *testing.T) {
 		dsn := os.Getenv("NTFY_TEST_DATABASE_URL")
@@ -4148,29 +4146,20 @@ func forEachBackend(t *testing.T, f func(t *testing.T)) {
 		q.Set("search_path", schema)
 		u.RawQuery = q.Encode()
 		schemaDSN := u.String()
-		testBackendDatabaseURLs.Store(t, schemaDSN)
 		t.Cleanup(func() {
-			testBackendDatabaseURLs.Delete(t)
 			cleanDB, _ := sql.Open("pgx", dsn)
 			cleanDB.Exec(fmt.Sprintf("DROP SCHEMA %s CASCADE", schema))
 			cleanDB.Close()
 		})
-		f(t)
+		f(t, schemaDSN)
 	})
 }
 
-func testBackendDatabaseURL(t *testing.T) string {
-	if dbURL, ok := testBackendDatabaseURLs.Load(t); ok {
-		return dbURL.(string)
-	}
-	return ""
-}
-
-func newTestConfig(t *testing.T) *Config {
+func newTestConfig(t *testing.T, databaseURL string) *Config {
 	conf := NewConfig()
 	conf.BaseURL = "http://127.0.0.1:12345"
-	if dbURL := testBackendDatabaseURL(t); dbURL != "" {
-		conf.DatabaseURL = dbURL
+	if databaseURL != "" {
+		conf.DatabaseURL = databaseURL
 	} else {
 		conf.CacheFile = filepath.Join(t.TempDir(), "cache.db")
 		conf.CacheStartupQueries = "pragma journal_mode = WAL; pragma synchronous = normal; pragma temp_store = memory;"
@@ -4189,8 +4178,8 @@ func configureAuth(t *testing.T, conf *Config) *Config {
 	return conf
 }
 
-func newTestConfigWithAuthFile(t *testing.T) *Config {
-	conf := newTestConfig(t)
+func newTestConfigWithAuthFile(t *testing.T, databaseURL string) *Config {
+	conf := newTestConfig(t, databaseURL)
 	conf = configureAuth(t, conf)
 	return conf
 }
@@ -4360,7 +4349,7 @@ func (w *closableResponseWriter) Close() {
 }
 
 func TestServer_SubscribeHTTP_NoWriteAfterHandlerReturn(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		// This test reproduces the panic from https://github.com/binwiederhier/ntfy/issues/338:
 		//
 		//   panic: runtime error: invalid memory address or nil pointer dereference
@@ -4385,7 +4374,7 @@ func TestServer_SubscribeHTTP_NoWriteAfterHandlerReturn(t *testing.T) {
 		// the closed response writer (which in production causes a nil pointer panic on Flush).
 		// With the fix, the subscriber sees closed=true and returns without writing.
 		t.Parallel()
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		rw := newClosableResponseWriter()
 		ctx, cancel := context.WithCancel(context.Background())
@@ -4441,10 +4430,10 @@ func TestServer_SubscribeHTTP_NoWriteAfterHandlerReturn(t *testing.T) {
 }
 
 func TestServer_HandleError_SkipsWriteHeaderOnHijackedConnection(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		// Test that handleError does not call WriteHeader for WebSocket errors wrapped
 		// with errWebSocketPostUpgrade (indicating the connection was hijacked)
-		s := newTestServer(t, newTestConfig(t))
+		s := newTestServer(t, newTestConfig(t, databaseURL))
 
 		// Create a WebSocket upgrade request
 		r, _ := http.NewRequest("GET", "/mytopic/ws", nil)

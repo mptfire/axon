@@ -6,9 +6,9 @@ import (
 )
 
 func TestServer_Manager_Prune_Messages_Without_Attachments_DoesNotPanic(t *testing.T) {
-	forEachBackend(t, func(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		// Tests that the manager runs without attachment-cache-dir set, see #617
-		c := newTestConfig(t)
+		c := newTestConfig(t, databaseURL)
 		c.AttachmentCacheDir = ""
 		s := newTestServer(t, c)
 
