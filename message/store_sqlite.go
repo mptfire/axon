@@ -74,8 +74,9 @@ const (
 	sqliteSelectAttachmentsSizeBySenderQuery = `SELECT IFNULL(SUM(attachment_size), 0) FROM messages WHERE user = '' AND sender = ? AND attachment_expires >= ?`
 	sqliteSelectAttachmentsSizeByUserIDQuery = `SELECT IFNULL(SUM(attachment_size), 0) FROM messages WHERE user = ? AND attachment_expires >= ?`
 
-	sqliteSelectStatsQuery = `SELECT value FROM stats WHERE key = 'messages'`
-	sqliteUpdateStatsQuery = `UPDATE stats SET value = ? WHERE key = 'messages'`
+	sqliteSelectStatsQuery       = `SELECT value FROM stats WHERE key = 'messages'`
+	sqliteUpdateStatsQuery       = `UPDATE stats SET value = ? WHERE key = 'messages'`
+	sqliteUpdateMessageTimeQuery = `UPDATE messages SET time = ? WHERE mid = ?`
 )
 
 var sqliteQueries = storeQueries{
@@ -103,6 +104,7 @@ var sqliteQueries = storeQueries{
 	selectAttachmentsSizeByUserID:    sqliteSelectAttachmentsSizeByUserIDQuery,
 	selectStats:                      sqliteSelectStatsQuery,
 	updateStats:                      sqliteUpdateStatsQuery,
+	updateMessageTime:                sqliteUpdateMessageTimeQuery,
 }
 
 // NewSQLiteStore creates a SQLite file-backed cache

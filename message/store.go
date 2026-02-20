@@ -26,12 +26,13 @@ type Store interface {
 	AddMessage(m *model.Message) error
 	AddMessages(ms []*model.Message) error
 	DB() *sql.DB
+	Message(id string) (*model.Message, error)
+	MessageCounts() (map[string]int, error)
 	Messages(topic string, since model.SinceMarker, scheduled bool) ([]*model.Message, error)
 	MessagesDue() ([]*model.Message, error)
 	MessagesExpired() ([]string, error)
-	Message(id string) (*model.Message, error)
 	MarkPublished(m *model.Message) error
-	MessageCounts() (map[string]int, error)
+	UpdateMessageTime(messageID string, timestamp int64) error
 	Topics() ([]string, error)
 	DeleteMessages(ids ...string) error
 	DeleteScheduledBySequenceID(topic, sequenceID string) ([]string, error)
@@ -71,6 +72,7 @@ type storeQueries struct {
 	selectAttachmentsSizeByUserID    string
 	selectStats                      string
 	updateStats                      string
+	updateMessageTime                string
 }
 
 // commonStore implements store operations that are identical across database backends
@@ -300,6 +302,12 @@ func (c *commonStore) Message(id string) (*model.Message, error) {
 	}
 	defer rows.Close()
 	return readMessage(rows)
+}
+
+// UpdateMessageTime updates the time column for a message by ID. This is only used for testing.
+func (c *commonStore) UpdateMessageTime(messageID string, timestamp int64) error {
+	_, err := c.db.Exec(c.queries.updateMessageTime, timestamp, messageID)
+	return err
 }
 
 func (c *commonStore) MarkPublished(m *model.Message) error {
