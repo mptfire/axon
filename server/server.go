@@ -425,6 +425,9 @@ func (s *Server) closeDatabases() {
 	if s.webPush != nil {
 		s.webPush.Close()
 	}
+	if s.db != nil {
+		s.db.Close()
+	}
 }
 
 // handle is the main entry point for all HTTP requests

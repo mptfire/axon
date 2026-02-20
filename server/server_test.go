@@ -4134,14 +4134,17 @@ func forEachBackend(t *testing.T, f func(t *testing.T, databaseURL string)) {
 			t.Skip("NTFY_TEST_DATABASE_URL not set")
 		}
 		schema := fmt.Sprintf("test_%s", util.RandomString(10))
-		setupDB, err := postgres.OpenDB(dsn)
-		require.Nil(t, err)
-		_, err = setupDB.Exec(fmt.Sprintf("CREATE SCHEMA %s", schema))
-		require.Nil(t, err)
-		require.Nil(t, setupDB.Close())
 		u, err := url.Parse(dsn)
 		require.Nil(t, err)
 		q := u.Query()
+		q.Set("pool_max_conns", "2")
+		u.RawQuery = q.Encode()
+		dsn = u.String()
+		setupDB, err := postgres.OpenDB(dsn)
+		require.Nil(t, err, "failed to open postgres: %s", err)
+		_, err = setupDB.Exec(fmt.Sprintf("CREATE SCHEMA %s", schema))
+		require.Nil(t, err)
+		require.Nil(t, setupDB.Close())
 		q.Set("search_path", schema)
 		u.RawQuery = q.Encode()
 		schemaDSN := u.String()
@@ -4188,6 +4191,7 @@ func newTestConfigWithAuthFile(t *testing.T, databaseURL string) *Config {
 func newTestServer(t *testing.T, config *Config) *Server {
 	server, err := New(config)
 	require.Nil(t, err)
+	t.Cleanup(server.closeDatabases)
 	return server
 }
 
