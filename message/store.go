@@ -98,6 +98,7 @@ func newCommonStore(db *sql.DB, queries storeQueries, batchSize int, batchTimeou
 }
 
 // AddMessage stores a message to the message cache synchronously, or queues it to be stored at a later date asynchronously.
+// The message is queued only if "batchSize" or "batchTimeout" are passed to the constructor.
 func (c *commonStore) AddMessage(m *model.Message) error {
 	if c.queue != nil {
 		c.queue.Enqueue(m)
@@ -376,6 +377,7 @@ func (c *commonStore) DeleteScheduledBySequenceID(topic, sequenceID string) ([]s
 		return nil, err
 	}
 	defer tx.Rollback()
+	// First, get the message IDs of scheduled messages to be deleted
 	rows, err := tx.Query(c.queries.selectScheduledMessageIDsBySeqID, topic, sequenceID)
 	if err != nil {
 		return nil, err
@@ -392,7 +394,8 @@ func (c *commonStore) DeleteScheduledBySequenceID(topic, sequenceID string) ([]s
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	rows.Close()
+	rows.Close() // Close rows before executing delete in same transaction
+	// Then delete the messages
 	if _, err := tx.Exec(c.queries.deleteScheduledBySequenceID, topic, sequenceID); err != nil {
 		return nil, err
 	}
