@@ -178,11 +178,11 @@ func New(conf *Config) (*Server, error) {
 	if payments.Available && conf.StripeSecretKey != "" {
 		stripe = newStripeAPI()
 	}
-	// Open shared PostgreSQL connection pool if configured
+	// OpenPostgres shared PostgreSQL connection pool if configured
 	var pool *sql.DB
 	if conf.DatabaseURL != "" {
 		var err error
-		pool, err = db.Open(conf.DatabaseURL)
+		pool, err = db.OpenPostgres(conf.DatabaseURL)
 		if err != nil {
 			return nil, err
 		}

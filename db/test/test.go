@@ -30,7 +30,7 @@ func CreateTestSchema(t *testing.T) string {
 	q.Set("pool_max_conns", testPoolMaxConns)
 	u.RawQuery = q.Encode()
 	dsn = u.String()
-	setupDB, err := db.Open(dsn)
+	setupDB, err := db.OpenPostgres(dsn)
 	require.Nil(t, err)
 	_, err = setupDB.Exec(fmt.Sprintf("CREATE SCHEMA %s", schema))
 	require.Nil(t, err)
@@ -39,7 +39,7 @@ func CreateTestSchema(t *testing.T) string {
 	u.RawQuery = q.Encode()
 	schemaDSN := u.String()
 	t.Cleanup(func() {
-		cleanDB, err := db.Open(dsn)
+		cleanDB, err := db.OpenPostgres(dsn)
 		if err == nil {
 			cleanDB.Exec(fmt.Sprintf("DROP SCHEMA %s CASCADE", schema))
 			cleanDB.Close()
@@ -54,7 +54,7 @@ func CreateTestSchema(t *testing.T) string {
 func CreateTestDB(t *testing.T) *sql.DB {
 	t.Helper()
 	schemaDSN := CreateTestSchema(t)
-	testDB, err := db.Open(schemaDSN)
+	testDB, err := db.OpenPostgres(schemaDSN)
 	require.Nil(t, err)
 	t.Cleanup(func() {
 		testDB.Close()

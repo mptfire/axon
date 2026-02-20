@@ -35,7 +35,7 @@ func forEachBackend(t *testing.T, f func(t *testing.T, newStore newStoreFunc)) {
 	t.Run("postgres", func(t *testing.T) {
 		schemaDSN := dbtest.CreateTestSchema(t)
 		f(t, func() Store {
-			pool, err := db.Open(schemaDSN)
+			pool, err := db.OpenPostgres(schemaDSN)
 			require.Nil(t, err)
 			store, err := NewPostgresStore(pool)
 			require.Nil(t, err)

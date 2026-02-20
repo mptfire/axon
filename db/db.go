@@ -19,11 +19,11 @@ const (
 	defaultMaxOpenConns = 10
 )
 
-// Open opens a PostgreSQL database connection pool from a DSN string. It supports custom
+// OpenPostgres opens a PostgreSQL database connection pool from a DSN string. It supports custom
 // query parameters for pool configuration: pool_max_conns (default 10), pool_max_idle_conns,
 // pool_conn_max_lifetime, and pool_conn_max_idle_time. These parameters are stripped from
 // the DSN before passing it to the driver.
-func Open(dsn string) (*sql.DB, error) {
+func OpenPostgres(dsn string) (*sql.DB, error) {
 	u, err := url.Parse(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("invalid database URL: %w", err)

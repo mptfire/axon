@@ -380,7 +380,7 @@ func createUserManager(c *cli.Context) (*user.Manager, error) {
 	}
 	var store user.Store
 	if databaseURL != "" {
-		pool, dbErr := db.Open(databaseURL)
+		pool, dbErr := db.OpenPostgres(databaseURL)
 		if dbErr != nil {
 			return nil, dbErr
 		}
