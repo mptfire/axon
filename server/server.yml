@@ -38,11 +38,18 @@
 #
 # firebase-key-file: <filename>
 
-# If "database-url" is set, ntfy will use PostgreSQL for database-backed stores instead of SQLite.
-# Currently this applies to the web push subscription store. Message cache and user manager support
-# will be added in future releases. When set, the "web-push-file" option is not required.
+# If "database-url" is set, ntfy will use PostgreSQL for all database-backed stores (message cache,
+# user manager, and web push subscriptions) instead of SQLite. When set, the "cache-file",
+# "auth-file", and "web-push-file" options are not required.
+#
+# You can append connection pool parameters as query parameters:
+#   pool_max_conns=25          - Maximum number of open connections (default: 25)
+#   pool_max_idle_conns=N      - Maximum number of idle connections
+#   pool_conn_max_lifetime=5m  - Maximum lifetime of a connection (Go duration)
+#   pool_conn_max_idle_time=1m - Maximum idle time of a connection (Go duration)
 #
 # database-url: "postgres://user:pass@host:5432/ntfy"
+# database-url: "postgres://user:pass@host:5432/ntfy?pool_max_conns=50"
 
 # If "cache-file" is set, messages are cached in a local SQLite database instead of only in-memory.
 # This allows for service restarts without losing messages in support of the since= parameter.

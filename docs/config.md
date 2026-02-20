@@ -152,11 +152,27 @@ by setting the `database-url` option to a PostgreSQL connection string:
 database-url: "postgres://user:pass@host:5432/ntfy"
 ```
 
-When `database-url` is set, ntfy will use PostgreSQL for the web push subscription store instead of SQLite. The
-`web-push-file` option is not required in this case. Support for PostgreSQL for the message cache and user manager
-will be added in future releases.
+When `database-url` is set, ntfy will use PostgreSQL for all database-backed stores (message cache, user manager,
+and web push subscriptions) instead of SQLite. The `cache-file`, `auth-file`, and `web-push-file` options are not
+required in this case.
 
 You can also set this via the environment variable `NTFY_DATABASE_URL` or the command line flag `--database-url`.
+
+### Connection pool settings
+You can tune the connection pool by appending query parameters to the database URL:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `pool_max_conns` | 25 | Maximum number of open connections to the database |
+| `pool_max_idle_conns` | - | Maximum number of idle connections in the pool |
+| `pool_conn_max_lifetime` | - | Maximum amount of time a connection may be reused (Go duration, e.g. `5m`, `1h`) |
+| `pool_conn_max_idle_time` | - | Maximum amount of time a connection may be idle (Go duration, e.g. `30s`, `5m`) |
+
+Example:
+
+```yaml
+database-url: "postgres://user:pass@host:5432/ntfy?pool_max_conns=50&pool_conn_max_idle_time=5m"
+```
 
 ## Attachments
 If desired, you may allow users to upload and [attach files to notifications](publish.md#attachments). To enable
@@ -1161,7 +1177,7 @@ a database to keep track of the browser's subscriptions, and an admin email addr
 - `web-push-expiry-warning-duration` defines the duration after which unused subscriptions are sent a warning (default is `55d`)
 - `web-push-expiry-duration` defines the duration after which unused subscriptions will expire (default is `60d`)
 
-Alternatively, you can use PostgreSQL instead of SQLite for the web push subscription store by setting `database-url`
+Alternatively, you can use PostgreSQL instead of SQLite by setting `database-url`
 (see [PostgreSQL database](#postgresql-database)).
 
 Limitations:
@@ -1773,7 +1789,7 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `key-file`                                 | `NTFY_KEY_FILE`                                 | *filename*                                          | -                 | HTTPS/TLS private key file, only used if `listen-https` is set.                                                                                                                                                                 |
 | `cert-file`                                | `NTFY_CERT_FILE`                                | *filename*                                          | -                 | HTTPS/TLS certificate file, only used if `listen-https` is set.                                                                                                                                                                 |
 | `firebase-key-file`                        | `NTFY_FIREBASE_KEY_FILE`                        | *filename*                                          | -                 | If set, also publish messages to a Firebase Cloud Messaging (FCM) topic for your app. This is optional and only required to save battery when using the Android app. See [Firebase (FCM)](#firebase-fcm).                       |
-| `database-url`                             | `NTFY_DATABASE_URL`                             | *string (connection URL)*                           | -                 | PostgreSQL connection string (e.g. `postgres://user:pass@host:5432/ntfy`). If set, uses PostgreSQL for database-backed stores instead of SQLite. Currently applies to the web push store. See [PostgreSQL database](#postgresql-database). |
+| `database-url`                             | `NTFY_DATABASE_URL`                             | *string (connection URL)*                           | -                 | PostgreSQL connection string (e.g. `postgres://user:pass@host:5432/ntfy`). If set, uses PostgreSQL for all database-backed stores (message cache, user manager, web push) instead of SQLite. See [PostgreSQL database](#postgresql-database). |
 | `cache-file`                               | `NTFY_CACHE_FILE`                               | *filename*                                          | -                 | If set, messages are cached in a local SQLite database instead of only in-memory. This allows for service restarts without losing messages in support of the since= parameter. See [message cache](#message-cache).             |
 | `cache-duration`                           | `NTFY_CACHE_DURATION`                           | *duration*                                          | 12h               | Duration for which messages will be buffered before they are deleted. This is required to support the `since=...` and `poll=1` parameter. Set this to `0` to disable the cache entirely.                                        |
 | `cache-startup-queries`                    | `NTFY_CACHE_STARTUP_QUERIES`                    | *string (SQL queries)*                              | -                 | SQL queries to run during database startup; this is useful for tuning and [enabling WAL mode](#message-cache)                                                                                                                   |
