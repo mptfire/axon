@@ -153,8 +153,12 @@ database-url: "postgres://user:pass@host:5432/ntfy"
 ```
 
 When `database-url` is set, ntfy will use PostgreSQL for all database-backed stores (message cache, user manager,
-and web push subscriptions) instead of SQLite. The `cache-file`, `auth-file`, and `web-push-file` options are not
-required in this case.
+and web push subscriptions) instead of SQLite. The `cache-file`, `auth-file`, and `web-push-file` options must not
+be set in this case.
+
+Note that setting `database-url` implicitly enables authentication and access control (equivalent to setting
+`auth-file` with SQLite). The default access is `read-write`, so anonymous users can still read and write to all
+topics. To restrict access, set `auth-default-access` to `deny-all` (see [access control](#access-control)).
 
 You can also set this via the environment variable `NTFY_DATABASE_URL` or the command line flag `--database-url`.
 
@@ -215,14 +219,15 @@ and `visitor-attachment-daily-bandwidth-limit`. Setting these conservatively is 
 By default, the ntfy server is open for everyone, meaning **everyone can read and write to any topic** (this is how
 ntfy.sh is configured). To restrict access to your own server, you can optionally configure authentication and authorization. 
 
-ntfy's auth is implemented with a simple [SQLite](https://www.sqlite.org/)-based backend. It implements two roles 
-(`user` and `admin`) and per-topic `read` and `write` permissions using an [access control list (ACL)](https://en.wikipedia.org/wiki/Access-control_list). 
-Access control entries can be applied to users as well as the special everyone user (`*`), which represents anonymous API access. 
+ntfy's auth implements two roles (`user` and `admin`) and per-topic `read` and `write` permissions using an 
+[access control list (ACL)](https://en.wikipedia.org/wiki/Access-control_list). Access control entries can be applied 
+to users as well as the special everyone user (`*`), which represents anonymous API access. 
 
 To set up auth, **configure the following options**:
 
-* `auth-file` is the user/access database; it is created automatically if it doesn't already exist; suggested 
-  location `/var/lib/ntfy/user.db` (easiest if deb/rpm package is used)
+* `auth-file` is the user/access database (SQLite); it is created automatically if it doesn't already exist; suggested 
+  location `/var/lib/ntfy/user.db` (easiest if deb/rpm package is used). Alternatively, if `database-url` is set, 
+  auth is automatically enabled using PostgreSQL (see [PostgreSQL database](#postgresql-database)).
 * `auth-default-access` defines the default/fallback access if no access control entry is found; it can be
   set to `read-write` (default), `read-only`, `write-only` or `deny-all`. **If you are setting up a private instance,
   you'll want to set this to `deny-all`** (see [private instance example](#example-private-instance)).
@@ -1795,7 +1800,7 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `cache-startup-queries`                    | `NTFY_CACHE_STARTUP_QUERIES`                    | *string (SQL queries)*                              | -                 | SQL queries to run during database startup; this is useful for tuning and [enabling WAL mode](#message-cache)                                                                                                                   |
 | `cache-batch-size`                         | `NTFY_CACHE_BATCH_SIZE`                         | *int*                                               | 0                 | Max size of messages to batch together when writing to message cache (if zero, writes are synchronous)                                                                                                                          |
 | `cache-batch-timeout`                      | `NTFY_CACHE_BATCH_TIMEOUT`                      | *duration*                                          | 0s                | Timeout for batched async writes to the message cache (if zero, writes are synchronous)                                                                                                                                         |
-| `auth-file`                                | `NTFY_AUTH_FILE`                                | *filename*                                          | -                 | Auth database file used for access control. If set, enables authentication and access control. See [access control](#access-control).                                                                                           |
+| `auth-file`                                | `NTFY_AUTH_FILE`                                | *filename*                                          | -                 | Auth database file used for access control (SQLite). If set, enables authentication and access control. Not required if `database-url` is set. See [access control](#access-control).                                           |
 | `auth-default-access`                      | `NTFY_AUTH_DEFAULT_ACCESS`                      | `read-write`, `read-only`, `write-only`, `deny-all` | `read-write`      | Default permissions if no matching entries in the auth database are found. Default is `read-write`.                                                                                                                             |
 | `behind-proxy`                             | `NTFY_BEHIND_PROXY`                             | *bool*                                              | false             | If set, use forwarded header (e.g. X-Forwarded-For, X-Client-IP) to determine visitor IP address (for rate limiting)                                                                                                            |
 | `proxy-forwarded-header`                   | `NTFY_PROXY_FORWARDED_HEADER`                   | *string*                                            | `X-Forwarded-For` | Use specified header to determine visitor IP address (for rate limiting)                                                                                                                                                        |

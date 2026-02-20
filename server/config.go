@@ -88,7 +88,6 @@ var (
 // Config is the main config struct for the application. Use New to instantiate a default config struct.
 type Config struct {
 	File                                 string // Config file, only used for testing
-	DatabaseURL                          string // PostgreSQL connection string (e.g. "postgres://user:pass@host:5432/ntfy")
 	BaseURL                              string
 	ListenHTTP                           string
 	ListenHTTPS                          string
@@ -96,6 +95,7 @@ type Config struct {
 	ListenUnixMode                       fs.FileMode
 	KeyFile                              string
 	CertFile                             string
+	DatabaseURL                          string // PostgreSQL connection string (e.g. "postgres://user:pass@host:5432/ntfy")
 	FirebaseKeyFile                      string
 	CacheFile                            string
 	CacheDuration                        time.Duration
@@ -193,7 +193,6 @@ type Config struct {
 func NewConfig() *Config {
 	return &Config{
 		File:                                 DefaultConfigFile, // Only used for testing
-		DatabaseURL:                          "",
 		BaseURL:                              "",
 		ListenHTTP:                           DefaultListenHTTP,
 		ListenHTTPS:                          "",
@@ -201,6 +200,7 @@ func NewConfig() *Config {
 		ListenUnixMode:                       0,
 		KeyFile:                              "",
 		CertFile:                             "",
+		DatabaseURL:                          "",
 		FirebaseKeyFile:                      "",
 		CacheFile:                            "",
 		CacheDuration:                        DefaultCacheDuration,

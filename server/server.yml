@@ -40,7 +40,10 @@
 
 # If "database-url" is set, ntfy will use PostgreSQL for all database-backed stores (message cache,
 # user manager, and web push subscriptions) instead of SQLite. When set, the "cache-file",
-# "auth-file", and "web-push-file" options are not required.
+# "auth-file", and "web-push-file" options must not be set.
+#
+# Note: Setting "database-url" implicitly enables authentication and access control.
+# The default access is "read-write" (see "auth-default-access").
 #
 # You can append connection pool parameters as query parameters:
 #   pool_max_conns=10          - Maximum number of open connections (default: 10)
@@ -89,6 +92,8 @@
 
 # If set, access to the ntfy server and API can be controlled on a granular level using
 # the 'ntfy user' and 'ntfy access' commands. See the --help pages for details, or check the docs.
+#
+# Note: If "database-url" is set, auth is implicitly enabled and "auth-file" must not be set.
 #
 # - auth-file is the SQLite user/access database; it is created automatically if it doesn't already exist
 # - auth-default-access defines the default/fallback access if no access control entry is found; it can be

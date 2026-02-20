@@ -325,8 +325,8 @@ func execServe(c *cli.Context) error {
 		return errors.New("if upstream-base-url is set, base-url must also be set")
 	} else if upstreamBaseURL != "" && baseURL != "" && baseURL == upstreamBaseURL {
 		return errors.New("base-url and upstream-base-url cannot be identical, you'll likely want to set upstream-base-url to https://ntfy.sh, see https://ntfy.sh/docs/config/#ios-instant-notifications")
-	} else if authFile == "" && (enableSignup || enableLogin || requireLogin || enableReservations || stripeSecretKey != "") {
-		return errors.New("cannot set enable-signup, enable-login, require-login, enable-reserve-topics, or stripe-secret-key if auth-file is not set")
+	} else if authFile == "" && databaseURL == "" && (enableSignup || enableLogin || requireLogin || enableReservations || stripeSecretKey != "") {
+		return errors.New("cannot set enable-signup, enable-login, require-login, enable-reserve-topics, or stripe-secret-key if auth-file or database-url is not set")
 	} else if enableSignup && !enableLogin {
 		return errors.New("cannot set enable-signup without also setting enable-login")
 	} else if requireLogin && !enableLogin {
@@ -335,8 +335,8 @@ func execServe(c *cli.Context) error {
 		return errors.New("cannot set stripe-secret-key or stripe-webhook-key, support for payments is not available in this build (nopayments)")
 	} else if stripeSecretKey != "" && (stripeWebhookKey == "" || baseURL == "") {
 		return errors.New("if stripe-secret-key is set, stripe-webhook-key and base-url must also be set")
-	} else if twilioAccount != "" && (twilioAuthToken == "" || twilioPhoneNumber == "" || twilioVerifyService == "" || baseURL == "" || authFile == "") {
-		return errors.New("if twilio-account is set, twilio-auth-token, twilio-phone-number, twilio-verify-service, base-url, and auth-file must also be set")
+	} else if twilioAccount != "" && (twilioAuthToken == "" || twilioPhoneNumber == "" || twilioVerifyService == "" || baseURL == "" || (authFile == "" && databaseURL == "")) {
+		return errors.New("if twilio-account is set, twilio-auth-token, twilio-phone-number, twilio-verify-service, base-url, and auth-file (or database-url) must also be set")
 	} else if messageSizeLimit > server.DefaultMessageSizeLimit {
 		log.Warn("message-size-limit is greater than 4K, this is not recommended and largely untested, and may lead to issues with some clients")
 		if messageSizeLimit > 5*1024*1024 {

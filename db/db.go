@@ -10,7 +10,14 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
 )
 
-const defaultMaxOpenConns = 10
+const (
+	paramMaxOpenConns    = "pool_max_conns"
+	paramMaxIdleConns    = "pool_max_idle_conns"
+	paramConnMaxLifetime = "pool_conn_max_lifetime"
+	paramConnMaxIdleTime = "pool_conn_max_idle_time"
+
+	defaultMaxOpenConns = 10
+)
 
 // Open opens a PostgreSQL database connection pool from a DSN string. It supports custom
 // query parameters for pool configuration: pool_max_conns (default 10), pool_max_idle_conns,
@@ -22,19 +29,19 @@ func Open(dsn string) (*sql.DB, error) {
 		return nil, fmt.Errorf("invalid database URL: %w", err)
 	}
 	q := u.Query()
-	maxOpenConns, err := extractIntParam(q, "pool_max_conns", defaultMaxOpenConns)
+	maxOpenConns, err := extractIntParam(q, paramMaxOpenConns, defaultMaxOpenConns)
 	if err != nil {
 		return nil, err
 	}
-	maxIdleConns, err := extractIntParam(q, "pool_max_idle_conns", 0)
+	maxIdleConns, err := extractIntParam(q, paramMaxIdleConns, 0)
 	if err != nil {
 		return nil, err
 	}
-	connMaxLifetime, err := extractDurationParam(q, "pool_conn_max_lifetime", 0)
+	connMaxLifetime, err := extractDurationParam(q, paramConnMaxLifetime, 0)
 	if err != nil {
 		return nil, err
 	}
-	connMaxIdleTime, err := extractDurationParam(q, "pool_conn_max_idle_time", 0)
+	connMaxIdleTime, err := extractDurationParam(q, paramConnMaxIdleTime, 0)
 	if err != nil {
 		return nil, err
 	}
