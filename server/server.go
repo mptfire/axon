@@ -33,11 +33,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v2"
+	"heckel.io/ntfy/v2/db"
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/message"
 	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/payments"
-	"heckel.io/ntfy/v2/postgres"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 	"heckel.io/ntfy/v2/util/sprig"
@@ -179,22 +179,22 @@ func New(conf *Config) (*Server, error) {
 		stripe = newStripeAPI()
 	}
 	// Open shared PostgreSQL connection pool if configured
-	var db *sql.DB
+	var pool *sql.DB
 	if conf.DatabaseURL != "" {
 		var err error
-		db, err = postgres.OpenDB(conf.DatabaseURL)
+		pool, err = db.Open(conf.DatabaseURL)
 		if err != nil {
 			return nil, err
 		}
 	}
-	messageCache, err := createMessageCache(conf, db)
+	messageCache, err := createMessageCache(conf, pool)
 	if err != nil {
 		return nil, err
 	}
 	var wp webpush.Store
 	if conf.WebPushPublicKey != "" {
-		if db != nil {
-			wp, err = webpush.NewPostgresStore(db)
+		if pool != nil {
+			wp, err = webpush.NewPostgresStore(pool)
 		} else {
 			wp, err = webpush.NewSQLiteStore(conf.WebPushFile, conf.WebPushStartupQueries)
 		}
@@ -222,7 +222,7 @@ func New(conf *Config) (*Server, error) {
 		}
 	}
 	var userManager *user.Manager
-	if conf.AuthFile != "" || db != nil {
+	if conf.AuthFile != "" || pool != nil {
 		authConfig := &user.Config{
 			Filename:            conf.AuthFile,
 			DatabaseURL:         conf.DatabaseURL,
@@ -236,8 +236,8 @@ func New(conf *Config) (*Server, error) {
 			QueueWriterInterval: conf.AuthStatsQueueWriterInterval,
 		}
 		var store user.Store
-		if db != nil {
-			store, err = user.NewPostgresStore(db)
+		if pool != nil {
+			store, err = user.NewPostgresStore(pool)
 		} else {
 			store, err = user.NewSQLiteStore(conf.AuthFile, conf.AuthStartupQueries)
 		}
@@ -265,7 +265,7 @@ func New(conf *Config) (*Server, error) {
 	}
 	s := &Server{
 		config:          conf,
-		db:              db,
+		db:              pool,
 		messageCache:    messageCache,
 		webPush:         wp,
 		fileCache:       fileCache,
@@ -282,11 +282,11 @@ func New(conf *Config) (*Server, error) {
 	return s, nil
 }
 
-func createMessageCache(conf *Config, db *sql.DB) (message.Store, error) {
+func createMessageCache(conf *Config, pool *sql.DB) (message.Store, error) {
 	if conf.CacheDuration == 0 {
 		return message.NewNopStore()
-	} else if db != nil {
-		return message.NewPostgresStore(db, conf.CacheBatchSize, conf.CacheBatchTimeout)
+	} else if pool != nil {
+		return message.NewPostgresStore(pool, conf.CacheBatchSize, conf.CacheBatchTimeout)
 	} else if conf.CacheFile != "" {
 		return message.NewSQLiteStore(conf.CacheFile, conf.CacheStartupQueries, conf.CacheDuration, conf.CacheBatchSize, conf.CacheBatchTimeout, false)
 	}

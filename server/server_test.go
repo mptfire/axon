@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
-	"net/url"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -25,10 +24,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
+	dbtest "heckel.io/ntfy/v2/db/test"
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/message"
 	"heckel.io/ntfy/v2/model"
-	"heckel.io/ntfy/v2/postgres"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 )
@@ -4129,33 +4128,7 @@ func forEachBackend(t *testing.T, f func(t *testing.T, databaseURL string)) {
 		f(t, "")
 	})
 	t.Run("postgres", func(t *testing.T) {
-		dsn := os.Getenv("NTFY_TEST_DATABASE_URL")
-		if dsn == "" {
-			t.Skip("NTFY_TEST_DATABASE_URL not set")
-		}
-		schema := fmt.Sprintf("test_%s", util.RandomString(10))
-		u, err := url.Parse(dsn)
-		require.Nil(t, err)
-		q := u.Query()
-		q.Set("pool_max_conns", "2")
-		u.RawQuery = q.Encode()
-		dsn = u.String()
-		setupDB, err := postgres.OpenDB(dsn)
-		require.Nil(t, err, "failed to open postgres: %s", err)
-		_, err = setupDB.Exec(fmt.Sprintf("CREATE SCHEMA %s", schema))
-		require.Nil(t, err)
-		require.Nil(t, setupDB.Close())
-		q.Set("search_path", schema)
-		u.RawQuery = q.Encode()
-		schemaDSN := u.String()
-		t.Cleanup(func() {
-			cleanDB, _ := postgres.OpenDB(dsn)
-			if cleanDB != nil {
-				cleanDB.Exec(fmt.Sprintf("DROP SCHEMA %s CASCADE", schema))
-				cleanDB.Close()
-			}
-		})
-		f(t, schemaDSN)
+		f(t, dbtest.CreateTestSchema(t))
 	})
 }
 

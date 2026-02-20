@@ -282,7 +282,9 @@ func execServe(c *cli.Context) error {
 	}
 
 	// Check values
-	if firebaseKeyFile != "" && !util.FileExists(firebaseKeyFile) {
+	if databaseURL != "" && (authFile != "" || cacheFile != "" || webPushFile != "") {
+		return errors.New("if database-url is set, auth-file, cache-file, and web-push-file must not be set")
+	} else if firebaseKeyFile != "" && !util.FileExists(firebaseKeyFile) {
 		return errors.New("if set, FCM key file must exist")
 	} else if firebaseKeyFile != "" && !server.FirebaseAvailable {
 		return errors.New("cannot set firebase-key-file, support for Firebase is not available (nofirebase)")
@@ -414,6 +416,15 @@ func execServe(c *cli.Context) error {
 		payments.Setup(stripeSecretKey)
 	}
 
+	// Parse Twilio template
+	var twilioCallFormatTemplate *template.Template
+	if twilioCallFormat != "" {
+		twilioCallFormatTemplate, err = template.New("").Parse(twilioCallFormat)
+		if err != nil {
+			return fmt.Errorf("failed to parse twilio-call-format template: %w", err)
+		}
+	}
+
 	// Add default forbidden topics
 	disallowedTopics = append(disallowedTopics, server.DefaultDisallowedTopics...)
 
@@ -461,13 +472,7 @@ func execServe(c *cli.Context) error {
 	conf.TwilioAuthToken = twilioAuthToken
 	conf.TwilioPhoneNumber = twilioPhoneNumber
 	conf.TwilioVerifyService = twilioVerifyService
-	if twilioCallFormat != "" {
-		tmpl, err := template.New("twiml").Parse(twilioCallFormat)
-		if err != nil {
-			return fmt.Errorf("failed to parse twilio-call-format template: %w", err)
-		}
-		conf.TwilioCallFormat = tmpl
-	}
+	conf.TwilioCallFormat = twilioCallFormatTemplate
 	conf.MessageSizeLimit = int(messageSizeLimit)
 	conf.MessageDelayMax = messageDelayLimit
 	conf.TotalTopicLimit = totalTopicLimit

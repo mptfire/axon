@@ -1,4 +1,4 @@
-package postgres
+package db
 
 import (
 	"database/sql"
@@ -12,11 +12,11 @@ import (
 
 const defaultMaxOpenConns = 10
 
-// OpenDB opens a PostgreSQL database connection pool from a DSN string. It supports custom
+// Open opens a PostgreSQL database connection pool from a DSN string. It supports custom
 // query parameters for pool configuration: pool_max_conns (default 10), pool_max_idle_conns,
 // pool_conn_max_lifetime, and pool_conn_max_idle_time. These parameters are stripped from
 // the DSN before passing it to the driver.
-func OpenDB(dsn string) (*sql.DB, error) {
+func Open(dsn string) (*sql.DB, error) {
 	u, err := url.Parse(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("invalid database URL: %w", err)

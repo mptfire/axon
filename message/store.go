@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/netip"
 	"strings"
 	"sync"
@@ -614,9 +613,3 @@ func readMessage(rows *sql.Rows) (*model.Message, error) {
 		Encoding:    encoding,
 	}, nil
 }
-
-// Ensure commonStore implements Store
-var _ Store = (*commonStore)(nil)
-
-// Needed by store.go but not part of Store interface; unused import guard
-var _ = fmt.Sprintf

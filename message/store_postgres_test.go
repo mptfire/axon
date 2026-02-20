@@ -1,49 +1,18 @@
 package message_test
 
 import (
-	"fmt"
-	"net/url"
-	"os"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	dbtest "heckel.io/ntfy/v2/db/test"
 	"heckel.io/ntfy/v2/message"
-	"heckel.io/ntfy/v2/postgres"
-	"heckel.io/ntfy/v2/util"
+
+	"github.com/stretchr/testify/require"
 )
 
 func newTestPostgresStore(t *testing.T) message.Store {
-	dsn := os.Getenv("NTFY_TEST_DATABASE_URL")
-	if dsn == "" {
-		t.Skip("NTFY_TEST_DATABASE_URL not set, skipping PostgreSQL tests")
-	}
-	schema := fmt.Sprintf("test_%s", util.RandomString(10))
-	u, err := url.Parse(dsn)
+	testDB := dbtest.CreateTestDB(t)
+	store, err := message.NewPostgresStore(testDB, 0, 0)
 	require.Nil(t, err)
-	q := u.Query()
-	q.Set("pool_max_conns", "2")
-	u.RawQuery = q.Encode()
-	dsn = u.String()
-	q.Set("search_path", schema)
-	u.RawQuery = q.Encode()
-	schemaDSN := u.String()
-	setupDB, err := postgres.OpenDB(dsn)
-	require.Nil(t, err)
-	_, err = setupDB.Exec(fmt.Sprintf("CREATE SCHEMA %s", schema))
-	require.Nil(t, err)
-	require.Nil(t, setupDB.Close())
-	db, err := postgres.OpenDB(schemaDSN)
-	require.Nil(t, err)
-	store, err := message.NewPostgresStore(db, 0, 0)
-	require.Nil(t, err)
-	t.Cleanup(func() {
-		store.Close()
-		cleanDB, err := postgres.OpenDB(dsn)
-		if err == nil {
-			cleanDB.Exec(fmt.Sprintf("DROP SCHEMA %s CASCADE", schema))
-			cleanDB.Close()
-		}
-	})
 	return store
 }
 
