@@ -45,17 +45,25 @@
 # Note: Setting "database-url" implicitly enables authentication and access control.
 # The default access is "read-write" (see "auth-default-access").
 #
-# You can append connection pool parameters as query parameters:
+# The URL supports standard PostgreSQL parameters (sslmode, connect_timeout, sslcert, etc.),
+# as well as ntfy-specific connection pool parameters:
 #   pool_max_conns=10          - Maximum number of open connections (default: 10)
 #   pool_max_idle_conns=N      - Maximum number of idle connections
 #   pool_conn_max_lifetime=5m  - Maximum lifetime of a connection (Go duration)
 #   pool_conn_max_idle_time=1m - Maximum idle time of a connection (Go duration)
 #
-# database-url: "postgres://user:pass@host:5432/ntfy"
-# database-url: "postgres://user:pass@host:5432/ntfy?pool_max_conns=50"
+# See https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+# for the full list of supported PostgreSQL connection parameters.
+#
+# Examples:
+#   database-url: "postgres://user:pass@host:5432/ntfy"
+#   database-url: "postgres://user:pass@host:5432/ntfy?sslmode=require&pool_max_conns=50"
+#
+# database-url: <connection-string>
 
 # If "cache-file" is set, messages are cached in a local SQLite database instead of only in-memory.
 # This allows for service restarts without losing messages in support of the since= parameter.
+# Not required if "database-url" is set (messages are stored in PostgreSQL instead).
 #
 # The "cache-duration" parameter defines the duration for which messages will be buffered
 # before they are deleted. This is required to support the "since=..." and "poll=1" parameter.
@@ -215,6 +223,7 @@
 # - web-push-public-key is the generated VAPID public key, e.g. AA1234BBCCddvveekaabcdfqwertyuiopasdfghjklzxcvbnm1234567890
 # - web-push-private-key is the generated VAPID private key, e.g. AA2BB1234567890abcdefzxcvbnm1234567890
 # - web-push-file is a database file to keep track of browser subscription endpoints, e.g. /var/cache/ntfy/webpush.db
+#   Not required if "database-url" is set (subscriptions are stored in PostgreSQL instead).
 # - web-push-email-address is the admin email address send to the push provider, e.g. sysadmin@example.com
 # - web-push-startup-queries is an optional list of queries to run on startup
 # - web-push-expiry-warning-duration defines the duration after which unused subscriptions are sent a warning (default is 55d)

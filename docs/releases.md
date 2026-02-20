@@ -1720,4 +1720,4 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 **Features:**
 
-* Add PostgreSQL as an alternative database backend for all stores (message cache, user manager, web push subscriptions) via `database-url` config option, using a single shared connection pool with configurable pool settings (`pool_max_conns`, `pool_max_idle_conns`, `pool_conn_max_lifetime`, `pool_conn_max_idle_time`)
+* Add experimental [PostgreSQL support](config.md#postgresql-experimental) as an alternative database backend (message cache, user manager, web push subscriptions) via `database-url` config option

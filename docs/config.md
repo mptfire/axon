@@ -53,6 +53,16 @@ Here are a few working sample configs using a `/etc/ntfy/server.yml` file:
     behind-proxy: true
     ```
 
+=== "server.yml (PostgreSQL, behind proxy)"
+    ``` yaml
+    base-url: "https://ntfy.example.com"
+    listen-http: ":2586"
+    database-url: "postgres://ntfy:mypassword@db.example.com:5432/ntfy?sslmode=require"
+    attachment-cache-dir: "/var/cache/ntfy/attachments"
+    behind-proxy: true
+    auth-default-access: "deny-all"
+    ```
+
 === "server.yml (ntfy.sh config)"
     ``` yaml
     # All the things: Behind a proxy, Firebase, cache, attachments, 
@@ -137,7 +147,7 @@ no external dependencies:
 * `auth-file`: Database file for authentication and [access control](#access-control). If set, enables auth.
 * `web-push-file`: Database file for [web push](#web-push) subscriptions.
 
-### PostgreSQL
+### PostgreSQL (EXPERIMENTAL)
 As an alternative, you can configure ntfy to use PostgreSQL for **all** database-backed stores by setting the
 `database-url` option to a PostgreSQL connection string:
 
@@ -155,7 +165,11 @@ topics. To restrict access, set `auth-default-access` to `deny-all` (see [access
 
 You can also set this via the environment variable `NTFY_DATABASE_URL` or the command line flag `--database-url`.
 
-You can tune the PostgreSQL connection pool by appending query parameters to the database URL:
+The database URL supports the standard [PostgreSQL connection parameters](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-PARAMKEYWORDS)
+as query parameters, such as `sslmode`, `connect_timeout`, `sslcert`, `sslkey`, `sslrootcert`, and `application_name`.
+See the [pgx driver documentation](https://pkg.go.dev/github.com/jackc/pgx/v5) for the full list of supported parameters.
+
+In addition, ntfy supports the following custom query parameters to tune the connection pool:
 
 | Parameter                 | Default | Description                                                                      |
 |---------------------------|---------|----------------------------------------------------------------------------------|
@@ -167,7 +181,7 @@ You can tune the PostgreSQL connection pool by appending query parameters to the
 Example:
 
 ```yaml
-database-url: "postgres://user:pass@host:5432/ntfy?pool_max_conns=50&pool_conn_max_idle_time=5m"
+database-url: "postgres://user:pass@host:5432/ntfy?sslmode=require&pool_max_conns=50&pool_conn_max_idle_time=5m"
 ```
 
 ## Message cache
@@ -1192,7 +1206,7 @@ a database to keep track of the browser's subscriptions, and an admin email addr
 - `web-push-expiry-duration` defines the duration after which unused subscriptions will expire (default is `60d`)
 
 Alternatively, you can use PostgreSQL instead of SQLite by setting `database-url`
-(see [PostgreSQL database](#postgresql-database)).
+(see [PostgreSQL database](#postgresql-experimental)).
 
 Limitations:
 
