@@ -3,8 +3,6 @@ package webpush
 import (
 	"database/sql"
 	"fmt"
-
-	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
 )
 
 const (
@@ -70,16 +68,8 @@ const (
 	pgSelectSchemaVersionQuery = `SELECT version FROM schema_version WHERE store = 'webpush'`
 )
 
-// NewPostgresStore creates a new PostgreSQL-backed web push store.
-func NewPostgresStore(dsn string) (Store, error) {
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		return nil, err
-	}
-	db.SetMaxOpenConns(25)
-	if err := db.Ping(); err != nil {
-		return nil, err
-	}
+// NewPostgresStore creates a new PostgreSQL-backed web push store using an existing database connection pool.
+func NewPostgresStore(db *sql.DB) (Store, error) {
 	if err := setupPostgresDB(db); err != nil {
 		return nil, err
 	}

@@ -3,8 +3,6 @@ package message
 import (
 	"database/sql"
 	"time"
-
-	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
 )
 
 // PostgreSQL runtime query constants
@@ -104,16 +102,8 @@ var pgQueries = storeQueries{
 	updateMessageTime:                pgUpdateMessageTimesQuery,
 }
 
-// NewPostgresStore creates a new PostgreSQL-backed message cache store.
-func NewPostgresStore(dsn string, batchSize int, batchTimeout time.Duration) (Store, error) {
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		return nil, err
-	}
-	db.SetMaxOpenConns(25)
-	if err := db.Ping(); err != nil {
-		return nil, err
-	}
+// NewPostgresStore creates a new PostgreSQL-backed message cache store using an existing database connection pool.
+func NewPostgresStore(db *sql.DB, batchSize int, batchTimeout time.Duration) (Store, error) {
 	if err := setupPostgresDB(db); err != nil {
 		return nil, err
 	}

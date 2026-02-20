@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"crypto/rand"
-	"database/sql"
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
@@ -24,12 +23,12 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/message"
 	"heckel.io/ntfy/v2/model"
+	"heckel.io/ntfy/v2/postgres"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 )
@@ -4135,7 +4134,7 @@ func forEachBackend(t *testing.T, f func(t *testing.T, databaseURL string)) {
 			t.Skip("NTFY_TEST_DATABASE_URL not set")
 		}
 		schema := fmt.Sprintf("test_%s", util.RandomString(10))
-		setupDB, err := sql.Open("pgx", dsn)
+		setupDB, err := postgres.OpenDB(dsn)
 		require.Nil(t, err)
 		_, err = setupDB.Exec(fmt.Sprintf("CREATE SCHEMA %s", schema))
 		require.Nil(t, err)
@@ -4147,9 +4146,11 @@ func forEachBackend(t *testing.T, f func(t *testing.T, databaseURL string)) {
 		u.RawQuery = q.Encode()
 		schemaDSN := u.String()
 		t.Cleanup(func() {
-			cleanDB, _ := sql.Open("pgx", dsn)
-			cleanDB.Exec(fmt.Sprintf("DROP SCHEMA %s CASCADE", schema))
-			cleanDB.Close()
+			cleanDB, _ := postgres.OpenDB(dsn)
+			if cleanDB != nil {
+				cleanDB.Exec(fmt.Sprintf("DROP SCHEMA %s CASCADE", schema))
+				cleanDB.Close()
+			}
 		})
 		f(t, schemaDSN)
 	})

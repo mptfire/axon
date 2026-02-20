@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
+	"heckel.io/ntfy/v2/postgres"
 	"heckel.io/ntfy/v2/util"
 )
 
@@ -38,7 +39,7 @@ func forEachBackend(t *testing.T, f func(t *testing.T, newStore newStoreFunc)) {
 			t.Skip("NTFY_TEST_DATABASE_URL not set")
 		}
 		schema := fmt.Sprintf("test_%s", util.RandomString(10))
-		setupDB, err := sql.Open("pgx", dsn)
+		setupDB, err := postgres.OpenDB(dsn)
 		require.Nil(t, err)
 		_, err = setupDB.Exec(fmt.Sprintf("CREATE SCHEMA %s", schema))
 		require.Nil(t, err)
@@ -50,12 +51,16 @@ func forEachBackend(t *testing.T, f func(t *testing.T, newStore newStoreFunc)) {
 		u.RawQuery = q.Encode()
 		schemaDSN := u.String()
 		t.Cleanup(func() {
-			cleanDB, _ := sql.Open("pgx", dsn)
-			cleanDB.Exec(fmt.Sprintf("DROP SCHEMA %s CASCADE", schema))
-			cleanDB.Close()
+			cleanDB, _ := postgres.OpenDB(dsn)
+			if cleanDB != nil {
+				cleanDB.Exec(fmt.Sprintf("DROP SCHEMA %s CASCADE", schema))
+				cleanDB.Close()
+			}
 		})
 		f(t, func() Store {
-			store, err := NewPostgresStore(schemaDSN)
+			db, err := postgres.OpenDB(schemaDSN)
+			require.Nil(t, err)
+			store, err := NewPostgresStore(db)
 			require.Nil(t, err)
 			return store
 		})

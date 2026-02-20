@@ -25,7 +25,6 @@ var errNoRows = errors.New("no rows found")
 type Store interface {
 	AddMessage(m *model.Message) error
 	AddMessages(ms []*model.Message) error
-	DB() *sql.DB
 	Message(id string) (*model.Message, error)
 	MessageCounts() (map[string]int, error)
 	Messages(topic string, since model.SinceMarker, scheduled bool) ([]*model.Message, error)
@@ -97,11 +96,6 @@ func newCommonStore(db *sql.DB, queries storeQueries, batchSize int, batchTimeou
 	}
 	go c.processMessageBatches()
 	return c
-}
-
-// DB returns the underlying database connection
-func (c *commonStore) DB() *sql.DB {
-	return c.db
 }
 
 // AddMessage stores a message to the message cache synchronously, or queues it to be stored at a later date asynchronously.

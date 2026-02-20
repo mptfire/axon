@@ -2,8 +2,6 @@ package user
 
 import (
 	"database/sql"
-
-	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
 )
 
 // PostgreSQL queries
@@ -206,16 +204,8 @@ const (
 	`
 )
 
-// NewPostgresStore creates a new PostgreSQL-backed user store
-func NewPostgresStore(dsn string) (Store, error) {
-	db, err := sql.Open("pgx", dsn)
-	if err != nil {
-		return nil, err
-	}
-	db.SetMaxOpenConns(25)
-	if err := db.Ping(); err != nil {
-		return nil, err
-	}
+// NewPostgresStore creates a new PostgreSQL-backed user store using an existing database connection pool.
+func NewPostgresStore(db *sql.DB) (Store, error) {
 	if err := setupPostgres(db); err != nil {
 		return nil, err
 	}

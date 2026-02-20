@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -36,6 +37,7 @@ import (
 	"heckel.io/ntfy/v2/message"
 	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/payments"
+	"heckel.io/ntfy/v2/postgres"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 	"heckel.io/ntfy/v2/util/sprig"
@@ -45,6 +47,7 @@ import (
 // Server is the main server, providing the UI and API for ntfy
 type Server struct {
 	config            *Config
+	db                *sql.DB          // Shared PostgreSQL connection pool, nil when using SQLite
 	httpServer        *http.Server
 	httpsServer       *http.Server
 	httpMetricsServer *http.Server
@@ -175,14 +178,23 @@ func New(conf *Config) (*Server, error) {
 	if payments.Available && conf.StripeSecretKey != "" {
 		stripe = newStripeAPI()
 	}
-	messageCache, err := createMessageCache(conf)
+	// Open shared PostgreSQL connection pool if configured
+	var db *sql.DB
+	if conf.DatabaseURL != "" {
+		var err error
+		db, err = postgres.OpenDB(conf.DatabaseURL)
+		if err != nil {
+			return nil, err
+		}
+	}
+	messageCache, err := createMessageCache(conf, db)
 	if err != nil {
 		return nil, err
 	}
 	var wp webpush.Store
 	if conf.WebPushPublicKey != "" {
-		if conf.DatabaseURL != "" {
-			wp, err = webpush.NewPostgresStore(conf.DatabaseURL)
+		if db != nil {
+			wp, err = webpush.NewPostgresStore(db)
 		} else {
 			wp, err = webpush.NewSQLiteStore(conf.WebPushFile, conf.WebPushStartupQueries)
 		}
@@ -210,7 +222,7 @@ func New(conf *Config) (*Server, error) {
 		}
 	}
 	var userManager *user.Manager
-	if conf.AuthFile != "" || conf.DatabaseURL != "" {
+	if conf.AuthFile != "" || db != nil {
 		authConfig := &user.Config{
 			Filename:            conf.AuthFile,
 			DatabaseURL:         conf.DatabaseURL,
@@ -224,8 +236,8 @@ func New(conf *Config) (*Server, error) {
 			QueueWriterInterval: conf.AuthStatsQueueWriterInterval,
 		}
 		var store user.Store
-		if conf.DatabaseURL != "" {
-			store, err = user.NewPostgresStore(conf.DatabaseURL)
+		if db != nil {
+			store, err = user.NewPostgresStore(db)
 		} else {
 			store, err = user.NewSQLiteStore(conf.AuthFile, conf.AuthStartupQueries)
 		}
@@ -253,6 +265,7 @@ func New(conf *Config) (*Server, error) {
 	}
 	s := &Server{
 		config:          conf,
+		db:              db,
 		messageCache:    messageCache,
 		webPush:         wp,
 		fileCache:       fileCache,
@@ -269,11 +282,11 @@ func New(conf *Config) (*Server, error) {
 	return s, nil
 }
 
-func createMessageCache(conf *Config) (message.Store, error) {
+func createMessageCache(conf *Config, db *sql.DB) (message.Store, error) {
 	if conf.CacheDuration == 0 {
 		return message.NewNopStore()
-	} else if conf.DatabaseURL != "" {
-		return message.NewPostgresStore(conf.DatabaseURL, conf.CacheBatchSize, conf.CacheBatchTimeout)
+	} else if db != nil {
+		return message.NewPostgresStore(db, conf.CacheBatchSize, conf.CacheBatchTimeout)
 	} else if conf.CacheFile != "" {
 		return message.NewSQLiteStore(conf.CacheFile, conf.CacheStartupQueries, conf.CacheDuration, conf.CacheBatchSize, conf.CacheBatchTimeout, false)
 	}
