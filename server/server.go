@@ -47,7 +47,7 @@ import (
 // Server is the main server, providing the UI and API for ntfy
 type Server struct {
 	config            *Config
-	db                *sql.DB          // Shared PostgreSQL connection pool, nil when using SQLite
+	db                *sql.DB // Shared PostgreSQL connection pool, nil when using SQLite
 	httpServer        *http.Server
 	httpsServer       *http.Server
 	httpMetricsServer *http.Server
