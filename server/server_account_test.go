@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/require"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 	"io"
@@ -715,12 +716,12 @@ func TestAccount_Reservation_Delete_Messages_And_Attachments(t *testing.T) {
 		require.FileExists(t, filepath.Join(s.config.AttachmentCacheDir, m2.ID))
 
 		// Pre-verify message count and file
-		ms, err := s.messageCache.Messages("mytopic1", sinceAllMessages, false)
+		ms, err := s.messageCache.Messages("mytopic1", model.SinceAllMessages, false)
 		require.Nil(t, err)
 		require.Equal(t, 1, len(ms))
 		require.FileExists(t, filepath.Join(s.config.AttachmentCacheDir, m1.ID))
 
-		ms, err = s.messageCache.Messages("mytopic2", sinceAllMessages, false)
+		ms, err = s.messageCache.Messages("mytopic2", model.SinceAllMessages, false)
 		require.Nil(t, err)
 		require.Equal(t, 1, len(ms))
 		require.FileExists(t, filepath.Join(s.config.AttachmentCacheDir, m2.ID))
@@ -741,17 +742,17 @@ func TestAccount_Reservation_Delete_Messages_And_Attachments(t *testing.T) {
 		// Verify that messages and attachments were deleted
 		// This does not explicitly call the manager!
 		waitFor(t, func() bool {
-			ms, err := s.messageCache.Messages("mytopic1", sinceAllMessages, false)
+			ms, err := s.messageCache.Messages("mytopic1", model.SinceAllMessages, false)
 			require.Nil(t, err)
 			return len(ms) == 0 && !util.FileExists(filepath.Join(s.config.AttachmentCacheDir, m1.ID))
 		})
 
-		ms, err = s.messageCache.Messages("mytopic1", sinceAllMessages, false)
+		ms, err = s.messageCache.Messages("mytopic1", model.SinceAllMessages, false)
 		require.Nil(t, err)
 		require.Equal(t, 0, len(ms))
 		require.NoFileExists(t, filepath.Join(s.config.AttachmentCacheDir, m1.ID))
 
-		ms, err = s.messageCache.Messages("mytopic2", sinceAllMessages, false)
+		ms, err = s.messageCache.Messages("mytopic2", model.SinceAllMessages, false)
 		require.Nil(t, err)
 		require.Equal(t, 1, len(ms))
 		require.Equal(t, m2.ID, ms[0].ID)

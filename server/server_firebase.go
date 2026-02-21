@@ -126,7 +126,7 @@ func toFirebaseMessage(m *model.Message, auther user.Auther) (*messaging.Message
 	var data map[string]string // Mostly matches https://ntfy.sh/docs/subscribe/api/#json-message-format
 	var apnsConfig *messaging.APNSConfig
 	switch m.Event {
-	case keepaliveEvent, openEvent:
+	case model.KeepaliveEvent, model.OpenEvent:
 		data = map[string]string{
 			"id":    m.ID,
 			"time":  fmt.Sprintf("%d", m.Time),
@@ -134,7 +134,7 @@ func toFirebaseMessage(m *model.Message, auther user.Auther) (*messaging.Message
 			"topic": m.Topic,
 		}
 		apnsConfig = createAPNSBackgroundConfig(data)
-	case pollRequestEvent:
+	case model.PollRequestEvent:
 		data = map[string]string{
 			"id":      m.ID,
 			"time":    fmt.Sprintf("%d", m.Time),
@@ -144,7 +144,7 @@ func toFirebaseMessage(m *model.Message, auther user.Auther) (*messaging.Message
 			"poll_id": m.PollID,
 		}
 		apnsConfig = createAPNSAlertConfig(m, data)
-	case messageDeleteEvent, messageClearEvent:
+	case model.MessageDeleteEvent, model.MessageClearEvent:
 		data = map[string]string{
 			"id":          m.ID,
 			"time":        fmt.Sprintf("%d", m.Time),
@@ -153,7 +153,7 @@ func toFirebaseMessage(m *model.Message, auther user.Auther) (*messaging.Message
 			"sequence_id": m.SequenceID,
 		}
 		apnsConfig = createAPNSBackgroundConfig(data)
-	case messageEvent:
+	case model.MessageEvent:
 		if auther != nil {
 			// If "anonymous read" for a topic is not allowed, we cannot send the message along
 			// via Firebase. Instead, we send a "poll_request" message, asking the client to poll.

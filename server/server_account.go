@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 	"net/http"
@@ -641,7 +642,7 @@ func (s *Server) publishSyncEvent(v *visitor) error {
 	if err != nil {
 		return err
 	}
-	m := newDefaultMessage(syncTopic.ID, string(messageBytes))
+	m := model.NewDefaultMessage(syncTopic.ID, string(messageBytes))
 	if err := syncTopic.Publish(v, m); err != nil {
 		return err
 	}

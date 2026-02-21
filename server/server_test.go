@@ -163,14 +163,14 @@ func TestServer_SubscribeOpenAndKeepalive(t *testing.T) {
 		messages := toMessages(t, rr.Body.String())
 		require.Equal(t, 2, len(messages))
 
-		require.Equal(t, openEvent, messages[0].Event)
+		require.Equal(t, model.OpenEvent, messages[0].Event)
 		require.Equal(t, "mytopic", messages[0].Topic)
 		require.Equal(t, "", messages[0].Message)
 		require.Equal(t, "", messages[0].Title)
 		require.Equal(t, 0, messages[0].Priority)
 		require.Nil(t, messages[0].Tags)
 
-		require.Equal(t, keepaliveEvent, messages[1].Event)
+		require.Equal(t, model.KeepaliveEvent, messages[1].Event)
 		require.Equal(t, "mytopic", messages[1].Topic)
 		require.Equal(t, "", messages[1].Message)
 		require.Equal(t, "", messages[1].Title)
@@ -201,9 +201,9 @@ func TestServer_PublishAndSubscribe(t *testing.T) {
 		subscribeCancel()
 		messages := toMessages(t, subscribeRR.Body.String())
 		require.Equal(t, 3, len(messages))
-		require.Equal(t, openEvent, messages[0].Event)
+		require.Equal(t, model.OpenEvent, messages[0].Event)
 
-		require.Equal(t, messageEvent, messages[1].Event)
+		require.Equal(t, model.MessageEvent, messages[1].Event)
 		require.Equal(t, "mytopic", messages[1].Topic)
 		require.Equal(t, "my first message", messages[1].Message)
 		require.Equal(t, "", messages[1].Title)
@@ -212,7 +212,7 @@ func TestServer_PublishAndSubscribe(t *testing.T) {
 		require.True(t, time.Now().Add(12*time.Hour-5*time.Second).Unix() < messages[1].Expires)
 		require.True(t, time.Now().Add(12*time.Hour+5*time.Second).Unix() > messages[1].Expires)
 
-		require.Equal(t, messageEvent, messages[2].Event)
+		require.Equal(t, model.MessageEvent, messages[2].Event)
 		require.Equal(t, "mytopic", messages[2].Topic)
 		require.Equal(t, "my other message", messages[2].Message)
 		require.Equal(t, "This is a title", messages[2].Title)
@@ -426,7 +426,7 @@ func TestServer_PublishAt(t *testing.T) {
 		require.Equal(t, netip.Addr{}, messages[0].Sender) // Never return the sender!
 
 		var err error
-		messages, err = s.messageCache.Messages("mytopic", sinceAllMessages, true)
+		messages, err = s.messageCache.Messages("mytopic", model.SinceAllMessages, true)
 		require.Nil(t, err)
 		require.Equal(t, 1, len(messages))
 		require.Equal(t, "a message", messages[0].Message)
@@ -465,7 +465,7 @@ func TestServer_PublishAt_FromUser(t *testing.T) {
 		require.Equal(t, "a message", messages[0].Message)
 
 		var err error
-		messages, err = s.messageCache.Messages("mytopic", sinceAllMessages, true)
+		messages, err = s.messageCache.Messages("mytopic", model.SinceAllMessages, true)
 		require.Nil(t, err)
 		require.Equal(t, 1, len(messages))
 		require.Equal(t, "a message", messages[0].Message)
@@ -607,8 +607,8 @@ func TestServer_PublishWithNopCache(t *testing.T) {
 		subscribeCancel()
 		messages := toMessages(t, subscribeRR.Body.String())
 		require.Equal(t, 2, len(messages))
-		require.Equal(t, openEvent, messages[0].Event)
-		require.Equal(t, messageEvent, messages[1].Event)
+		require.Equal(t, model.OpenEvent, messages[0].Event)
+		require.Equal(t, model.MessageEvent, messages[1].Event)
 		require.Equal(t, "my first message", messages[1].Message)
 
 		response := request(t, s, "GET", "/mytopic/json?poll=1", "", nil)
@@ -654,7 +654,7 @@ func TestServer_PublishAndPollSince(t *testing.T) {
 }
 
 func newMessageWithTimestamp(topic, msg string, timestamp int64) *model.Message {
-	m := newDefaultMessage(topic, msg)
+	m := model.NewDefaultMessage(topic, msg)
 	m.Time = timestamp
 	return m
 }
@@ -935,10 +935,10 @@ func TestServer_SubscribeWithQueryFilters(t *testing.T) {
 
 		messages := toMessages(t, subscribeResponse.Body.String())
 		require.Equal(t, 3, len(messages))
-		require.Equal(t, openEvent, messages[0].Event)
-		require.Equal(t, messageEvent, messages[1].Event)
+		require.Equal(t, model.OpenEvent, messages[0].Event)
+		require.Equal(t, model.MessageEvent, messages[1].Event)
 		require.Equal(t, "ZFS scrub failed", messages[1].Message)
-		require.Equal(t, keepaliveEvent, messages[2].Event)
+		require.Equal(t, model.KeepaliveEvent, messages[2].Event)
 	})
 }
 
@@ -2652,7 +2652,7 @@ func TestServer_PublishWhileUpdatingStatsWithLotsOfMessages(t *testing.T) {
 			topicID := fmt.Sprintf("topic%d", i)
 			_, err := s.topicsFromIDs(topicID) // Add topic to internal s.topics array
 			require.Nil(t, err)
-			messages = append(messages, newDefaultMessage(topicID, "some message"))
+			messages = append(messages, model.NewDefaultMessage(topicID, "some message"))
 		}
 		require.Nil(t, s.messageCache.AddMessages(messages))
 		log.Info("Done: Adding %d messages; took %s", count, time.Since(start).Round(time.Millisecond))
@@ -4398,7 +4398,7 @@ func TestServer_SubscribeHTTP_NoWriteAfterHandlerReturn(t *testing.T) {
 		// how the panic occurs: the goroutine spawned by topic.Publish calls sub() after the
 		// handler has already returned and Go has cleaned up the response writer.
 		v := newVisitor(s.config, s.messageCache, s.userManager, netip.MustParseAddr("9.9.9.9"), nil)
-		msg := newDefaultMessage("mytopic", "straggler message")
+		msg := model.NewDefaultMessage("mytopic", "straggler message")
 		_ = copiedSub(v, msg)
 
 		require.False(t, rw.wroteAfterClose.Load(),

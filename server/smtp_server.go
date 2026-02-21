@@ -160,7 +160,7 @@ func (s *smtpSession) Data(r io.Reader) error {
 		if len(body) > conf.MessageSizeLimit {
 			body = body[:conf.MessageSizeLimit]
 		}
-		m := newDefaultMessage(s.topic, body)
+		m := model.NewDefaultMessage(s.topic, body)
 		subject := strings.TrimSpace(msg.Header.Get("Subject"))
 		if subject != "" {
 			dec := mime.WordDecoder{}

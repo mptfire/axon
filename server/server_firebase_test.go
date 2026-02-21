@@ -64,7 +64,7 @@ func (s *testFirebaseSender) Messages() []*messaging.Message {
 }
 
 func TestToFirebaseMessage_Keepalive(t *testing.T) {
-	m := newKeepaliveMessage("mytopic")
+	m := model.NewKeepaliveMessage("mytopic")
 	fbm, err := toFirebaseMessage(m, nil)
 	require.Nil(t, err)
 	require.Equal(t, "mytopic", fbm.Topic)
@@ -95,7 +95,7 @@ func TestToFirebaseMessage_Keepalive(t *testing.T) {
 }
 
 func TestToFirebaseMessage_Open(t *testing.T) {
-	m := newOpenMessage("mytopic")
+	m := model.NewOpenMessage("mytopic")
 	fbm, err := toFirebaseMessage(m, nil)
 	require.Nil(t, err)
 	require.Equal(t, "mytopic", fbm.Topic)
@@ -126,7 +126,7 @@ func TestToFirebaseMessage_Open(t *testing.T) {
 }
 
 func TestToFirebaseMessage_Message_Normal_Allowed(t *testing.T) {
-	m := newDefaultMessage("mytopic", "this is a message")
+	m := model.NewDefaultMessage("mytopic", "this is a message")
 	m.Priority = 4
 	m.Tags = []string{"tag 1", "tag2"}
 	m.Click = "https://google.com"
@@ -220,7 +220,7 @@ func TestToFirebaseMessage_Message_Normal_Allowed(t *testing.T) {
 }
 
 func TestToFirebaseMessage_Message_Normal_Not_Allowed(t *testing.T) {
-	m := newDefaultMessage("mytopic", "this is a message")
+	m := model.NewDefaultMessage("mytopic", "this is a message")
 	m.Priority = 5
 	fbm, err := toFirebaseMessage(m, &testAuther{Allow: false}) // Not allowed!
 	require.Nil(t, err)

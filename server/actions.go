@@ -136,7 +136,7 @@ func (p *actionParser) Parse() ([]*model.Action, error) {
 // and then uses populateAction to interpret the keys/values. The function terminates
 // when EOF or ";" is reached.
 func (p *actionParser) parseAction() (*model.Action, error) {
-	a := newAction()
+	a := model.NewAction()
 	section := 0
 	for {
 		key, value, last, err := p.parseSection()

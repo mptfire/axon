@@ -8,45 +8,9 @@ import (
 	"heckel.io/ntfy/v2/util"
 )
 
-// Event constants
-const (
-	openEvent          = model.OpenEvent
-	keepaliveEvent     = model.KeepaliveEvent
-	messageEvent       = model.MessageEvent
-	messageDeleteEvent = model.MessageDeleteEvent
-	messageClearEvent  = model.MessageClearEvent
-	pollRequestEvent   = model.PollRequestEvent
-	messageIDLength    = model.MessageIDLength
-)
-
-// SinceMarker aliases
-var (
-	sinceAllMessages   = model.SinceAllMessages
-	sinceNoMessages    = model.SinceNoMessages
-	sinceLatestMessage = model.SinceLatestMessage
-)
-
-// Error aliases
-var (
-	errMessageNotFound = model.ErrMessageNotFound
-)
-
-// Constructors and helpers
-var (
-	newMessage          = model.NewMessage
-	newDefaultMessage   = model.NewDefaultMessage
-	newOpenMessage      = model.NewOpenMessage
-	newKeepaliveMessage = model.NewKeepaliveMessage
-	newActionMessage    = model.NewActionMessage
-	newAction           = model.NewAction
-	newSinceTime        = model.NewSinceTime
-	newSinceID          = model.NewSinceID
-	validMessageID      = model.ValidMessageID
-)
-
 // newPollRequestMessage is a convenience method to create a poll request message
 func newPollRequestMessage(topic, pollID string) *model.Message {
-	m := newMessage(pollRequestEvent, topic, newMessageBody)
+	m := model.NewMessage(model.PollRequestEvent, topic, newMessageBody)
 	m.PollID = pollID
 	return m
 }
@@ -106,7 +70,7 @@ func parseQueryFilters(r *http.Request) (*queryFilter, error) {
 }
 
 func (q *queryFilter) Pass(msg *model.Message) bool {
-	if msg.Event != messageEvent && msg.Event != messageDeleteEvent && msg.Event != messageClearEvent {
+	if msg.Event != model.MessageEvent && msg.Event != model.MessageDeleteEvent && msg.Event != model.MessageClearEvent {
 		return true // filters only apply to messages
 	} else if q.ID != "" && msg.ID != q.ID {
 		return false

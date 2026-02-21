@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/util"
 	"io"
 	"os"
@@ -13,7 +14,7 @@ import (
 )
 
 var (
-	fileIDRegex      = regexp.MustCompile(fmt.Sprintf(`^[-_A-Za-z0-9]{%d}$`, messageIDLength))
+	fileIDRegex      = regexp.MustCompile(fmt.Sprintf(`^[-_A-Za-z0-9]{%d}$`, model.MessageIDLength))
 	errInvalidFileID = errors.New("invalid file ID")
 	errFileExists    = errors.New("file exists")
 )

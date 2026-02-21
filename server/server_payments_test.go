@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stripe/stripe-go/v74"
 	"golang.org/x/time/rate"
+	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
@@ -546,12 +547,12 @@ func TestPayments_Webhook_Subscription_Updated_Downgrade_From_PastDue_To_Active(
 		time.Sleep(time.Second)
 		s.execManager()
 
-		ms, err := s.messageCache.Messages("atopic", sinceAllMessages, false)
+		ms, err := s.messageCache.Messages("atopic", model.SinceAllMessages, false)
 		require.Nil(t, err)
 		require.Equal(t, 2, len(ms))
 		require.FileExists(t, filepath.Join(s.config.AttachmentCacheDir, a2.ID))
 
-		ms, err = s.messageCache.Messages("ztopic", sinceAllMessages, false)
+		ms, err = s.messageCache.Messages("ztopic", model.SinceAllMessages, false)
 		require.Nil(t, err)
 		require.Equal(t, 0, len(ms))
 		require.NoFileExists(t, filepath.Join(s.config.AttachmentCacheDir, z2.ID))

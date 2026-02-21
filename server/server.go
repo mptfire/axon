@@ -770,7 +770,7 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request, v *visitor) 
 	//   - avoid abuse (e.g. 1 uploader, 1k downloaders)
 	//   - and also uses the higher bandwidth limits of a paying user
 	m, err := s.messageCache.Message(messageID)
-	if errors.Is(err, errMessageNotFound) {
+	if errors.Is(err, model.ErrMessageNotFound) {
 		if s.config.CacheBatchTimeout > 0 {
 			// Strange edge case: If we immediately after upload request the file (the web app does this for images),
 			// and messages are persisted asynchronously, retry fetching from the database
@@ -834,7 +834,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 	if err != nil {
 		return nil, err
 	}
-	m := newDefaultMessage(t.ID, "")
+	m := model.NewDefaultMessage(t.ID, "")
 	cache, firebase, email, call, template, unifiedpush, priorityStr, e := s.parsePublishParams(r, m)
 	if e != nil {
 		return nil, e.With(t)
@@ -977,11 +977,11 @@ func (s *Server) handlePublishMatrix(w http.ResponseWriter, r *http.Request, v *
 }
 
 func (s *Server) handleDelete(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	return s.handleActionMessage(w, r, v, messageDeleteEvent)
+	return s.handleActionMessage(w, r, v, model.MessageDeleteEvent)
 }
 
 func (s *Server) handleClear(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	return s.handleActionMessage(w, r, v, messageClearEvent)
+	return s.handleActionMessage(w, r, v, model.MessageClearEvent)
 }
 
 func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *visitor, event string) error {
@@ -1001,7 +1001,7 @@ func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *
 		return e.With(t)
 	}
 	// Create an action message with the given event type
-	m := newActionMessage(event, t.ID, sequenceID)
+	m := model.NewActionMessage(event, t.ID, sequenceID)
 	m.Sender = v.IP()
 	m.User = v.MaybeUserID()
 	m.Expires = time.Unix(m.Time, 0).Add(v.Limits().MessageExpiryDuration).Unix()
@@ -1017,7 +1017,7 @@ func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *
 	if s.config.WebPushPublicKey != "" {
 		go s.publishToWebPushEndpoints(v, m)
 	}
-	if event == messageDeleteEvent {
+	if event == model.MessageDeleteEvent {
 		// Delete any existing scheduled message with the same sequence ID
 		deletedIDs, err := s.messageCache.DeleteScheduledBySequenceID(t.ID, sequenceID)
 		if err != nil {
@@ -1246,7 +1246,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 //  7. curl -T file.txt ntfy.sh/mytopic
 //     In all other cases, mostly if file.txt is > message limit, treat it as an attachment
 func (s *Server) handlePublishBody(r *http.Request, v *visitor, m *model.Message, body *util.PeekedReadCloser, template templateMode, unifiedpush bool, priorityStr string) error {
-	if m.Event == pollRequestEvent { // Case 1
+	if m.Event == model.PollRequestEvent { // Case 1
 		return s.handleBodyDiscard(body)
 	} else if unifiedpush {
 		return s.handleBodyAsMessageAutoDetect(m, body) // Case 2
@@ -1466,7 +1466,7 @@ func (s *Server) handleSubscribeSSE(w http.ResponseWriter, r *http.Request, v *v
 		if err := json.NewEncoder(&buf).Encode(msg.ForJSON()); err != nil {
 			return "", err
 		}
-		if msg.Event != messageEvent && msg.Event != messageDeleteEvent && msg.Event != messageClearEvent {
+		if msg.Event != model.MessageEvent && msg.Event != model.MessageDeleteEvent && msg.Event != model.MessageClearEvent {
 			return fmt.Sprintf("event: %s\ndata: %s\n", msg.Event, buf.String()), nil // Browser's .onmessage() does not fire on this!
 		}
 		return fmt.Sprintf("data: %s\n", buf.String()), nil
@@ -1476,7 +1476,7 @@ func (s *Server) handleSubscribeSSE(w http.ResponseWriter, r *http.Request, v *v
 
 func (s *Server) handleSubscribeRaw(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	encoder := func(msg *model.Message) (string, error) {
-		if msg.Event == messageEvent { // only handle default events
+		if msg.Event == model.MessageEvent { // only handle default events
 			return strings.ReplaceAll(msg.Message, "\n", " ") + "\n", nil
 		}
 		return "\n", nil // "keepalive" and "open" events just send an empty line
@@ -1554,7 +1554,7 @@ func (s *Server) handleSubscribeHTTP(w http.ResponseWriter, r *http.Request, v *
 			topics[i].Unsubscribe(subscriberID) // Order!
 		}
 	}()
-	if err := sub(v, newOpenMessage(topicsStr)); err != nil { // Send out open message
+	if err := sub(v, model.NewOpenMessage(topicsStr)); err != nil { // Send out open message
 		return err
 	}
 	if err := s.sendOldMessages(topics, since, scheduled, v, sub); err != nil {
@@ -1577,7 +1577,7 @@ func (s *Server) handleSubscribeHTTP(w http.ResponseWriter, r *http.Request, v *
 			for _, t := range topics {
 				t.Keepalive()
 			}
-			if err := sub(v, newKeepaliveMessage(topicsStr)); err != nil { // Send keepalive message
+			if err := sub(v, model.NewKeepaliveMessage(topicsStr)); err != nil { // Send keepalive message
 				return err
 			}
 		}
@@ -1703,7 +1703,7 @@ func (s *Server) handleSubscribeWS(w http.ResponseWriter, r *http.Request, v *vi
 			topics[i].Unsubscribe(subscriberID) // Order!
 		}
 	}()
-	if err := sub(v, newOpenMessage(topicsStr)); err != nil { // Send out open message
+	if err := sub(v, model.NewOpenMessage(topicsStr)); err != nil { // Send out open message
 		return err
 	}
 	if err := s.sendOldMessages(topics, since, scheduled, v, sub); err != nil {
@@ -1834,26 +1834,26 @@ func parseSince(r *http.Request, poll bool) (model.SinceMarker, error) {
 	// Easy cases (empty, all, none)
 	if since == "" {
 		if poll {
-			return sinceAllMessages, nil
+			return model.SinceAllMessages, nil
 		}
-		return sinceNoMessages, nil
+		return model.SinceNoMessages, nil
 	} else if since == "all" {
-		return sinceAllMessages, nil
+		return model.SinceAllMessages, nil
 	} else if since == "latest" {
-		return sinceLatestMessage, nil
+		return model.SinceLatestMessage, nil
 	} else if since == "none" {
-		return sinceNoMessages, nil
+		return model.SinceNoMessages, nil
 	}
 
 	// ID, timestamp, duration
-	if validMessageID(since) {
-		return newSinceID(since), nil
+	if model.ValidMessageID(since) {
+		return model.NewSinceID(since), nil
 	} else if s, err := strconv.ParseInt(since, 10, 64); err == nil {
-		return newSinceTime(s), nil
+		return model.NewSinceTime(s), nil
 	} else if d, err := time.ParseDuration(since); err == nil {
-		return newSinceTime(time.Now().Add(-1 * d).Unix()), nil
+		return model.NewSinceTime(time.Now().Add(-1 * d).Unix()), nil
 	}
-	return sinceNoMessages, errHTTPBadRequestSinceInvalid
+	return model.SinceNoMessages, errHTTPBadRequestSinceInvalid
 }
 
 func (s *Server) handleOptions(w http.ResponseWriter, _ *http.Request, _ *visitor) error {
@@ -2009,14 +2009,14 @@ func (s *Server) runFirebaseKeepaliver() {
 	for {
 		select {
 		case <-time.After(s.config.FirebaseKeepaliveInterval):
-			s.sendToFirebase(v, newKeepaliveMessage(firebaseControlTopic))
+			s.sendToFirebase(v, model.NewKeepaliveMessage(firebaseControlTopic))
 		/*
 			FIXME: Disable iOS polling entirely for now due to thundering herd problem (see #677)
 			       To solve this, we'd have to shard the iOS poll topics to spread out the polling evenly.
 			       Given that it's not really necessary to poll, turning it off for now should not have any impact.
 
 			case <-time.After(s.config.FirebasePollInterval):
-				s.sendToFirebase(v, newKeepaliveMessage(firebasePollTopic))
+				s.sendToFirebase(v, model.NewKeepaliveMessage(firebasePollTopic))
 		*/
 		case <-s.closeChan:
 			return

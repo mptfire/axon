@@ -2,6 +2,7 @@ package server
 
 import (
 	"github.com/stretchr/testify/require"
+	"heckel.io/ntfy/v2/model"
 	"testing"
 )
 
@@ -25,6 +26,6 @@ func TestServer_Manager_Prune_Messages_Without_Attachments_DoesNotPanic(t *testi
 
 		// Actually deleted
 		_, err := s.messageCache.Message(m.ID)
-		require.Equal(t, errMessageNotFound, err)
+		require.Equal(t, model.ErrMessageNotFound, err)
 	})
 }
