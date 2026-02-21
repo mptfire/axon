@@ -8,13 +8,6 @@ import (
 	"heckel.io/ntfy/v2/util"
 )
 
-// newPollRequestMessage is a convenience method to create a poll request message
-func newPollRequestMessage(topic, pollID string) *model.Message {
-	m := model.NewMessage(model.PollRequestEvent, topic, newMessageBody)
-	m.PollID = pollID
-	return m
-}
-
 // publishMessage is used as input when publishing as JSON
 type publishMessage struct {
 	Topic      string         `json:"topic"`

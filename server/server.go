@@ -859,7 +859,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 		}
 	}
 	if m.PollID != "" {
-		m = newPollRequestMessage(t.ID, m.PollID)
+		m = model.NewPollRequestMessage(t.ID, m.PollID)
 	}
 	m.Sender = v.IP()
 	m.User = v.MaybeUserID()

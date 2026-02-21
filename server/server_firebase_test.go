@@ -251,7 +251,7 @@ func TestToFirebaseMessage_Message_Normal_Not_Allowed(t *testing.T) {
 }
 
 func TestToFirebaseMessage_PollRequest(t *testing.T) {
-	m := newPollRequestMessage("mytopic", "fOv6k1QbCzo6")
+	m := model.NewPollRequestMessage("mytopic", "fOv6k1QbCzo6")
 	fbm, err := toFirebaseMessage(m, nil)
 	require.Nil(t, err)
 	require.Equal(t, "mytopic", fbm.Topic)

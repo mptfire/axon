@@ -298,7 +298,7 @@ func maybeTruncateAPNSBodyMessage(s string) string {
 // This empties all the fields that are not needed for a poll request and just sets the required fields,
 // most importantly, the PollID.
 func toPollRequest(m *model.Message) *model.Message {
-	pr := newPollRequestMessage(m.Topic, m.ID)
+	pr := model.NewPollRequestMessage(m.Topic, m.ID)
 	pr.ID = m.ID
 	pr.Time = m.Time
 	pr.Priority = m.Priority // Keep priority

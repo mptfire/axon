@@ -146,6 +146,13 @@ func NewActionMessage(event, topic, sequenceID string) *Message {
 	return m
 }
 
+// NewPollRequestMessage is a convenience method to create a poll request message
+func NewPollRequestMessage(topic, pollID string) *Message {
+	m := NewMessage(PollRequestEvent, topic, "New message")
+	m.PollID = pollID
+	return m
+}
+
 // ValidMessageID returns true if the given string is a valid message ID
 func ValidMessageID(s string) bool {
 	return util.ValidRandomString(s, MessageIDLength)
