@@ -1700,6 +1700,10 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ### ntfy server v2.18.x (UNRELEASED)
 
+**Features:**
+
+* Add experimental [PostgreSQL support](config.md#postgresql-experimental) as an alternative database backend (message cache, user manager, web push subscriptions) via `database-url` config option ([#1114](https://github.com/binwiederhier/ntfy/issues/1114), thanks to [@brettinternet](https://github.com/brettinternet) for reporting)
+
 **Bug fixes + maintenance:**
 
 * Preserve `<br>` line breaks in HTML-only emails received via SMTP ([#690](https://github.com/binwiederhier/ntfy/issues/690), [#1620](https://github.com/binwiederhier/ntfy/pull/1620), thanks to [@uzkikh](https://github.com/uzkikh) for the fix and to [@teastrainer](https://github.com/teastrainer) for reporting)
@@ -1721,9 +1725,3 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 * Fix notification timestamp to use original send time instead of receive time ([#1112](https://github.com/binwiederhier/ntfy/issues/1112), thanks to [@voruti](https://github.com/voruti) for reporting)
 * Fix notifications being missed after service restart by using persisted lastNotificationId ([#1591](https://github.com/binwiederhier/ntfy/issues/1591), thanks to @Epifeny for reporting)
 * Fix crash in settings when fragment is detached during backup/restore or log operations
-
-### ntfy server v2.12.x (UNRELEASED)
-
-**Features:**
-
-* Add experimental [PostgreSQL support](config.md#postgresql-experimental) as an alternative database backend (message cache, user manager, web push subscriptions) via `database-url` config option
