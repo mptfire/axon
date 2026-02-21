@@ -34,6 +34,7 @@ var (
 var (
 	onlySpacesRegex          = regexp.MustCompile(`(?m)^\s+$`)
 	consecutiveNewLinesRegex = regexp.MustCompile(`\n{3,}`)
+	htmlLineBreakRegex       = regexp.MustCompile(`(?i)<br\s*/?>`)
 )
 
 const (
@@ -328,6 +329,9 @@ func readHTMLMailBody(reader io.Reader, transferEncoding string) (string, error)
 	if err != nil {
 		return "", err
 	}
+	// Convert <br> tags to newlines before stripping HTML, so that line breaks
+	// in HTML emails (e.g. from Synology DSM, and other appliances) are preserved.
+	body = htmlLineBreakRegex.ReplaceAllString(body, "\n")
 	stripped := bluemonday.
 		StrictPolicy().
 		AddSpaceWhenStrippingTag(true).
