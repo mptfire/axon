@@ -9,7 +9,7 @@ import (
 )
 
 func newTestPostgresStore(t *testing.T) webpush.Store {
-	testDB := dbtest.CreateTestDB(t)
+	testDB := dbtest.CreateTestPostgres(t)
 	store, err := webpush.NewPostgresStore(testDB)
 	require.Nil(t, err)
 	return store

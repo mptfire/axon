@@ -4128,7 +4128,7 @@ func forEachBackend(t *testing.T, f func(t *testing.T, databaseURL string)) {
 		f(t, "")
 	})
 	t.Run("postgres", func(t *testing.T) {
-		f(t, dbtest.CreateTestSchema(t))
+		f(t, dbtest.CreateTestPostgresSchema(t))
 	})
 }
 

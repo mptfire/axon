@@ -14,10 +14,10 @@ import (
 
 const testPoolMaxConns = "2"
 
-// CreateTestSchema creates a temporary PostgreSQL schema and returns the DSN pointing to it.
+// CreateTestPostgresSchema creates a temporary PostgreSQL schema and returns the DSN pointing to it.
 // It registers a cleanup function to drop the schema when the test finishes.
 // If NTFY_TEST_DATABASE_URL is not set, the test is skipped.
-func CreateTestSchema(t *testing.T) string {
+func CreateTestPostgresSchema(t *testing.T) string {
 	t.Helper()
 	dsn := os.Getenv("NTFY_TEST_DATABASE_URL")
 	if dsn == "" {
@@ -48,12 +48,12 @@ func CreateTestSchema(t *testing.T) string {
 	return schemaDSN
 }
 
-// CreateTestDB creates a temporary PostgreSQL schema and returns an open *sql.DB connection to it.
+// CreateTestPostgres creates a temporary PostgreSQL schema and returns an open *sql.DB connection to it.
 // It registers cleanup functions to close the DB and drop the schema when the test finishes.
 // If NTFY_TEST_DATABASE_URL is not set, the test is skipped.
-func CreateTestDB(t *testing.T) *sql.DB {
+func CreateTestPostgres(t *testing.T) *sql.DB {
 	t.Helper()
-	schemaDSN := CreateTestSchema(t)
+	schemaDSN := CreateTestPostgresSchema(t)
 	testDB, err := db.OpenPostgres(schemaDSN)
 	require.Nil(t, err)
 	t.Cleanup(func() {
