@@ -13,158 +13,6 @@ import (
 	"heckel.io/ntfy/v2/model"
 )
 
-func TestSqliteStore_Messages(t *testing.T) {
-	testCacheMessages(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_Messages(t *testing.T) {
-	testCacheMessages(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_MessagesLock(t *testing.T) {
-	testCacheMessagesLock(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_MessagesLock(t *testing.T) {
-	testCacheMessagesLock(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_MessagesScheduled(t *testing.T) {
-	testCacheMessagesScheduled(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_MessagesScheduled(t *testing.T) {
-	testCacheMessagesScheduled(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_Topics(t *testing.T) {
-	testCacheTopics(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_Topics(t *testing.T) {
-	testCacheTopics(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_MessagesTagsPrioAndTitle(t *testing.T) {
-	testCacheMessagesTagsPrioAndTitle(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_MessagesTagsPrioAndTitle(t *testing.T) {
-	testCacheMessagesTagsPrioAndTitle(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_MessagesSinceID(t *testing.T) {
-	testCacheMessagesSinceID(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_MessagesSinceID(t *testing.T) {
-	testCacheMessagesSinceID(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_Prune(t *testing.T) {
-	testCachePrune(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_Prune(t *testing.T) {
-	testCachePrune(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_Attachments(t *testing.T) {
-	testCacheAttachments(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_Attachments(t *testing.T) {
-	testCacheAttachments(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_AttachmentsExpired(t *testing.T) {
-	testCacheAttachmentsExpired(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_AttachmentsExpired(t *testing.T) {
-	testCacheAttachmentsExpired(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_Sender(t *testing.T) {
-	testSender(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_Sender(t *testing.T) {
-	testSender(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_DeleteScheduledBySequenceID(t *testing.T) {
-	testDeleteScheduledBySequenceID(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_DeleteScheduledBySequenceID(t *testing.T) {
-	testDeleteScheduledBySequenceID(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_MessageByID(t *testing.T) {
-	testMessageByID(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_MessageByID(t *testing.T) {
-	testMessageByID(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_MarkPublished(t *testing.T) {
-	testMarkPublished(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_MarkPublished(t *testing.T) {
-	testMarkPublished(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_ExpireMessages(t *testing.T) {
-	testExpireMessages(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_ExpireMessages(t *testing.T) {
-	testExpireMessages(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_MarkAttachmentsDeleted(t *testing.T) {
-	testMarkAttachmentsDeleted(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_MarkAttachmentsDeleted(t *testing.T) {
-	testMarkAttachmentsDeleted(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_Stats(t *testing.T) {
-	testStats(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_Stats(t *testing.T) {
-	testStats(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_AddMessages(t *testing.T) {
-	testAddMessages(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_AddMessages(t *testing.T) {
-	testAddMessages(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_MessagesDue(t *testing.T) {
-	testMessagesDue(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_MessagesDue(t *testing.T) {
-	testMessagesDue(t, newMemTestStore(t))
-}
-
-func TestSqliteStore_MessageFieldRoundTrip(t *testing.T) {
-	testMessageFieldRoundTrip(t, newSqliteTestStore(t))
-}
-
-func TestMemStore_MessageFieldRoundTrip(t *testing.T) {
-	testMessageFieldRoundTrip(t, newMemTestStore(t))
-}
-
 func TestSqliteStore_Migration_From0(t *testing.T) {
 	filename := newSqliteTestStoreFile(t)
 	db, err := sql.Open("sqlite3", filename)
@@ -419,27 +267,12 @@ func TestNopStore(t *testing.T) {
 	require.Empty(t, topics)
 }
 
-func newSqliteTestStore(t *testing.T) message.Store {
-	filename := filepath.Join(t.TempDir(), "cache.db")
-	s, err := message.NewSQLiteStore(filename, "", time.Hour, 0, 0, false)
-	require.Nil(t, err)
-	t.Cleanup(func() { s.Close() })
-	return s
-}
-
 func newSqliteTestStoreFile(t *testing.T) string {
 	return filepath.Join(t.TempDir(), "cache.db")
 }
 
 func newSqliteTestStoreFromFile(t *testing.T, filename, startupQueries string) message.Store {
 	s, err := message.NewSQLiteStore(filename, startupQueries, time.Hour, 0, 0, false)
-	require.Nil(t, err)
-	t.Cleanup(func() { s.Close() })
-	return s
-}
-
-func newMemTestStore(t *testing.T) message.Store {
-	s, err := message.NewMemStore()
 	require.Nil(t, err)
 	t.Cleanup(func() { s.Close() })
 	return s
