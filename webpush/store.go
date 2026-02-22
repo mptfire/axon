@@ -40,7 +40,7 @@ type storeQueries struct {
 	selectSubscriptionCountBySubscriberIP      string
 	selectSubscriptionsForTopic                string
 	selectSubscriptionsExpiringSoon            string
-	insertSubscription                         string
+	upsertSubscription                         string
 	updateSubscriptionWarningSent              string
 	updateSubscriptionUpdatedAt                string
 	deleteSubscriptionByEndpoint               string
@@ -71,8 +71,7 @@ func (s *commonStore) UpsertSubscription(endpoint string, auth, p256dh, userID s
 	}
 	// Read existing subscription ID for endpoint (or create new ID)
 	var subscriptionID string
-	err = tx.QueryRow(s.queries.selectSubscriptionIDByEndpoint, endpoint).Scan(&subscriptionID)
-	if errors.Is(err, sql.ErrNoRows) {
+	if err := tx.QueryRow(s.queries.selectSubscriptionIDByEndpoint, endpoint).Scan(&subscriptionID); errors.Is(err, sql.ErrNoRows) {
 		if subscriptionCount >= subscriptionEndpointLimitPerSubscriberIP {
 			return ErrWebPushTooManySubscriptions
 		}
@@ -82,7 +81,7 @@ func (s *commonStore) UpsertSubscription(endpoint string, auth, p256dh, userID s
 	}
 	// Insert or update subscription
 	updatedAt, warnedAt := time.Now().Unix(), 0
-	if _, err = tx.Exec(s.queries.insertSubscription, subscriptionID, endpoint, auth, p256dh, userID, subscriberIP.String(), updatedAt, warnedAt); err != nil {
+	if _, err := tx.Exec(s.queries.upsertSubscription, subscriptionID, endpoint, auth, p256dh, userID, subscriberIP.String(), updatedAt, warnedAt); err != nil {
 		return err
 	}
 	// Replace all subscription topics

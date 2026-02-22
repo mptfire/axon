@@ -96,7 +96,7 @@ func NewSQLiteStore(filename, startupQueries string) (Store, error) {
 			selectSubscriptionCountBySubscriberIP:      sqliteSelectWebPushSubscriptionCountBySubscriberIPQuery,
 			selectSubscriptionsForTopic:                sqliteSelectWebPushSubscriptionsForTopicQuery,
 			selectSubscriptionsExpiringSoon:            sqliteSelectWebPushSubscriptionsExpiringSoonQuery,
-			insertSubscription:                         sqliteInsertWebPushSubscriptionQuery,
+			upsertSubscription:                         sqliteInsertWebPushSubscriptionQuery,
 			updateSubscriptionWarningSent:              sqliteUpdateWebPushSubscriptionWarningSentQuery,
 			updateSubscriptionUpdatedAt:                sqliteUpdateWebPushSubscriptionUpdatedAtQuery,
 			deleteSubscriptionByEndpoint:               sqliteDeleteWebPushSubscriptionByEndpointQuery,

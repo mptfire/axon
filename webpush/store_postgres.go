@@ -44,7 +44,7 @@ const (
 		FROM webpush_subscription
 		WHERE warned_at = 0 AND updated_at <= $1
 	`
-	postgresInsertSubscriptionQuery = `
+	postgresUpsertSubscriptionQuery = `
 		INSERT INTO webpush_subscription (id, endpoint, key_auth, key_p256dh, user_id, subscriber_ip, updated_at, warned_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (endpoint)
@@ -80,7 +80,7 @@ func NewPostgresStore(db *sql.DB) (Store, error) {
 			selectSubscriptionCountBySubscriberIP:      postgresSelectSubscriptionCountBySubscriberIPQuery,
 			selectSubscriptionsForTopic:                postgresSelectSubscriptionsForTopicQuery,
 			selectSubscriptionsExpiringSoon:            postgresSelectSubscriptionsExpiringSoonQuery,
-			insertSubscription:                         postgresInsertSubscriptionQuery,
+			upsertSubscription:                         postgresUpsertSubscriptionQuery,
 			updateSubscriptionWarningSent:              postgresUpdateSubscriptionWarningSentQuery,
 			updateSubscriptionUpdatedAt:                postgresUpdateSubscriptionUpdatedAtQuery,
 			deleteSubscriptionByEndpoint:               postgresDeleteSubscriptionByEndpointQuery,
