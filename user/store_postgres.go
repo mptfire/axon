@@ -26,7 +26,7 @@ const (
 		LEFT JOIN tier t on t.id = u.tier_id
 		WHERE tk.token = $1 AND (tk.expires = 0 OR tk.expires >= $2)
 	`
-	postgresSelectUserByStripeIDQuery = `
+	postgresSelectUserByStripeCustomerIDQuery = `
 		SELECT u.id, u.user_name, u.pass, u.role, u.prefs, u.sync_topic, u.provisioned, u.stats_messages, u.stats_emails, u.stats_calls, u.stripe_customer_id, u.stripe_subscription_id, u.stripe_subscription_status, u.stripe_subscription_interval, u.stripe_subscription_paid_until, u.stripe_subscription_cancel_at, u.deleted, t.id, t.code, t.name, t.messages_limit, t.messages_expiry_duration, t.emails_limit, t.calls_limit, t.reservations_limit, t.attachment_file_size_limit, t.attachment_total_size_limit, t.attachment_expiry_duration, t.attachment_bandwidth_limit, t.stripe_monthly_price_id, t.stripe_yearly_price_id
 		FROM "user" u
 		LEFT JOIN tier t on t.id = u.tier_id
@@ -120,7 +120,7 @@ const (
 			$7
 		)
 		ON CONFLICT (user_id, topic)
-		DO UPDATE SET read=EXCLUDED.read, write=EXCLUDED.write, owner_user_id=EXCLUDED.owner_user_id, provisioned=EXCLUDED.provisioned
+		DO UPDATE SET read=excluded.read, write=excluded.write, owner_user_id=excluded.owner_user_id, provisioned=excluded.provisioned
 	`
 	postgresDeleteUserAccessQuery = `
 		DELETE FROM user_access
@@ -144,7 +144,7 @@ const (
 		INSERT INTO user_token (user_id, token, label, last_access, last_origin, expires, provisioned)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		ON CONFLICT (user_id, token)
-		DO UPDATE SET label = EXCLUDED.label, expires = EXCLUDED.expires, provisioned = EXCLUDED.provisioned
+		DO UPDATE SET label = excluded.label, expires = excluded.expires, provisioned = excluded.provisioned
 	`
 	postgresUpdateTokenLabelQuery       = `UPDATE user_token SET label = $1 WHERE user_id = $2 AND token = $3`
 	postgresUpdateTokenExpiryQuery      = `UPDATE user_token SET expires = $1 WHERE user_id = $2 AND token = $3`
@@ -213,25 +213,25 @@ func NewPostgresStore(db *sql.DB) (Store, error) {
 		db: db,
 		queries: storeQueries{
 			// User queries
-			selectUserByID:           postgresSelectUserByIDQuery,
-			selectUserByName:         postgresSelectUserByNameQuery,
-			selectUserByToken:        postgresSelectUserByTokenQuery,
-			selectUserByStripeID:     postgresSelectUserByStripeIDQuery,
-			selectUsernames:          postgresSelectUsernamesQuery,
-			selectUserCount:          postgresSelectUserCountQuery,
-			selectUserIDFromUsername: postgresSelectUserIDFromUsernameQuery,
-			insertUser:               postgresInsertUserQuery,
-			updateUserPass:           postgresUpdateUserPassQuery,
-			updateUserRole:           postgresUpdateUserRoleQuery,
-			updateUserProvisioned:    postgresUpdateUserProvisionedQuery,
-			updateUserPrefs:          postgresUpdateUserPrefsQuery,
-			updateUserStats:          postgresUpdateUserStatsQuery,
-			updateUserStatsResetAll:  postgresUpdateUserStatsResetAllQuery,
-			updateUserTier:           postgresUpdateUserTierQuery,
-			updateUserDeleted:        postgresUpdateUserDeletedQuery,
-			deleteUser:               postgresDeleteUserQuery,
-			deleteUserTier:           postgresDeleteUserTierQuery,
-			deleteUsersMarked:        postgresDeleteUsersMarkedQuery,
+			selectUserByID:               postgresSelectUserByIDQuery,
+			selectUserByName:             postgresSelectUserByNameQuery,
+			selectUserByToken:            postgresSelectUserByTokenQuery,
+			selectUserByStripeCustomerID: postgresSelectUserByStripeCustomerIDQuery,
+			selectUsernames:              postgresSelectUsernamesQuery,
+			selectUserCount:              postgresSelectUserCountQuery,
+			selectUserIDFromUsername:     postgresSelectUserIDFromUsernameQuery,
+			insertUser:                   postgresInsertUserQuery,
+			updateUserPass:               postgresUpdateUserPassQuery,
+			updateUserRole:               postgresUpdateUserRoleQuery,
+			updateUserProvisioned:        postgresUpdateUserProvisionedQuery,
+			updateUserPrefs:              postgresUpdateUserPrefsQuery,
+			updateUserStats:              postgresUpdateUserStatsQuery,
+			updateUserStatsResetAll:      postgresUpdateUserStatsResetAllQuery,
+			updateUserTier:               postgresUpdateUserTierQuery,
+			updateUserDeleted:            postgresUpdateUserDeletedQuery,
+			deleteUser:                   postgresDeleteUserQuery,
+			deleteUserTier:               postgresDeleteUserTierQuery,
+			deleteUsersMarked:            postgresDeleteUsersMarkedQuery,
 
 			// Access queries
 			selectTopicPerms:            postgresSelectTopicPermsQuery,

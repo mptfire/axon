@@ -82,25 +82,25 @@ type Store interface {
 // storeQueries holds the database-specific SQL queries
 type storeQueries struct {
 	// User queries
-	selectUserByID           string
-	selectUserByName         string
-	selectUserByToken        string
-	selectUserByStripeID     string
-	selectUsernames          string
-	selectUserCount          string
-	selectUserIDFromUsername string
-	insertUser               string
-	updateUserPass           string
-	updateUserRole           string
-	updateUserProvisioned    string
-	updateUserPrefs          string
-	updateUserStats          string
-	updateUserStatsResetAll  string
-	updateUserTier           string
-	updateUserDeleted        string
-	deleteUser               string
-	deleteUserTier           string
-	deleteUsersMarked        string
+	selectUserByID               string
+	selectUserByName             string
+	selectUserByToken            string
+	selectUserByStripeCustomerID string
+	selectUsernames              string
+	selectUserCount              string
+	selectUserIDFromUsername     string
+	insertUser                   string
+	updateUserPass               string
+	updateUserRole               string
+	updateUserProvisioned        string
+	updateUserPrefs              string
+	updateUserStats              string
+	updateUserStatsResetAll      string
+	updateUserTier               string
+	updateUserDeleted            string
+	deleteUser                   string
+	deleteUserTier               string
+	deleteUsersMarked            string
 	// Access queries
 	selectTopicPerms            string
 	selectUserAllAccess         string
@@ -179,7 +179,7 @@ func (s *commonStore) UserByToken(token string) (*User, error) {
 
 // UserByStripeCustomer returns the user with the given Stripe customer ID if it exists, or ErrUserNotFound otherwise
 func (s *commonStore) UserByStripeCustomer(customerID string) (*User, error) {
-	rows, err := s.db.Query(s.queries.selectUserByStripeID, customerID)
+	rows, err := s.db.Query(s.queries.selectUserByStripeCustomerID, customerID)
 	if err != nil {
 		return nil, err
 	}
