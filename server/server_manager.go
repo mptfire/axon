@@ -17,15 +17,10 @@ func (s *Server) execManager() {
 	s.pruneMessages()
 	s.pruneAndNotifyWebPushSubscriptions()
 
-	// Message count per topic
-	var messagesCached int
-	messageCounts, err := s.messageCache.MessageCounts()
+	// Message count
+	messagesCached, err := s.messageCache.MessagesCount()
 	if err != nil {
-		log.Tag(tagManager).Err(err).Warn("Cannot get message counts")
-		messageCounts = make(map[string]int) // Empty, so we can continue
-	}
-	for _, count := range messageCounts {
-		messagesCached += count
+		log.Tag(tagManager).Err(err).Warn("Cannot get messages count")
 	}
 
 	// Remove subscriptions without subscribers

@@ -191,7 +191,7 @@ func (t SinceMarker) IsLatest() bool {
 
 // IsID returns true if this marker references a specific message ID
 func (t SinceMarker) IsID() bool {
-	return t.id != "" && t.id != "latest"
+	return t.id != "" && t.id != SinceLatestMessage.id
 }
 
 // Time returns the time component of the marker

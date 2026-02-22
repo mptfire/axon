@@ -18,6 +18,8 @@ const (
 			warned_at BIGINT NOT NULL DEFAULT 0
 		);
 		CREATE INDEX IF NOT EXISTS idx_webpush_subscriber_ip ON webpush_subscription (subscriber_ip);
+		CREATE INDEX IF NOT EXISTS idx_webpush_updated_at ON webpush_subscription (updated_at);
+		CREATE INDEX IF NOT EXISTS idx_webpush_user_id ON webpush_subscription (user_id);
 		CREATE TABLE IF NOT EXISTS webpush_subscription_topic (
 			subscription_id TEXT NOT NULL REFERENCES webpush_subscription (id) ON DELETE CASCADE,
 			topic TEXT NOT NULL,

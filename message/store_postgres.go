@@ -15,7 +15,6 @@ const (
 	postgresSelectScheduledMessageIDsBySeqIDQuery = `SELECT mid FROM message WHERE topic = $1 AND sequence_id = $2 AND published = FALSE`
 	postgresDeleteScheduledBySequenceIDQuery      = `DELETE FROM message WHERE topic = $1 AND sequence_id = $2 AND published = FALSE`
 	postgresUpdateMessagesForTopicExpiryQuery     = `UPDATE message SET expires = $1 WHERE topic = $2`
-	postgresSelectRowIDFromMessageIDQuery         = `SELECT id FROM message WHERE mid = $1`
 	postgresSelectMessagesByIDQuery               = `
 		SELECT mid, sequence_id, time, event, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user_id, content_type, encoding
 		FROM message
@@ -36,13 +35,16 @@ const (
 	postgresSelectMessagesSinceIDQuery = `
 		SELECT mid, sequence_id, time, event, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user_id, content_type, encoding
 		FROM message
-		WHERE topic = $1 AND id > $2 AND published = TRUE
+		WHERE topic = $1
+		  AND id > COALESCE((SELECT id FROM message WHERE mid = $2), 0)
+		  AND published = TRUE
 		ORDER BY time, id
 	`
 	postgresSelectMessagesSinceIDIncludeScheduledQuery = `
 		SELECT mid, sequence_id, time, event, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user_id, content_type, encoding
 		FROM message
-		WHERE topic = $1 AND (id > $2 OR published = FALSE)
+		WHERE topic = $1
+		  AND (id > COALESCE((SELECT id FROM message WHERE mid = $2), 0) OR published = FALSE)
 		ORDER BY time, id
 	`
 	postgresSelectMessagesLatestQuery = `
@@ -58,11 +60,10 @@ const (
 		WHERE time <= $1 AND published = FALSE
 		ORDER BY time, id
 	`
-	postgresSelectMessagesExpiredQuery      = `SELECT mid FROM message WHERE expires <= $1 AND published = TRUE`
-	postgresUpdateMessagePublishedQuery     = `UPDATE message SET published = TRUE WHERE mid = $1`
-	postgresSelectMessagesCountQuery        = `SELECT COUNT(*) FROM message`
-	postgresSelectMessageCountPerTopicQuery = `SELECT topic, COUNT(*) FROM message GROUP BY topic`
-	postgresSelectTopicsQuery               = `SELECT topic FROM message GROUP BY topic`
+	postgresSelectMessagesExpiredQuery  = `SELECT mid FROM message WHERE expires <= $1 AND published = TRUE`
+	postgresUpdateMessagePublishedQuery = `UPDATE message SET published = TRUE WHERE mid = $1`
+	postgresSelectMessagesCountQuery    = `SELECT COUNT(*) FROM message`
+	postgresSelectTopicsQuery           = `SELECT topic FROM message GROUP BY topic`
 
 	postgresUpdateAttachmentDeletedQuery       = `UPDATE message SET attachment_deleted = TRUE WHERE mid = $1`
 	postgresSelectAttachmentsExpiredQuery      = `SELECT mid FROM message WHERE attachment_expires > 0 AND attachment_expires <= $1 AND attachment_deleted = FALSE`
@@ -80,7 +81,6 @@ var pgQueries = storeQueries{
 	selectScheduledMessageIDsBySeqID: postgresSelectScheduledMessageIDsBySeqIDQuery,
 	deleteScheduledBySequenceID:      postgresDeleteScheduledBySequenceIDQuery,
 	updateMessagesForTopicExpiry:     postgresUpdateMessagesForTopicExpiryQuery,
-	selectRowIDFromMessageID:         postgresSelectRowIDFromMessageIDQuery,
 	selectMessagesByID:               postgresSelectMessagesByIDQuery,
 	selectMessagesSinceTime:          postgresSelectMessagesSinceTimeQuery,
 	selectMessagesSinceTimeScheduled: postgresSelectMessagesSinceTimeIncludeScheduledQuery,
@@ -91,7 +91,6 @@ var pgQueries = storeQueries{
 	selectMessagesExpired:            postgresSelectMessagesExpiredQuery,
 	updateMessagePublished:           postgresUpdateMessagePublishedQuery,
 	selectMessagesCount:              postgresSelectMessagesCountQuery,
-	selectMessageCountPerTopic:       postgresSelectMessageCountPerTopicQuery,
 	selectTopics:                     postgresSelectTopicsQuery,
 	updateAttachmentDeleted:          postgresUpdateAttachmentDeletedQuery,
 	selectAttachmentsExpired:         postgresSelectAttachmentsExpiredQuery,
@@ -107,5 +106,5 @@ func NewPostgresStore(db *sql.DB, batchSize int, batchTimeout time.Duration) (St
 	if err := setupPostgresDB(db); err != nil {
 		return nil, err
 	}
-	return newCommonStore(db, pgQueries, batchSize, batchTimeout, false), nil
+	return newCommonStore(db, pgQueries, nil, batchSize, batchTimeout, false), nil
 }

@@ -65,10 +65,10 @@ func TestStore_Messages(t *testing.T) {
 		require.Equal(t, model.ErrUnexpectedMessageType, s.AddMessage(model.NewKeepaliveMessage("mytopic"))) // These should not be added!
 		require.Equal(t, model.ErrUnexpectedMessageType, s.AddMessage(model.NewOpenMessage("example")))      // These should not be added!
 
-		// mytopic: count
-		counts, err := s.MessageCounts()
+		// count
+		count, err := s.MessagesCount()
 		require.Nil(t, err)
-		require.Equal(t, 2, counts["mytopic"])
+		require.Equal(t, 3, count)
 
 		// mytopic: since all
 		messages, _ := s.Messages("mytopic", model.SinceAllMessages, false)
@@ -102,19 +102,9 @@ func TestStore_Messages(t *testing.T) {
 		require.Equal(t, 1, len(messages))
 		require.Equal(t, "my other message", messages[0].Message)
 
-		// example: count
-		counts, err = s.MessageCounts()
-		require.Nil(t, err)
-		require.Equal(t, 1, counts["example"])
-
 		// example: since all
 		messages, _ = s.Messages("example", model.SinceAllMessages, false)
 		require.Equal(t, "my example message", messages[0].Message)
-
-		// non-existing: count
-		counts, err = s.MessageCounts()
-		require.Nil(t, err)
-		require.Equal(t, 0, counts["doesnotexist"])
 
 		// non-existing: since all
 		messages, _ = s.Messages("doesnotexist", model.SinceAllMessages, false)
@@ -280,19 +270,17 @@ func TestStore_Prune(t *testing.T) {
 		require.Nil(t, s.AddMessage(m2))
 		require.Nil(t, s.AddMessage(m3))
 
-		counts, err := s.MessageCounts()
+		count, err := s.MessagesCount()
 		require.Nil(t, err)
-		require.Equal(t, 2, counts["mytopic"])
-		require.Equal(t, 1, counts["another_topic"])
+		require.Equal(t, 3, count)
 
 		expiredMessageIDs, err := s.MessagesExpired()
 		require.Nil(t, err)
 		require.Nil(t, s.DeleteMessages(expiredMessageIDs...))
 
-		counts, err = s.MessageCounts()
+		count, err = s.MessagesCount()
 		require.Nil(t, err)
-		require.Equal(t, 1, counts["mytopic"])
-		require.Equal(t, 0, counts["another_topic"])
+		require.Equal(t, 1, count)
 
 		messages, err := s.Messages("mytopic", model.SinceAllMessages, false)
 		require.Nil(t, err)

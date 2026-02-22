@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
@@ -20,7 +21,6 @@ const (
 	sqliteSelectScheduledMessageIDsBySeqIDQuery = `SELECT mid FROM messages WHERE topic = ? AND sequence_id = ? AND published = 0`
 	sqliteDeleteScheduledBySequenceIDQuery      = `DELETE FROM messages WHERE topic = ? AND sequence_id = ? AND published = 0`
 	sqliteUpdateMessagesForTopicExpiryQuery     = `UPDATE messages SET expires = ? WHERE topic = ?`
-	sqliteSelectRowIDFromMessageIDQuery         = `SELECT id FROM messages WHERE mid = ?`
 	sqliteSelectMessagesByIDQuery               = `
 		SELECT mid, sequence_id, time, event, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding
 		FROM messages
@@ -41,13 +41,13 @@ const (
 	sqliteSelectMessagesSinceIDQuery = `
 		SELECT mid, sequence_id, time, event, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding
 		FROM messages
-		WHERE topic = ? AND id > ? AND published = 1
+		WHERE topic = ? AND id > COALESCE((SELECT id FROM messages WHERE mid = ?), 0) AND published = 1
 		ORDER BY time, id
 	`
 	sqliteSelectMessagesSinceIDIncludeScheduledQuery = `
 		SELECT mid, sequence_id, time, event, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding
 		FROM messages
-		WHERE topic = ? AND (id > ? OR published = 0)
+		WHERE topic = ? AND (id > COALESCE((SELECT id FROM messages WHERE mid = ?), 0) OR published = 0)
 		ORDER BY time, id
 	`
 	sqliteSelectMessagesLatestQuery = `
@@ -63,11 +63,10 @@ const (
 		WHERE time <= ? AND published = 0
 		ORDER BY time, id
 	`
-	sqliteSelectMessagesExpiredQuery      = `SELECT mid FROM messages WHERE expires <= ? AND published = 1`
-	sqliteUpdateMessagePublishedQuery     = `UPDATE messages SET published = 1 WHERE mid = ?`
-	sqliteSelectMessagesCountQuery        = `SELECT COUNT(*) FROM messages`
-	sqliteSelectMessageCountPerTopicQuery = `SELECT topic, COUNT(*) FROM messages GROUP BY topic`
-	sqliteSelectTopicsQuery               = `SELECT topic FROM messages GROUP BY topic`
+	sqliteSelectMessagesExpiredQuery  = `SELECT mid FROM messages WHERE expires <= ? AND published = 1`
+	sqliteUpdateMessagePublishedQuery = `UPDATE messages SET published = 1 WHERE mid = ?`
+	sqliteSelectMessagesCountQuery    = `SELECT COUNT(*) FROM messages`
+	sqliteSelectTopicsQuery           = `SELECT topic FROM messages GROUP BY topic`
 
 	sqliteUpdateAttachmentDeletedQuery       = `UPDATE messages SET attachment_deleted = 1 WHERE mid = ?`
 	sqliteSelectAttachmentsExpiredQuery      = `SELECT mid FROM messages WHERE attachment_expires > 0 AND attachment_expires <= ? AND attachment_deleted = 0`
@@ -85,7 +84,6 @@ var sqliteQueries = storeQueries{
 	selectScheduledMessageIDsBySeqID: sqliteSelectScheduledMessageIDsBySeqIDQuery,
 	deleteScheduledBySequenceID:      sqliteDeleteScheduledBySequenceIDQuery,
 	updateMessagesForTopicExpiry:     sqliteUpdateMessagesForTopicExpiryQuery,
-	selectRowIDFromMessageID:         sqliteSelectRowIDFromMessageIDQuery,
 	selectMessagesByID:               sqliteSelectMessagesByIDQuery,
 	selectMessagesSinceTime:          sqliteSelectMessagesSinceTimeQuery,
 	selectMessagesSinceTimeScheduled: sqliteSelectMessagesSinceTimeIncludeScheduledQuery,
@@ -96,7 +94,6 @@ var sqliteQueries = storeQueries{
 	selectMessagesExpired:            sqliteSelectMessagesExpiredQuery,
 	updateMessagePublished:           sqliteUpdateMessagePublishedQuery,
 	selectMessagesCount:              sqliteSelectMessagesCountQuery,
-	selectMessageCountPerTopic:       sqliteSelectMessageCountPerTopicQuery,
 	selectTopics:                     sqliteSelectTopicsQuery,
 	updateAttachmentDeleted:          sqliteUpdateAttachmentDeletedQuery,
 	selectAttachmentsExpired:         sqliteSelectAttachmentsExpiredQuery,
@@ -120,7 +117,7 @@ func NewSQLiteStore(filename, startupQueries string, cacheDuration time.Duration
 	if err := setupSQLite(db, startupQueries, cacheDuration); err != nil {
 		return nil, err
 	}
-	return newCommonStore(db, sqliteQueries, batchSize, batchTimeout, nop), nil
+	return newCommonStore(db, sqliteQueries, &sync.Mutex{}, batchSize, batchTimeout, nop), nil
 }
 
 // NewMemStore creates an in-memory cache

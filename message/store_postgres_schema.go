@@ -37,12 +37,10 @@ const (
 		);
 		CREATE INDEX IF NOT EXISTS idx_message_mid ON message (mid);
 		CREATE INDEX IF NOT EXISTS idx_message_sequence_id ON message (sequence_id);
-		CREATE INDEX IF NOT EXISTS idx_message_time ON message (time);
-		CREATE INDEX IF NOT EXISTS idx_message_topic ON message (topic);
-		CREATE INDEX IF NOT EXISTS idx_message_expires ON message (expires);
-		CREATE INDEX IF NOT EXISTS idx_message_sender ON message (sender);
-		CREATE INDEX IF NOT EXISTS idx_message_user_id ON message (user_id);
-		CREATE INDEX IF NOT EXISTS idx_message_attachment_expires ON message (attachment_expires);
+		CREATE INDEX IF NOT EXISTS idx_message_topic_published_time ON message (topic, published, time, id);
+		CREATE INDEX IF NOT EXISTS idx_message_published_expires ON message (published, expires);
+		CREATE INDEX IF NOT EXISTS idx_message_sender_attachment_expires ON message (sender, attachment_expires) WHERE user_id = '';
+		CREATE INDEX IF NOT EXISTS idx_message_user_id_attachment_expires ON message (user_id, attachment_expires);
 		CREATE TABLE IF NOT EXISTS message_stats (
 			key TEXT PRIMARY KEY,
 			value BIGINT
