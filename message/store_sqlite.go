@@ -20,7 +20,7 @@ const (
 	sqliteSelectScheduledMessageIDsBySeqIDQuery = `SELECT mid FROM messages WHERE topic = ? AND sequence_id = ? AND published = 0`
 	sqliteDeleteScheduledBySequenceIDQuery      = `DELETE FROM messages WHERE topic = ? AND sequence_id = ? AND published = 0`
 	sqliteUpdateMessagesForTopicExpiryQuery     = `UPDATE messages SET expires = ? WHERE topic = ?`
-	sqliteSelectRowIDFromMessageID              = `SELECT id FROM messages WHERE mid = ?`
+	sqliteSelectRowIDFromMessageIDQuery         = `SELECT id FROM messages WHERE mid = ?`
 	sqliteSelectMessagesByIDQuery               = `
 		SELECT mid, sequence_id, time, event, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, sender, user, content_type, encoding
 		FROM messages
@@ -69,7 +69,7 @@ const (
 	sqliteSelectMessageCountPerTopicQuery = `SELECT topic, COUNT(*) FROM messages GROUP BY topic`
 	sqliteSelectTopicsQuery               = `SELECT topic FROM messages GROUP BY topic`
 
-	sqliteUpdateAttachmentDeleted            = `UPDATE messages SET attachment_deleted = 1 WHERE mid = ?`
+	sqliteUpdateAttachmentDeletedQuery       = `UPDATE messages SET attachment_deleted = 1 WHERE mid = ?`
 	sqliteSelectAttachmentsExpiredQuery      = `SELECT mid FROM messages WHERE attachment_expires > 0 AND attachment_expires <= ? AND attachment_deleted = 0`
 	sqliteSelectAttachmentsSizeBySenderQuery = `SELECT IFNULL(SUM(attachment_size), 0) FROM messages WHERE user = '' AND sender = ? AND attachment_expires >= ?`
 	sqliteSelectAttachmentsSizeByUserIDQuery = `SELECT IFNULL(SUM(attachment_size), 0) FROM messages WHERE user = ? AND attachment_expires >= ?`
@@ -85,7 +85,7 @@ var sqliteQueries = storeQueries{
 	selectScheduledMessageIDsBySeqID: sqliteSelectScheduledMessageIDsBySeqIDQuery,
 	deleteScheduledBySequenceID:      sqliteDeleteScheduledBySequenceIDQuery,
 	updateMessagesForTopicExpiry:     sqliteUpdateMessagesForTopicExpiryQuery,
-	selectRowIDFromMessageID:         sqliteSelectRowIDFromMessageID,
+	selectRowIDFromMessageID:         sqliteSelectRowIDFromMessageIDQuery,
 	selectMessagesByID:               sqliteSelectMessagesByIDQuery,
 	selectMessagesSinceTime:          sqliteSelectMessagesSinceTimeQuery,
 	selectMessagesSinceTimeScheduled: sqliteSelectMessagesSinceTimeIncludeScheduledQuery,
@@ -98,7 +98,7 @@ var sqliteQueries = storeQueries{
 	selectMessagesCount:              sqliteSelectMessagesCountQuery,
 	selectMessageCountPerTopic:       sqliteSelectMessageCountPerTopicQuery,
 	selectTopics:                     sqliteSelectTopicsQuery,
-	updateAttachmentDeleted:          sqliteUpdateAttachmentDeleted,
+	updateAttachmentDeleted:          sqliteUpdateAttachmentDeletedQuery,
 	selectAttachmentsExpired:         sqliteSelectAttachmentsExpiredQuery,
 	selectAttachmentsSizeBySender:    sqliteSelectAttachmentsSizeBySenderQuery,
 	selectAttachmentsSizeByUserID:    sqliteSelectAttachmentsSizeByUserIDQuery,

@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	pgCreateTablesQuery = `
+	postgresCreateTablesQuery = `
 		CREATE TABLE IF NOT EXISTS webpush_subscription (
 			id TEXT PRIMARY KEY,
 			endpoint TEXT NOT NULL UNIQUE,
@@ -30,42 +30,42 @@ const (
 		);
 	`
 
-	pgSelectSubscriptionIDByEndpoint        = `SELECT id FROM webpush_subscription WHERE endpoint = $1`
-	pgSelectSubscriptionCountBySubscriberIP = `SELECT COUNT(*) FROM webpush_subscription WHERE subscriber_ip = $1`
-	pgSelectSubscriptionsForTopicQuery      = `
+	postgresSelectSubscriptionIDByEndpointQuery        = `SELECT id FROM webpush_subscription WHERE endpoint = $1`
+	postgresSelectSubscriptionCountBySubscriberIPQuery = `SELECT COUNT(*) FROM webpush_subscription WHERE subscriber_ip = $1`
+	postgresSelectSubscriptionsForTopicQuery           = `
 		SELECT s.id, s.endpoint, s.key_auth, s.key_p256dh, s.user_id
 		FROM webpush_subscription_topic st
 		JOIN webpush_subscription s ON s.id = st.subscription_id
 		WHERE st.topic = $1
 		ORDER BY s.endpoint
 	`
-	pgSelectSubscriptionsExpiringSoonQuery = `
+	postgresSelectSubscriptionsExpiringSoonQuery = `
 		SELECT id, endpoint, key_auth, key_p256dh, user_id
 		FROM webpush_subscription
 		WHERE warned_at = 0 AND updated_at <= $1
 	`
-	pgInsertSubscriptionQuery = `
+	postgresInsertSubscriptionQuery = `
 		INSERT INTO webpush_subscription (id, endpoint, key_auth, key_p256dh, user_id, subscriber_ip, updated_at, warned_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (endpoint)
 		DO UPDATE SET key_auth = excluded.key_auth, key_p256dh = excluded.key_p256dh, user_id = excluded.user_id, subscriber_ip = excluded.subscriber_ip, updated_at = excluded.updated_at, warned_at = excluded.warned_at
 	`
-	pgUpdateSubscriptionWarningSentQuery = `UPDATE webpush_subscription SET warned_at = $1 WHERE id = $2`
-	pgUpdateSubscriptionUpdatedAtQuery   = `UPDATE webpush_subscription SET updated_at = $1 WHERE endpoint = $2`
-	pgDeleteSubscriptionByEndpointQuery  = `DELETE FROM webpush_subscription WHERE endpoint = $1`
-	pgDeleteSubscriptionByUserIDQuery    = `DELETE FROM webpush_subscription WHERE user_id = $1`
-	pgDeleteSubscriptionByAgeQuery       = `DELETE FROM webpush_subscription WHERE updated_at <= $1`
+	postgresUpdateSubscriptionWarningSentQuery = `UPDATE webpush_subscription SET warned_at = $1 WHERE id = $2`
+	postgresUpdateSubscriptionUpdatedAtQuery   = `UPDATE webpush_subscription SET updated_at = $1 WHERE endpoint = $2`
+	postgresDeleteSubscriptionByEndpointQuery  = `DELETE FROM webpush_subscription WHERE endpoint = $1`
+	postgresDeleteSubscriptionByUserIDQuery    = `DELETE FROM webpush_subscription WHERE user_id = $1`
+	postgresDeleteSubscriptionByAgeQuery       = `DELETE FROM webpush_subscription WHERE updated_at <= $1`
 
-	pgInsertSubscriptionTopicQuery               = `INSERT INTO webpush_subscription_topic (subscription_id, topic) VALUES ($1, $2)`
-	pgDeleteSubscriptionTopicAllQuery            = `DELETE FROM webpush_subscription_topic WHERE subscription_id = $1`
-	pgDeleteSubscriptionTopicWithoutSubscription = `DELETE FROM webpush_subscription_topic WHERE subscription_id NOT IN (SELECT id FROM webpush_subscription)`
+	postgresInsertSubscriptionTopicQuery                    = `INSERT INTO webpush_subscription_topic (subscription_id, topic) VALUES ($1, $2)`
+	postgresDeleteSubscriptionTopicAllQuery                 = `DELETE FROM webpush_subscription_topic WHERE subscription_id = $1`
+	postgresDeleteSubscriptionTopicWithoutSubscriptionQuery = `DELETE FROM webpush_subscription_topic WHERE subscription_id NOT IN (SELECT id FROM webpush_subscription)`
 )
 
 // PostgreSQL schema management queries
 const (
-	pgCurrentSchemaVersion     = 1
-	pgInsertSchemaVersion      = `INSERT INTO schema_version (store, version) VALUES ('webpush', $1)`
-	pgSelectSchemaVersionQuery = `SELECT version FROM schema_version WHERE store = 'webpush'`
+	pgCurrentSchemaVersion           = 1
+	postgresInsertSchemaVersionQuery = `INSERT INTO schema_version (store, version) VALUES ('webpush', $1)`
+	postgresSelectSchemaVersionQuery = `SELECT version FROM schema_version WHERE store = 'webpush'`
 )
 
 // NewPostgresStore creates a new PostgreSQL-backed web push store using an existing database connection pool.
@@ -76,26 +76,26 @@ func NewPostgresStore(db *sql.DB) (Store, error) {
 	return &commonStore{
 		db: db,
 		queries: storeQueries{
-			selectSubscriptionIDByEndpoint:             pgSelectSubscriptionIDByEndpoint,
-			selectSubscriptionCountBySubscriberIP:      pgSelectSubscriptionCountBySubscriberIP,
-			selectSubscriptionsForTopic:                pgSelectSubscriptionsForTopicQuery,
-			selectSubscriptionsExpiringSoon:            pgSelectSubscriptionsExpiringSoonQuery,
-			insertSubscription:                         pgInsertSubscriptionQuery,
-			updateSubscriptionWarningSent:              pgUpdateSubscriptionWarningSentQuery,
-			updateSubscriptionUpdatedAt:                pgUpdateSubscriptionUpdatedAtQuery,
-			deleteSubscriptionByEndpoint:               pgDeleteSubscriptionByEndpointQuery,
-			deleteSubscriptionByUserID:                 pgDeleteSubscriptionByUserIDQuery,
-			deleteSubscriptionByAge:                    pgDeleteSubscriptionByAgeQuery,
-			insertSubscriptionTopic:                    pgInsertSubscriptionTopicQuery,
-			deleteSubscriptionTopicAll:                 pgDeleteSubscriptionTopicAllQuery,
-			deleteSubscriptionTopicWithoutSubscription: pgDeleteSubscriptionTopicWithoutSubscription,
+			selectSubscriptionIDByEndpoint:             postgresSelectSubscriptionIDByEndpointQuery,
+			selectSubscriptionCountBySubscriberIP:      postgresSelectSubscriptionCountBySubscriberIPQuery,
+			selectSubscriptionsForTopic:                postgresSelectSubscriptionsForTopicQuery,
+			selectSubscriptionsExpiringSoon:            postgresSelectSubscriptionsExpiringSoonQuery,
+			insertSubscription:                         postgresInsertSubscriptionQuery,
+			updateSubscriptionWarningSent:              postgresUpdateSubscriptionWarningSentQuery,
+			updateSubscriptionUpdatedAt:                postgresUpdateSubscriptionUpdatedAtQuery,
+			deleteSubscriptionByEndpoint:               postgresDeleteSubscriptionByEndpointQuery,
+			deleteSubscriptionByUserID:                 postgresDeleteSubscriptionByUserIDQuery,
+			deleteSubscriptionByAge:                    postgresDeleteSubscriptionByAgeQuery,
+			insertSubscriptionTopic:                    postgresInsertSubscriptionTopicQuery,
+			deleteSubscriptionTopicAll:                 postgresDeleteSubscriptionTopicAllQuery,
+			deleteSubscriptionTopicWithoutSubscription: postgresDeleteSubscriptionTopicWithoutSubscriptionQuery,
 		},
 	}, nil
 }
 
 func setupPostgresDB(db *sql.DB) error {
 	var schemaVersion int
-	err := db.QueryRow(pgSelectSchemaVersionQuery).Scan(&schemaVersion)
+	err := db.QueryRow(postgresSelectSchemaVersionQuery).Scan(&schemaVersion)
 	if err != nil {
 		return setupNewPostgresDB(db)
 	}
@@ -111,10 +111,10 @@ func setupNewPostgresDB(db *sql.DB) error {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(pgCreateTablesQuery); err != nil {
+	if _, err := tx.Exec(postgresCreateTablesQuery); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(pgInsertSchemaVersion, pgCurrentSchemaVersion); err != nil {
+	if _, err := tx.Exec(postgresInsertSchemaVersionQuery, pgCurrentSchemaVersion); err != nil {
 		return err
 	}
 	return tx.Commit()

@@ -7,7 +7,7 @@ import (
 
 // Initial PostgreSQL schema
 const (
-	pgCreateTablesQuery = `
+	postgresCreateTablesQuery = `
 		CREATE TABLE IF NOT EXISTS message (
 			id BIGSERIAL PRIMARY KEY,
 			mid TEXT NOT NULL,
@@ -57,14 +57,14 @@ const (
 
 // PostgreSQL schema management queries
 const (
-	pgCurrentSchemaVersion     = 14
-	pgInsertSchemaVersion      = `INSERT INTO schema_version (store, version) VALUES ('message', $1)`
-	pgSelectSchemaVersionQuery = `SELECT version FROM schema_version WHERE store = 'message'`
+	pgCurrentSchemaVersion           = 14
+	postgresInsertSchemaVersionQuery = `INSERT INTO schema_version (store, version) VALUES ('message', $1)`
+	postgresSelectSchemaVersionQuery = `SELECT version FROM schema_version WHERE store = 'message'`
 )
 
 func setupPostgresDB(db *sql.DB) error {
 	var schemaVersion int
-	err := db.QueryRow(pgSelectSchemaVersionQuery).Scan(&schemaVersion)
+	err := db.QueryRow(postgresSelectSchemaVersionQuery).Scan(&schemaVersion)
 	if err != nil {
 		return setupNewPostgresDB(db)
 	}
@@ -80,10 +80,10 @@ func setupNewPostgresDB(db *sql.DB) error {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(pgCreateTablesQuery); err != nil {
+	if _, err := tx.Exec(postgresCreateTablesQuery); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(pgInsertSchemaVersion, pgCurrentSchemaVersion); err != nil {
+	if _, err := tx.Exec(postgresInsertSchemaVersionQuery, pgCurrentSchemaVersion); err != nil {
 		return err
 	}
 	return tx.Commit()

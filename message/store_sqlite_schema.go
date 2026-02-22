@@ -65,8 +65,8 @@ const (
 			version INT NOT NULL
 		);
 	`
-	sqliteInsertSchemaVersion      = `INSERT INTO schemaVersion VALUES (1, ?)`
-	sqliteUpdateSchemaVersion      = `UPDATE schemaVersion SET version = ? WHERE id = 1`
+	sqliteInsertSchemaVersionQuery = `INSERT INTO schemaVersion VALUES (1, ?)`
+	sqliteUpdateSchemaVersionQuery = `UPDATE schemaVersion SET version = ? WHERE id = 1`
 	sqliteSelectSchemaVersionQuery = `SELECT version FROM schemaVersion WHERE id = 1`
 )
 
@@ -265,7 +265,7 @@ func setupNewSQLite(db *sql.DB) error {
 	if _, err := db.Exec(sqliteCreateSchemaVersionTableQuery); err != nil {
 		return err
 	}
-	if _, err := db.Exec(sqliteInsertSchemaVersion, sqliteCurrentSchemaVersion); err != nil {
+	if _, err := db.Exec(sqliteInsertSchemaVersionQuery, sqliteCurrentSchemaVersion); err != nil {
 		return err
 	}
 	return nil
@@ -288,7 +288,7 @@ func sqliteMigrateFrom0(db *sql.DB, _ time.Duration) error {
 	if _, err := db.Exec(sqliteCreateSchemaVersionTableQuery); err != nil {
 		return err
 	}
-	if _, err := db.Exec(sqliteInsertSchemaVersion, 1); err != nil {
+	if _, err := db.Exec(sqliteInsertSchemaVersionQuery, 1); err != nil {
 		return err
 	}
 	return nil
@@ -299,7 +299,7 @@ func sqliteMigrateFrom1(db *sql.DB, _ time.Duration) error {
 	if _, err := db.Exec(sqliteMigrate1To2AlterMessagesTableQuery); err != nil {
 		return err
 	}
-	if _, err := db.Exec(sqliteUpdateSchemaVersion, 2); err != nil {
+	if _, err := db.Exec(sqliteUpdateSchemaVersionQuery, 2); err != nil {
 		return err
 	}
 	return nil
@@ -310,7 +310,7 @@ func sqliteMigrateFrom2(db *sql.DB, _ time.Duration) error {
 	if _, err := db.Exec(sqliteMigrate2To3AlterMessagesTableQuery); err != nil {
 		return err
 	}
-	if _, err := db.Exec(sqliteUpdateSchemaVersion, 3); err != nil {
+	if _, err := db.Exec(sqliteUpdateSchemaVersionQuery, 3); err != nil {
 		return err
 	}
 	return nil
@@ -321,7 +321,7 @@ func sqliteMigrateFrom3(db *sql.DB, _ time.Duration) error {
 	if _, err := db.Exec(sqliteMigrate3To4AlterMessagesTableQuery); err != nil {
 		return err
 	}
-	if _, err := db.Exec(sqliteUpdateSchemaVersion, 4); err != nil {
+	if _, err := db.Exec(sqliteUpdateSchemaVersionQuery, 4); err != nil {
 		return err
 	}
 	return nil
@@ -332,7 +332,7 @@ func sqliteMigrateFrom4(db *sql.DB, _ time.Duration) error {
 	if _, err := db.Exec(sqliteMigrate4To5AlterMessagesTableQuery); err != nil {
 		return err
 	}
-	if _, err := db.Exec(sqliteUpdateSchemaVersion, 5); err != nil {
+	if _, err := db.Exec(sqliteUpdateSchemaVersionQuery, 5); err != nil {
 		return err
 	}
 	return nil
@@ -343,7 +343,7 @@ func sqliteMigrateFrom5(db *sql.DB, _ time.Duration) error {
 	if _, err := db.Exec(sqliteMigrate5To6AlterMessagesTableQuery); err != nil {
 		return err
 	}
-	if _, err := db.Exec(sqliteUpdateSchemaVersion, 6); err != nil {
+	if _, err := db.Exec(sqliteUpdateSchemaVersionQuery, 6); err != nil {
 		return err
 	}
 	return nil
@@ -354,7 +354,7 @@ func sqliteMigrateFrom6(db *sql.DB, _ time.Duration) error {
 	if _, err := db.Exec(sqliteMigrate6To7AlterMessagesTableQuery); err != nil {
 		return err
 	}
-	if _, err := db.Exec(sqliteUpdateSchemaVersion, 7); err != nil {
+	if _, err := db.Exec(sqliteUpdateSchemaVersionQuery, 7); err != nil {
 		return err
 	}
 	return nil
@@ -365,7 +365,7 @@ func sqliteMigrateFrom7(db *sql.DB, _ time.Duration) error {
 	if _, err := db.Exec(sqliteMigrate7To8AlterMessagesTableQuery); err != nil {
 		return err
 	}
-	if _, err := db.Exec(sqliteUpdateSchemaVersion, 8); err != nil {
+	if _, err := db.Exec(sqliteUpdateSchemaVersionQuery, 8); err != nil {
 		return err
 	}
 	return nil
@@ -376,7 +376,7 @@ func sqliteMigrateFrom8(db *sql.DB, _ time.Duration) error {
 	if _, err := db.Exec(sqliteMigrate8To9AlterMessagesTableQuery); err != nil {
 		return err
 	}
-	if _, err := db.Exec(sqliteUpdateSchemaVersion, 9); err != nil {
+	if _, err := db.Exec(sqliteUpdateSchemaVersionQuery, 9); err != nil {
 		return err
 	}
 	return nil
@@ -395,7 +395,7 @@ func sqliteMigrateFrom9(db *sql.DB, cacheDuration time.Duration) error {
 	if _, err := tx.Exec(sqliteMigrate9To10UpdateMessageExpiryQuery, int64(cacheDuration.Seconds())); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersion, 10); err != nil {
+	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 10); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -411,7 +411,7 @@ func sqliteMigrateFrom10(db *sql.DB, _ time.Duration) error {
 	if _, err := tx.Exec(sqliteMigrate10To11AlterMessagesTableQuery); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersion, 11); err != nil {
+	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 11); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -427,7 +427,7 @@ func sqliteMigrateFrom11(db *sql.DB, _ time.Duration) error {
 	if _, err := tx.Exec(sqliteMigrate11To12AlterMessagesTableQuery); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersion, 12); err != nil {
+	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 12); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -443,7 +443,7 @@ func sqliteMigrateFrom12(db *sql.DB, _ time.Duration) error {
 	if _, err := tx.Exec(sqliteMigrate12To13AlterMessagesTableQuery); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersion, 13); err != nil {
+	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 13); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -459,7 +459,7 @@ func sqliteMigrateFrom13(db *sql.DB, _ time.Duration) error {
 	if _, err := tx.Exec(sqliteMigrate13To14AlterMessagesTableQuery); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersion, 14); err != nil {
+	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 14); err != nil {
 		return err
 	}
 	return tx.Commit()

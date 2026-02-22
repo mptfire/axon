@@ -84,14 +84,14 @@ const (
 
 // Schema table management queries for Postgres
 const (
-	postgresCurrentSchemaVersion = 6
-	postgresSelectSchemaVersion  = `SELECT version FROM schema_version WHERE store = 'user'`
-	postgresInsertSchemaVersion  = `INSERT INTO schema_version (store, version) VALUES ('user', $1)`
+	postgresCurrentSchemaVersion     = 6
+	postgresSelectSchemaVersionQuery = `SELECT version FROM schema_version WHERE store = 'user'`
+	postgresInsertSchemaVersionQuery = `INSERT INTO schema_version (store, version) VALUES ('user', $1)`
 )
 
 func setupPostgres(db *sql.DB) error {
 	var schemaVersion int
-	err := db.QueryRow(postgresSelectSchemaVersion).Scan(&schemaVersion)
+	err := db.QueryRow(postgresSelectSchemaVersionQuery).Scan(&schemaVersion)
 	if err != nil {
 		return setupNewPostgres(db)
 	}
@@ -106,7 +106,7 @@ func setupNewPostgres(db *sql.DB) error {
 	if _, err := db.Exec(postgresCreateTablesQueries); err != nil {
 		return err
 	}
-	if _, err := db.Exec(postgresInsertSchemaVersion, postgresCurrentSchemaVersion); err != nil {
+	if _, err := db.Exec(postgresInsertSchemaVersionQuery, postgresCurrentSchemaVersion); err != nil {
 		return err
 	}
 	return nil

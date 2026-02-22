@@ -103,8 +103,8 @@ const (
 // Schema version table management for SQLite
 const (
 	sqliteCurrentSchemaVersion     = 6
-	sqliteInsertSchemaVersion      = `INSERT INTO schemaVersion VALUES (1, ?)`
-	sqliteUpdateSchemaVersion      = `UPDATE schemaVersion SET version = ? WHERE id = 1`
+	sqliteInsertSchemaVersionQuery = `INSERT INTO schemaVersion VALUES (1, ?)`
+	sqliteUpdateSchemaVersionQuery = `UPDATE schemaVersion SET version = ? WHERE id = 1`
 	sqliteSelectSchemaVersionQuery = `SELECT version FROM schemaVersion WHERE id = 1`
 )
 
@@ -179,12 +179,12 @@ const (
 		VALUES ('u_everyone', '*', '', 'anonymous', '', UNIXEPOCH())
 		ON CONFLICT (id) DO NOTHING;
 	`
-	sqliteMigrate1To2SelectAllOldUsernamesNoTx = `SELECT user FROM user_old`
-	sqliteMigrate1To2InsertUserNoTx            = `
+	sqliteMigrate1To2SelectAllOldUsernamesNoTxQuery = `SELECT user FROM user_old`
+	sqliteMigrate1To2InsertUserNoTxQuery            = `
 		INSERT INTO user (id, user, pass, role, sync_topic, created)
 		SELECT ?, user, pass, role, ?, UNIXEPOCH() FROM user_old WHERE user = ?
 	`
-	sqliteMigrate1To2InsertFromOldTablesAndDropNoTx = `
+	sqliteMigrate1To2InsertFromOldTablesAndDropNoTxQuery = `
 		INSERT INTO user_access (user_id, topic, read, write)
 		SELECT u.id, a.topic, a.read, a.write
 		FROM user u
@@ -352,7 +352,7 @@ func setupNewSQLite(db *sql.DB) error {
 	if _, err := db.Exec(sqliteCreateTablesQueries); err != nil {
 		return err
 	}
-	if _, err := db.Exec(sqliteInsertSchemaVersion, sqliteCurrentSchemaVersion); err != nil {
+	if _, err := db.Exec(sqliteInsertSchemaVersionQuery, sqliteCurrentSchemaVersion); err != nil {
 		return err
 	}
 	return nil
@@ -382,7 +382,7 @@ func sqliteMigrateFrom1(db *sql.DB) error {
 		return err
 	}
 	// Insert users from user_old into new user table, with ID and sync_topic
-	rows, err := tx.Query(sqliteMigrate1To2SelectAllOldUsernamesNoTx)
+	rows, err := tx.Query(sqliteMigrate1To2SelectAllOldUsernamesNoTxQuery)
 	if err != nil {
 		return err
 	}
@@ -401,15 +401,15 @@ func sqliteMigrateFrom1(db *sql.DB) error {
 	for _, username := range usernames {
 		userID := util.RandomStringPrefix(userIDPrefix, userIDLength)
 		syncTopic := util.RandomStringPrefix(syncTopicPrefix, syncTopicLength)
-		if _, err := tx.Exec(sqliteMigrate1To2InsertUserNoTx, userID, syncTopic, username); err != nil {
+		if _, err := tx.Exec(sqliteMigrate1To2InsertUserNoTxQuery, userID, syncTopic, username); err != nil {
 			return err
 		}
 	}
 	// Migrate old "access" table to "user_access" and drop "access" and "user_old"
-	if _, err := tx.Exec(sqliteMigrate1To2InsertFromOldTablesAndDropNoTx); err != nil {
+	if _, err := tx.Exec(sqliteMigrate1To2InsertFromOldTablesAndDropNoTxQuery); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersion, 2); err != nil {
+	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 2); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -428,7 +428,7 @@ func sqliteMigrateFrom2(db *sql.DB) error {
 	if _, err := tx.Exec(sqliteMigrate2To3UpdateQueries); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersion, 3); err != nil {
+	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 3); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -444,7 +444,7 @@ func sqliteMigrateFrom3(db *sql.DB) error {
 	if _, err := tx.Exec(sqliteMigrate3To4UpdateQueries); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersion, 4); err != nil {
+	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 4); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -460,7 +460,7 @@ func sqliteMigrateFrom4(db *sql.DB) error {
 	if _, err := tx.Exec(sqliteMigrate4To5UpdateQueries); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersion, 5); err != nil {
+	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 5); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -476,7 +476,7 @@ func sqliteMigrateFrom5(db *sql.DB) error {
 	if _, err := tx.Exec(sqliteMigrate5To6UpdateQueries); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersion, 6); err != nil {
+	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 6); err != nil {
 		return err
 	}
 	return tx.Commit()

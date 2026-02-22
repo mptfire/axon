@@ -39,9 +39,9 @@ const (
 		PRAGMA foreign_keys = ON;
 	`
 
-	sqliteSelectWebPushSubscriptionIDByEndpoint        = `SELECT id FROM subscription WHERE endpoint = ?`
-	sqliteSelectWebPushSubscriptionCountBySubscriberIP = `SELECT COUNT(*) FROM subscription WHERE subscriber_ip = ?`
-	sqliteSelectWebPushSubscriptionsForTopicQuery      = `
+	sqliteSelectWebPushSubscriptionIDByEndpointQuery        = `SELECT id FROM subscription WHERE endpoint = ?`
+	sqliteSelectWebPushSubscriptionCountBySubscriberIPQuery = `SELECT COUNT(*) FROM subscription WHERE subscriber_ip = ?`
+	sqliteSelectWebPushSubscriptionsForTopicQuery           = `
 		SELECT id, endpoint, key_auth, key_p256dh, user_id
 		FROM subscription_topic st
 		JOIN subscription s ON s.id = st.subscription_id
@@ -65,15 +65,15 @@ const (
 	sqliteDeleteWebPushSubscriptionByUserIDQuery    = `DELETE FROM subscription WHERE user_id = ?`
 	sqliteDeleteWebPushSubscriptionByAgeQuery       = `DELETE FROM subscription WHERE updated_at <= ?` // Full table scan!
 
-	sqliteInsertWebPushSubscriptionTopicQuery               = `INSERT INTO subscription_topic (subscription_id, topic) VALUES (?, ?)`
-	sqliteDeleteWebPushSubscriptionTopicAllQuery            = `DELETE FROM subscription_topic WHERE subscription_id = ?`
-	sqliteDeleteWebPushSubscriptionTopicWithoutSubscription = `DELETE FROM subscription_topic WHERE subscription_id NOT IN (SELECT id FROM subscription)`
+	sqliteInsertWebPushSubscriptionTopicQuery                    = `INSERT INTO subscription_topic (subscription_id, topic) VALUES (?, ?)`
+	sqliteDeleteWebPushSubscriptionTopicAllQuery                 = `DELETE FROM subscription_topic WHERE subscription_id = ?`
+	sqliteDeleteWebPushSubscriptionTopicWithoutSubscriptionQuery = `DELETE FROM subscription_topic WHERE subscription_id NOT IN (SELECT id FROM subscription)`
 )
 
 // SQLite schema management queries
 const (
 	sqliteCurrentWebPushSchemaVersion     = 1
-	sqliteInsertWebPushSchemaVersion      = `INSERT INTO schemaVersion VALUES (1, ?)`
+	sqliteInsertWebPushSchemaVersionQuery = `INSERT INTO schemaVersion VALUES (1, ?)`
 	sqliteSelectWebPushSchemaVersionQuery = `SELECT version FROM schemaVersion WHERE id = 1`
 )
 
@@ -92,8 +92,8 @@ func NewSQLiteStore(filename, startupQueries string) (Store, error) {
 	return &commonStore{
 		db: db,
 		queries: storeQueries{
-			selectSubscriptionIDByEndpoint:             sqliteSelectWebPushSubscriptionIDByEndpoint,
-			selectSubscriptionCountBySubscriberIP:      sqliteSelectWebPushSubscriptionCountBySubscriberIP,
+			selectSubscriptionIDByEndpoint:             sqliteSelectWebPushSubscriptionIDByEndpointQuery,
+			selectSubscriptionCountBySubscriberIP:      sqliteSelectWebPushSubscriptionCountBySubscriberIPQuery,
 			selectSubscriptionsForTopic:                sqliteSelectWebPushSubscriptionsForTopicQuery,
 			selectSubscriptionsExpiringSoon:            sqliteSelectWebPushSubscriptionsExpiringSoonQuery,
 			insertSubscription:                         sqliteInsertWebPushSubscriptionQuery,
@@ -104,7 +104,7 @@ func NewSQLiteStore(filename, startupQueries string) (Store, error) {
 			deleteSubscriptionByAge:                    sqliteDeleteWebPushSubscriptionByAgeQuery,
 			insertSubscriptionTopic:                    sqliteInsertWebPushSubscriptionTopicQuery,
 			deleteSubscriptionTopicAll:                 sqliteDeleteWebPushSubscriptionTopicAllQuery,
-			deleteSubscriptionTopicWithoutSubscription: sqliteDeleteWebPushSubscriptionTopicWithoutSubscription,
+			deleteSubscriptionTopicWithoutSubscription: sqliteDeleteWebPushSubscriptionTopicWithoutSubscriptionQuery,
 		},
 	}, nil
 }
@@ -125,7 +125,7 @@ func setupNewSQLite(db *sql.DB) error {
 	if _, err := db.Exec(sqliteCreateWebPushSubscriptionsTableQuery); err != nil {
 		return err
 	}
-	if _, err := db.Exec(sqliteInsertWebPushSchemaVersion, sqliteCurrentWebPushSchemaVersion); err != nil {
+	if _, err := db.Exec(sqliteInsertWebPushSchemaVersionQuery, sqliteCurrentWebPushSchemaVersion); err != nil {
 		return err
 	}
 	return nil
