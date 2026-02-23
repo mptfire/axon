@@ -1313,6 +1313,53 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 	})
 }
 
+func TestManager_WithProvisionedUsers_RemoveToken(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
+		conf := &Config{
+			DefaultAccess:    PermissionReadWrite,
+			ProvisionEnabled: true,
+			Users: []*User{
+				{Name: "phil", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
+			},
+			Tokens: map[string][]*Token{
+				"phil": {
+					{Value: "tk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Label: "Token A"},
+					{Value: "tk_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", Label: "Token B"},
+				},
+			},
+		}
+		a := newTestManagerFromStoreConfig(t, newStore, conf)
+
+		users, err := a.Users()
+		require.Nil(t, err)
+		philUserID := ""
+		for _, u := range users {
+			if u.Name == "phil" {
+				philUserID = u.ID
+			}
+		}
+		require.NotEmpty(t, philUserID)
+
+		tokens, err := a.Tokens(philUserID)
+		require.Nil(t, err)
+		require.Equal(t, 2, len(tokens))
+
+		// Re-open the DB: user stays, but Token B is removed from config
+		require.Nil(t, a.Close())
+		conf.Tokens = map[string][]*Token{
+			"phil": {
+				{Value: "tk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Label: "Token A"},
+			},
+		}
+		a = newTestManagerFromStoreConfig(t, newStore, conf)
+
+		tokens, err = a.Tokens(philUserID)
+		require.Nil(t, err)
+		require.Equal(t, 1, len(tokens))
+		require.Equal(t, "tk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", tokens[0].Value)
+	})
+}
+
 func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
 		conf := &Config{

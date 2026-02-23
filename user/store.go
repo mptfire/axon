@@ -44,6 +44,7 @@ type Store interface {
 	ChangeTokenExpiry(userID, token string, expires time.Time) error
 	UpdateTokenLastAccess(token string, lastAccess time.Time, lastOrigin netip.Addr) error
 	RemoveToken(userID, token string) error
+	RemoveProvisionedToken(token string) error
 	RemoveExpiredTokens() error
 	TokenCount(userID string) (int, error)
 	RemoveExcessTokens(userID string, maxCount int) error
@@ -533,6 +534,17 @@ func (s *commonStore) RemoveToken(userID, token string) error {
 		return errNoTokenProvided
 	}
 	if _, err := s.db.Exec(s.queries.deleteToken, userID, token); err != nil {
+		return err
+	}
+	return nil
+}
+
+// RemoveProvisionedToken deletes a provisioned token by value, regardless of user
+func (s *commonStore) RemoveProvisionedToken(token string) error {
+	if token == "" {
+		return errNoTokenProvided
+	}
+	if _, err := s.db.Exec(s.queries.deleteProvisionedToken, token); err != nil {
 		return err
 	}
 	return nil

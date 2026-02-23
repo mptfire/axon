@@ -763,7 +763,7 @@ func (a *Manager) maybeProvisionTokens(provisionUsernames []string) error {
 	}
 	for _, existingToken := range existingTokens {
 		if !slices.Contains(provisionTokens, existingToken.Value) {
-			if err := a.store.RemoveToken("", existingToken.Value); err != nil {
+			if err := a.store.RemoveProvisionedToken(existingToken.Value); err != nil {
 				return fmt.Errorf("failed to remove provisioned token %s: %v", existingToken.Value, err)
 			}
 		}
