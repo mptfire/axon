@@ -144,8 +144,7 @@ const (
 		ON CONFLICT (user_id, token)
 		DO UPDATE SET label = excluded.label, expires = excluded.expires, provisioned = excluded.provisioned
 	`
-	sqliteUpdateTokenLabelQuery       = `UPDATE user_token SET label = ? WHERE user_id = ? AND token = ?`
-	sqliteUpdateTokenExpiryQuery      = `UPDATE user_token SET expires = ? WHERE user_id = ? AND token = ?`
+	sqliteUpdateTokenQuery            = `UPDATE user_token SET label = ?, expires = ? WHERE user_id = ? AND token = ?`
 	sqliteUpdateTokenLastAccessQuery  = `UPDATE user_token SET last_access = ?, last_origin = ? WHERE token = ?`
 	sqliteDeleteTokenQuery            = `DELETE FROM user_token WHERE user_id = ? AND token = ?`
 	sqliteDeleteProvisionedTokenQuery = `DELETE FROM user_token WHERE token = ?`
@@ -255,11 +254,9 @@ func NewSQLiteStore(filename, startupQueries string) (Store, error) {
 			deleteAllAccess:              sqliteDeleteAllAccessQuery,
 			selectToken:                  sqliteSelectTokenQuery,
 			selectTokens:                 sqliteSelectTokensQuery,
-			selectTokenCount:             sqliteSelectTokenCountQuery,
 			selectAllProvisionedTokens:   sqliteSelectAllProvisionedTokensQuery,
 			upsertToken:                  sqliteUpsertTokenQuery,
-			updateTokenLabel:             sqliteUpdateTokenLabelQuery,
-			updateTokenExpiry:            sqliteUpdateTokenExpiryQuery,
+			updateToken:                  sqliteUpdateTokenQuery,
 			updateTokenLastAccess:        sqliteUpdateTokenLastAccessQuery,
 			deleteToken:                  sqliteDeleteTokenQuery,
 			deleteProvisionedToken:       sqliteDeleteProvisionedTokenQuery,

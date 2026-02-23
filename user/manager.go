@@ -116,24 +116,7 @@ func (a *Manager) AuthenticateToken(token string) (*User, error) {
 // after a fixed duration unless ChangeToken is called. This function also prunes tokens for the
 // given user, if there are too many of them.
 func (a *Manager) CreateToken(userID, label string, expires time.Time, origin netip.Addr, provisioned bool) (*Token, error) {
-	token := GenerateToken()
-	access := time.Now()
-	// Create the token
-	createdToken, err := a.store.CreateToken(userID, token, label, access, origin, expires, provisioned)
-	if err != nil {
-		return nil, err
-	}
-	// Check token count and prune if necessary
-	tokenCount, err := a.store.TokenCount(userID)
-	if err != nil {
-		return nil, err
-	}
-	if tokenCount >= tokenMaxCount {
-		if err := a.store.RemoveExcessTokens(userID, tokenMaxCount); err != nil {
-			return nil, err
-		}
-	}
-	return createdToken, nil
+	return a.store.CreateToken(userID, GenerateToken(), label, time.Now(), origin, expires, tokenMaxCount, provisioned)
 }
 
 // Tokens returns all existing tokens for the user with the given user ID
@@ -151,32 +134,35 @@ func (a *Manager) ChangeToken(userID, token string, label *string, expires *time
 	if token == "" {
 		return nil, errNoTokenProvided
 	}
-	if err := a.CanChangeToken(userID, token); err != nil {
+	if err := a.canChangeToken(userID, token); err != nil {
+		return nil, err
+	}
+	t, err := a.store.Token(userID, token)
+	if err != nil {
 		return nil, err
 	}
 	if label != nil {
-		if err := a.store.ChangeTokenLabel(userID, token, *label); err != nil {
-			return nil, err
-		}
+		t.Label = *label
 	}
 	if expires != nil {
-		if err := a.store.ChangeTokenExpiry(userID, token, *expires); err != nil {
-			return nil, err
-		}
+		t.Expires = *expires
 	}
-	return a.Token(userID, token)
+	if err := a.store.ChangeToken(userID, token, t.Label, t.Expires); err != nil {
+		return nil, err
+	}
+	return t, nil
 }
 
 // RemoveToken deletes the token defined in User.Token
 func (a *Manager) RemoveToken(userID, token string) error {
-	if err := a.CanChangeToken(userID, token); err != nil {
+	if err := a.canChangeToken(userID, token); err != nil {
 		return err
 	}
 	return a.store.RemoveToken(userID, token)
 }
 
-// CanChangeToken checks if the token can be changed. If the token is provisioned, it cannot be changed.
-func (a *Manager) CanChangeToken(userID, token string) error {
+// canChangeToken checks if the token can be changed. If the token is provisioned, it cannot be changed.
+func (a *Manager) canChangeToken(userID, token string) error {
 	t, err := a.Token(userID, token)
 	if err != nil {
 		return err
@@ -277,11 +263,8 @@ func (a *Manager) writeUserStatsQueue() error {
 				"calls_count":    update.Calls,
 			}).
 			Trace("Updating stats for user %s", userID)
-		if err := a.store.UpdateStats(userID, update); err != nil {
-			return err
-		}
 	}
-	return nil
+	return a.store.UpdateStats(statsQueue)
 }
 
 func (a *Manager) writeTokenUpdateQueue() error {
@@ -778,7 +761,7 @@ func (a *Manager) maybeProvisionTokens(provisionUsernames []string) error {
 			return fmt.Errorf("failed to find provisioned user %s for provisioned tokens: %v", username, err)
 		}
 		for _, token := range tokens {
-			if _, err := a.store.CreateToken(userID, token.Value, token.Label, time.Unix(0, 0), netip.IPv4Unspecified(), time.Unix(0, 0), true); err != nil {
+			if _, err := a.store.CreateToken(userID, token.Value, token.Label, time.Unix(0, 0), netip.IPv4Unspecified(), time.Unix(0, 0), 0, true); err != nil {
 				return err
 			}
 		}

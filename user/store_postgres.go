@@ -146,8 +146,7 @@ const (
 		ON CONFLICT (user_id, token)
 		DO UPDATE SET label = excluded.label, expires = excluded.expires, provisioned = excluded.provisioned
 	`
-	postgresUpdateTokenLabelQuery       = `UPDATE user_token SET label = $1 WHERE user_id = $2 AND token = $3`
-	postgresUpdateTokenExpiryQuery      = `UPDATE user_token SET expires = $1 WHERE user_id = $2 AND token = $3`
+	postgresUpdateTokenQuery            = `UPDATE user_token SET label = $1, expires = $2 WHERE user_id = $3 AND token = $4`
 	postgresUpdateTokenLastAccessQuery  = `UPDATE user_token SET last_access = $1, last_origin = $2 WHERE token = $3`
 	postgresDeleteTokenQuery            = `DELETE FROM user_token WHERE user_id = $1 AND token = $2`
 	postgresDeleteProvisionedTokenQuery = `DELETE FROM user_token WHERE token = $1`
@@ -251,11 +250,9 @@ func NewPostgresStore(db *sql.DB) (Store, error) {
 			// Token queries
 			selectToken:                postgresSelectTokenQuery,
 			selectTokens:               postgresSelectTokensQuery,
-			selectTokenCount:           postgresSelectTokenCountQuery,
 			selectAllProvisionedTokens: postgresSelectAllProvisionedTokensQuery,
 			upsertToken:                postgresUpsertTokenQuery,
-			updateTokenLabel:           postgresUpdateTokenLabelQuery,
-			updateTokenExpiry:          postgresUpdateTokenExpiryQuery,
+			updateToken:                postgresUpdateTokenQuery,
 			updateTokenLastAccess:      postgresUpdateTokenLastAccessQuery,
 			deleteToken:                postgresDeleteTokenQuery,
 			deleteProvisionedToken:     postgresDeleteProvisionedTokenQuery,

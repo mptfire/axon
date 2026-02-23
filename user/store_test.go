@@ -78,7 +78,7 @@ func TestStoreUserByToken(t *testing.T) {
 		u, err := store.User("phil")
 		require.Nil(t, err)
 
-		tk, err := store.CreateToken(u.ID, "tk_test123", "test token", time.Now(), netip.MustParseAddr("1.2.3.4"), time.Now().Add(24*time.Hour), false)
+		tk, err := store.CreateToken(u.ID, "tk_test123", "test token", time.Now(), netip.MustParseAddr("1.2.3.4"), time.Now().Add(24*time.Hour), 0, false)
 		require.Nil(t, err)
 		require.Equal(t, "tk_test123", tk.Value)
 
@@ -165,7 +165,7 @@ func TestStoreTokens(t *testing.T) {
 		expires := now.Add(24 * time.Hour)
 		origin := netip.MustParseAddr("9.9.9.9")
 
-		tk, err := store.CreateToken(u.ID, "tk_abc", "my token", now, origin, expires, false)
+		tk, err := store.CreateToken(u.ID, "tk_abc", "my token", now, origin, expires, 0, false)
 		require.Nil(t, err)
 		require.Equal(t, "tk_abc", tk.Value)
 		require.Equal(t, "my token", tk.Label)
@@ -181,27 +181,25 @@ func TestStoreTokens(t *testing.T) {
 		require.Nil(t, err)
 		require.Len(t, tokens, 1)
 		require.Equal(t, "tk_abc", tokens[0].Value)
-
-		// Token count
-		count, err := store.TokenCount(u.ID)
-		require.Nil(t, err)
-		require.Equal(t, 1, count)
 	})
 }
 
-func TestStoreTokenChangeLabel(t *testing.T) {
+func TestStoreTokenChange(t *testing.T) {
 	forEachStoreBackend(t, func(t *testing.T, store user.Store) {
 		require.Nil(t, store.AddUser("phil", "philhash", user.RoleUser, false))
 		u, err := store.User("phil")
 		require.Nil(t, err)
 
-		_, err = store.CreateToken(u.ID, "tk_abc", "old label", time.Now(), netip.MustParseAddr("1.2.3.4"), time.Now().Add(time.Hour), false)
+		expires := time.Now().Add(time.Hour)
+		_, err = store.CreateToken(u.ID, "tk_abc", "old label", time.Now(), netip.MustParseAddr("1.2.3.4"), expires, 0, false)
 		require.Nil(t, err)
 
-		require.Nil(t, store.ChangeTokenLabel(u.ID, "tk_abc", "new label"))
+		newExpires := time.Now().Add(2 * time.Hour)
+		require.Nil(t, store.ChangeToken(u.ID, "tk_abc", "new label", newExpires))
 		tk, err := store.Token(u.ID, "tk_abc")
 		require.Nil(t, err)
 		require.Equal(t, "new label", tk.Label)
+		require.Equal(t, newExpires.Unix(), tk.Expires.Unix())
 	})
 }
 
@@ -211,7 +209,7 @@ func TestStoreTokenRemove(t *testing.T) {
 		u, err := store.User("phil")
 		require.Nil(t, err)
 
-		_, err = store.CreateToken(u.ID, "tk_abc", "label", time.Now(), netip.MustParseAddr("1.2.3.4"), time.Now().Add(time.Hour), false)
+		_, err = store.CreateToken(u.ID, "tk_abc", "label", time.Now(), netip.MustParseAddr("1.2.3.4"), time.Now().Add(time.Hour), 0, false)
 		require.Nil(t, err)
 
 		require.Nil(t, store.RemoveToken(u.ID, "tk_abc"))
@@ -227,9 +225,9 @@ func TestStoreTokenRemoveExpired(t *testing.T) {
 		require.Nil(t, err)
 
 		// Create expired token and active token
-		_, err = store.CreateToken(u.ID, "tk_expired", "expired", time.Now(), netip.MustParseAddr("1.2.3.4"), time.Now().Add(-time.Hour), false)
+		_, err = store.CreateToken(u.ID, "tk_expired", "expired", time.Now(), netip.MustParseAddr("1.2.3.4"), time.Now().Add(-time.Hour), 0, false)
 		require.Nil(t, err)
-		_, err = store.CreateToken(u.ID, "tk_active", "active", time.Now(), netip.MustParseAddr("1.2.3.4"), time.Now().Add(time.Hour), false)
+		_, err = store.CreateToken(u.ID, "tk_active", "active", time.Now(), netip.MustParseAddr("1.2.3.4"), time.Now().Add(time.Hour), 0, false)
 		require.Nil(t, err)
 
 		require.Nil(t, store.RemoveExpiredTokens())
@@ -245,28 +243,25 @@ func TestStoreTokenRemoveExpired(t *testing.T) {
 	})
 }
 
-func TestStoreTokenRemoveExcess(t *testing.T) {
+func TestStoreTokenCreatePrunesExcess(t *testing.T) {
 	forEachStoreBackend(t, func(t *testing.T, store user.Store) {
 		require.Nil(t, store.AddUser("phil", "philhash", user.RoleUser, false))
 		u, err := store.User("phil")
 		require.Nil(t, err)
 
-		// Create 3 tokens with increasing expiry
-		for i, name := range []string{"tk_a", "tk_b", "tk_c"} {
-			_, err = store.CreateToken(u.ID, name, name, time.Now(), netip.MustParseAddr("1.2.3.4"), time.Now().Add(time.Duration(i+1)*time.Hour), false)
+		// Create 2 tokens with no pruning
+		for i, name := range []string{"tk_a", "tk_b"} {
+			_, err = store.CreateToken(u.ID, name, name, time.Now(), netip.MustParseAddr("1.2.3.4"), time.Now().Add(time.Duration(i+1)*time.Hour), 0, false)
 			require.Nil(t, err)
 		}
 
-		count, err := store.TokenCount(u.ID)
+		// Create a 3rd token with maxTokenCount=2, which should prune tk_a (earliest expiry)
+		_, err = store.CreateToken(u.ID, "tk_c", "tk_c", time.Now(), netip.MustParseAddr("1.2.3.4"), time.Now().Add(3*time.Hour), 2, false)
 		require.Nil(t, err)
-		require.Equal(t, 3, count)
 
-		// Remove excess, keep only 2 (the ones with latest expiry: tk_b, tk_c)
-		require.Nil(t, store.RemoveExcessTokens(u.ID, 2))
-
-		count, err = store.TokenCount(u.ID)
+		tokens, err := store.Tokens(u.ID)
 		require.Nil(t, err)
-		require.Equal(t, 2, count)
+		require.Equal(t, 2, len(tokens))
 
 		// tk_a should be removed (earliest expiry)
 		_, err = store.Token(u.ID, "tk_a")
@@ -286,7 +281,7 @@ func TestStoreTokenUpdateLastAccess(t *testing.T) {
 		u, err := store.User("phil")
 		require.Nil(t, err)
 
-		_, err = store.CreateToken(u.ID, "tk_abc", "label", time.Now(), netip.MustParseAddr("1.2.3.4"), time.Now().Add(time.Hour), false)
+		_, err = store.CreateToken(u.ID, "tk_abc", "label", time.Now(), netip.MustParseAddr("1.2.3.4"), time.Now().Add(time.Hour), 0, false)
 		require.Nil(t, err)
 
 		newTime := time.Now().Add(5 * time.Minute)
@@ -628,7 +623,7 @@ func TestStoreUpdateStats(t *testing.T) {
 		require.Nil(t, err)
 
 		stats := &user.Stats{Messages: 42, Emails: 3, Calls: 1}
-		require.Nil(t, store.UpdateStats(u.ID, stats))
+		require.Nil(t, store.UpdateStats(map[string]*user.Stats{u.ID: stats}))
 
 		u2, err := store.User("phil")
 		require.Nil(t, err)
@@ -644,7 +639,7 @@ func TestStoreResetStats(t *testing.T) {
 		u, err := store.User("phil")
 		require.Nil(t, err)
 
-		require.Nil(t, store.UpdateStats(u.ID, &user.Stats{Messages: 42, Emails: 3, Calls: 1}))
+		require.Nil(t, store.UpdateStats(map[string]*user.Stats{u.ID: {Messages: 42, Emails: 3, Calls: 1}}))
 		require.Nil(t, store.ResetStats())
 
 		u2, err := store.User("phil")
