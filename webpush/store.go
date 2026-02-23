@@ -157,7 +157,7 @@ func (s *commonStore) RemoveExpiredSubscriptions(expireAfter time.Duration) erro
 }
 
 // SetSubscriptionUpdatedAt updates the updated_at timestamp for a subscription by endpoint. This is
-// exported for testing purposes and is not part of the Store interface.
+// exported for testing purposes.
 func (s *commonStore) SetSubscriptionUpdatedAt(endpoint string, updatedAt int64) error {
 	_, err := s.db.Exec(s.queries.updateSubscriptionUpdatedAt, updatedAt, endpoint)
 	return err

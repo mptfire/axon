@@ -299,6 +299,8 @@ func (c *commonStore) Message(id string) (*model.Message, error) {
 
 // UpdateMessageTime updates the time column for a message by ID. This is only used for testing.
 func (c *commonStore) UpdateMessageTime(messageID string, timestamp int64) error {
+	c.maybeLock()
+	defer c.maybeUnlock()
 	_, err := c.db.Exec(c.queries.updateMessageTime, timestamp, messageID)
 	return err
 }

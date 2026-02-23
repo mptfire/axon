@@ -9,7 +9,6 @@ import (
 
 const (
 	sqliteCreateWebPushSubscriptionsTableQuery = `
-		BEGIN;
 		CREATE TABLE IF NOT EXISTS subscription (
 			id TEXT PRIMARY KEY,
 			endpoint TEXT NOT NULL,
@@ -32,8 +31,7 @@ const (
 		CREATE TABLE IF NOT EXISTS schemaVersion (
 			id INT PRIMARY KEY,
 			version INT NOT NULL
-		);			
-		COMMIT;
+		);
 	`
 	sqliteBuiltinStartupQueries = `
 		PRAGMA foreign_keys = ON;
@@ -122,13 +120,18 @@ func setupSQLite(db *sql.DB) error {
 }
 
 func setupNewSQLite(db *sql.DB) error {
-	if _, err := db.Exec(sqliteCreateWebPushSubscriptionsTableQuery); err != nil {
+	tx, err := db.Begin()
+	if err != nil {
 		return err
 	}
-	if _, err := db.Exec(sqliteInsertWebPushSchemaVersionQuery, sqliteCurrentWebPushSchemaVersion); err != nil {
+	defer tx.Rollback()
+	if _, err := tx.Exec(sqliteCreateWebPushSubscriptionsTableQuery); err != nil {
 		return err
 	}
-	return nil
+	if _, err := tx.Exec(sqliteInsertWebPushSchemaVersionQuery, sqliteCurrentWebPushSchemaVersion); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func runSQLiteStartupQueries(db *sql.DB, startupQueries string) error {
