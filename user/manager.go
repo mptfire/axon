@@ -281,11 +281,8 @@ func (a *Manager) writeTokenUpdateQueue() error {
 	log.Tag(tag).Debug("Writing token update queue for %d token(s)", len(tokenQueue))
 	for tokenID, update := range tokenQueue {
 		log.Tag(tag).Trace("Updating token %s with last access time %v", tokenID, update.LastAccess.Unix())
-		if err := a.store.UpdateTokenLastAccess(tokenID, update.LastAccess, update.LastOrigin); err != nil {
-			return err
-		}
 	}
-	return nil
+	return a.store.UpdateTokenLastAccess(tokenQueue)
 }
 
 // Authorize returns nil if the given user has access to the given topic using the desired

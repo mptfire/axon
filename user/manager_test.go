@@ -1218,7 +1218,7 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 		// Update the token last access time and origin (so we can check that it is persisted)
 		lastAccessTime := time.Now().Add(time.Hour)
 		lastOrigin := netip.MustParseAddr("1.1.9.9")
-		err = a.store.UpdateTokenLastAccess(tokens[0].Value, lastAccessTime, lastOrigin)
+		err = a.store.UpdateTokenLastAccess(map[string]*TokenUpdate{tokens[0].Value: {LastAccess: lastAccessTime, LastOrigin: lastOrigin}})
 		require.Nil(t, err)
 
 		// Re-open the DB (second app start)

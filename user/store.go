@@ -41,7 +41,7 @@ type Store interface {
 	Tokens(userID string) ([]*Token, error)
 	AllProvisionedTokens() ([]*Token, error)
 	ChangeToken(userID, token, label string, expires time.Time) error
-	UpdateTokenLastAccess(token string, lastAccess time.Time, lastOrigin netip.Addr) error
+	UpdateTokenLastAccess(updates map[string]*TokenUpdate) error
 	RemoveToken(userID, token string) error
 	RemoveProvisionedToken(token string) error
 	RemoveExpiredTokens() error
@@ -116,6 +116,7 @@ type storeQueries struct {
 	// Token queries
 	selectToken                string
 	selectTokens               string
+	selectTokenCount           string
 	selectAllProvisionedTokens string
 	upsertToken                string
 	updateToken                string
@@ -457,8 +458,14 @@ func (s *commonStore) CreateToken(userID, token, label string, lastAccess time.T
 		return nil, err
 	}
 	if maxTokenCount > 0 {
-		if _, err := tx.Exec(s.queries.deleteExcessTokens, userID, userID, maxTokenCount); err != nil {
+		var tokenCount int
+		if err := tx.QueryRow(s.queries.selectTokenCount, userID).Scan(&tokenCount); err != nil {
 			return nil, err
+		}
+		if tokenCount > maxTokenCount {
+			if _, err := tx.Exec(s.queries.deleteExcessTokens, userID, userID, maxTokenCount); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -532,12 +539,19 @@ func (s *commonStore) ChangeToken(userID, token, label string, expires time.Time
 	return nil
 }
 
-// UpdateTokenLastAccess updates a token's last access time and origin
-func (s *commonStore) UpdateTokenLastAccess(token string, lastAccess time.Time, lastOrigin netip.Addr) error {
-	if _, err := s.db.Exec(s.queries.updateTokenLastAccess, lastAccess.Unix(), lastOrigin.String(), token); err != nil {
+// UpdateTokenLastAccess updates the last access time and origin for one or more tokens in a single transaction
+func (s *commonStore) UpdateTokenLastAccess(updates map[string]*TokenUpdate) error {
+	tx, err := s.db.Begin()
+	if err != nil {
 		return err
 	}
-	return nil
+	defer tx.Rollback()
+	for token, update := range updates {
+		if _, err := tx.Exec(s.queries.updateTokenLastAccess, update.LastAccess.Unix(), update.LastOrigin.String(), token); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // RemoveToken deletes the token

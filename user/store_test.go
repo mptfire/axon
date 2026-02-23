@@ -286,7 +286,7 @@ func TestStoreTokenUpdateLastAccess(t *testing.T) {
 
 		newTime := time.Now().Add(5 * time.Minute)
 		newOrigin := netip.MustParseAddr("5.5.5.5")
-		require.Nil(t, store.UpdateTokenLastAccess("tk_abc", newTime, newOrigin))
+		require.Nil(t, store.UpdateTokenLastAccess(map[string]*user.TokenUpdate{"tk_abc": {LastAccess: newTime, LastOrigin: newOrigin}}))
 
 		tk, err := store.Token(u.ID, "tk_abc")
 		require.Nil(t, err)

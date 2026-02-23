@@ -254,6 +254,7 @@ func NewSQLiteStore(filename, startupQueries string) (Store, error) {
 			deleteAllAccess:              sqliteDeleteAllAccessQuery,
 			selectToken:                  sqliteSelectTokenQuery,
 			selectTokens:                 sqliteSelectTokensQuery,
+			selectTokenCount:             sqliteSelectTokenCountQuery,
 			selectAllProvisionedTokens:   sqliteSelectAllProvisionedTokensQuery,
 			upsertToken:                  sqliteUpsertTokenQuery,
 			updateToken:                  sqliteUpdateTokenQuery,

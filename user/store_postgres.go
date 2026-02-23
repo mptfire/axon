@@ -250,6 +250,7 @@ func NewPostgresStore(db *sql.DB) (Store, error) {
 			// Token queries
 			selectToken:                postgresSelectTokenQuery,
 			selectTokens:               postgresSelectTokensQuery,
+			selectTokenCount:           postgresSelectTokenCountQuery,
 			selectAllProvisionedTokens: postgresSelectAllProvisionedTokensQuery,
 			upsertToken:                postgresUpsertTokenQuery,
 			updateToken:                postgresUpdateTokenQuery,
