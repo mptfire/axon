@@ -269,8 +269,12 @@ func (s *commonStore) MarkUserRemoved(userID string) error {
 		return err
 	}
 	defer tx.Rollback()
-	// Get username for deleteUserAccess query
-	user, err := s.UserByID(userID)
+	// Get username for deleteUserAccess query (must be inside tx for consistency)
+	rows, err := tx.Query(s.queries.selectUserByID, userID)
+	if err != nil {
+		return err
+	}
+	user, err := s.readUser(rows)
 	if err != nil {
 		return err
 	}

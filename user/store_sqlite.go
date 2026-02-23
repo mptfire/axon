@@ -2,8 +2,12 @@ package user
 
 import (
 	"database/sql"
+	"fmt"
+	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
+
+	"heckel.io/ntfy/v2/util"
 )
 
 const (
@@ -200,6 +204,10 @@ const (
 
 // NewSQLiteStore creates a new SQLite-backed user store
 func NewSQLiteStore(filename, startupQueries string) (Store, error) {
+	parentDir := filepath.Dir(filename)
+	if !util.FileExists(parentDir) {
+		return nil, fmt.Errorf("user database directory %s does not exist or is not accessible", parentDir)
+	}
 	db, err := sql.Open("sqlite3", filename)
 	if err != nil {
 		return nil, err
