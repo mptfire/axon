@@ -2677,10 +2677,14 @@ func TestServer_PublishWhileUpdatingStatsWithLotsOfMessages(t *testing.T) {
 		require.True(t, time.Since(start) < 100*time.Millisecond)
 		log.Info("Done: Publishing message; took %s", time.Since(start).Round(time.Millisecond))
 
-		// Wait for all goroutines
+		// Wait for all Goroutines
+		waitDuration := 10 * time.Second
+		if raceEnabled {
+			waitDuration = 35 * time.Second
+		}
 		select {
 		case <-statsChan:
-		case <-time.After(10 * time.Second):
+		case <-time.After(waitDuration):
 			t.Fatal("Timed out waiting for Go routines")
 		}
 		log.Info("Done: Waiting for all locks")
