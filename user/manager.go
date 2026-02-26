@@ -355,7 +355,7 @@ func (a *Manager) MarkUserRemoved(user *User) error {
 	if !AllowedUsername(user.Name) {
 		return ErrInvalidArgument
 	}
-	return a.store.MarkUserRemoved(user.ID)
+	return a.store.MarkUserRemoved(user.ID, user.Name)
 }
 
 // Users returns a list of users. It always also returns the Everyone user ("*").
@@ -552,13 +552,7 @@ func (a *Manager) AddReservation(username string, topic string, everyone Permiss
 	if !AllowedUsername(username) || username == Everyone || !AllowedTopic(topic) {
 		return ErrInvalidArgument
 	}
-	if err := a.store.AllowAccess(username, topic, true, true, username, false); err != nil {
-		return err
-	}
-	if err := a.store.AllowAccess(Everyone, topic, everyone.IsRead(), everyone.IsWrite(), username, false); err != nil {
-		return err
-	}
-	return nil
+	return a.store.AddReservation(username, topic, everyone)
 }
 
 // RemoveReservations deletes the access control entries associated with the given username/topic, as
@@ -572,15 +566,7 @@ func (a *Manager) RemoveReservations(username string, topics ...string) error {
 			return ErrInvalidArgument
 		}
 	}
-	for _, topic := range topics {
-		if err := a.store.ResetAccess(username, topic); err != nil {
-			return err
-		}
-		if err := a.store.ResetAccess(Everyone, topic); err != nil {
-			return err
-		}
-	}
-	return nil
+	return a.store.RemoveReservations(username, topics...)
 }
 
 // DefaultAccess returns the default read/write access if no access control entry matches

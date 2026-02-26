@@ -656,7 +656,7 @@ func TestStoreMarkUserRemoved(t *testing.T) {
 		u, err := store.User("phil")
 		require.Nil(t, err)
 
-		require.Nil(t, store.MarkUserRemoved(u.ID))
+		require.Nil(t, store.MarkUserRemoved(u.ID, u.Name))
 
 		u2, err := store.User("phil")
 		require.Nil(t, err)
@@ -670,7 +670,7 @@ func TestStoreRemoveDeletedUsers(t *testing.T) {
 		u, err := store.User("phil")
 		require.Nil(t, err)
 
-		require.Nil(t, store.MarkUserRemoved(u.ID))
+		require.Nil(t, store.MarkUserRemoved(u.ID, u.Name))
 
 		// RemoveDeletedUsers only removes users past the hard-delete duration (7 days).
 		// Immediately after marking, the user should still exist.

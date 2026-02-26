@@ -7,6 +7,7 @@ build/
 server/docs/
 server/site/
 tools/fbsend/fbsend
+tools/pgimport/pgimport
 playground/
 secrets/
 *.iml
