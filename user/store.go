@@ -795,7 +795,7 @@ func (s *commonStore) Reservations(username string) ([]Reservation, error) {
 			return nil, err
 		}
 		reservations = append(reservations, Reservation{
-			Topic:    unescapeUnderscore(topic),
+			Topic:    fromSQLWildcard(topic),
 			Owner:    NewPermission(ownerRead, ownerWrite),
 			Everyone: NewPermission(everyoneRead.Bool, everyoneWrite.Bool),
 		})
@@ -895,6 +895,7 @@ func (s *commonStore) RemoveTier(code string) error {
 	if !AllowedTier(code) {
 		return ErrInvalidArgument
 	}
+	// This fails if any user has this tier
 	if _, err := s.db.Exec(s.queries.deleteTier, code); err != nil {
 		return err
 	}
@@ -940,6 +941,7 @@ func (s *commonStore) TierByStripePrice(priceID string) (*Tier, error) {
 	defer rows.Close()
 	return s.readTier(rows)
 }
+
 func (s *commonStore) readTier(rows *sql.Rows) (*Tier, error) {
 	var id, code, name string
 	var stripeMonthlyPriceID, stripeYearlyPriceID sql.NullString
@@ -952,6 +954,7 @@ func (s *commonStore) readTier(rows *sql.Rows) (*Tier, error) {
 	} else if err := rows.Err(); err != nil {
 		return nil, err
 	}
+	// When changed, note readUser() as well
 	return &Tier{
 		ID:                       id,
 		Code:                     code,
@@ -965,8 +968,8 @@ func (s *commonStore) readTier(rows *sql.Rows) (*Tier, error) {
 		AttachmentTotalSizeLimit: attachmentTotalSizeLimit.Int64,
 		AttachmentExpiryDuration: time.Duration(attachmentExpiryDuration.Int64) * time.Second,
 		AttachmentBandwidthLimit: attachmentBandwidthLimit.Int64,
-		StripeMonthlyPriceID:     stripeMonthlyPriceID.String,
-		StripeYearlyPriceID:      stripeYearlyPriceID.String,
+		StripeMonthlyPriceID:     stripeMonthlyPriceID.String, // May be empty
+		StripeYearlyPriceID:      stripeYearlyPriceID.String,  // May be empty
 	}, nil
 }
 
