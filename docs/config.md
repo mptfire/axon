@@ -481,7 +481,7 @@ that all other users and anonymous access are denied by default.
       - "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin"
       - "backup-script:$2a$10$/ehiQt.w7lhTmHXq.RNsOOkIwiPPeWFIzWYO3DRxNixnWKLX8.uj.:user"
     auth-access:
-      - "backup-service:backups:rw"
+      - "backup-script:backups:rw"
     auth-tokens:
       - "phil:tk_3gd7d2yftt4b8ixyfe9mnmro88o76:My personal token"
     ```
@@ -491,7 +491,7 @@ that all other users and anonymous access are denied by default.
     NTFY_AUTH_FILE='/var/lib/ntfy/user.db'
     NTFY_AUTH_DEFAULT_ACCESS='deny-all'
     NTFY_AUTH_USERS='phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin,backup-script:$2a$10$/ehiQt.w7lhTmHXq.RNsOOkIwiPPeWFIzWYO3DRxNixnWKLX8.uj.:user'
-    NTFY_AUTH_ACCESS='backup-service:backups:rw'
+    NTFY_AUTH_ACCESS='backup-script:backups:rw'
     NTFY_AUTH_TOKENS='phil:tk_3gd7d2yftt4b8ixyfe9mnmro88o76:My personal token'
     ```
 
