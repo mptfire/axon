@@ -203,13 +203,14 @@ const (
 	`
 )
 
-// NewPostgresStore creates a new PostgreSQL-backed user store using an existing database connection pool.
-func NewPostgresStore(db *sql.DB) (Store, error) {
+// NewPostgresManager creates a new Manager backed by a PostgreSQL database using an existing connection pool.
+func NewPostgresManager(db *sql.DB, config *Config) (*Manager, error) {
 	if err := setupPostgres(db); err != nil {
 		return nil, err
 	}
-	return &commonStore{
-		db: db,
+	manager := &Manager{
+		config: config,
+		db:     db,
 		queries: storeQueries{
 			// User queries
 			selectUserByID:               postgresSelectUserByIDQuery,
@@ -277,5 +278,9 @@ func NewPostgresStore(db *sql.DB) (Store, error) {
 			// Billing queries
 			updateBilling: postgresUpdateBillingQuery,
 		},
-	}, nil
+	}
+	if err := initManager(manager); err != nil {
+		return nil, err
+	}
+	return manager, nil
 }

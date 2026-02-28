@@ -378,25 +378,19 @@ func createUserManager(c *cli.Context) (*user.Manager, error) {
 		BcryptCost:          user.DefaultUserPasswordBcryptCost,
 		QueueWriterInterval: user.DefaultUserStatsQueueWriterInterval,
 	}
-	var store user.Store
 	if databaseURL != "" {
 		pool, dbErr := db.OpenPostgres(databaseURL)
 		if dbErr != nil {
 			return nil, dbErr
 		}
-		store, err = user.NewPostgresStore(pool)
+		return user.NewPostgresManager(pool, authConfig)
 	} else if authFile != "" {
 		if !util.FileExists(authFile) {
 			return nil, errors.New("auth-file does not exist; please start the server at least once to create it")
 		}
-		store, err = user.NewSQLiteStore(authFile, authStartupQueries)
-	} else {
-		return nil, errors.New("option database-url or auth-file not set; auth is unconfigured for this server")
+		return user.NewSQLiteManager(authFile, authStartupQueries, authConfig)
 	}
-	if err != nil {
-		return nil, err
-	}
-	return user.NewManager(store, authConfig)
+	return nil, errors.New("option database-url or auth-file not set; auth is unconfigured for this server")
 }
 
 func readPasswordAndConfirm(c *cli.Context) (string, error) {

@@ -1,12 +1,14 @@
 package user
 
 import (
+	"database/sql"
 	"errors"
-	"heckel.io/ntfy/v2/log"
-	"heckel.io/ntfy/v2/payments"
 	"net/netip"
 	"strings"
 	"time"
+
+	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/payments"
 )
 
 // User is a struct that represents a user
@@ -273,3 +275,78 @@ var (
 	ErrProvisionedUserChange  = errors.New("cannot change or delete provisioned user")
 	ErrProvisionedTokenChange = errors.New("cannot change or delete provisioned token")
 )
+
+// storeQueries holds the database-specific SQL queries
+type storeQueries struct {
+	// User queries
+	selectUserByID               string
+	selectUserByName             string
+	selectUserByToken            string
+	selectUserByStripeCustomerID string
+	selectUsernames              string
+	selectUserCount              string
+	selectUserIDFromUsername     string
+	insertUser                   string
+	updateUserPass               string
+	updateUserRole               string
+	updateUserProvisioned        string
+	updateUserPrefs              string
+	updateUserStats              string
+	updateUserStatsResetAll      string
+	updateUserTier               string
+	updateUserDeleted            string
+	deleteUser                   string
+	deleteUserTier               string
+	deleteUsersMarked            string
+
+	// Access queries
+	selectTopicPerms            string
+	selectUserAllAccess         string
+	selectUserAccess            string
+	selectUserReservations      string
+	selectUserReservationsCount string
+	selectUserReservationsOwner string
+	selectUserHasReservation    string
+	selectOtherAccessCount      string
+	upsertUserAccess            string
+	deleteUserAccess            string
+	deleteUserAccessProvisioned string
+	deleteTopicAccess           string
+	deleteAllAccess             string
+
+	// Token queries
+	selectToken                string
+	selectTokens               string
+	selectTokenCount           string
+	selectAllProvisionedTokens string
+	upsertToken                string
+	updateToken                string
+	updateTokenLastAccess      string
+	deleteToken                string
+	deleteProvisionedToken     string
+	deleteAllToken             string
+	deleteExpiredTokens        string
+	deleteExcessTokens         string
+
+	// Tier queries
+	insertTier          string
+	selectTiers         string
+	selectTierByCode    string
+	selectTierByPriceID string
+	updateTier          string
+	deleteTier          string
+
+	// Phone queries
+	selectPhoneNumbers string
+	insertPhoneNumber  string
+	deletePhoneNumber  string
+
+	// Billing queries
+	updateBilling string
+}
+
+// execer is satisfied by both *sql.DB and *sql.Tx, allowing helper methods
+// to be used both standalone and within a transaction.
+type execer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}

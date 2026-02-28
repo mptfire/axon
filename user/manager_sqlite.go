@@ -201,8 +201,8 @@ const (
 	`
 )
 
-// NewSQLiteStore creates a new SQLite-backed user store
-func NewSQLiteStore(filename, startupQueries string) (Store, error) {
+// NewSQLiteManager creates a new Manager backed by a SQLite database
+func NewSQLiteManager(filename, startupQueries string, config *Config) (*Manager, error) {
 	parentDir := filepath.Dir(filename)
 	if !util.FileExists(parentDir) {
 		return nil, fmt.Errorf("user database directory %s does not exist or is not accessible", parentDir)
@@ -217,8 +217,9 @@ func NewSQLiteStore(filename, startupQueries string) (Store, error) {
 	if err := runSQLiteStartupQueries(db, startupQueries); err != nil {
 		return nil, err
 	}
-	return &commonStore{
-		db: db,
+	manager := &Manager{
+		config: config,
+		db:     db,
 		queries: storeQueries{
 			selectUserByID:               sqliteSelectUserByIDQuery,
 			selectUserByName:             sqliteSelectUserByNameQuery,
@@ -275,5 +276,9 @@ func NewSQLiteStore(filename, startupQueries string) (Store, error) {
 			deletePhoneNumber:            sqliteDeletePhoneNumberQuery,
 			updateBilling:                sqliteUpdateBillingQuery,
 		},
-	}, nil
+	}
+	if err := initManager(manager); err != nil {
+		return nil, err
+	}
+	return manager, nil
 }

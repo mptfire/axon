@@ -235,16 +235,11 @@ func New(conf *Config) (*Server, error) {
 			BcryptCost:          conf.AuthBcryptCost,
 			QueueWriterInterval: conf.AuthStatsQueueWriterInterval,
 		}
-		var store user.Store
 		if pool != nil {
-			store, err = user.NewPostgresStore(pool)
+			userManager, err = user.NewPostgresManager(pool, authConfig)
 		} else {
-			store, err = user.NewSQLiteStore(conf.AuthFile, conf.AuthStartupQueries)
+			userManager, err = user.NewSQLiteManager(conf.AuthFile, conf.AuthStartupQueries, authConfig)
 		}
-		if err != nil {
-			return nil, err
-		}
-		userManager, err = user.NewManager(store, authConfig)
 		if err != nil {
 			return nil, err
 		}

@@ -18,35 +18,36 @@ import (
 
 const minBcryptTimingMillis = int64(40) // Ideally should be >100ms, but this should also run on a Raspberry Pi without massive resources
 
-// newStoreFunc creates a Store. Calling it multiple times within the same test
-// returns a new Store object pointing at the same underlying data (same SQLite
-// file / same PostgreSQL schema), enabling close-and-reopen tests.
-type newStoreFunc func() Store
+// newManagerFunc creates a Manager with the given config. Calling it multiple
+// times within the same test returns a new Manager pointing at the same
+// underlying data (same SQLite file / same PostgreSQL schema), enabling
+// close-and-reopen tests.
+type newManagerFunc func(config *Config) *Manager
 
-func forEachBackend(t *testing.T, f func(t *testing.T, newStore newStoreFunc)) {
+func forEachBackend(t *testing.T, f func(t *testing.T, newManager newManagerFunc)) {
 	t.Run("sqlite", func(t *testing.T) {
 		dir := t.TempDir()
-		f(t, func() Store {
-			store, err := NewSQLiteStore(filepath.Join(dir, "user.db"), "")
+		f(t, func(config *Config) *Manager {
+			a, err := NewSQLiteManager(filepath.Join(dir, "user.db"), "", config)
 			require.Nil(t, err)
-			return store
+			return a
 		})
 	})
 	t.Run("postgres", func(t *testing.T) {
 		schemaDSN := dbtest.CreateTestPostgresSchema(t)
-		f(t, func() Store {
+		f(t, func(config *Config) *Manager {
 			pool, err := db.OpenPostgres(schemaDSN)
 			require.Nil(t, err)
-			store, err := NewPostgresStore(pool)
+			a, err := NewPostgresManager(pool, config)
 			require.Nil(t, err)
-			return store
+			return a
 		})
 	})
 }
 
 func TestManager_FullScenario_Default_DenyAll(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AddUser("phil", "phil", RoleAdmin, false))
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 		require.Nil(t, a.AddUser("john", "john", RoleUser, false))
@@ -162,8 +163,8 @@ func TestManager_FullScenario_Default_DenyAll(t *testing.T) {
 func TestManager_Access_Order_LengthWriteRead(t *testing.T) {
 	// This test validates issue #914 / #917, i.e. that write permissions are prioritized over read permissions,
 	// and longer ACL rules are prioritized as well.
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 		require.Nil(t, a.AllowAccess("ben", "test*", PermissionReadWrite))
 		require.Nil(t, a.AllowAccess("ben", "*", PermissionRead))
@@ -177,8 +178,8 @@ func TestManager_Access_Order_LengthWriteRead(t *testing.T) {
 }
 
 func TestManager_AddUser_Invalid(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Equal(t, ErrInvalidArgument, a.AddUser("  invalid  ", "pass", RoleAdmin, false))
 		require.Equal(t, ErrInvalidArgument, a.AddUser("validuser", "pass", "invalid-role", false))
 	})
@@ -192,8 +193,8 @@ func TestManager_AddUser_Timing(t *testing.T) {
 }
 
 func TestManager_AddUser_And_Query(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AddUser("user", "pass", RoleAdmin, false))
 		require.Nil(t, a.ChangeBilling("user", &Billing{
 			StripeCustomerID:            "acct_123",
@@ -219,8 +220,8 @@ func TestManager_AddUser_And_Query(t *testing.T) {
 }
 
 func TestManager_MarkUserRemoved_RemoveDeletedUsers(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 
 		// Create user, add reservations and token
 		require.Nil(t, a.AddUser("user", "pass", RoleAdmin, false))
@@ -262,8 +263,7 @@ func TestManager_MarkUserRemoved_RemoveDeletedUsers(t *testing.T) {
 		require.True(t, u.Deleted)
 
 		// Backdate the deleted timestamp so RemoveDeletedUsers will prune the user
-		q := a.store.(*commonStore).queries.updateUserDeleted
-		_, err = testDB(a).Exec(q, time.Now().Add(-1*(userHardDeleteAfterDuration+time.Hour)).Unix(), u.ID)
+		_, err = testDB(a).Exec(a.queries.updateUserDeleted, time.Now().Add(-1*(userHardDeleteAfterDuration+time.Hour)).Unix(), u.ID)
 		require.Nil(t, err)
 		require.Nil(t, a.RemoveDeletedUsers())
 
@@ -273,8 +273,8 @@ func TestManager_MarkUserRemoved_RemoveDeletedUsers(t *testing.T) {
 }
 
 func TestManager_CreateToken_Only_Lower(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 
 		// Create user, add reservations and token
 		require.Nil(t, a.AddUser("user", "pass", RoleAdmin, false))
@@ -288,8 +288,8 @@ func TestManager_CreateToken_Only_Lower(t *testing.T) {
 }
 
 func TestManager_UserManagement(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AddUser("phil", "phil", RoleAdmin, false))
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 		require.Nil(t, a.AllowAccess("ben", "mytopic", PermissionReadWrite))
@@ -381,8 +381,8 @@ func TestManager_UserManagement(t *testing.T) {
 }
 
 func TestManager_ChangePassword(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AddUser("phil", "phil", RoleAdmin, false))
 		require.Nil(t, a.AddUser("jane", "$2a$10$OyqU72muEy7VMd1SAU2Iru5IbeSMgrtCGHu/fWLmxL1MwlijQXWbG", RoleUser, true))
 
@@ -407,8 +407,8 @@ func TestManager_ChangePassword(t *testing.T) {
 }
 
 func TestManager_ChangeRole(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 		require.Nil(t, a.AllowAccess("ben", "mytopic", PermissionReadWrite))
 		require.Nil(t, a.AllowAccess("ben", "readme", PermissionRead))
@@ -434,8 +434,8 @@ func TestManager_ChangeRole(t *testing.T) {
 }
 
 func TestManager_Reservations(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 		require.Nil(t, a.AddReservation("ben", "ztopic_", PermissionDenyAll))
@@ -506,8 +506,8 @@ func TestManager_Reservations(t *testing.T) {
 }
 
 func TestManager_ChangeRoleFromTierUserToAdmin(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AddTier(&Tier{
 			Code:                     "pro",
 			Name:                     "ntfy Pro",
@@ -567,8 +567,8 @@ func TestManager_ChangeRoleFromTierUserToAdmin(t *testing.T) {
 }
 
 func TestManager_Token_Valid(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 		u, err := a.User("ben")
@@ -613,8 +613,8 @@ func TestManager_Token_Valid(t *testing.T) {
 }
 
 func TestManager_Token_Invalid(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 		u, err := a.AuthenticateToken(strings.Repeat("x", 32)) // 32 == token length
@@ -628,16 +628,16 @@ func TestManager_Token_Invalid(t *testing.T) {
 }
 
 func TestManager_Token_NotFound(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		_, err := a.Token("u_bla", "notfound")
 		require.Equal(t, ErrTokenNotFound, err)
 	})
 }
 
 func TestManager_Token_Expire(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 		u, err := a.User("ben")
@@ -686,8 +686,8 @@ func TestManager_Token_Expire(t *testing.T) {
 }
 
 func TestManager_Token_Extend(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 		// Try to extend token for user without token
@@ -716,8 +716,8 @@ func TestManager_Token_Extend(t *testing.T) {
 
 func TestManager_Token_MaxCount_AutoDelete(t *testing.T) {
 	// Tests that tokens are automatically deleted when the maximum number of tokens is reached
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
 
@@ -787,13 +787,13 @@ func TestManager_Token_MaxCount_AutoDelete(t *testing.T) {
 }
 
 func TestManager_EnqueueStats_ResetStats(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		conf := &Config{
 			DefaultAccess:       PermissionReadWrite,
 			BcryptCost:          bcrypt.MinCost,
 			QueueWriterInterval: 1500 * time.Millisecond,
 		}
-		a := newTestManagerFromStoreConfig(t, newStore, conf)
+		a := newTestManagerFromConfig(t, newManager, conf)
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 		// Baseline: No messages or emails
@@ -835,13 +835,13 @@ func TestManager_EnqueueStats_ResetStats(t *testing.T) {
 }
 
 func TestManager_EnqueueTokenUpdate(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		conf := &Config{
 			DefaultAccess:       PermissionReadWrite,
 			BcryptCost:          bcrypt.MinCost,
 			QueueWriterInterval: 500 * time.Millisecond,
 		}
-		a := newTestManagerFromStoreConfig(t, newStore, conf)
+		a := newTestManagerFromConfig(t, newManager, conf)
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 		// Create user and token
@@ -874,13 +874,13 @@ func TestManager_EnqueueTokenUpdate(t *testing.T) {
 }
 
 func TestManager_ChangeSettings(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		conf := &Config{
 			DefaultAccess:       PermissionReadWrite,
 			BcryptCost:          bcrypt.MinCost,
 			QueueWriterInterval: 1500 * time.Millisecond,
 		}
-		a := newTestManagerFromStoreConfig(t, newStore, conf)
+		a := newTestManagerFromConfig(t, newManager, conf)
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 
 		// No settings
@@ -921,8 +921,8 @@ func TestManager_ChangeSettings(t *testing.T) {
 }
 
 func TestManager_Tier_Create_Update_List_Delete(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 
 		// Create tier and user
 		require.Nil(t, a.AddTier(&Tier{
@@ -1041,8 +1041,8 @@ func TestManager_Tier_Create_Update_List_Delete(t *testing.T) {
 }
 
 func TestAccount_Tier_Create_With_ID(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 
 		require.Nil(t, a.AddTier(&Tier{
 			ID:   "ti_123",
@@ -1056,8 +1056,8 @@ func TestAccount_Tier_Create_With_ID(t *testing.T) {
 }
 
 func TestManager_Tier_Change_And_Reset(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 
 		// Create tier and user
 		require.Nil(t, a.AddTier(&Tier{
@@ -1095,8 +1095,8 @@ func TestManager_Tier_Change_And_Reset(t *testing.T) {
 }
 
 func TestUser_PhoneNumberAddListRemove(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 
 		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
 		phil, err := a.User("phil")
@@ -1122,8 +1122,8 @@ func TestUser_PhoneNumberAddListRemove(t *testing.T) {
 }
 
 func TestUser_PhoneNumberAdd_Multiple_Users_Same_Number(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 
 		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
@@ -1137,8 +1137,8 @@ func TestUser_PhoneNumberAdd_Multiple_Users_Same_Number(t *testing.T) {
 }
 
 func TestManager_Topic_Wildcard_With_Asterisk_Underscore(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AllowAccess(Everyone, "*_", PermissionRead))
 		require.Nil(t, a.AllowAccess(Everyone, "__*_", PermissionRead))
 		require.Nil(t, a.Authorize(nil, "allowed_", PermissionRead))
@@ -1151,8 +1151,8 @@ func TestManager_Topic_Wildcard_With_Asterisk_Underscore(t *testing.T) {
 }
 
 func TestManager_Topic_Wildcard_With_Underscore(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
-		a := newTestManager(t, newStore, PermissionDenyAll)
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AllowAccess(Everyone, "mytopic_", PermissionReadWrite))
 		require.Nil(t, a.Authorize(nil, "mytopic_", PermissionRead))
 		require.Nil(t, a.Authorize(nil, "mytopic_", PermissionWrite))
@@ -1162,7 +1162,7 @@ func TestManager_Topic_Wildcard_With_Underscore(t *testing.T) {
 }
 
 func TestManager_WithProvisionedUsers(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		conf := &Config{
 			DefaultAccess:    PermissionReadWrite,
 			ProvisionEnabled: true,
@@ -1182,7 +1182,7 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 				},
 			},
 		}
-		a := newTestManagerFromStoreConfig(t, newStore, conf)
+		a := newTestManagerFromConfig(t, newManager, conf)
 
 		// Manually add user
 		require.Nil(t, a.AddUser("philmanual", "manual", RoleUser, false))
@@ -1218,7 +1218,7 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 		// Update the token last access time and origin (so we can check that it is persisted)
 		lastAccessTime := time.Now().Add(time.Hour)
 		lastOrigin := netip.MustParseAddr("1.1.9.9")
-		err = a.store.UpdateTokenLastAccess(map[string]*TokenUpdate{tokens[0].Value: {LastAccess: lastAccessTime, LastOrigin: lastOrigin}})
+		err = a.UpdateTokenLastAccess(map[string]*TokenUpdate{tokens[0].Value: {LastAccess: lastAccessTime, LastOrigin: lastOrigin}})
 		require.Nil(t, err)
 
 		// Re-open the DB (second app start)
@@ -1238,7 +1238,7 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 				{Value: "tk_u48wqendnkx9er21pqqcadlytbutx", Label: "Another token"},
 			},
 		}
-		a = newTestManagerFromStoreConfig(t, newStore, conf)
+		a = newTestManagerFromConfig(t, newManager, conf)
 
 		// Check that the provisioned users are there
 		users, err = a.Users()
@@ -1277,7 +1277,7 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 		conf.Users = []*User{}
 		conf.Access = map[string][]*Grant{}
 		conf.Tokens = map[string][]*Token{}
-		a = newTestManagerFromStoreConfig(t, newStore, conf)
+		a = newTestManagerFromConfig(t, newManager, conf)
 
 		// Check that the provisioned users are all gone
 		users, err = a.Users()
@@ -1314,7 +1314,7 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 }
 
 func TestManager_WithProvisionedUsers_RemoveToken(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		conf := &Config{
 			DefaultAccess:    PermissionReadWrite,
 			ProvisionEnabled: true,
@@ -1328,7 +1328,7 @@ func TestManager_WithProvisionedUsers_RemoveToken(t *testing.T) {
 				},
 			},
 		}
-		a := newTestManagerFromStoreConfig(t, newStore, conf)
+		a := newTestManagerFromConfig(t, newManager, conf)
 
 		users, err := a.Users()
 		require.Nil(t, err)
@@ -1351,7 +1351,7 @@ func TestManager_WithProvisionedUsers_RemoveToken(t *testing.T) {
 				{Value: "tk_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", Label: "Token A"},
 			},
 		}
-		a = newTestManagerFromStoreConfig(t, newStore, conf)
+		a = newTestManagerFromConfig(t, newManager, conf)
 
 		tokens, err = a.Tokens(philUserID)
 		require.Nil(t, err)
@@ -1361,7 +1361,7 @@ func TestManager_WithProvisionedUsers_RemoveToken(t *testing.T) {
 }
 
 func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, newStore newStoreFunc) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		conf := &Config{
 			DefaultAccess:    PermissionReadWrite,
 			ProvisionEnabled: true,
@@ -1372,7 +1372,7 @@ func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
 				},
 			},
 		}
-		a := newTestManagerFromStoreConfig(t, newStore, conf)
+		a := newTestManagerFromConfig(t, newManager, conf)
 
 		// Manually add user
 		require.Nil(t, a.AddUser("philuser", "manual", RoleUser, false))
@@ -1413,7 +1413,7 @@ func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
 				{TopicPattern: "stats", Permission: PermissionReadWrite},
 			},
 		}
-		a = newTestManagerFromStoreConfig(t, newStore, conf)
+		a = newTestManagerFromConfig(t, newManager, conf)
 
 		// Check that the user was "upgraded" to a provisioned user
 		users, err = a.Users()
@@ -1696,39 +1696,714 @@ func checkSchemaVersion(t *testing.T, db *sql.DB) {
 	require.Nil(t, rows.Close())
 }
 
-func newTestManager(t *testing.T, newStore newStoreFunc, defaultAccess Permission) *Manager {
-	store := newStore()
-	a, err := NewManager(store, &Config{
+func newTestManager(t *testing.T, newManager newManagerFunc, defaultAccess Permission) *Manager {
+	a := newManager(&Config{
 		DefaultAccess:       defaultAccess,
 		BcryptCost:          bcrypt.MinCost,
 		QueueWriterInterval: DefaultUserStatsQueueWriterInterval,
 	})
-	require.Nil(t, err)
 	t.Cleanup(func() { a.Close() })
 	return a
 }
 
 func newTestManagerFromFile(t *testing.T, filename, startupQueries string, defaultAccess Permission, bcryptCost int, statsWriterInterval time.Duration) *Manager {
-	store, err := NewSQLiteStore(filename, startupQueries)
-	require.Nil(t, err)
-	conf := &Config{
+	a, err := NewSQLiteManager(filename, startupQueries, &Config{
 		DefaultAccess:       defaultAccess,
 		BcryptCost:          bcryptCost,
 		QueueWriterInterval: statsWriterInterval,
-	}
-	a, err := NewManager(store, conf)
+	})
 	require.Nil(t, err)
 	return a
 }
 
-func newTestManagerFromStoreConfig(t *testing.T, newStore newStoreFunc, conf *Config) *Manager {
-	store := newStore()
-	a, err := NewManager(store, conf)
-	require.Nil(t, err)
+func newTestManagerFromConfig(t *testing.T, newManager newManagerFunc, conf *Config) *Manager {
+	a := newManager(conf)
 	t.Cleanup(func() { a.Close() })
 	return a
 }
 
 func testDB(a *Manager) *sql.DB {
-	return a.store.(*commonStore).db
+	return a.db
+}
+
+func forEachStoreBackend(t *testing.T, f func(t *testing.T, manager *Manager)) {
+	t.Run("sqlite", func(t *testing.T) {
+		manager, err := NewSQLiteManager(filepath.Join(t.TempDir(), "user.db"), "", &Config{})
+		require.Nil(t, err)
+		t.Cleanup(func() { manager.Close() })
+		f(t, manager)
+	})
+	t.Run("postgres", func(t *testing.T) {
+		testDB := dbtest.CreateTestPostgres(t)
+		manager, err := NewPostgresManager(testDB, &Config{})
+		require.Nil(t, err)
+		f(t, manager)
+	})
+}
+
+func TestStoreAddUser(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+		require.Equal(t, "phil", u.Name)
+		require.Equal(t, RoleUser, u.Role)
+		require.False(t, u.Provisioned)
+		require.NotEmpty(t, u.ID)
+		require.NotEmpty(t, u.SyncTopic)
+	})
+}
+
+func TestStoreAddUserAlreadyExists(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "pass1", RoleUser, false))
+		require.Equal(t, ErrUserExists, manager.AddUser("phil", "pass2", RoleUser, false))
+	})
+}
+
+func TestStoreRemoveUser(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+		require.Equal(t, "phil", u.Name)
+
+		require.Nil(t, manager.RemoveUser("phil"))
+		_, err = manager.User("phil")
+		require.Equal(t, ErrUserNotFound, err)
+	})
+}
+
+func TestStoreUserByID(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleAdmin, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		u2, err := manager.UserByID(u.ID)
+		require.Nil(t, err)
+		require.Equal(t, u.Name, u2.Name)
+		require.Equal(t, u.ID, u2.ID)
+	})
+}
+
+func TestStoreUserByToken(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		tk, err := manager.CreateToken(u.ID, "test token", time.Now().Add(24*time.Hour), netip.MustParseAddr("1.2.3.4"), false)
+		require.Nil(t, err)
+		require.NotEmpty(t, tk.Value)
+
+		u2, err := manager.UserByToken(tk.Value)
+		require.Nil(t, err)
+		require.Equal(t, "phil", u2.Name)
+	})
+}
+
+func TestStoreUserByStripeCustomer(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		require.Nil(t, manager.ChangeBilling("phil", &Billing{
+			StripeCustomerID:     "cus_test123",
+			StripeSubscriptionID: "sub_test123",
+		}))
+
+		u, err := manager.UserByStripeCustomer("cus_test123")
+		require.Nil(t, err)
+		require.Equal(t, "phil", u.Name)
+		require.Equal(t, "cus_test123", u.Billing.StripeCustomerID)
+	})
+}
+
+func TestStoreUsers(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		require.Nil(t, manager.AddUser("ben", "benpass", RoleAdmin, false))
+
+		users, err := manager.Users()
+		require.Nil(t, err)
+		require.True(t, len(users) >= 3) // phil, ben, and the everyone user
+	})
+}
+
+func TestStoreUsersCount(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		count, err := manager.UsersCount()
+		require.Nil(t, err)
+		require.True(t, count >= 1) // At least the everyone user
+
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		count2, err := manager.UsersCount()
+		require.Nil(t, err)
+		require.Equal(t, count+1, count2)
+	})
+}
+
+func TestStoreChangePassword(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+		require.NotEmpty(t, u.Hash)
+
+		require.Nil(t, manager.ChangePassword("phil", "newpass", false))
+		u, err = manager.User("phil")
+		require.Nil(t, err)
+		require.NotEmpty(t, u.Hash)
+	})
+}
+
+func TestStoreChangeRole(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+		require.Equal(t, RoleUser, u.Role)
+
+		require.Nil(t, manager.ChangeRole("phil", RoleAdmin))
+		u, err = manager.User("phil")
+		require.Nil(t, err)
+		require.Equal(t, RoleAdmin, u.Role)
+	})
+}
+
+func TestStoreTokens(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		expires := time.Now().Add(24 * time.Hour)
+		origin := netip.MustParseAddr("9.9.9.9")
+
+		tk, err := manager.CreateToken(u.ID, "my token", expires, origin, false)
+		require.Nil(t, err)
+		require.NotEmpty(t, tk.Value)
+		require.Equal(t, "my token", tk.Label)
+
+		// Get single token
+		tk2, err := manager.Token(u.ID, tk.Value)
+		require.Nil(t, err)
+		require.Equal(t, tk.Value, tk2.Value)
+		require.Equal(t, "my token", tk2.Label)
+
+		// Get all tokens
+		tokens, err := manager.Tokens(u.ID)
+		require.Nil(t, err)
+		require.Len(t, tokens, 1)
+		require.Equal(t, tk.Value, tokens[0].Value)
+	})
+}
+
+func TestStoreTokenChange(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		expires := time.Now().Add(time.Hour)
+		tk, err := manager.CreateToken(u.ID, "old label", expires, netip.MustParseAddr("1.2.3.4"), false)
+		require.Nil(t, err)
+
+		newLabel := "new label"
+		newExpires := time.Now().Add(2 * time.Hour)
+		tk2, err := manager.ChangeToken(u.ID, tk.Value, &newLabel, &newExpires)
+		require.Nil(t, err)
+		require.Equal(t, "new label", tk2.Label)
+		require.Equal(t, newExpires.Unix(), tk2.Expires.Unix())
+	})
+}
+
+func TestStoreTokenRemove(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		tk, err := manager.CreateToken(u.ID, "label", time.Now().Add(time.Hour), netip.MustParseAddr("1.2.3.4"), false)
+		require.Nil(t, err)
+
+		require.Nil(t, manager.RemoveToken(u.ID, tk.Value))
+		_, err = manager.Token(u.ID, tk.Value)
+		require.Equal(t, ErrTokenNotFound, err)
+	})
+}
+
+func TestStoreTokenRemoveExpired(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		// Create expired token and active token
+		tkExpired, err := manager.CreateToken(u.ID, "expired", time.Now().Add(-time.Hour), netip.MustParseAddr("1.2.3.4"), false)
+		require.Nil(t, err)
+		tkActive, err := manager.CreateToken(u.ID, "active", time.Now().Add(time.Hour), netip.MustParseAddr("1.2.3.4"), false)
+		require.Nil(t, err)
+
+		require.Nil(t, manager.RemoveExpiredTokens())
+
+		// Expired token should be gone
+		_, err = manager.Token(u.ID, tkExpired.Value)
+		require.Equal(t, ErrTokenNotFound, err)
+
+		// Active token should still exist
+		tk, err := manager.Token(u.ID, tkActive.Value)
+		require.Nil(t, err)
+		require.Equal(t, tkActive.Value, tk.Value)
+	})
+}
+
+func TestStoreTokenCreatePrunesExcess(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		// Create several tokens
+		var tokenValues []string
+		for i := 0; i < 3; i++ {
+			tk, err := manager.CreateToken(u.ID, "label", time.Now().Add(time.Duration(i+1)*time.Hour), netip.MustParseAddr("1.2.3.4"), false)
+			require.Nil(t, err)
+			tokenValues = append(tokenValues, tk.Value)
+		}
+
+		tokens, err := manager.Tokens(u.ID)
+		require.Nil(t, err)
+		require.True(t, len(tokens) >= 3)
+	})
+}
+
+func TestStoreTokenUpdateLastAccess(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		tk, err := manager.CreateToken(u.ID, "label", time.Now().Add(time.Hour), netip.MustParseAddr("1.2.3.4"), false)
+		require.Nil(t, err)
+
+		newTime := time.Now().Add(5 * time.Minute)
+		newOrigin := netip.MustParseAddr("5.5.5.5")
+		manager.EnqueueTokenUpdate(tk.Value, &TokenUpdate{LastAccess: newTime, LastOrigin: newOrigin})
+	})
+}
+
+func TestStoreAllowAccess(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+
+		require.Nil(t, manager.AllowAccess("phil", "mytopic", PermissionReadWrite))
+		grants, err := manager.Grants("phil")
+		require.Nil(t, err)
+		require.Len(t, grants, 1)
+		require.Equal(t, "mytopic", grants[0].TopicPattern)
+		require.True(t, grants[0].Permission.IsReadWrite())
+	})
+}
+
+func TestStoreAllowAccessReadOnly(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+
+		require.Nil(t, manager.AllowAccess("phil", "announcements", PermissionRead))
+		grants, err := manager.Grants("phil")
+		require.Nil(t, err)
+		require.Len(t, grants, 1)
+		require.True(t, grants[0].Permission.IsRead())
+		require.False(t, grants[0].Permission.IsWrite())
+	})
+}
+
+func TestStoreResetAccess(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		require.Nil(t, manager.AllowAccess("phil", "topic1", PermissionReadWrite))
+		require.Nil(t, manager.AllowAccess("phil", "topic2", PermissionRead))
+
+		grants, err := manager.Grants("phil")
+		require.Nil(t, err)
+		require.Len(t, grants, 2)
+
+		require.Nil(t, manager.ResetAccess("phil", "topic1"))
+		grants, err = manager.Grants("phil")
+		require.Nil(t, err)
+		require.Len(t, grants, 1)
+		require.Equal(t, "topic2", grants[0].TopicPattern)
+	})
+}
+
+func TestStoreResetAccessAll(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		require.Nil(t, manager.AllowAccess("phil", "topic1", PermissionReadWrite))
+		require.Nil(t, manager.AllowAccess("phil", "topic2", PermissionRead))
+
+		require.Nil(t, manager.ResetAccess("phil", ""))
+		grants, err := manager.Grants("phil")
+		require.Nil(t, err)
+		require.Len(t, grants, 0)
+	})
+}
+
+func TestStoreAuthorizeTopicAccess(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		require.Nil(t, manager.AllowAccess("phil", "mytopic", PermissionReadWrite))
+
+		read, write, found, err := manager.AuthorizeTopicAccess("phil", "mytopic")
+		require.Nil(t, err)
+		require.True(t, found)
+		require.True(t, read)
+		require.True(t, write)
+	})
+}
+
+func TestStoreAuthorizeTopicAccessNotFound(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+
+		_, _, found, err := manager.AuthorizeTopicAccess("phil", "other")
+		require.Nil(t, err)
+		require.False(t, found)
+	})
+}
+
+func TestStoreAuthorizeTopicAccessDenyAll(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		require.Nil(t, manager.AllowAccess("phil", "secret", PermissionDenyAll))
+
+		read, write, found, err := manager.AuthorizeTopicAccess("phil", "secret")
+		require.Nil(t, err)
+		require.True(t, found)
+		require.False(t, read)
+		require.False(t, write)
+	})
+}
+
+func TestStoreReservations(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		require.Nil(t, manager.AddReservation("phil", "mytopic", PermissionRead))
+
+		reservations, err := manager.Reservations("phil")
+		require.Nil(t, err)
+		require.Len(t, reservations, 1)
+		require.Equal(t, "mytopic", reservations[0].Topic)
+		require.True(t, reservations[0].Owner.IsReadWrite())
+		require.True(t, reservations[0].Everyone.IsRead())
+		require.False(t, reservations[0].Everyone.IsWrite())
+	})
+}
+
+func TestStoreReservationsCount(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		require.Nil(t, manager.AddReservation("phil", "topic1", PermissionReadWrite))
+		require.Nil(t, manager.AddReservation("phil", "topic2", PermissionReadWrite))
+
+		count, err := manager.ReservationsCount("phil")
+		require.Nil(t, err)
+		require.Equal(t, int64(2), count)
+	})
+}
+
+func TestStoreHasReservation(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		require.Nil(t, manager.AddReservation("phil", "mytopic", PermissionReadWrite))
+
+		has, err := manager.HasReservation("phil", "mytopic")
+		require.Nil(t, err)
+		require.True(t, has)
+
+		has, err = manager.HasReservation("phil", "other")
+		require.Nil(t, err)
+		require.False(t, has)
+	})
+}
+
+func TestStoreReservationOwner(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		require.Nil(t, manager.AddReservation("phil", "mytopic", PermissionReadWrite))
+
+		owner, err := manager.ReservationOwner("mytopic")
+		require.Nil(t, err)
+		require.NotEmpty(t, owner) // Returns the user ID
+
+		owner, err = manager.ReservationOwner("unowned")
+		require.Nil(t, err)
+		require.Empty(t, owner)
+	})
+}
+
+func TestStoreTiers(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		tier := &Tier{
+			ID:                       "ti_test",
+			Code:                     "pro",
+			Name:                     "Pro",
+			MessageLimit:             5000,
+			MessageExpiryDuration:    24 * time.Hour,
+			EmailLimit:               100,
+			CallLimit:                10,
+			ReservationLimit:         20,
+			AttachmentFileSizeLimit:  10 * 1024 * 1024,
+			AttachmentTotalSizeLimit: 100 * 1024 * 1024,
+			AttachmentExpiryDuration: 48 * time.Hour,
+			AttachmentBandwidthLimit: 500 * 1024 * 1024,
+		}
+		require.Nil(t, manager.AddTier(tier))
+
+		// Get by code
+		t2, err := manager.Tier("pro")
+		require.Nil(t, err)
+		require.Equal(t, "ti_test", t2.ID)
+		require.Equal(t, "pro", t2.Code)
+		require.Equal(t, "Pro", t2.Name)
+		require.Equal(t, int64(5000), t2.MessageLimit)
+		require.Equal(t, int64(100), t2.EmailLimit)
+		require.Equal(t, int64(10), t2.CallLimit)
+		require.Equal(t, int64(20), t2.ReservationLimit)
+
+		// List all tiers
+		tiers, err := manager.Tiers()
+		require.Nil(t, err)
+		require.Len(t, tiers, 1)
+		require.Equal(t, "pro", tiers[0].Code)
+	})
+}
+
+func TestStoreTierUpdate(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		tier := &Tier{
+			ID:   "ti_test",
+			Code: "pro",
+			Name: "Pro",
+		}
+		require.Nil(t, manager.AddTier(tier))
+
+		tier.Name = "Professional"
+		tier.MessageLimit = 9999
+		require.Nil(t, manager.UpdateTier(tier))
+
+		t2, err := manager.Tier("pro")
+		require.Nil(t, err)
+		require.Equal(t, "Professional", t2.Name)
+		require.Equal(t, int64(9999), t2.MessageLimit)
+	})
+}
+
+func TestStoreTierRemove(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		tier := &Tier{
+			ID:   "ti_test",
+			Code: "pro",
+			Name: "Pro",
+		}
+		require.Nil(t, manager.AddTier(tier))
+
+		t2, err := manager.Tier("pro")
+		require.Nil(t, err)
+		require.Equal(t, "pro", t2.Code)
+
+		require.Nil(t, manager.RemoveTier("pro"))
+		_, err = manager.Tier("pro")
+		require.Equal(t, ErrTierNotFound, err)
+	})
+}
+
+func TestStoreTierByStripePrice(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		tier := &Tier{
+			ID:                   "ti_test",
+			Code:                 "pro",
+			Name:                 "Pro",
+			StripeMonthlyPriceID: "price_monthly",
+			StripeYearlyPriceID:  "price_yearly",
+		}
+		require.Nil(t, manager.AddTier(tier))
+
+		t2, err := manager.TierByStripePrice("price_monthly")
+		require.Nil(t, err)
+		require.Equal(t, "pro", t2.Code)
+
+		t3, err := manager.TierByStripePrice("price_yearly")
+		require.Nil(t, err)
+		require.Equal(t, "pro", t3.Code)
+	})
+}
+
+func TestStoreChangeTier(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		tier := &Tier{
+			ID:   "ti_test",
+			Code: "pro",
+			Name: "Pro",
+		}
+		require.Nil(t, manager.AddTier(tier))
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		require.Nil(t, manager.ChangeTier("phil", "pro"))
+
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+		require.NotNil(t, u.Tier)
+		require.Equal(t, "pro", u.Tier.Code)
+	})
+}
+
+func TestStorePhoneNumbers(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		require.Nil(t, manager.AddPhoneNumber(u.ID, "+1234567890"))
+		require.Nil(t, manager.AddPhoneNumber(u.ID, "+0987654321"))
+
+		numbers, err := manager.PhoneNumbers(u.ID)
+		require.Nil(t, err)
+		require.Len(t, numbers, 2)
+
+		require.Nil(t, manager.RemovePhoneNumber(u.ID, "+1234567890"))
+		numbers, err = manager.PhoneNumbers(u.ID)
+		require.Nil(t, err)
+		require.Len(t, numbers, 1)
+		require.Equal(t, "+0987654321", numbers[0])
+	})
+}
+
+func TestStoreChangeSettings(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		lang := "de"
+		prefs := &Prefs{Language: &lang}
+		require.Nil(t, manager.ChangeSettings(u.ID, prefs))
+
+		u2, err := manager.User("phil")
+		require.Nil(t, err)
+		require.NotNil(t, u2.Prefs)
+		require.Equal(t, "de", *u2.Prefs.Language)
+	})
+}
+
+func TestStoreChangeBilling(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+
+		billing := &Billing{
+			StripeCustomerID:     "cus_123",
+			StripeSubscriptionID: "sub_456",
+		}
+		require.Nil(t, manager.ChangeBilling("phil", billing))
+
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+		require.Equal(t, "cus_123", u.Billing.StripeCustomerID)
+		require.Equal(t, "sub_456", u.Billing.StripeSubscriptionID)
+	})
+}
+
+func TestStoreUpdateStats(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		stats := &Stats{Messages: 42, Emails: 3, Calls: 1}
+		require.Nil(t, manager.UpdateStats(map[string]*Stats{u.ID: stats}))
+
+		u2, err := manager.User("phil")
+		require.Nil(t, err)
+		require.Equal(t, int64(42), u2.Stats.Messages)
+		require.Equal(t, int64(3), u2.Stats.Emails)
+		require.Equal(t, int64(1), u2.Stats.Calls)
+	})
+}
+
+func TestStoreResetStats(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		require.Nil(t, manager.UpdateStats(map[string]*Stats{u.ID: {Messages: 42, Emails: 3, Calls: 1}}))
+		require.Nil(t, manager.ResetStats())
+
+		u2, err := manager.User("phil")
+		require.Nil(t, err)
+		require.Equal(t, int64(0), u2.Stats.Messages)
+		require.Equal(t, int64(0), u2.Stats.Emails)
+		require.Equal(t, int64(0), u2.Stats.Calls)
+	})
+}
+
+func TestStoreMarkUserRemoved(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		require.Nil(t, manager.MarkUserRemoved(u))
+
+		u2, err := manager.User("phil")
+		require.Nil(t, err)
+		require.True(t, u2.Deleted)
+	})
+}
+
+func TestStoreRemoveDeletedUsers(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		require.Nil(t, manager.MarkUserRemoved(u))
+
+		// RemoveDeletedUsers only removes users past the hard-delete duration (7 days).
+		// Immediately after marking, the user should still exist.
+		require.Nil(t, manager.RemoveDeletedUsers())
+		u2, err := manager.User("phil")
+		require.Nil(t, err)
+		require.True(t, u2.Deleted)
+	})
+}
+
+func TestStoreAllGrants(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		require.Nil(t, manager.AddUser("ben", "benpass", RoleUser, false))
+		phil, err := manager.User("phil")
+		require.Nil(t, err)
+		ben, err := manager.User("ben")
+		require.Nil(t, err)
+
+		require.Nil(t, manager.AllowAccess("phil", "topic1", PermissionReadWrite))
+		require.Nil(t, manager.AllowAccess("ben", "topic2", PermissionRead))
+
+		grants, err := manager.AllGrants()
+		require.Nil(t, err)
+		require.Contains(t, grants, phil.ID)
+		require.Contains(t, grants, ben.ID)
+	})
+}
+
+func TestStoreOtherAccessCount(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		require.Nil(t, manager.AddUser("ben", "benpass", RoleUser, false))
+		require.Nil(t, manager.AddReservation("ben", "mytopic", PermissionReadWrite))
+
+		count, err := manager.OtherAccessCount("phil", "mytopic")
+		require.Nil(t, err)
+		require.Equal(t, 2, count) // ben's owner entry + everyone entry
+	})
 }
