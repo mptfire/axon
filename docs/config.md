@@ -454,7 +454,7 @@ Here's an example:
     ```
     # Comma-separated list
     NTFY_AUTH_FILE='/var/lib/ntfy/user.db'
-    NTFY_AUTH_USERS='phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin,ben:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user'
+    NTFY_AUTH_USERS='phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin,backup-service:$2a$10$NKbrNb7HPMjtQXWJ0f1pouw03LDLT/WzlO9VAv44x84bRCkh19h6m:user'
     NTFY_AUTH_TOKENS='phil:tk_3gd7d2yftt4b8ixyfe9mnmro88o76,backup-service:tk_f099we8uzj7xi5qshzajwp6jffvkz:Backup script'
     ```
 
@@ -470,7 +470,8 @@ and access tokens in the `auth-tokens` section (see [access tokens via the confi
 
 Here's an example that defines a single admin user `phil` with the password `mypass`, and a regular user `backup-script`
 with the password `backup-script`. The admin user has full access to all topics, while regular user can only
-access the `backups` topic with read-write permissions. The `auth-default-access` is set to `deny-all`, which means
+access the `backups` topic with read-write permissions. `phil` has a token `tk_3gd7d2yftt4b8ixyfe9mnmro88o76` 
+with the label "My personal token". The `auth-default-access` is set to `deny-all`, which means
 that all other users and anonymous access are denied by default.
 
 === "Config via /etc/ntfy/server.yml"
@@ -481,7 +482,7 @@ that all other users and anonymous access are denied by default.
       - "phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin"
       - "backup-script:$2a$10$/ehiQt.w7lhTmHXq.RNsOOkIwiPPeWFIzWYO3DRxNixnWKLX8.uj.:user"
     auth-access:
-      - "backup-service:backups:rw"
+      - "backup-script:backups:rw"
     auth-tokens:
       - "phil:tk_3gd7d2yftt4b8ixyfe9mnmro88o76:My personal token"
     ```
@@ -491,7 +492,7 @@ that all other users and anonymous access are denied by default.
     NTFY_AUTH_FILE='/var/lib/ntfy/user.db'
     NTFY_AUTH_DEFAULT_ACCESS='deny-all'
     NTFY_AUTH_USERS='phil:$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C:admin,backup-script:$2a$10$/ehiQt.w7lhTmHXq.RNsOOkIwiPPeWFIzWYO3DRxNixnWKLX8.uj.:user'
-    NTFY_AUTH_ACCESS='backup-service:backups:rw'
+    NTFY_AUTH_ACCESS='backup-script:backups:rw'
     NTFY_AUTH_TOKENS='phil:tk_3gd7d2yftt4b8ixyfe9mnmro88o76:My personal token'
     ```
 
