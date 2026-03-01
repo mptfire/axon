@@ -57,19 +57,25 @@ type Manager struct {
 
 var _ Auther = (*Manager)(nil)
 
-// initManager sets defaults and runs startup tasks common to all backends
-func initManager(manager *Manager) error {
-	if manager.config.BcryptCost <= 0 {
-		manager.config.BcryptCost = DefaultUserPasswordBcryptCost
+func newManager(db *sql.DB, queries queries, config *Config) (*Manager, error) {
+	if config.BcryptCost <= 0 {
+		config.BcryptCost = DefaultUserPasswordBcryptCost
 	}
-	if manager.config.QueueWriterInterval.Seconds() <= 0 {
-		manager.config.QueueWriterInterval = DefaultUserStatsQueueWriterInterval
+	if config.QueueWriterInterval.Seconds() <= 0 {
+		config.QueueWriterInterval = DefaultUserStatsQueueWriterInterval
+	}
+	manager := &Manager{
+		config:     config,
+		db:         db,
+		statsQueue: make(map[string]*Stats),
+		tokenQueue: make(map[string]*TokenUpdate),
+		queries:    queries,
 	}
 	if err := manager.maybeProvisionUsersAccessAndTokens(); err != nil {
-		return err
+		return nil, err
 	}
 	go manager.asyncQueueWriter(manager.config.QueueWriterInterval)
-	return nil
+	return manager, nil
 }
 
 // Authenticate checks username and password and returns a User if correct, and the user has not been

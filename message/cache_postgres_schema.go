@@ -60,7 +60,7 @@ const (
 	postgresSelectSchemaVersionQuery = `SELECT version FROM schema_version WHERE store = 'message'`
 )
 
-func setupPostgresDB(db *sql.DB) error {
+func setupPostgres(db *sql.DB) error {
 	var schemaVersion int
 	err := db.QueryRow(postgresSelectSchemaVersionQuery).Scan(&schemaVersion)
 	if err != nil {

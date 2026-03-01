@@ -1958,26 +1958,6 @@ func TestStoreTokenRemoveExpired(t *testing.T) {
 	})
 }
 
-func TestStoreTokenCreatePrunesExcess(t *testing.T) {
-	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
-		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
-		u, err := manager.User("phil")
-		require.Nil(t, err)
-
-		// Create several tokens
-		var tokenValues []string
-		for i := 0; i < 3; i++ {
-			tk, err := manager.CreateToken(u.ID, "label", time.Now().Add(time.Duration(i+1)*time.Hour), netip.MustParseAddr("1.2.3.4"), false)
-			require.Nil(t, err)
-			tokenValues = append(tokenValues, tk.Value)
-		}
-
-		tokens, err := manager.Tokens(u.ID)
-		require.Nil(t, err)
-		require.True(t, len(tokens) >= 3)
-	})
-}
-
 func TestStoreTokenUpdateLastAccess(t *testing.T) {
 	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
 		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))

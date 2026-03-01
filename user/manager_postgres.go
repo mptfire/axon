@@ -204,85 +204,67 @@ const (
 )
 
 // NewPostgresManager creates a new Manager backed by a PostgreSQL database using an existing connection pool.
+var postgresQueries = queries{
+	selectUserByID:               postgresSelectUserByIDQuery,
+	selectUserByName:             postgresSelectUserByNameQuery,
+	selectUserByToken:            postgresSelectUserByTokenQuery,
+	selectUserByStripeCustomerID: postgresSelectUserByStripeCustomerIDQuery,
+	selectUsernames:              postgresSelectUsernamesQuery,
+	selectUserCount:              postgresSelectUserCountQuery,
+	selectUserIDFromUsername:     postgresSelectUserIDFromUsernameQuery,
+	insertUser:                   postgresInsertUserQuery,
+	updateUserPass:               postgresUpdateUserPassQuery,
+	updateUserRole:               postgresUpdateUserRoleQuery,
+	updateUserProvisioned:        postgresUpdateUserProvisionedQuery,
+	updateUserPrefs:              postgresUpdateUserPrefsQuery,
+	updateUserStats:              postgresUpdateUserStatsQuery,
+	updateUserStatsResetAll:      postgresUpdateUserStatsResetAllQuery,
+	updateUserTier:               postgresUpdateUserTierQuery,
+	updateUserDeleted:            postgresUpdateUserDeletedQuery,
+	deleteUser:                   postgresDeleteUserQuery,
+	deleteUserTier:               postgresDeleteUserTierQuery,
+	deleteUsersMarked:            postgresDeleteUsersMarkedQuery,
+	selectTopicPerms:             postgresSelectTopicPermsQuery,
+	selectUserAllAccess:          postgresSelectUserAllAccessQuery,
+	selectUserAccess:             postgresSelectUserAccessQuery,
+	selectUserReservations:       postgresSelectUserReservationsQuery,
+	selectUserReservationsCount:  postgresSelectUserReservationsCountQuery,
+	selectUserReservationsOwner:  postgresSelectUserReservationsOwnerQuery,
+	selectUserHasReservation:     postgresSelectUserHasReservationQuery,
+	selectOtherAccessCount:       postgresSelectOtherAccessCountQuery,
+	upsertUserAccess:             postgresUpsertUserAccessQuery,
+	deleteUserAccess:             postgresDeleteUserAccessQuery,
+	deleteUserAccessProvisioned:  postgresDeleteUserAccessProvisionedQuery,
+	deleteTopicAccess:            postgresDeleteTopicAccessQuery,
+	deleteAllAccess:              postgresDeleteAllAccessQuery,
+	selectToken:                  postgresSelectTokenQuery,
+	selectTokens:                 postgresSelectTokensQuery,
+	selectTokenCount:             postgresSelectTokenCountQuery,
+	selectAllProvisionedTokens:   postgresSelectAllProvisionedTokensQuery,
+	upsertToken:                  postgresUpsertTokenQuery,
+	updateToken:                  postgresUpdateTokenQuery,
+	updateTokenLastAccess:        postgresUpdateTokenLastAccessQuery,
+	deleteToken:                  postgresDeleteTokenQuery,
+	deleteProvisionedToken:       postgresDeleteProvisionedTokenQuery,
+	deleteAllToken:               postgresDeleteAllTokenQuery,
+	deleteExpiredTokens:          postgresDeleteExpiredTokensQuery,
+	deleteExcessTokens:           postgresDeleteExcessTokensQuery,
+	insertTier:                   postgresInsertTierQuery,
+	selectTiers:                  postgresSelectTiersQuery,
+	selectTierByCode:             postgresSelectTierByCodeQuery,
+	selectTierByPriceID:          postgresSelectTierByPriceIDQuery,
+	updateTier:                   postgresUpdateTierQuery,
+	deleteTier:                   postgresDeleteTierQuery,
+	selectPhoneNumbers:           postgresSelectPhoneNumbersQuery,
+	insertPhoneNumber:            postgresInsertPhoneNumberQuery,
+	deletePhoneNumber:            postgresDeletePhoneNumberQuery,
+	updateBilling:                postgresUpdateBillingQuery,
+}
+
+// NewPostgresManager creates a new Manager backed by a PostgreSQL database
 func NewPostgresManager(db *sql.DB, config *Config) (*Manager, error) {
 	if err := setupPostgres(db); err != nil {
 		return nil, err
 	}
-	manager := &Manager{
-		config:     config,
-		db:         db,
-		statsQueue: make(map[string]*Stats),
-		tokenQueue: make(map[string]*TokenUpdate),
-		queries: queries{
-			// User queries
-			selectUserByID:               postgresSelectUserByIDQuery,
-			selectUserByName:             postgresSelectUserByNameQuery,
-			selectUserByToken:            postgresSelectUserByTokenQuery,
-			selectUserByStripeCustomerID: postgresSelectUserByStripeCustomerIDQuery,
-			selectUsernames:              postgresSelectUsernamesQuery,
-			selectUserCount:              postgresSelectUserCountQuery,
-			selectUserIDFromUsername:     postgresSelectUserIDFromUsernameQuery,
-			insertUser:                   postgresInsertUserQuery,
-			updateUserPass:               postgresUpdateUserPassQuery,
-			updateUserRole:               postgresUpdateUserRoleQuery,
-			updateUserProvisioned:        postgresUpdateUserProvisionedQuery,
-			updateUserPrefs:              postgresUpdateUserPrefsQuery,
-			updateUserStats:              postgresUpdateUserStatsQuery,
-			updateUserStatsResetAll:      postgresUpdateUserStatsResetAllQuery,
-			updateUserTier:               postgresUpdateUserTierQuery,
-			updateUserDeleted:            postgresUpdateUserDeletedQuery,
-			deleteUser:                   postgresDeleteUserQuery,
-			deleteUserTier:               postgresDeleteUserTierQuery,
-			deleteUsersMarked:            postgresDeleteUsersMarkedQuery,
-
-			// Access queries
-			selectTopicPerms:            postgresSelectTopicPermsQuery,
-			selectUserAllAccess:         postgresSelectUserAllAccessQuery,
-			selectUserAccess:            postgresSelectUserAccessQuery,
-			selectUserReservations:      postgresSelectUserReservationsQuery,
-			selectUserReservationsCount: postgresSelectUserReservationsCountQuery,
-			selectUserReservationsOwner: postgresSelectUserReservationsOwnerQuery,
-			selectUserHasReservation:    postgresSelectUserHasReservationQuery,
-			selectOtherAccessCount:      postgresSelectOtherAccessCountQuery,
-			upsertUserAccess:            postgresUpsertUserAccessQuery,
-			deleteUserAccess:            postgresDeleteUserAccessQuery,
-			deleteUserAccessProvisioned: postgresDeleteUserAccessProvisionedQuery,
-			deleteTopicAccess:           postgresDeleteTopicAccessQuery,
-			deleteAllAccess:             postgresDeleteAllAccessQuery,
-
-			// Token queries
-			selectToken:                postgresSelectTokenQuery,
-			selectTokens:               postgresSelectTokensQuery,
-			selectTokenCount:           postgresSelectTokenCountQuery,
-			selectAllProvisionedTokens: postgresSelectAllProvisionedTokensQuery,
-			upsertToken:                postgresUpsertTokenQuery,
-			updateToken:                postgresUpdateTokenQuery,
-			updateTokenLastAccess:      postgresUpdateTokenLastAccessQuery,
-			deleteToken:                postgresDeleteTokenQuery,
-			deleteProvisionedToken:     postgresDeleteProvisionedTokenQuery,
-			deleteAllToken:             postgresDeleteAllTokenQuery,
-			deleteExpiredTokens:        postgresDeleteExpiredTokensQuery,
-			deleteExcessTokens:         postgresDeleteExcessTokensQuery,
-
-			// Tier queries
-			insertTier:          postgresInsertTierQuery,
-			selectTiers:         postgresSelectTiersQuery,
-			selectTierByCode:    postgresSelectTierByCodeQuery,
-			selectTierByPriceID: postgresSelectTierByPriceIDQuery,
-			updateTier:          postgresUpdateTierQuery,
-			deleteTier:          postgresDeleteTierQuery,
-
-			// Phone queries
-			selectPhoneNumbers: postgresSelectPhoneNumbersQuery,
-			insertPhoneNumber:  postgresInsertPhoneNumberQuery,
-			deletePhoneNumber:  postgresDeletePhoneNumberQuery,
-
-			// Billing queries
-			updateBilling: postgresUpdateBillingQuery,
-		},
-	}
-	if err := initManager(manager); err != nil {
-		return nil, err
-	}
-	return manager, nil
+	return newManager(db, postgresQueries, config)
 }
