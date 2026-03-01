@@ -306,7 +306,7 @@ ntfy community. Thanks to everyone running a public server. **You guys rock!**
 | URL                                               | Country            |
 |---------------------------------------------------|--------------------|
 | [ntfy.sh](https://ntfy.sh/) (*Official*)          | 🇺🇸 United States |
-| [ntfy.tedomum.net](https://ntfy.tedomum.net/)     | 🇫🇷 France        |
+| [ntfy.tedomum.fr](https://ntfy.tedomum.fr/)     | 🇫🇷 France        |
 | [ntfy.jae.fi](https://ntfy.jae.fi/)               | 🇫🇮 Finland       |
 | [ntfy.adminforge.de](https://ntfy.adminforge.de/) | 🇩🇪 Germany       |
 | [ntfy.envs.net](https://ntfy.envs.net)            | 🇩🇪 Germany       |
