@@ -62,8 +62,8 @@ type Server struct {
 	messages          int64                               // Total number of messages (persisted if messageCache enabled)
 	messagesHistory   []int64                             // Last n values of the messages counter, used to determine rate
 	userManager       *user.Manager                       // Might be nil!
-	messageCache      message.Store                       // Database that stores the messages
-	webPush           webpush.Store                       // Database that stores web push subscriptions
+	messageCache      *message.Cache                      // Database that stores the messages
+	webPush           *webpush.Store                      // Database that stores web push subscriptions
 	fileCache         *fileCache                          // File system based cache that stores attachments
 	stripe            stripeAPI                           // Stripe API, can be replaced with a mock
 	priceCache        *util.LookupCache[map[string]int64] // Stripe price ID -> price as cents (USD implied!)
@@ -191,7 +191,7 @@ func New(conf *Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	var wp webpush.Store
+	var wp *webpush.Store
 	if conf.WebPushPublicKey != "" {
 		if pool != nil {
 			wp, err = webpush.NewPostgresStore(pool)
@@ -277,7 +277,7 @@ func New(conf *Config) (*Server, error) {
 	return s, nil
 }
 
-func createMessageCache(conf *Config, pool *sql.DB) (message.Store, error) {
+func createMessageCache(conf *Config, pool *sql.DB) (*message.Cache, error) {
 	if conf.CacheDuration == 0 {
 		return message.NewNopStore()
 	} else if pool != nil {

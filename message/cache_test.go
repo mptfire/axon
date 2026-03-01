@@ -15,7 +15,7 @@ import (
 	"heckel.io/ntfy/v2/model"
 )
 
-func newSqliteTestStore(t *testing.T) message.Store {
+func newSqliteTestStore(t *testing.T) *message.Cache {
 	filename := filepath.Join(t.TempDir(), "cache.db")
 	s, err := message.NewSQLiteStore(filename, "", time.Hour, 0, 0, false)
 	require.Nil(t, err)
@@ -23,21 +23,21 @@ func newSqliteTestStore(t *testing.T) message.Store {
 	return s
 }
 
-func newMemTestStore(t *testing.T) message.Store {
+func newMemTestStore(t *testing.T) *message.Cache {
 	s, err := message.NewMemStore()
 	require.Nil(t, err)
 	t.Cleanup(func() { s.Close() })
 	return s
 }
 
-func newTestPostgresStore(t *testing.T) message.Store {
+func newTestPostgresStore(t *testing.T) *message.Cache {
 	testDB := dbtest.CreateTestPostgres(t)
 	store, err := message.NewPostgresStore(testDB, 0, 0)
 	require.Nil(t, err)
 	return store
 }
 
-func forEachBackend(t *testing.T, f func(t *testing.T, s message.Store)) {
+func forEachBackend(t *testing.T, f func(t *testing.T, s *message.Cache)) {
 	t.Run("sqlite", func(t *testing.T) {
 		f(t, newSqliteTestStore(t))
 	})
@@ -50,7 +50,7 @@ func forEachBackend(t *testing.T, f func(t *testing.T, s message.Store)) {
 }
 
 func TestStore_Messages(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		m1 := model.NewDefaultMessage("mytopic", "my message")
 		m1.Time = 1
 
@@ -113,7 +113,7 @@ func TestStore_Messages(t *testing.T) {
 }
 
 func TestStore_MessagesLock(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		var wg sync.WaitGroup
 		for i := 0; i < 5000; i++ {
 			wg.Add(1)
@@ -127,7 +127,7 @@ func TestStore_MessagesLock(t *testing.T) {
 }
 
 func TestStore_MessagesScheduled(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		m1 := model.NewDefaultMessage("mytopic", "message 1")
 		m2 := model.NewDefaultMessage("mytopic", "message 2")
 		m2.Time = time.Now().Add(time.Hour).Unix()
@@ -155,7 +155,7 @@ func TestStore_MessagesScheduled(t *testing.T) {
 }
 
 func TestStore_Topics(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		require.Nil(t, s.AddMessage(model.NewDefaultMessage("topic1", "my example message")))
 		require.Nil(t, s.AddMessage(model.NewDefaultMessage("topic2", "message 1")))
 		require.Nil(t, s.AddMessage(model.NewDefaultMessage("topic2", "message 2")))
@@ -172,7 +172,7 @@ func TestStore_Topics(t *testing.T) {
 }
 
 func TestStore_MessagesTagsPrioAndTitle(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		m := model.NewDefaultMessage("mytopic", "some message")
 		m.Tags = []string{"tag1", "tag2"}
 		m.Priority = 5
@@ -187,7 +187,7 @@ func TestStore_MessagesTagsPrioAndTitle(t *testing.T) {
 }
 
 func TestStore_MessagesSinceID(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		m1 := model.NewDefaultMessage("mytopic", "message 1")
 		m1.Time = 100
 		m2 := model.NewDefaultMessage("mytopic", "message 2")
@@ -251,7 +251,7 @@ func TestStore_MessagesSinceID(t *testing.T) {
 }
 
 func TestStore_Prune(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		now := time.Now().Unix()
 
 		m1 := model.NewDefaultMessage("mytopic", "my message")
@@ -290,7 +290,7 @@ func TestStore_Prune(t *testing.T) {
 }
 
 func TestStore_Attachments(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		expires1 := time.Now().Add(-4 * time.Hour).Unix() // Expired
 		m := model.NewDefaultMessage("mytopic", "flower for you")
 		m.ID = "m1"
@@ -369,7 +369,7 @@ func TestStore_Attachments(t *testing.T) {
 }
 
 func TestStore_AttachmentsExpired(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		m := model.NewDefaultMessage("mytopic", "flower for you")
 		m.ID = "m1"
 		m.SequenceID = "m1"
@@ -422,7 +422,7 @@ func TestStore_AttachmentsExpired(t *testing.T) {
 }
 
 func TestStore_Sender(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		m1 := model.NewDefaultMessage("mytopic", "mymessage")
 		m1.Sender = netip.MustParseAddr("1.2.3.4")
 		require.Nil(t, s.AddMessage(m1))
@@ -439,7 +439,7 @@ func TestStore_Sender(t *testing.T) {
 }
 
 func TestStore_DeleteScheduledBySequenceID(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		// Create a scheduled (unpublished) message
 		scheduledMsg := model.NewDefaultMessage("mytopic", "scheduled message")
 		scheduledMsg.ID = "scheduled1"
@@ -506,7 +506,7 @@ func TestStore_DeleteScheduledBySequenceID(t *testing.T) {
 }
 
 func TestStore_MessageByID(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		// Add a message
 		m := model.NewDefaultMessage("mytopic", "some message")
 		m.Title = "some title"
@@ -531,7 +531,7 @@ func TestStore_MessageByID(t *testing.T) {
 }
 
 func TestStore_MarkPublished(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		// Add a scheduled message (future time -> unpublished)
 		m := model.NewDefaultMessage("mytopic", "scheduled message")
 		m.Time = time.Now().Add(time.Hour).Unix()
@@ -559,7 +559,7 @@ func TestStore_MarkPublished(t *testing.T) {
 }
 
 func TestStore_ExpireMessages(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		// Add messages to two topics
 		m1 := model.NewDefaultMessage("topic1", "message 1")
 		m1.Expires = time.Now().Add(time.Hour).Unix()
@@ -600,7 +600,7 @@ func TestStore_ExpireMessages(t *testing.T) {
 }
 
 func TestStore_MarkAttachmentsDeleted(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		// Add a message with an expired attachment (file needs cleanup)
 		m1 := model.NewDefaultMessage("mytopic", "old file")
 		m1.ID = "msg1"
@@ -659,7 +659,7 @@ func TestStore_MarkAttachmentsDeleted(t *testing.T) {
 }
 
 func TestStore_Stats(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		// Initial stats should be zero
 		messages, err := s.Stats()
 		require.Nil(t, err)
@@ -680,7 +680,7 @@ func TestStore_Stats(t *testing.T) {
 }
 
 func TestStore_AddMessages(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		// Batch add multiple messages
 		msgs := []*model.Message{
 			model.NewDefaultMessage("mytopic", "batch 1"),
@@ -711,7 +711,7 @@ func TestStore_AddMessages(t *testing.T) {
 }
 
 func TestStore_MessagesDue(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		// Add a message scheduled in the past (i.e. it's due now)
 		m1 := model.NewDefaultMessage("mytopic", "due message")
 		m1.Time = time.Now().Add(-time.Second).Unix()
@@ -755,7 +755,7 @@ func TestStore_MessagesDue(t *testing.T) {
 }
 
 func TestStore_MessageFieldRoundTrip(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, s message.Store) {
+	forEachBackend(t, func(t *testing.T, s *message.Cache) {
 		// Create a message with all fields populated
 		m := model.NewDefaultMessage("mytopic", "hello world")
 		m.SequenceID = "custom_seq_id"

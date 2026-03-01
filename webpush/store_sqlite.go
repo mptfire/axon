@@ -76,7 +76,7 @@ const (
 )
 
 // NewSQLiteStore creates a new SQLite-backed web push store.
-func NewSQLiteStore(filename, startupQueries string) (Store, error) {
+func NewSQLiteStore(filename, startupQueries string) (*Store, error) {
 	db, err := sql.Open("sqlite3", filename)
 	if err != nil {
 		return nil, err
@@ -87,9 +87,9 @@ func NewSQLiteStore(filename, startupQueries string) (Store, error) {
 	if err := runSQLiteStartupQueries(db, startupQueries); err != nil {
 		return nil, err
 	}
-	return &commonStore{
+	return &Store{
 		db: db,
-		queries: storeQueries{
+		queries: queries{
 			selectSubscriptionIDByEndpoint:             sqliteSelectWebPushSubscriptionIDByEndpointQuery,
 			selectSubscriptionCountBySubscriberIP:      sqliteSelectWebPushSubscriptionCountBySubscriberIPQuery,
 			selectSubscriptionsForTopic:                sqliteSelectWebPushSubscriptionsForTopicQuery,

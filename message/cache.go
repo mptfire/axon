@@ -20,32 +20,8 @@ const (
 
 var errNoRows = errors.New("no rows found")
 
-// Store is the interface for a message cache store
-type Store interface {
-	AddMessage(m *model.Message) error
-	AddMessages(ms []*model.Message) error
-	Message(id string) (*model.Message, error)
-	MessagesCount() (int, error)
-	Messages(topic string, since model.SinceMarker, scheduled bool) ([]*model.Message, error)
-	MessagesDue() ([]*model.Message, error)
-	MessagesExpired() ([]string, error)
-	MarkPublished(m *model.Message) error
-	UpdateMessageTime(messageID string, timestamp int64) error
-	Topics() ([]string, error)
-	DeleteMessages(ids ...string) error
-	DeleteScheduledBySequenceID(topic, sequenceID string) ([]string, error)
-	ExpireMessages(topics ...string) error
-	AttachmentsExpired() ([]string, error)
-	MarkAttachmentsDeleted(ids ...string) error
-	AttachmentBytesUsedBySender(sender string) (int64, error)
-	AttachmentBytesUsedByUser(userID string) (int64, error)
-	UpdateStats(messages int64) error
-	Stats() (int64, error)
-	Close() error
-}
-
-// storeQueries holds the database-specific SQL queries
-type storeQueries struct {
+// queries holds the database-specific SQL queries
+type queries struct {
 	insertMessage                    string
 	deleteMessage                    string
 	selectScheduledMessageIDsBySeqID string
@@ -71,21 +47,21 @@ type storeQueries struct {
 	updateMessageTime                string
 }
 
-// commonStore implements store operations that are identical across database backends
-type commonStore struct {
+// Cache stores published messages
+type Cache struct {
 	db      *sql.DB
 	queue   *util.BatchingQueue[*model.Message]
 	nop     bool
 	mu      *sync.Mutex // nil for PostgreSQL (concurrent writes supported), set for SQLite (single writer)
-	queries storeQueries
+	queries queries
 }
 
-func newCommonStore(db *sql.DB, queries storeQueries, mu *sync.Mutex, batchSize int, batchTimeout time.Duration, nop bool) *commonStore {
+func newCache(db *sql.DB, queries queries, mu *sync.Mutex, batchSize int, batchTimeout time.Duration, nop bool) *Cache {
 	var queue *util.BatchingQueue[*model.Message]
 	if batchSize > 0 || batchTimeout > 0 {
 		queue = util.NewBatchingQueue[*model.Message](batchSize, batchTimeout)
 	}
-	c := &commonStore{
+	c := &Cache{
 		db:      db,
 		queue:   queue,
 		nop:     nop,
@@ -96,13 +72,13 @@ func newCommonStore(db *sql.DB, queries storeQueries, mu *sync.Mutex, batchSize 
 	return c
 }
 
-func (c *commonStore) maybeLock() {
+func (c *Cache) maybeLock() {
 	if c.mu != nil {
 		c.mu.Lock()
 	}
 }
 
-func (c *commonStore) maybeUnlock() {
+func (c *Cache) maybeUnlock() {
 	if c.mu != nil {
 		c.mu.Unlock()
 	}
@@ -110,7 +86,7 @@ func (c *commonStore) maybeUnlock() {
 
 // AddMessage stores a message to the message cache synchronously, or queues it to be stored at a later date asynchronously.
 // The message is queued only if "batchSize" or "batchTimeout" are passed to the constructor.
-func (c *commonStore) AddMessage(m *model.Message) error {
+func (c *Cache) AddMessage(m *model.Message) error {
 	if c.queue != nil {
 		c.queue.Enqueue(m)
 		return nil
@@ -119,11 +95,11 @@ func (c *commonStore) AddMessage(m *model.Message) error {
 }
 
 // AddMessages synchronously stores a batch of messages to the message cache
-func (c *commonStore) AddMessages(ms []*model.Message) error {
+func (c *Cache) AddMessages(ms []*model.Message) error {
 	return c.addMessages(ms)
 }
 
-func (c *commonStore) addMessages(ms []*model.Message) error {
+func (c *Cache) addMessages(ms []*model.Message) error {
 	c.maybeLock()
 	defer c.maybeUnlock()
 	if c.nop {
@@ -209,7 +185,8 @@ func (c *commonStore) addMessages(ms []*model.Message) error {
 	return nil
 }
 
-func (c *commonStore) Messages(topic string, since model.SinceMarker, scheduled bool) ([]*model.Message, error) {
+// Messages returns messages for a topic since the given marker, optionally including scheduled messages
+func (c *Cache) Messages(topic string, since model.SinceMarker, scheduled bool) ([]*model.Message, error) {
 	if since.IsNone() {
 		return make([]*model.Message, 0), nil
 	} else if since.IsLatest() {
@@ -220,7 +197,7 @@ func (c *commonStore) Messages(topic string, since model.SinceMarker, scheduled 
 	return c.messagesSinceTime(topic, since, scheduled)
 }
 
-func (c *commonStore) messagesSinceTime(topic string, since model.SinceMarker, scheduled bool) ([]*model.Message, error) {
+func (c *Cache) messagesSinceTime(topic string, since model.SinceMarker, scheduled bool) ([]*model.Message, error) {
 	var rows *sql.Rows
 	var err error
 	if scheduled {
@@ -234,7 +211,7 @@ func (c *commonStore) messagesSinceTime(topic string, since model.SinceMarker, s
 	return readMessages(rows)
 }
 
-func (c *commonStore) messagesSinceID(topic string, since model.SinceMarker, scheduled bool) ([]*model.Message, error) {
+func (c *Cache) messagesSinceID(topic string, since model.SinceMarker, scheduled bool) ([]*model.Message, error) {
 	var rows *sql.Rows
 	var err error
 	if scheduled {
@@ -248,7 +225,7 @@ func (c *commonStore) messagesSinceID(topic string, since model.SinceMarker, sch
 	return readMessages(rows)
 }
 
-func (c *commonStore) messagesLatest(topic string) ([]*model.Message, error) {
+func (c *Cache) messagesLatest(topic string) ([]*model.Message, error) {
 	rows, err := c.db.Query(c.queries.selectMessagesLatest, topic)
 	if err != nil {
 		return nil, err
@@ -256,7 +233,8 @@ func (c *commonStore) messagesLatest(topic string) ([]*model.Message, error) {
 	return readMessages(rows)
 }
 
-func (c *commonStore) MessagesDue() ([]*model.Message, error) {
+// MessagesDue returns all messages that are due for publishing
+func (c *Cache) MessagesDue() ([]*model.Message, error) {
 	rows, err := c.db.Query(c.queries.selectMessagesDue, time.Now().Unix())
 	if err != nil {
 		return nil, err
@@ -265,7 +243,7 @@ func (c *commonStore) MessagesDue() ([]*model.Message, error) {
 }
 
 // MessagesExpired returns a list of IDs for messages that have expired (should be deleted)
-func (c *commonStore) MessagesExpired() ([]string, error) {
+func (c *Cache) MessagesExpired() ([]string, error) {
 	rows, err := c.db.Query(c.queries.selectMessagesExpired, time.Now().Unix())
 	if err != nil {
 		return nil, err
@@ -285,7 +263,8 @@ func (c *commonStore) MessagesExpired() ([]string, error) {
 	return ids, nil
 }
 
-func (c *commonStore) Message(id string) (*model.Message, error) {
+// Message returns the message with the given ID, or ErrMessageNotFound if not found
+func (c *Cache) Message(id string) (*model.Message, error) {
 	rows, err := c.db.Query(c.queries.selectMessagesByID, id)
 	if err != nil {
 		return nil, err
@@ -298,21 +277,23 @@ func (c *commonStore) Message(id string) (*model.Message, error) {
 }
 
 // UpdateMessageTime updates the time column for a message by ID. This is only used for testing.
-func (c *commonStore) UpdateMessageTime(messageID string, timestamp int64) error {
+func (c *Cache) UpdateMessageTime(messageID string, timestamp int64) error {
 	c.maybeLock()
 	defer c.maybeUnlock()
 	_, err := c.db.Exec(c.queries.updateMessageTime, timestamp, messageID)
 	return err
 }
 
-func (c *commonStore) MarkPublished(m *model.Message) error {
+// MarkPublished marks a message as published
+func (c *Cache) MarkPublished(m *model.Message) error {
 	c.maybeLock()
 	defer c.maybeUnlock()
 	_, err := c.db.Exec(c.queries.updateMessagePublished, m.ID)
 	return err
 }
 
-func (c *commonStore) MessagesCount() (int, error) {
+// MessagesCount returns the total number of messages in the cache
+func (c *Cache) MessagesCount() (int, error) {
 	rows, err := c.db.Query(c.queries.selectMessagesCount)
 	if err != nil {
 		return 0, err
@@ -328,7 +309,8 @@ func (c *commonStore) MessagesCount() (int, error) {
 	return count, nil
 }
 
-func (c *commonStore) Topics() ([]string, error) {
+// Topics returns a list of all topics with messages in the cache
+func (c *Cache) Topics() ([]string, error) {
 	rows, err := c.db.Query(c.queries.selectTopics)
 	if err != nil {
 		return nil, err
@@ -348,7 +330,8 @@ func (c *commonStore) Topics() ([]string, error) {
 	return topics, nil
 }
 
-func (c *commonStore) DeleteMessages(ids ...string) error {
+// DeleteMessages deletes the messages with the given IDs
+func (c *Cache) DeleteMessages(ids ...string) error {
 	c.maybeLock()
 	defer c.maybeUnlock()
 	tx, err := c.db.Begin()
@@ -366,7 +349,7 @@ func (c *commonStore) DeleteMessages(ids ...string) error {
 
 // DeleteScheduledBySequenceID deletes unpublished (scheduled) messages with the given topic and sequence ID.
 // It returns the message IDs of the deleted messages, which can be used to clean up attachment files.
-func (c *commonStore) DeleteScheduledBySequenceID(topic, sequenceID string) ([]string, error) {
+func (c *Cache) DeleteScheduledBySequenceID(topic, sequenceID string) ([]string, error) {
 	c.maybeLock()
 	defer c.maybeUnlock()
 	tx, err := c.db.Begin()
@@ -402,7 +385,8 @@ func (c *commonStore) DeleteScheduledBySequenceID(topic, sequenceID string) ([]s
 	return ids, nil
 }
 
-func (c *commonStore) ExpireMessages(topics ...string) error {
+// ExpireMessages marks messages in the given topics as expired
+func (c *Cache) ExpireMessages(topics ...string) error {
 	c.maybeLock()
 	defer c.maybeUnlock()
 	tx, err := c.db.Begin()
@@ -418,7 +402,8 @@ func (c *commonStore) ExpireMessages(topics ...string) error {
 	return tx.Commit()
 }
 
-func (c *commonStore) AttachmentsExpired() ([]string, error) {
+// AttachmentsExpired returns message IDs with expired attachments that have not been deleted
+func (c *Cache) AttachmentsExpired() ([]string, error) {
 	rows, err := c.db.Query(c.queries.selectAttachmentsExpired, time.Now().Unix())
 	if err != nil {
 		return nil, err
@@ -438,7 +423,8 @@ func (c *commonStore) AttachmentsExpired() ([]string, error) {
 	return ids, nil
 }
 
-func (c *commonStore) MarkAttachmentsDeleted(ids ...string) error {
+// MarkAttachmentsDeleted marks the attachments for the given message IDs as deleted
+func (c *Cache) MarkAttachmentsDeleted(ids ...string) error {
 	c.maybeLock()
 	defer c.maybeUnlock()
 	tx, err := c.db.Begin()
@@ -454,7 +440,8 @@ func (c *commonStore) MarkAttachmentsDeleted(ids ...string) error {
 	return tx.Commit()
 }
 
-func (c *commonStore) AttachmentBytesUsedBySender(sender string) (int64, error) {
+// AttachmentBytesUsedBySender returns the total size of active attachments sent by the given sender
+func (c *Cache) AttachmentBytesUsedBySender(sender string) (int64, error) {
 	rows, err := c.db.Query(c.queries.selectAttachmentsSizeBySender, sender, time.Now().Unix())
 	if err != nil {
 		return 0, err
@@ -462,7 +449,8 @@ func (c *commonStore) AttachmentBytesUsedBySender(sender string) (int64, error) 
 	return c.readAttachmentBytesUsed(rows)
 }
 
-func (c *commonStore) AttachmentBytesUsedByUser(userID string) (int64, error) {
+// AttachmentBytesUsedByUser returns the total size of active attachments for the given user
+func (c *Cache) AttachmentBytesUsedByUser(userID string) (int64, error) {
 	rows, err := c.db.Query(c.queries.selectAttachmentsSizeByUserID, userID, time.Now().Unix())
 	if err != nil {
 		return 0, err
@@ -470,7 +458,7 @@ func (c *commonStore) AttachmentBytesUsedByUser(userID string) (int64, error) {
 	return c.readAttachmentBytesUsed(rows)
 }
 
-func (c *commonStore) readAttachmentBytesUsed(rows *sql.Rows) (int64, error) {
+func (c *Cache) readAttachmentBytesUsed(rows *sql.Rows) (int64, error) {
 	defer rows.Close()
 	var size int64
 	if !rows.Next() {
@@ -484,14 +472,16 @@ func (c *commonStore) readAttachmentBytesUsed(rows *sql.Rows) (int64, error) {
 	return size, nil
 }
 
-func (c *commonStore) UpdateStats(messages int64) error {
+// UpdateStats updates the total message count statistic
+func (c *Cache) UpdateStats(messages int64) error {
 	c.maybeLock()
 	defer c.maybeUnlock()
 	_, err := c.db.Exec(c.queries.updateStats, messages)
 	return err
 }
 
-func (c *commonStore) Stats() (messages int64, err error) {
+// Stats returns the total message count statistic
+func (c *Cache) Stats() (messages int64, err error) {
 	rows, err := c.db.Query(c.queries.selectStats)
 	if err != nil {
 		return 0, err
@@ -506,11 +496,12 @@ func (c *commonStore) Stats() (messages int64, err error) {
 	return messages, nil
 }
 
-func (c *commonStore) Close() error {
+// Close closes the underlying database connection
+func (c *Cache) Close() error {
 	return c.db.Close()
 }
 
-func (c *commonStore) processMessageBatches() {
+func (c *Cache) processMessageBatches() {
 	if c.queue == nil {
 		return
 	}

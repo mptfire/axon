@@ -78,7 +78,7 @@ const (
 	sqliteUpdateMessageTimeQuery = `UPDATE messages SET time = ? WHERE mid = ?`
 )
 
-var sqliteQueries = storeQueries{
+var sqliteQueries = queries{
 	insertMessage:                    sqliteInsertMessageQuery,
 	deleteMessage:                    sqliteDeleteMessageQuery,
 	selectScheduledMessageIDsBySeqID: sqliteSelectScheduledMessageIDsBySeqIDQuery,
@@ -105,7 +105,7 @@ var sqliteQueries = storeQueries{
 }
 
 // NewSQLiteStore creates a SQLite file-backed cache
-func NewSQLiteStore(filename, startupQueries string, cacheDuration time.Duration, batchSize int, batchTimeout time.Duration, nop bool) (Store, error) {
+func NewSQLiteStore(filename, startupQueries string, cacheDuration time.Duration, batchSize int, batchTimeout time.Duration, nop bool) (*Cache, error) {
 	parentDir := filepath.Dir(filename)
 	if !util.FileExists(parentDir) {
 		return nil, fmt.Errorf("cache database directory %s does not exist or is not accessible", parentDir)
@@ -117,17 +117,17 @@ func NewSQLiteStore(filename, startupQueries string, cacheDuration time.Duration
 	if err := setupSQLite(db, startupQueries, cacheDuration); err != nil {
 		return nil, err
 	}
-	return newCommonStore(db, sqliteQueries, &sync.Mutex{}, batchSize, batchTimeout, nop), nil
+	return newCache(db, sqliteQueries, &sync.Mutex{}, batchSize, batchTimeout, nop), nil
 }
 
 // NewMemStore creates an in-memory cache
-func NewMemStore() (Store, error) {
+func NewMemStore() (*Cache, error) {
 	return NewSQLiteStore(createMemoryFilename(), "", 0, 0, 0, false)
 }
 
 // NewNopStore creates an in-memory cache that discards all messages;
 // it is always empty and can be used if caching is entirely disabled
-func NewNopStore() (Store, error) {
+func NewNopStore() (*Cache, error) {
 	return NewSQLiteStore(createMemoryFilename(), "", 0, 0, 0, true)
 }
 

@@ -71,13 +71,13 @@ const (
 )
 
 // NewPostgresStore creates a new PostgreSQL-backed web push store using an existing database connection pool.
-func NewPostgresStore(db *sql.DB) (Store, error) {
+func NewPostgresStore(db *sql.DB) (*Store, error) {
 	if err := setupPostgresDB(db); err != nil {
 		return nil, err
 	}
-	return &commonStore{
+	return &Store{
 		db: db,
-		queries: storeQueries{
+		queries: queries{
 			selectSubscriptionIDByEndpoint:             postgresSelectSubscriptionIDByEndpointQuery,
 			selectSubscriptionCountBySubscriberIP:      postgresSelectSubscriptionCountBySubscriberIPQuery,
 			selectSubscriptionsForTopic:                postgresSelectSubscriptionsForTopicQuery,

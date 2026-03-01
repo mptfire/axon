@@ -54,7 +54,7 @@ const (
 // visitor represents an API user, and its associated rate.Limiter used for rate limiting
 type visitor struct {
 	config              *Config
-	messageCache        message.Store
+	messageCache        *message.Cache
 	userManager         *user.Manager      // May be nil
 	ip                  netip.Addr         // Visitor IP address
 	user                *user.User         // Only set if authenticated user, otherwise nil
@@ -115,7 +115,7 @@ const (
 	visitorLimitBasisTier = visitorLimitBasis("tier")
 )
 
-func newVisitor(conf *Config, messageCache message.Store, userManager *user.Manager, ip netip.Addr, user *user.User) *visitor {
+func newVisitor(conf *Config, messageCache *message.Cache, userManager *user.Manager, ip netip.Addr, user *user.User) *visitor {
 	var messages, emails, calls int64
 	if user != nil {
 		messages = user.Stats.Messages

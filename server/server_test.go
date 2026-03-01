@@ -4121,7 +4121,7 @@ func TestServer_DeleteScheduledMessage_WithAttachment(t *testing.T) {
 	})
 }
 
-func newMemTestCache(t *testing.T) message.Store {
+func newMemTestCache(t *testing.T) *message.Cache {
 	c, err := message.NewMemStore()
 	require.Nil(t, err)
 	return c

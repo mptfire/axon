@@ -271,7 +271,7 @@ func newSqliteTestStoreFile(t *testing.T) string {
 	return filepath.Join(t.TempDir(), "cache.db")
 }
 
-func newSqliteTestStoreFromFile(t *testing.T, filename, startupQueries string) message.Store {
+func newSqliteTestStoreFromFile(t *testing.T, filename, startupQueries string) *message.Cache {
 	s, err := message.NewSQLiteStore(filename, startupQueries, time.Hour, 0, 0, false)
 	require.Nil(t, err)
 	t.Cleanup(func() { s.Close() })

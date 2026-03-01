@@ -21,21 +21,14 @@ var (
 	ErrWebPushUserIDCannotBeEmpty  = errors.New("user ID cannot be empty")
 )
 
-// Store is the interface for a web push subscription store.
-type Store interface {
-	UpsertSubscription(endpoint, auth, p256dh, userID string, subscriberIP netip.Addr, topics []string) error
-	SubscriptionsForTopic(topic string) ([]*Subscription, error)
-	SubscriptionsExpiring(warnAfter time.Duration) ([]*Subscription, error)
-	MarkExpiryWarningSent(subscriptions []*Subscription) error
-	RemoveSubscriptionsByEndpoint(endpoint string) error
-	RemoveSubscriptionsByUserID(userID string) error
-	RemoveExpiredSubscriptions(expireAfter time.Duration) error
-	SetSubscriptionUpdatedAt(endpoint string, updatedAt int64) error
-	Close() error
+// Store holds the database connection and queries for web push subscriptions.
+type Store struct {
+	db      *sql.DB
+	queries queries
 }
 
-// storeQueries holds the database-specific SQL queries.
-type storeQueries struct {
+// queries holds the database-specific SQL queries.
+type queries struct {
 	selectSubscriptionIDByEndpoint             string
 	selectSubscriptionCountBySubscriberIP      string
 	selectSubscriptionsForTopic                string
@@ -51,14 +44,8 @@ type storeQueries struct {
 	deleteSubscriptionTopicWithoutSubscription string
 }
 
-// commonStore implements store operations that are identical across database backends.
-type commonStore struct {
-	db      *sql.DB
-	queries storeQueries
-}
-
 // UpsertSubscription adds or updates Web Push subscriptions for the given topics and user ID.
-func (s *commonStore) UpsertSubscription(endpoint string, auth, p256dh, userID string, subscriberIP netip.Addr, topics []string) error {
+func (s *Store) UpsertSubscription(endpoint string, auth, p256dh, userID string, subscriberIP netip.Addr, topics []string) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -97,7 +84,7 @@ func (s *commonStore) UpsertSubscription(endpoint string, auth, p256dh, userID s
 }
 
 // SubscriptionsForTopic returns all subscriptions for the given topic.
-func (s *commonStore) SubscriptionsForTopic(topic string) ([]*Subscription, error) {
+func (s *Store) SubscriptionsForTopic(topic string) ([]*Subscription, error) {
 	rows, err := s.db.Query(s.queries.selectSubscriptionsForTopic, topic)
 	if err != nil {
 		return nil, err
@@ -107,7 +94,7 @@ func (s *commonStore) SubscriptionsForTopic(topic string) ([]*Subscription, erro
 }
 
 // SubscriptionsExpiring returns all subscriptions that have not been updated for a given time period.
-func (s *commonStore) SubscriptionsExpiring(warnAfter time.Duration) ([]*Subscription, error) {
+func (s *Store) SubscriptionsExpiring(warnAfter time.Duration) ([]*Subscription, error) {
 	rows, err := s.db.Query(s.queries.selectSubscriptionsExpiringSoon, time.Now().Add(-warnAfter).Unix())
 	if err != nil {
 		return nil, err
@@ -117,7 +104,7 @@ func (s *commonStore) SubscriptionsExpiring(warnAfter time.Duration) ([]*Subscri
 }
 
 // MarkExpiryWarningSent marks the given subscriptions as having received a warning about expiring soon.
-func (s *commonStore) MarkExpiryWarningSent(subscriptions []*Subscription) error {
+func (s *Store) MarkExpiryWarningSent(subscriptions []*Subscription) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -132,13 +119,13 @@ func (s *commonStore) MarkExpiryWarningSent(subscriptions []*Subscription) error
 }
 
 // RemoveSubscriptionsByEndpoint removes the subscription for the given endpoint.
-func (s *commonStore) RemoveSubscriptionsByEndpoint(endpoint string) error {
+func (s *Store) RemoveSubscriptionsByEndpoint(endpoint string) error {
 	_, err := s.db.Exec(s.queries.deleteSubscriptionByEndpoint, endpoint)
 	return err
 }
 
 // RemoveSubscriptionsByUserID removes all subscriptions for the given user ID.
-func (s *commonStore) RemoveSubscriptionsByUserID(userID string) error {
+func (s *Store) RemoveSubscriptionsByUserID(userID string) error {
 	if userID == "" {
 		return ErrWebPushUserIDCannotBeEmpty
 	}
@@ -147,7 +134,7 @@ func (s *commonStore) RemoveSubscriptionsByUserID(userID string) error {
 }
 
 // RemoveExpiredSubscriptions removes all subscriptions that have not been updated for a given time period.
-func (s *commonStore) RemoveExpiredSubscriptions(expireAfter time.Duration) error {
+func (s *Store) RemoveExpiredSubscriptions(expireAfter time.Duration) error {
 	_, err := s.db.Exec(s.queries.deleteSubscriptionByAge, time.Now().Add(-expireAfter).Unix())
 	if err != nil {
 		return err
@@ -158,13 +145,13 @@ func (s *commonStore) RemoveExpiredSubscriptions(expireAfter time.Duration) erro
 
 // SetSubscriptionUpdatedAt updates the updated_at timestamp for a subscription by endpoint. This is
 // exported for testing purposes.
-func (s *commonStore) SetSubscriptionUpdatedAt(endpoint string, updatedAt int64) error {
+func (s *Store) SetSubscriptionUpdatedAt(endpoint string, updatedAt int64) error {
 	_, err := s.db.Exec(s.queries.updateSubscriptionUpdatedAt, updatedAt, endpoint)
 	return err
 }
 
 // Close closes the underlying database connection.
-func (s *commonStore) Close() error {
+func (s *Store) Close() error {
 	return s.db.Close()
 }
 

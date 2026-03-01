@@ -75,7 +75,7 @@ const (
 	postgresUpdateMessageTimesQuery = `UPDATE message SET time = $1 WHERE mid = $2`
 )
 
-var pgQueries = storeQueries{
+var pgQueries = queries{
 	insertMessage:                    postgresInsertMessageQuery,
 	deleteMessage:                    postgresDeleteMessageQuery,
 	selectScheduledMessageIDsBySeqID: postgresSelectScheduledMessageIDsBySeqIDQuery,
@@ -102,9 +102,9 @@ var pgQueries = storeQueries{
 }
 
 // NewPostgresStore creates a new PostgreSQL-backed message cache store using an existing database connection pool.
-func NewPostgresStore(db *sql.DB, batchSize int, batchTimeout time.Duration) (Store, error) {
+func NewPostgresStore(db *sql.DB, batchSize int, batchTimeout time.Duration) (*Cache, error) {
 	if err := setupPostgresDB(db); err != nil {
 		return nil, err
 	}
-	return newCommonStore(db, pgQueries, nil, batchSize, batchTimeout, false), nil
+	return newCache(db, pgQueries, nil, batchSize, batchTimeout, false), nil
 }
