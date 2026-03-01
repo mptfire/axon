@@ -1,7 +1,6 @@
 package user
 
 import (
-	"database/sql"
 	"errors"
 	"net/netip"
 	"strings"
@@ -345,8 +344,3 @@ type storeQueries struct {
 	updateBilling string
 }
 
-// execer is satisfied by both *sql.DB and *sql.Tx, allowing helper methods
-// to be used both standalone and within a transaction.
-type execer interface {
-	Exec(query string, args ...any) (sql.Result, error)
-}

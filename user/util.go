@@ -113,3 +113,35 @@ func escapeUnderscore(s string) string {
 func unescapeUnderscore(s string) string {
 	return strings.ReplaceAll(s, "\\_", "_")
 }
+
+// execTx executes a function in a transaction. If the function returns an error, the transaction is rolled back.
+func execTx(db *sql.DB, f func(tx *sql.Tx) error) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := f(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// queryTx executes a function in a transaction and returns the result. If the function
+// returns an error, the transaction is rolled back.
+func queryTx[T any](db *sql.DB, f func(tx *sql.Tx) (T, error)) (T, error) {
+	tx, err := db.Begin()
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	defer tx.Rollback()
+	t, err := f(tx)
+	if err != nil {
+		return t, err
+	}
+	if err := tx.Commit(); err != nil {
+		return t, err
+	}
+	return t, nil
+}
