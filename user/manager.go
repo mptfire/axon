@@ -252,13 +252,6 @@ func (a *Manager) CanChangeUser(username string) error {
 	return nil
 }
 
-// ChangeProvisioned changes the provisioned status of a user
-func (a *Manager) ChangeProvisioned(username string, provisioned bool) error {
-	return execTx(a.db, func(tx *sql.Tx) error {
-		return a.changeProvisionedTx(tx, username, provisioned)
-	})
-}
-
 // changeProvisionedTx changes the provisioned status of a user
 func (a *Manager) changeProvisionedTx(tx *sql.Tx, username string, provisioned bool) error {
 	if _, err := tx.Exec(a.queries.updateUserProvisioned, provisioned, username); err != nil {
@@ -335,18 +328,6 @@ func (a *Manager) ResetStats() error {
 	return nil
 }
 
-// UpdateStats updates statistics for one or more users in a single transaction
-func (a *Manager) UpdateStats(stats map[string]*Stats) error {
-	return execTx(a.db, func(tx *sql.Tx) error {
-		for userID, update := range stats {
-			if _, err := tx.Exec(a.queries.updateUserStats, update.Messages, update.Emails, update.Calls, userID); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
 // EnqueueUserStats adds the user to a queue which writes out user stats (messages, emails, ..) in
 // batches at a regular interval
 func (a *Manager) EnqueueUserStats(userID string, stats *Stats) {
@@ -378,19 +359,24 @@ func (a *Manager) writeUserStatsQueue() error {
 	a.statsQueue = make(map[string]*Stats)
 	a.mu.Unlock()
 
-	log.Tag(tag).Debug("Writing user stats queue for %d user(s)", len(statsQueue))
-	for userID, update := range statsQueue {
-		log.
-			Tag(tag).
-			Fields(log.Context{
-				"user_id":        userID,
-				"messages_count": update.Messages,
-				"emails_count":   update.Emails,
-				"calls_count":    update.Calls,
-			}).
-			Trace("Updating stats for user %s", userID)
-	}
-	return a.UpdateStats(statsQueue)
+	return execTx(a.db, func(tx *sql.Tx) error {
+		log.Tag(tag).Debug("Writing user stats queue for %d user(s)", len(statsQueue))
+		for userID, update := range statsQueue {
+			log.
+				Tag(tag).
+				Fields(log.Context{
+					"user_id":        userID,
+					"messages_count": update.Messages,
+					"emails_count":   update.Emails,
+					"calls_count":    update.Calls,
+				}).
+				Trace("Updating stats for user %s", userID)
+			if _, err := tx.Exec(a.queries.updateUserStats, update.Messages, update.Emails, update.Calls, userID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // User returns the user with the given username if it exists, or ErrUserNotFound otherwise
@@ -473,23 +459,6 @@ func (a *Manager) UsersCount() (int64, error) {
 		return 0, err
 	}
 	return count, nil
-}
-
-// UserIDByUsername returns the user ID for the given username
-func (a *Manager) UserIDByUsername(username string) (string, error) {
-	rows, err := a.db.Query(a.queries.selectUserIDFromUsername, username)
-	if err != nil {
-		return "", err
-	}
-	defer rows.Close()
-	if !rows.Next() {
-		return "", ErrUserNotFound
-	}
-	var userID string
-	if err := rows.Scan(&userID); err != nil {
-		return "", err
-	}
-	return userID, nil
 }
 
 func (a *Manager) readUser(rows *sql.Rows) (*User, error) {
@@ -1031,29 +1000,6 @@ func (a *Manager) allProvisionedTokens() ([]*Token, error) {
 	return tokens, nil
 }
 
-// UpdateTokenLastAccess updates the last access time and origin for one or more tokens in a single transaction
-func (a *Manager) UpdateTokenLastAccess(updates map[string]*TokenUpdate) error {
-	return execTx(a.db, func(tx *sql.Tx) error {
-		for token, update := range updates {
-			if _, err := tx.Exec(a.queries.updateTokenLastAccess, update.LastAccess.Unix(), update.LastOrigin.String(), token); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
-// RemoveProvisionedToken deletes a provisioned token by value, regardless of user
-func (a *Manager) RemoveProvisionedToken(token string) error {
-	if token == "" {
-		return errNoTokenProvided
-	}
-	if _, err := a.db.Exec(a.queries.deleteProvisionedToken, token); err != nil {
-		return err
-	}
-	return nil
-}
-
 // RemoveExpiredTokens deletes all expired tokens from the database
 func (a *Manager) RemoveExpiredTokens() error {
 	if _, err := a.db.Exec(a.queries.deleteExpiredTokens, time.Now().Unix()); err != nil {
@@ -1081,11 +1027,23 @@ func (a *Manager) writeTokenUpdateQueue() error {
 	a.tokenQueue = make(map[string]*TokenUpdate)
 	a.mu.Unlock()
 
-	log.Tag(tag).Debug("Writing token update queue for %d token(s)", len(tokenQueue))
-	for tokenID, update := range tokenQueue {
-		log.Tag(tag).Trace("Updating token %s with last access time %v", tokenID, update.LastAccess.Unix())
+	return execTx(a.db, func(tx *sql.Tx) error {
+		log.Tag(tag).Debug("Writing token update queue for %d token(s)", len(tokenQueue))
+		for tokenID, update := range tokenQueue {
+			log.Tag(tag).Trace("Updating token %s with last access time %v", tokenID, update.LastAccess.Unix())
+			if err := a.updateTokenLastAccessTx(tx, tokenID, update.LastAccess.Unix(), update.LastOrigin.String()); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (a *Manager) updateTokenLastAccessTx(tx *sql.Tx, token string, lastAccess int64, lastOrigin string) error {
+	if _, err := tx.Exec(a.queries.updateTokenLastAccess, lastAccess, lastOrigin, token); err != nil {
+		return err
 	}
-	return a.UpdateTokenLastAccess(tokenQueue)
+	return nil
 }
 
 func (a *Manager) readToken(rows *sql.Rows) (*Token, error) {

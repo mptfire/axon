@@ -1218,7 +1218,8 @@ func TestManager_WithProvisionedUsers(t *testing.T) {
 		// Update the token last access time and origin (so we can check that it is persisted)
 		lastAccessTime := time.Now().Add(time.Hour)
 		lastOrigin := netip.MustParseAddr("1.1.9.9")
-		err = a.UpdateTokenLastAccess(map[string]*TokenUpdate{tokens[0].Value: {LastAccess: lastAccessTime, LastOrigin: lastOrigin}})
+		a.EnqueueTokenUpdate(tokens[0].Value, &TokenUpdate{LastAccess: lastAccessTime, LastOrigin: lastOrigin})
+		err = a.writeTokenUpdateQueue()
 		require.Nil(t, err)
 
 		// Re-open the DB (second app start)
@@ -2318,8 +2319,8 @@ func TestStoreUpdateStats(t *testing.T) {
 		u, err := manager.User("phil")
 		require.Nil(t, err)
 
-		stats := &Stats{Messages: 42, Emails: 3, Calls: 1}
-		require.Nil(t, manager.UpdateStats(map[string]*Stats{u.ID: stats}))
+		manager.EnqueueUserStats(u.ID, &Stats{Messages: 42, Emails: 3, Calls: 1})
+		require.Nil(t, manager.writeUserStatsQueue())
 
 		u2, err := manager.User("phil")
 		require.Nil(t, err)
@@ -2335,7 +2336,8 @@ func TestStoreResetStats(t *testing.T) {
 		u, err := manager.User("phil")
 		require.Nil(t, err)
 
-		require.Nil(t, manager.UpdateStats(map[string]*Stats{u.ID: {Messages: 42, Emails: 3, Calls: 1}}))
+		manager.EnqueueUserStats(u.ID, &Stats{Messages: 42, Emails: 3, Calls: 1})
+		require.Nil(t, manager.writeUserStatsQueue())
 		require.Nil(t, manager.ResetStats())
 
 		u2, err := manager.User("phil")
