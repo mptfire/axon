@@ -10,7 +10,7 @@ import (
 
 // Initial SQLite schema
 const (
-	sqliteCreateMessagesTableQuery = `
+	sqliteCreateTablesQuery = `
 		BEGIN;
 		CREATE TABLE IF NOT EXISTS messages (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -259,7 +259,7 @@ func setupSQLite(db *sql.DB, startupQueries string, cacheDuration time.Duration)
 }
 
 func setupNewSQLite(db *sql.DB) error {
-	if _, err := db.Exec(sqliteCreateMessagesTableQuery); err != nil {
+	if _, err := db.Exec(sqliteCreateTablesQuery); err != nil {
 		return err
 	}
 	if _, err := db.Exec(sqliteCreateSchemaVersionTableQuery); err != nil {

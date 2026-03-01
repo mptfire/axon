@@ -70,9 +70,9 @@ const (
 	postgresSelectAttachmentsSizeBySenderQuery = `SELECT COALESCE(SUM(attachment_size), 0) FROM message WHERE user_id = '' AND sender = $1 AND attachment_expires >= $2`
 	postgresSelectAttachmentsSizeByUserIDQuery = `SELECT COALESCE(SUM(attachment_size), 0) FROM message WHERE user_id = $1 AND attachment_expires >= $2`
 
-	postgresSelectStatsQuery        = `SELECT value FROM message_stats WHERE key = 'messages'`
-	postgresUpdateStatsQuery        = `UPDATE message_stats SET value = $1 WHERE key = 'messages'`
-	postgresUpdateMessageTimesQuery = `UPDATE message SET time = $1 WHERE mid = $2`
+	postgresSelectStatsQuery       = `SELECT value FROM message_stats WHERE key = 'messages'`
+	postgresUpdateStatsQuery       = `UPDATE message_stats SET value = $1 WHERE key = 'messages'`
+	postgresUpdateMessageTimeQuery = `UPDATE message SET time = $1 WHERE mid = $2`
 )
 
 var pgQueries = queries{
@@ -98,7 +98,7 @@ var pgQueries = queries{
 	selectAttachmentsSizeByUserID:    postgresSelectAttachmentsSizeByUserIDQuery,
 	selectStats:                      postgresSelectStatsQuery,
 	updateStats:                      postgresUpdateStatsQuery,
-	updateMessageTime:                postgresUpdateMessageTimesQuery,
+	updateMessageTime:                postgresUpdateMessageTimeQuery,
 }
 
 // NewPostgresStore creates a new PostgreSQL-backed message cache store using an existing database connection pool.
