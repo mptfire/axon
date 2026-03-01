@@ -275,8 +275,8 @@ var (
 	ErrProvisionedTokenChange = errors.New("cannot change or delete provisioned token")
 )
 
-// storeQueries holds the database-specific SQL queries
-type storeQueries struct {
+// queries holds the database-specific SQL queries
+type queries struct {
 	// User queries
 	selectUserByID               string
 	selectUserByName             string

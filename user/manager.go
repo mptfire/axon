@@ -49,7 +49,7 @@ var (
 type Manager struct {
 	config     *Config
 	db         *sql.DB
-	queries    storeQueries
+	queries    queries
 	statsQueue map[string]*Stats       // "Queue" to asynchronously write user stats to the database (UserID -> Stats)
 	tokenQueue map[string]*TokenUpdate // "Queue" to asynchronously write token access stats to the database (Token ID -> TokenUpdate)
 	mu         sync.Mutex
@@ -65,8 +65,6 @@ func initManager(manager *Manager) error {
 	if manager.config.QueueWriterInterval.Seconds() <= 0 {
 		manager.config.QueueWriterInterval = DefaultUserStatsQueueWriterInterval
 	}
-	manager.statsQueue = make(map[string]*Stats)
-	manager.tokenQueue = make(map[string]*TokenUpdate)
 	if err := manager.maybeProvisionUsersAccessAndTokens(); err != nil {
 		return err
 	}
@@ -581,8 +579,7 @@ func (a *Manager) Authorize(user *User, topic string, perm Permission) error {
 	read, write, found, err := a.authorizeTopicAccess(username, topic)
 	if err != nil {
 		return err
-	}
-	if !found {
+	} else if !found {
 		return a.resolvePerms(a.config.DefaultAccess, perm)
 	}
 	return a.resolvePerms(NewPermission(read, write), perm)
@@ -650,7 +647,7 @@ func (a *Manager) AllowReservation(username string, topic string) error {
 	if (!AllowedUsername(username) && username != Everyone) || !AllowedTopic(topic) {
 		return ErrInvalidArgument
 	}
-	otherCount, err := a.OtherAccessCount(username, topic)
+	otherCount, err := a.otherAccessCount(username, topic)
 	if err != nil {
 		return err
 	}
@@ -853,8 +850,8 @@ func (a *Manager) ReservationOwner(topic string) (string, error) {
 	return ownerUserID, nil
 }
 
-// OtherAccessCount returns the number of access entries for the given topic that are not owned by the user
-func (a *Manager) OtherAccessCount(username, topic string) (int, error) {
+// otherAccessCount returns the number of access entries for the given topic that are not owned by the user
+func (a *Manager) otherAccessCount(username, topic string) (int, error) {
 	rows, err := a.db.Query(a.queries.selectOtherAccessCount, escapeUnderscore(topic), escapeUnderscore(topic), username)
 	if err != nil {
 		return 0, err
@@ -919,6 +916,8 @@ func (a *Manager) createTokenTx(tx *sql.Tx, userID, token, label string, lastAcc
 			return nil, err
 		}
 		if tokenCount > maxTokenCount {
+			// This pruning logic is done in two queries for efficiency. The SELECT above is a lookup
+			// on two indices, whereas the query below is a full table scan.
 			if _, err := tx.Exec(a.queries.deleteExcessTokens, userID, userID, maxTokenCount); err != nil {
 				return nil, err
 			}

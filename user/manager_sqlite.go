@@ -218,9 +218,11 @@ func NewSQLiteManager(filename, startupQueries string, config *Config) (*Manager
 		return nil, err
 	}
 	manager := &Manager{
-		config: config,
-		db:     db,
-		queries: storeQueries{
+		config:     config,
+		db:         db,
+		statsQueue: make(map[string]*Stats),
+		tokenQueue: make(map[string]*TokenUpdate),
+		queries: queries{
 			selectUserByID:               sqliteSelectUserByIDQuery,
 			selectUserByName:             sqliteSelectUserByNameQuery,
 			selectUserByToken:            sqliteSelectUserByTokenQuery,

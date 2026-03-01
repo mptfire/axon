@@ -2402,7 +2402,7 @@ func TestStoreOtherAccessCount(t *testing.T) {
 		require.Nil(t, manager.AddUser("ben", "benpass", RoleUser, false))
 		require.Nil(t, manager.AddReservation("ben", "mytopic", PermissionReadWrite))
 
-		count, err := manager.OtherAccessCount("phil", "mytopic")
+		count, err := manager.otherAccessCount("phil", "mytopic")
 		require.Nil(t, err)
 		require.Equal(t, 2, count) // ben's owner entry + everyone entry
 	})

@@ -209,9 +209,11 @@ func NewPostgresManager(db *sql.DB, config *Config) (*Manager, error) {
 		return nil, err
 	}
 	manager := &Manager{
-		config: config,
-		db:     db,
-		queries: storeQueries{
+		config:     config,
+		db:         db,
+		statsQueue: make(map[string]*Stats),
+		tokenQueue: make(map[string]*TokenUpdate),
+		queries: queries{
 			// User queries
 			selectUserByID:               postgresSelectUserByIDQuery,
 			selectUserByName:             postgresSelectUserByNameQuery,
