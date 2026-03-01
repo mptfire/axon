@@ -1797,7 +1797,7 @@ func TestStoreUserByToken(t *testing.T) {
 		require.Nil(t, err)
 		require.NotEmpty(t, tk.Value)
 
-		u2, err := manager.UserByToken(tk.Value)
+		u2, err := manager.userByToken(tk.Value)
 		require.Nil(t, err)
 		require.Equal(t, "phil", u2.Name)
 	})
@@ -2054,7 +2054,7 @@ func TestStoreAuthorizeTopicAccess(t *testing.T) {
 		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
 		require.Nil(t, manager.AllowAccess("phil", "mytopic", PermissionReadWrite))
 
-		read, write, found, err := manager.AuthorizeTopicAccess("phil", "mytopic")
+		read, write, found, err := manager.authorizeTopicAccess("phil", "mytopic")
 		require.Nil(t, err)
 		require.True(t, found)
 		require.True(t, read)
@@ -2066,7 +2066,7 @@ func TestStoreAuthorizeTopicAccessNotFound(t *testing.T) {
 	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
 		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
 
-		_, _, found, err := manager.AuthorizeTopicAccess("phil", "other")
+		_, _, found, err := manager.authorizeTopicAccess("phil", "other")
 		require.Nil(t, err)
 		require.False(t, found)
 	})
@@ -2077,7 +2077,7 @@ func TestStoreAuthorizeTopicAccessDenyAll(t *testing.T) {
 		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
 		require.Nil(t, manager.AllowAccess("phil", "secret", PermissionDenyAll))
 
-		read, write, found, err := manager.AuthorizeTopicAccess("phil", "secret")
+		read, write, found, err := manager.authorizeTopicAccess("phil", "secret")
 		require.Nil(t, err)
 		require.True(t, found)
 		require.False(t, read)

@@ -343,4 +343,3 @@ type storeQueries struct {
 	// Billing queries
 	updateBilling string
 }
-

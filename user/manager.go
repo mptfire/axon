@@ -103,7 +103,7 @@ func (a *Manager) AuthenticateToken(token string) (*User, error) {
 	if len(token) != tokenLength {
 		return nil, ErrUnauthenticated
 	}
-	user, err := a.UserByToken(token)
+	user, err := a.userByToken(token)
 	if err != nil {
 		log.Tag(tag).Field("token", token).Err(err).Trace("Authentication of token failed")
 		return nil, ErrUnauthenticated
@@ -114,9 +114,6 @@ func (a *Manager) AuthenticateToken(token string) (*User, error) {
 
 // AddUser adds a user with the given username, password and role
 func (a *Manager) AddUser(username, password string, role Role, hashed bool) error {
-	if !AllowedUsername(username) || !AllowedRole(role) {
-		return ErrInvalidArgument
-	}
 	hash, err := a.maybeHashPassword(password, hashed)
 	if err != nil {
 		return err
@@ -416,8 +413,8 @@ func (a *Manager) UserByID(id string) (*User, error) {
 	return a.readUser(rows)
 }
 
-// UserByToken returns the user with the given token if it exists and is not expired, or ErrUserNotFound otherwise
-func (a *Manager) UserByToken(token string) (*User, error) {
+// userByToken returns the user with the given token if it exists and is not expired, or ErrUserNotFound otherwise
+func (a *Manager) userByToken(token string) (*User, error) {
 	rows, err := a.db.Query(a.queries.selectUserByToken, token, time.Now().Unix())
 	if err != nil {
 		return nil, err
@@ -581,7 +578,7 @@ func (a *Manager) Authorize(user *User, topic string, perm Permission) error {
 		username = user.Name
 	}
 	// Select the read/write permissions for this user/topic combo.
-	read, write, found, err := a.AuthorizeTopicAccess(username, topic)
+	read, write, found, err := a.authorizeTopicAccess(username, topic)
 	if err != nil {
 		return err
 	}
@@ -663,13 +660,13 @@ func (a *Manager) AllowReservation(username string, topic string) error {
 	return nil
 }
 
-// AuthorizeTopicAccess returns the read/write permissions for the given username and topic.
+// authorizeTopicAccess returns the read/write permissions for the given username and topic.
 // The found return value indicates whether an ACL entry was found at all.
 //
 // - The query may return two rows (one for everyone, and one for the user), but prioritizes the user.
 // - Furthermore, the query prioritizes more specific permissions (longer!) over more generic ones, e.g. "test*" > "*"
 // - It also prioritizes write permissions over read permissions
-func (a *Manager) AuthorizeTopicAccess(usernameOrEveryone, topic string) (read, write, found bool, err error) {
+func (a *Manager) authorizeTopicAccess(usernameOrEveryone, topic string) (read, write, found bool, err error) {
 	rows, err := a.db.Query(a.queries.selectTopicPerms, Everyone, usernameOrEveryone, topic)
 	if err != nil {
 		return false, false, false, err
@@ -873,14 +870,6 @@ func (a *Manager) OtherAccessCount(username, topic string) (int, error) {
 	return count, nil
 }
 
-// ResetAllProvisionedAccess removes all provisioned access control entries
-func (a *Manager) ResetAllProvisionedAccess() error {
-	if _, err := a.db.Exec(a.queries.deleteUserAccessProvisioned); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (a *Manager) addReservationAccessTx(tx *sql.Tx, username, topic string, read, write bool, ownerUsername string) error {
 	if !AllowedUsername(username) && username != Everyone {
 		return ErrInvalidArgument
@@ -1024,8 +1013,7 @@ func (a *Manager) Tokens(userID string) ([]*Token, error) {
 	return tokens, nil
 }
 
-// AllProvisionedTokens returns all provisioned tokens
-func (a *Manager) AllProvisionedTokens() ([]*Token, error) {
+func (a *Manager) allProvisionedTokens() ([]*Token, error) {
 	rows, err := a.db.Query(a.queries.selectAllProvisionedTokens)
 	if err != nil {
 		return nil, err
@@ -1299,7 +1287,7 @@ func (a *Manager) maybeProvisionUsersAccessAndTokens() error {
 	provisionUsernames := util.Map(a.config.Users, func(u *User) string {
 		return u.Name
 	})
-	existingTokens, err := a.AllProvisionedTokens()
+	existingTokens, err := a.allProvisionedTokens()
 	if err != nil {
 		return err
 	}
