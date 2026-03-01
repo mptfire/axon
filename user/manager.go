@@ -112,52 +112,234 @@ func (a *Manager) AuthenticateToken(token string) (*User, error) {
 	return user, nil
 }
 
-// CreateToken generates a random token for the given user and returns it. The token expires
-// after a fixed duration unless ChangeToken is called. This function also prunes tokens for the
-// given user, if there are too many of them.
-func (a *Manager) CreateToken(userID, label string, expires time.Time, origin netip.Addr, provisioned bool) (*Token, error) {
-	return a.createToken(userID, GenerateToken(), label, time.Now(), origin, expires, tokenMaxCount, provisioned)
+// AddUser adds a user with the given username, password and role
+func (a *Manager) AddUser(username, password string, role Role, hashed bool) error {
+	return a.addUser(username, password, role, hashed, false)
 }
 
-// ChangeToken updates a token's label and/or expiry date
-func (a *Manager) ChangeToken(userID, token string, label *string, expires *time.Time) (*Token, error) {
-	if token == "" {
-		return nil, errNoTokenProvided
+func (a *Manager) addUser(username, password string, role Role, hashed, provisioned bool) error {
+	if !AllowedUsername(username) || !AllowedRole(role) {
+		return ErrInvalidArgument
 	}
-	if err := a.canChangeToken(userID, token); err != nil {
-		return nil, err
+	var hash string
+	var err error
+	if hashed {
+		hash = password
+		if err := ValidPasswordHash(hash, a.config.BcryptCost); err != nil {
+			return err
+		}
+	} else {
+		hash, err = hashPassword(password, a.config.BcryptCost)
+		if err != nil {
+			return err
+		}
 	}
-	t, err := a.Token(userID, token)
-	if err != nil {
-		return nil, err
-	}
-	if label != nil {
-		t.Label = *label
-	}
-	if expires != nil {
-		t.Expires = *expires
-	}
-	if err := a.changeToken(userID, token, t.Label, t.Expires); err != nil {
-		return nil, err
-	}
-	return t, nil
+	return a.insertUser(username, hash, role, provisioned)
 }
 
-// RemoveToken deletes the token defined in User.Token
-func (a *Manager) RemoveToken(userID, token string) error {
-	if err := a.canChangeToken(userID, token); err != nil {
+// insertUser adds a user with the given username, password hash and role to the database
+func (a *Manager) insertUser(username, hash string, role Role, provisioned bool) error {
+	if !AllowedUsername(username) || !AllowedRole(role) {
+		return ErrInvalidArgument
+	}
+	userID := util.RandomStringPrefix(userIDPrefix, userIDLength)
+	syncTopic := util.RandomStringPrefix(syncTopicPrefix, syncTopicLength)
+	now := time.Now().Unix()
+	if _, err := a.db.Exec(a.queries.insertUser, userID, username, hash, string(role), syncTopic, provisioned, now); err != nil {
+		if isUniqueConstraintError(err) {
+			return ErrUserExists
+		}
 		return err
 	}
-	return a.removeToken(userID, token)
+	return nil
 }
 
-// canChangeToken checks if the token can be changed. If the token is provisioned, it cannot be changed.
-func (a *Manager) canChangeToken(userID, token string) error {
-	t, err := a.Token(userID, token)
+// RemoveUser deletes the user with the given username. The function returns nil on success, even
+// if the user did not exist in the first place.
+func (a *Manager) RemoveUser(username string) error {
+	if err := a.CanChangeUser(username); err != nil {
+		return err
+	}
+	return a.removeUser(username)
+}
+
+// removeUser deletes the user with the given username
+func (a *Manager) removeUser(username string) error {
+	if !AllowedUsername(username) {
+		return ErrInvalidArgument
+	}
+	// Rows in user_access, user_token, etc. are deleted via foreign keys
+	if _, err := a.db.Exec(a.queries.deleteUser, username); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarkUserRemoved sets the deleted flag on the user, and deletes all access tokens. This prevents
+// successful auth via Authenticate. A background process will delete the user at a later date.
+func (a *Manager) MarkUserRemoved(user *User) error {
+	if !AllowedUsername(user.Name) {
+		return ErrInvalidArgument
+	}
+	tx, err := a.db.Begin()
 	if err != nil {
 		return err
-	} else if t.Provisioned {
-		return ErrProvisionedTokenChange
+	}
+	defer tx.Rollback()
+	if err := a.resetUserAccessTx(tx, user.Name); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(a.queries.deleteAllToken, user.ID); err != nil {
+		return err
+	}
+	deletedTime := time.Now().Add(userHardDeleteAfterDuration).Unix()
+	if _, err := tx.Exec(a.queries.updateUserDeleted, deletedTime, user.ID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// RemoveDeletedUsers deletes all users that have been marked deleted
+func (a *Manager) RemoveDeletedUsers() error {
+	if _, err := a.db.Exec(a.queries.deleteUsersMarked, time.Now().Unix()); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ChangePassword changes a user's password
+func (a *Manager) ChangePassword(username, password string, hashed bool) error {
+	if err := a.CanChangeUser(username); err != nil {
+		return err
+	}
+	var hash string
+	var err error
+	if hashed {
+		hash = password
+		if err := ValidPasswordHash(hash, a.config.BcryptCost); err != nil {
+			return err
+		}
+	} else {
+		hash, err = hashPassword(password, a.config.BcryptCost)
+		if err != nil {
+			return err
+		}
+	}
+	return a.changePasswordHash(username, hash)
+}
+
+// changePasswordHash changes a user's password hash in the database
+func (a *Manager) changePasswordHash(username, hash string) error {
+	if _, err := a.db.Exec(a.queries.updateUserPass, hash, username); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ChangeRole changes a user's role. When a role is changed from RoleUser to RoleAdmin,
+// all existing access control entries (Grant) are removed, since they are no longer needed.
+func (a *Manager) ChangeRole(username string, role Role) error {
+	if err := a.CanChangeUser(username); err != nil {
+		return err
+	}
+	return a.changeRole(username, role)
+}
+
+// changeRole changes a user's role
+func (a *Manager) changeRole(username string, role Role) error {
+	if !AllowedUsername(username) || !AllowedRole(role) {
+		return ErrInvalidArgument
+	}
+	tx, err := a.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(a.queries.updateUserRole, string(role), username); err != nil {
+		return err
+	}
+	// If changing to admin, remove all access entries
+	if role == RoleAdmin {
+		if err := a.resetUserAccessTx(tx, username); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// CanChangeUser checks if the user with the given username can be changed.
+// This is used to prevent changes to provisioned users, which are defined in the config file.
+func (a *Manager) CanChangeUser(username string) error {
+	user, err := a.User(username)
+	if err != nil {
+		return err
+	} else if user.Provisioned {
+		return ErrProvisionedUserChange
+	}
+	return nil
+}
+
+// ChangeProvisioned changes the provisioned status of a user
+func (a *Manager) ChangeProvisioned(username string, provisioned bool) error {
+	if _, err := a.db.Exec(a.queries.updateUserProvisioned, provisioned, username); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ChangeSettings persists the user settings
+func (a *Manager) ChangeSettings(userID string, prefs *Prefs) error {
+	b, err := json.Marshal(prefs)
+	if err != nil {
+		return err
+	}
+	if _, err := a.db.Exec(a.queries.updateUserPrefs, string(b), userID); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ChangeTier changes a user's tier using the tier code. This function does not delete reservations, messages,
+// or attachments, even if the new tier has lower limits in this regard. That has to be done elsewhere.
+func (a *Manager) ChangeTier(username, tier string) error {
+	if !AllowedUsername(username) {
+		return ErrInvalidArgument
+	}
+	t, err := a.Tier(tier)
+	if err != nil {
+		return err
+	} else if err := a.checkReservationsLimit(username, t.ReservationLimit); err != nil {
+		return err
+	}
+	if _, err := a.db.Exec(a.queries.updateUserTier, tier, username); err != nil {
+		return err
+	}
+	return nil
+}
+
+// ResetTier removes the tier from the given user
+func (a *Manager) ResetTier(username string) error {
+	if !AllowedUsername(username) && username != Everyone && username != "" {
+		return ErrInvalidArgument
+	} else if err := a.checkReservationsLimit(username, 0); err != nil {
+		return err
+	}
+	_, err := a.db.Exec(a.queries.deleteUserTier, username)
+	return err
+}
+
+func (a *Manager) checkReservationsLimit(username string, reservationsLimit int64) error {
+	u, err := a.User(username)
+	if err != nil {
+		return err
+	}
+	if u.Tier != nil && reservationsLimit < u.Tier.ReservationLimit {
+		reservations, err := a.Reservations(username)
+		if err != nil {
+			return err
+		} else if int64(len(reservations)) > reservationsLimit {
+			return ErrTooManyReservations
+		}
 	}
 	return nil
 }
@@ -166,19 +348,26 @@ func (a *Manager) canChangeToken(userID, token string) error {
 func (a *Manager) ResetStats() error {
 	a.mu.Lock() // Includes database query to avoid races!
 	defer a.mu.Unlock()
-	if err := a.resetStats(); err != nil {
+	if _, err := a.db.Exec(a.queries.updateUserStatsResetAll); err != nil {
 		return err
 	}
 	a.statsQueue = make(map[string]*Stats)
 	return nil
 }
 
-// resetStats resets all user stats in the user database
-func (a *Manager) resetStats() error {
-	if _, err := a.db.Exec(a.queries.updateUserStatsResetAll); err != nil {
+// UpdateStats updates statistics for one or more users in a single transaction
+func (a *Manager) UpdateStats(stats map[string]*Stats) error {
+	tx, err := a.db.Begin()
+	if err != nil {
 		return err
 	}
-	return nil
+	defer tx.Rollback()
+	for userID, update := range stats {
+		if _, err := tx.Exec(a.queries.updateUserStats, update.Messages, update.Emails, update.Calls, userID); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 // EnqueueUserStats adds the user to a queue which writes out user stats (messages, emails, ..) in
@@ -187,14 +376,6 @@ func (a *Manager) EnqueueUserStats(userID string, stats *Stats) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.statsQueue[userID] = stats
-}
-
-// EnqueueTokenUpdate adds the token update to a queue which writes out token access times
-// in batches at a regular interval
-func (a *Manager) EnqueueTokenUpdate(tokenID string, update *TokenUpdate) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.tokenQueue[tokenID] = update
 }
 
 func (a *Manager) asyncQueueWriter(interval time.Duration) {
@@ -233,381 +414,6 @@ func (a *Manager) writeUserStatsQueue() error {
 			Trace("Updating stats for user %s", userID)
 	}
 	return a.UpdateStats(statsQueue)
-}
-
-func (a *Manager) writeTokenUpdateQueue() error {
-	a.mu.Lock()
-	if len(a.tokenQueue) == 0 {
-		a.mu.Unlock()
-		log.Tag(tag).Trace("No token updates to commit")
-		return nil
-	}
-	tokenQueue := a.tokenQueue
-	a.tokenQueue = make(map[string]*TokenUpdate)
-	a.mu.Unlock()
-
-	log.Tag(tag).Debug("Writing token update queue for %d token(s)", len(tokenQueue))
-	for tokenID, update := range tokenQueue {
-		log.Tag(tag).Trace("Updating token %s with last access time %v", tokenID, update.LastAccess.Unix())
-	}
-	return a.UpdateTokenLastAccess(tokenQueue)
-}
-
-// Authorize returns nil if the given user has access to the given topic using the desired
-// permission. The user param may be nil to signal an anonymous user.
-func (a *Manager) Authorize(user *User, topic string, perm Permission) error {
-	if user != nil && user.Role == RoleAdmin {
-		return nil // Admin can do everything
-	}
-	username := Everyone
-	if user != nil {
-		username = user.Name
-	}
-	// Select the read/write permissions for this user/topic combo.
-	read, write, found, err := a.AuthorizeTopicAccess(username, topic)
-	if err != nil {
-		return err
-	}
-	if !found {
-		return a.resolvePerms(a.config.DefaultAccess, perm)
-	}
-	return a.resolvePerms(NewPermission(read, write), perm)
-}
-
-func (a *Manager) resolvePerms(base, perm Permission) error {
-	if perm == PermissionRead && base.IsRead() {
-		return nil
-	} else if perm == PermissionWrite && base.IsWrite() {
-		return nil
-	}
-	return ErrUnauthorized
-}
-
-// AddUser adds a user with the given username, password and role
-func (a *Manager) AddUser(username, password string, role Role, hashed bool) error {
-	return a.addUser(username, password, role, hashed, false)
-}
-
-func (a *Manager) addUser(username, password string, role Role, hashed, provisioned bool) error {
-	if !AllowedUsername(username) || !AllowedRole(role) {
-		return ErrInvalidArgument
-	}
-	var hash string
-	var err error
-	if hashed {
-		hash = password
-		if err := ValidPasswordHash(hash, a.config.BcryptCost); err != nil {
-			return err
-		}
-	} else {
-		hash, err = hashPassword(password, a.config.BcryptCost)
-		if err != nil {
-			return err
-		}
-	}
-	return a.insertUser(username, hash, role, provisioned)
-}
-
-// RemoveUser deletes the user with the given username. The function returns nil on success, even
-// if the user did not exist in the first place.
-func (a *Manager) RemoveUser(username string) error {
-	if err := a.CanChangeUser(username); err != nil {
-		return err
-	}
-	return a.removeUser(username)
-}
-
-// MarkUserRemoved sets the deleted flag on the user, and deletes all access tokens. This prevents
-// successful auth via Authenticate. A background process will delete the user at a later date.
-func (a *Manager) MarkUserRemoved(user *User) error {
-	if !AllowedUsername(user.Name) {
-		return ErrInvalidArgument
-	}
-	return a.markUserRemoved(user.ID, user.Name)
-}
-
-// ChangePassword changes a user's password
-func (a *Manager) ChangePassword(username, password string, hashed bool) error {
-	if err := a.CanChangeUser(username); err != nil {
-		return err
-	}
-	var hash string
-	var err error
-	if hashed {
-		hash = password
-		if err := ValidPasswordHash(hash, a.config.BcryptCost); err != nil {
-			return err
-		}
-	} else {
-		hash, err = hashPassword(password, a.config.BcryptCost)
-		if err != nil {
-			return err
-		}
-	}
-	return a.changePasswordHash(username, hash)
-}
-
-// CanChangeUser checks if the user with the given username can be changed.
-// This is used to prevent changes to provisioned users, which are defined in the config file.
-func (a *Manager) CanChangeUser(username string) error {
-	user, err := a.User(username)
-	if err != nil {
-		return err
-	} else if user.Provisioned {
-		return ErrProvisionedUserChange
-	}
-	return nil
-}
-
-// ChangeRole changes a user's role. When a role is changed from RoleUser to RoleAdmin,
-// all existing access control entries (Grant) are removed, since they are no longer needed.
-func (a *Manager) ChangeRole(username string, role Role) error {
-	if err := a.CanChangeUser(username); err != nil {
-		return err
-	}
-	return a.changeRole(username, role)
-}
-
-// ChangeTier changes a user's tier using the tier code. This function does not delete reservations, messages,
-// or attachments, even if the new tier has lower limits in this regard. That has to be done elsewhere.
-func (a *Manager) ChangeTier(username, tier string) error {
-	if !AllowedUsername(username) {
-		return ErrInvalidArgument
-	}
-	t, err := a.Tier(tier)
-	if err != nil {
-		return err
-	} else if err := a.checkReservationsLimit(username, t.ReservationLimit); err != nil {
-		return err
-	}
-	return a.changeTierCode(username, tier)
-}
-
-// ResetTier removes the tier from the given user
-func (a *Manager) ResetTier(username string) error {
-	if !AllowedUsername(username) && username != Everyone && username != "" {
-		return ErrInvalidArgument
-	} else if err := a.checkReservationsLimit(username, 0); err != nil {
-		return err
-	}
-	return a.resetTierCode(username)
-}
-
-func (a *Manager) checkReservationsLimit(username string, reservationsLimit int64) error {
-	u, err := a.User(username)
-	if err != nil {
-		return err
-	}
-	if u.Tier != nil && reservationsLimit < u.Tier.ReservationLimit {
-		reservations, err := a.Reservations(username)
-		if err != nil {
-			return err
-		} else if int64(len(reservations)) > reservationsLimit {
-			return ErrTooManyReservations
-		}
-	}
-	return nil
-}
-
-// AllowReservation tests if a user may create an access control entry for the given topic.
-// If there are any ACL entries that are not owned by the user, an error is returned.
-func (a *Manager) AllowReservation(username string, topic string) error {
-	if (!AllowedUsername(username) && username != Everyone) || !AllowedTopic(topic) {
-		return ErrInvalidArgument
-	}
-	otherCount, err := a.OtherAccessCount(username, topic)
-	if err != nil {
-		return err
-	}
-	if otherCount > 0 {
-		return errTopicOwnedByOthers
-	}
-	return nil
-}
-
-// AllowAccess adds or updates an entry in the access control list for a specific user. It controls
-// read/write access to a topic. The parameter topicPattern may include wildcards (*). The ACL entry
-// owner may either be a user (username), or the system (empty).
-func (a *Manager) AllowAccess(username string, topicPattern string, permission Permission) error {
-	return a.allowAccess(username, topicPattern, permission, false)
-}
-
-func (a *Manager) allowAccess(username string, topicPattern string, permission Permission, provisioned bool) error {
-	if !AllowedUsername(username) && username != Everyone {
-		return ErrInvalidArgument
-	} else if !AllowedTopicPattern(topicPattern) {
-		return ErrInvalidArgument
-	}
-	return a.allowAccessTx(a.db, username, topicPattern, permission.IsRead(), permission.IsWrite(), "", provisioned)
-}
-
-// ResetAccess removes an access control list entry for a specific username/topic, or (if topic is
-// empty) for an entire user. The parameter topicPattern may include wildcards (*).
-func (a *Manager) ResetAccess(username string, topicPattern string) error {
-	return a.resetAccess(username, topicPattern)
-}
-
-func (a *Manager) resetAccess(username string, topicPattern string) error {
-	if !AllowedUsername(username) && username != Everyone && username != "" {
-		return ErrInvalidArgument
-	} else if !AllowedTopicPattern(topicPattern) && topicPattern != "" {
-		return ErrInvalidArgument
-	}
-	if username == "" && topicPattern == "" {
-		_, err := a.db.Exec(a.queries.deleteAllAccess)
-		return err
-	} else if topicPattern == "" {
-		return a.resetUserAccessTx(a.db, username)
-	}
-	return a.resetTopicAccessTx(a.db, username, topicPattern)
-}
-
-// DefaultAccess returns the default read/write access if no access control entry matches
-func (a *Manager) DefaultAccess() Permission {
-	return a.config.DefaultAccess
-}
-
-// Close closes the underlying database
-func (a *Manager) Close() error {
-	return a.db.Close()
-}
-
-// maybeProvisionUsersAccessAndTokens provisions users, access control entries, and tokens based on the config.
-func (a *Manager) maybeProvisionUsersAccessAndTokens() error {
-	if !a.config.ProvisionEnabled {
-		return nil
-	}
-	existingUsers, err := a.Users()
-	if err != nil {
-		return err
-	}
-	provisionUsernames := util.Map(a.config.Users, func(u *User) string {
-		return u.Name
-	})
-	if err := a.maybeProvisionUsers(provisionUsernames, existingUsers); err != nil {
-		return fmt.Errorf("failed to provision users: %v", err)
-	}
-	if err := a.maybeProvisionGrants(); err != nil {
-		return fmt.Errorf("failed to provision grants: %v", err)
-	}
-	if err := a.maybeProvisionTokens(provisionUsernames); err != nil {
-		return fmt.Errorf("failed to provision tokens: %v", err)
-	}
-	return nil
-}
-
-// maybeProvisionUsers checks if the users in the config are provisioned, and adds or updates them.
-// It also removes users that are provisioned, but not in the config anymore.
-func (a *Manager) maybeProvisionUsers(provisionUsernames []string, existingUsers []*User) error {
-	// Remove users that are provisioned, but not in the config anymore
-	for _, user := range existingUsers {
-		if user.Name == Everyone {
-			continue
-		} else if user.Provisioned && !util.Contains(provisionUsernames, user.Name) {
-			if err := a.removeUser(user.Name); err != nil {
-				return fmt.Errorf("failed to remove provisioned user %s: %v", user.Name, err)
-			}
-		}
-	}
-	// Add or update provisioned users
-	for _, user := range a.config.Users {
-		if user.Name == Everyone {
-			continue
-		}
-		existingUser, exists := util.Find(existingUsers, func(u *User) bool {
-			return u.Name == user.Name
-		})
-		if !exists {
-			if err := a.addUser(user.Name, user.Hash, user.Role, true, true); err != nil && !errors.Is(err, ErrUserExists) {
-				return fmt.Errorf("failed to add provisioned user %s: %v", user.Name, err)
-			}
-		} else {
-			if !existingUser.Provisioned {
-				if err := a.ChangeProvisioned(user.Name, true); err != nil {
-					return fmt.Errorf("failed to change provisioned status for user %s: %v", user.Name, err)
-				}
-			}
-			if existingUser.Hash != user.Hash {
-				if err := a.changePasswordHash(user.Name, user.Hash); err != nil {
-					return fmt.Errorf("failed to change password for provisioned user %s: %v", user.Name, err)
-				}
-			}
-			if existingUser.Role != user.Role {
-				if err := a.changeRole(user.Name, user.Role); err != nil {
-					return fmt.Errorf("failed to change role for provisioned user %s: %v", user.Name, err)
-				}
-			}
-		}
-	}
-	return nil
-}
-
-// maybeProvisionGrants removes all provisioned grants, and (re-)adds the grants from the config.
-//
-// Unlike users and tokens, grants can be just re-added, because they do not carry any state (such as last
-// access time) or do not have dependent resources (such as grants or tokens).
-func (a *Manager) maybeProvisionGrants() error {
-	// Remove all provisioned grants
-	if err := a.ResetAllProvisionedAccess(); err != nil {
-		return err
-	}
-	// (Re-)add provisioned grants
-	for username, grants := range a.config.Access {
-		user, exists := util.Find(a.config.Users, func(u *User) bool {
-			return u.Name == username
-		})
-		if !exists && username != Everyone {
-			return fmt.Errorf("user %s is not a provisioned user, refusing to add ACL entry", username)
-		} else if user != nil && user.Role == RoleAdmin {
-			return fmt.Errorf("adding access control entries is not allowed for admin roles for user %s", username)
-		}
-		for _, grant := range grants {
-			if err := a.resetAccess(username, grant.TopicPattern); err != nil {
-				return fmt.Errorf("failed to reset access for user %s and topic %s: %v", username, grant.TopicPattern, err)
-			}
-			if err := a.allowAccess(username, grant.TopicPattern, grant.Permission, true); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func (a *Manager) maybeProvisionTokens(provisionUsernames []string) error {
-	// Remove tokens that are provisioned, but not in the config anymore
-	existingTokens, err := a.AllProvisionedTokens()
-	if err != nil {
-		return fmt.Errorf("failed to retrieve existing provisioned tokens: %v", err)
-	}
-	var provisionTokens []string
-	for _, userTokens := range a.config.Tokens {
-		for _, token := range userTokens {
-			provisionTokens = append(provisionTokens, token.Value)
-		}
-	}
-	for _, existingToken := range existingTokens {
-		if !slices.Contains(provisionTokens, existingToken.Value) {
-			if err := a.RemoveProvisionedToken(existingToken.Value); err != nil {
-				return fmt.Errorf("failed to remove provisioned token %s: %v", existingToken.Value, err)
-			}
-		}
-	}
-	// (Re-)add provisioned tokens
-	for username, tokens := range a.config.Tokens {
-		if !slices.Contains(provisionUsernames, username) && username != Everyone {
-			return fmt.Errorf("user %s is not a provisioned user, refusing to add tokens", username)
-		}
-		userID, err := a.UserIDByUsername(username)
-		if err != nil {
-			return fmt.Errorf("failed to find provisioned user %s for provisioned tokens: %v", username, err)
-		}
-		for _, token := range tokens {
-			if _, err := a.createToken(userID, token.Value, token.Label, time.Unix(0, 0), netip.IPv4Unspecified(), time.Unix(0, 0), 0, true); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 // User returns the user with the given username if it exists, or ErrUserNotFound otherwise
@@ -692,143 +498,21 @@ func (a *Manager) UsersCount() (int64, error) {
 	return count, nil
 }
 
-// insertUser adds a user with the given username, password hash and role to the database
-func (a *Manager) insertUser(username, hash string, role Role, provisioned bool) error {
-	if !AllowedUsername(username) || !AllowedRole(role) {
-		return ErrInvalidArgument
-	}
-	userID := util.RandomStringPrefix(userIDPrefix, userIDLength)
-	syncTopic := util.RandomStringPrefix(syncTopicPrefix, syncTopicLength)
-	now := time.Now().Unix()
-	if _, err := a.db.Exec(a.queries.insertUser, userID, username, hash, string(role), syncTopic, provisioned, now); err != nil {
-		if isUniqueConstraintError(err) {
-			return ErrUserExists
-		}
-		return err
-	}
-	return nil
-}
-
-// removeUser deletes the user with the given username
-func (a *Manager) removeUser(username string) error {
-	if !AllowedUsername(username) {
-		return ErrInvalidArgument
-	}
-	// Rows in user_access, user_token, etc. are deleted via foreign keys
-	if _, err := a.db.Exec(a.queries.deleteUser, username); err != nil {
-		return err
-	}
-	return nil
-}
-
-// markUserRemoved sets the deleted flag on the user, and deletes all access tokens
-func (a *Manager) markUserRemoved(userID, username string) error {
-	tx, err := a.db.Begin()
+// UserIDByUsername returns the user ID for the given username
+func (a *Manager) UserIDByUsername(username string) (string, error) {
+	rows, err := a.db.Query(a.queries.selectUserIDFromUsername, username)
 	if err != nil {
-		return err
+		return "", err
 	}
-	defer tx.Rollback()
-	if err := a.resetUserAccessTx(tx, username); err != nil {
-		return err
+	defer rows.Close()
+	if !rows.Next() {
+		return "", ErrUserNotFound
 	}
-	if _, err := tx.Exec(a.queries.deleteAllToken, userID); err != nil {
-		return err
+	var userID string
+	if err := rows.Scan(&userID); err != nil {
+		return "", err
 	}
-	deletedTime := time.Now().Add(userHardDeleteAfterDuration).Unix()
-	if _, err := tx.Exec(a.queries.updateUserDeleted, deletedTime, userID); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
-// RemoveDeletedUsers deletes all users that have been marked deleted
-func (a *Manager) RemoveDeletedUsers() error {
-	if _, err := a.db.Exec(a.queries.deleteUsersMarked, time.Now().Unix()); err != nil {
-		return err
-	}
-	return nil
-}
-
-// changePasswordHash changes a user's password hash in the database
-func (a *Manager) changePasswordHash(username, hash string) error {
-	if _, err := a.db.Exec(a.queries.updateUserPass, hash, username); err != nil {
-		return err
-	}
-	return nil
-}
-
-// changeRole changes a user's role
-func (a *Manager) changeRole(username string, role Role) error {
-	if !AllowedUsername(username) || !AllowedRole(role) {
-		return ErrInvalidArgument
-	}
-	tx, err := a.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(a.queries.updateUserRole, string(role), username); err != nil {
-		return err
-	}
-	// If changing to admin, remove all access entries
-	if role == RoleAdmin {
-		if err := a.resetUserAccessTx(tx, username); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
-// ChangeProvisioned changes the provisioned status of a user
-func (a *Manager) ChangeProvisioned(username string, provisioned bool) error {
-	if _, err := a.db.Exec(a.queries.updateUserProvisioned, provisioned, username); err != nil {
-		return err
-	}
-	return nil
-}
-
-// ChangeSettings persists the user settings
-func (a *Manager) ChangeSettings(userID string, prefs *Prefs) error {
-	b, err := json.Marshal(prefs)
-	if err != nil {
-		return err
-	}
-	if _, err := a.db.Exec(a.queries.updateUserPrefs, string(b), userID); err != nil {
-		return err
-	}
-	return nil
-}
-
-// changeTierCode changes a user's tier using the tier code in the database
-func (a *Manager) changeTierCode(username, tierCode string) error {
-	if _, err := a.db.Exec(a.queries.updateUserTier, tierCode, username); err != nil {
-		return err
-	}
-	return nil
-}
-
-// resetTierCode removes the tier from the given user in the database
-func (a *Manager) resetTierCode(username string) error {
-	if !AllowedUsername(username) && username != Everyone && username != "" {
-		return ErrInvalidArgument
-	}
-	_, err := a.db.Exec(a.queries.deleteUserTier, username)
-	return err
-}
-
-// UpdateStats updates statistics for one or more users in a single transaction
-func (a *Manager) UpdateStats(stats map[string]*Stats) error {
-	tx, err := a.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	for userID, update := range stats {
-		if _, err := tx.Exec(a.queries.updateUserStats, update.Messages, update.Emails, update.Calls, userID); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
+	return userID, nil
 }
 
 func (a *Manager) readUser(rows *sql.Rows) (*User, error) {
@@ -894,168 +578,92 @@ func (a *Manager) readUser(rows *sql.Rows) (*User, error) {
 	return user, nil
 }
 
-// createToken creates a new token and prunes excess tokens if the count exceeds maxTokenCount.
-// If maxTokenCount is 0, no pruning is performed.
-func (a *Manager) createToken(userID, token, label string, lastAccess time.Time, lastOrigin netip.Addr, expires time.Time, maxTokenCount int, provisioned bool) (*Token, error) {
-	tx, err := a.db.Begin()
+// Authorize returns nil if the given user has access to the given topic using the desired
+// permission. The user param may be nil to signal an anonymous user.
+func (a *Manager) Authorize(user *User, topic string, perm Permission) error {
+	if user != nil && user.Role == RoleAdmin {
+		return nil // Admin can do everything
+	}
+	username := Everyone
+	if user != nil {
+		username = user.Name
+	}
+	// Select the read/write permissions for this user/topic combo.
+	read, write, found, err := a.AuthorizeTopicAccess(username, topic)
 	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(a.queries.upsertToken, userID, token, label, lastAccess.Unix(), lastOrigin.String(), expires.Unix(), provisioned); err != nil {
-		return nil, err
-	}
-	if maxTokenCount > 0 {
-		var tokenCount int
-		if err := tx.QueryRow(a.queries.selectTokenCount, userID).Scan(&tokenCount); err != nil {
-			return nil, err
-		}
-		if tokenCount > maxTokenCount {
-			if _, err := tx.Exec(a.queries.deleteExcessTokens, userID, userID, maxTokenCount); err != nil {
-				return nil, err
-			}
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	return &Token{
-		Value:       token,
-		Label:       label,
-		LastAccess:  lastAccess,
-		LastOrigin:  lastOrigin,
-		Expires:     expires,
-		Provisioned: provisioned,
-	}, nil
-}
-
-// Token returns a specific token for a user
-func (a *Manager) Token(userID, token string) (*Token, error) {
-	rows, err := a.db.Query(a.queries.selectToken, userID, token)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return a.readToken(rows)
-}
-
-// Tokens returns all existing tokens for the user with the given user ID
-func (a *Manager) Tokens(userID string) ([]*Token, error) {
-	rows, err := a.db.Query(a.queries.selectTokens, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	tokens := make([]*Token, 0)
-	for {
-		token, err := a.readToken(rows)
-		if errors.Is(err, ErrTokenNotFound) {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		tokens = append(tokens, token)
-	}
-	return tokens, nil
-}
-
-// AllProvisionedTokens returns all provisioned tokens
-func (a *Manager) AllProvisionedTokens() ([]*Token, error) {
-	rows, err := a.db.Query(a.queries.selectAllProvisionedTokens)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	tokens := make([]*Token, 0)
-	for {
-		token, err := a.readToken(rows)
-		if errors.Is(err, ErrTokenNotFound) {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		tokens = append(tokens, token)
-	}
-	return tokens, nil
-}
-
-// changeToken updates a token's label and expiry time
-func (a *Manager) changeToken(userID, token, label string, expires time.Time) error {
-	if _, err := a.db.Exec(a.queries.updateToken, label, expires.Unix(), userID, token); err != nil {
 		return err
+	}
+	if !found {
+		return a.resolvePerms(a.config.DefaultAccess, perm)
+	}
+	return a.resolvePerms(NewPermission(read, write), perm)
+}
+
+func (a *Manager) resolvePerms(base, perm Permission) error {
+	if perm == PermissionRead && base.IsRead() {
+		return nil
+	} else if perm == PermissionWrite && base.IsWrite() {
+		return nil
+	}
+	return ErrUnauthorized
+}
+
+// AllowAccess adds or updates an entry in the access control list for a specific user. It controls
+// read/write access to a topic. The parameter topicPattern may include wildcards (*). The ACL entry
+// owner may either be a user (username), or the system (empty).
+func (a *Manager) AllowAccess(username string, topicPattern string, permission Permission) error {
+	return a.allowAccess(username, topicPattern, permission, false)
+}
+
+func (a *Manager) allowAccess(username string, topicPattern string, permission Permission, provisioned bool) error {
+	if !AllowedUsername(username) && username != Everyone {
+		return ErrInvalidArgument
+	} else if !AllowedTopicPattern(topicPattern) {
+		return ErrInvalidArgument
+	}
+	return a.allowAccessTx(a.db, username, topicPattern, permission.IsRead(), permission.IsWrite(), "", provisioned)
+}
+
+// ResetAccess removes an access control list entry for a specific username/topic, or (if topic is
+// empty) for an entire user. The parameter topicPattern may include wildcards (*).
+func (a *Manager) ResetAccess(username string, topicPattern string) error {
+	return a.resetAccess(username, topicPattern)
+}
+
+func (a *Manager) resetAccess(username string, topicPattern string) error {
+	if !AllowedUsername(username) && username != Everyone && username != "" {
+		return ErrInvalidArgument
+	} else if !AllowedTopicPattern(topicPattern) && topicPattern != "" {
+		return ErrInvalidArgument
+	}
+	if username == "" && topicPattern == "" {
+		_, err := a.db.Exec(a.queries.deleteAllAccess)
+		return err
+	} else if topicPattern == "" {
+		return a.resetUserAccessTx(a.db, username)
+	}
+	return a.resetTopicAccessTx(a.db, username, topicPattern)
+}
+
+// DefaultAccess returns the default read/write access if no access control entry matches
+func (a *Manager) DefaultAccess() Permission {
+	return a.config.DefaultAccess
+}
+
+// AllowReservation tests if a user may create an access control entry for the given topic.
+// If there are any ACL entries that are not owned by the user, an error is returned.
+func (a *Manager) AllowReservation(username string, topic string) error {
+	if (!AllowedUsername(username) && username != Everyone) || !AllowedTopic(topic) {
+		return ErrInvalidArgument
+	}
+	otherCount, err := a.OtherAccessCount(username, topic)
+	if err != nil {
+		return err
+	}
+	if otherCount > 0 {
+		return errTopicOwnedByOthers
 	}
 	return nil
-}
-
-// UpdateTokenLastAccess updates the last access time and origin for one or more tokens in a single transaction
-func (a *Manager) UpdateTokenLastAccess(updates map[string]*TokenUpdate) error {
-	tx, err := a.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	for token, update := range updates {
-		if _, err := tx.Exec(a.queries.updateTokenLastAccess, update.LastAccess.Unix(), update.LastOrigin.String(), token); err != nil {
-			return err
-		}
-	}
-	return tx.Commit()
-}
-
-// removeToken deletes the token
-func (a *Manager) removeToken(userID, token string) error {
-	if token == "" {
-		return errNoTokenProvided
-	}
-	if _, err := a.db.Exec(a.queries.deleteToken, userID, token); err != nil {
-		return err
-	}
-	return nil
-}
-
-// RemoveProvisionedToken deletes a provisioned token by value, regardless of user
-func (a *Manager) RemoveProvisionedToken(token string) error {
-	if token == "" {
-		return errNoTokenProvided
-	}
-	if _, err := a.db.Exec(a.queries.deleteProvisionedToken, token); err != nil {
-		return err
-	}
-	return nil
-}
-
-// RemoveExpiredTokens deletes all expired tokens from the database
-func (a *Manager) RemoveExpiredTokens() error {
-	if _, err := a.db.Exec(a.queries.deleteExpiredTokens, time.Now().Unix()); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (a *Manager) readToken(rows *sql.Rows) (*Token, error) {
-	var token, label, lastOrigin string
-	var lastAccess, expires int64
-	var provisioned bool
-	if !rows.Next() {
-		return nil, ErrTokenNotFound
-	}
-	if err := rows.Scan(&token, &label, &lastAccess, &lastOrigin, &expires, &provisioned); err != nil {
-		return nil, err
-	} else if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	lastOriginIP, err := netip.ParseAddr(lastOrigin)
-	if err != nil {
-		lastOriginIP = netip.IPv4Unspecified()
-	}
-	return &Token{
-		Value:       token,
-		Label:       label,
-		LastAccess:  time.Unix(lastAccess, 0),
-		LastOrigin:  lastOriginIP,
-		Expires:     time.Unix(expires, 0),
-		Provisioned: provisioned,
-	}, nil
 }
 
 // AuthorizeTopicAccess returns the read/write permissions for the given username and topic.
@@ -1132,42 +740,6 @@ func (a *Manager) Grants(username string) ([]Grant, error) {
 		})
 	}
 	return grants, nil
-}
-
-func (a *Manager) allowAccessTx(tx execer, username, topicPattern string, read, write bool, ownerUsername string, provisioned bool) error {
-	if !AllowedUsername(username) && username != Everyone {
-		return ErrInvalidArgument
-	} else if !AllowedTopicPattern(topicPattern) {
-		return ErrInvalidArgument
-	}
-	_, err := tx.Exec(a.queries.upsertUserAccess, username, toSQLWildcard(topicPattern), read, write, ownerUsername, ownerUsername, provisioned)
-	return err
-}
-
-func (a *Manager) resetUserAccessTx(tx execer, username string) error {
-	if !AllowedUsername(username) && username != Everyone {
-		return ErrInvalidArgument
-	}
-	_, err := tx.Exec(a.queries.deleteUserAccess, username, username)
-	return err
-}
-
-func (a *Manager) resetTopicAccessTx(tx execer, username, topicPattern string) error {
-	if !AllowedUsername(username) && username != Everyone && username != "" {
-		return ErrInvalidArgument
-	} else if !AllowedTopicPattern(topicPattern) && topicPattern != "" {
-		return ErrInvalidArgument
-	}
-	_, err := tx.Exec(a.queries.deleteTopicAccess, username, username, toSQLWildcard(topicPattern))
-	return err
-}
-
-// ResetAllProvisionedAccess removes all provisioned access control entries
-func (a *Manager) ResetAllProvisionedAccess() error {
-	if _, err := a.db.Exec(a.queries.deleteUserAccessProvisioned); err != nil {
-		return err
-	}
-	return nil
 }
 
 // AddReservation creates two access control entries for the given topic: one with full read/write
@@ -1313,6 +885,269 @@ func (a *Manager) OtherAccessCount(username, topic string) (int, error) {
 	return count, nil
 }
 
+// ResetAllProvisionedAccess removes all provisioned access control entries
+func (a *Manager) ResetAllProvisionedAccess() error {
+	if _, err := a.db.Exec(a.queries.deleteUserAccessProvisioned); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a *Manager) allowAccessTx(tx execer, username, topicPattern string, read, write bool, ownerUsername string, provisioned bool) error {
+	if !AllowedUsername(username) && username != Everyone {
+		return ErrInvalidArgument
+	} else if !AllowedTopicPattern(topicPattern) {
+		return ErrInvalidArgument
+	}
+	_, err := tx.Exec(a.queries.upsertUserAccess, username, toSQLWildcard(topicPattern), read, write, ownerUsername, ownerUsername, provisioned)
+	return err
+}
+
+func (a *Manager) resetUserAccessTx(tx execer, username string) error {
+	if !AllowedUsername(username) && username != Everyone {
+		return ErrInvalidArgument
+	}
+	_, err := tx.Exec(a.queries.deleteUserAccess, username, username)
+	return err
+}
+
+func (a *Manager) resetTopicAccessTx(tx execer, username, topicPattern string) error {
+	if !AllowedUsername(username) && username != Everyone && username != "" {
+		return ErrInvalidArgument
+	} else if !AllowedTopicPattern(topicPattern) && topicPattern != "" {
+		return ErrInvalidArgument
+	}
+	_, err := tx.Exec(a.queries.deleteTopicAccess, username, username, toSQLWildcard(topicPattern))
+	return err
+}
+
+// CreateToken generates a random token for the given user and returns it. The token expires
+// after a fixed duration unless ChangeToken is called. This function also prunes tokens for the
+// given user, if there are too many of them.
+func (a *Manager) CreateToken(userID, label string, expires time.Time, origin netip.Addr, provisioned bool) (*Token, error) {
+	return a.createToken(userID, GenerateToken(), label, time.Now(), origin, expires, tokenMaxCount, provisioned)
+}
+
+// createToken creates a new token and prunes excess tokens if the count exceeds maxTokenCount.
+// If maxTokenCount is 0, no pruning is performed.
+func (a *Manager) createToken(userID, token, label string, lastAccess time.Time, lastOrigin netip.Addr, expires time.Time, maxTokenCount int, provisioned bool) (*Token, error) {
+	tx, err := a.db.Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(a.queries.upsertToken, userID, token, label, lastAccess.Unix(), lastOrigin.String(), expires.Unix(), provisioned); err != nil {
+		return nil, err
+	}
+	if maxTokenCount > 0 {
+		var tokenCount int
+		if err := tx.QueryRow(a.queries.selectTokenCount, userID).Scan(&tokenCount); err != nil {
+			return nil, err
+		}
+		if tokenCount > maxTokenCount {
+			if _, err := tx.Exec(a.queries.deleteExcessTokens, userID, userID, maxTokenCount); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return &Token{
+		Value:       token,
+		Label:       label,
+		LastAccess:  lastAccess,
+		LastOrigin:  lastOrigin,
+		Expires:     expires,
+		Provisioned: provisioned,
+	}, nil
+}
+
+// ChangeToken updates a token's label and/or expiry date
+func (a *Manager) ChangeToken(userID, token string, label *string, expires *time.Time) (*Token, error) {
+	if token == "" {
+		return nil, errNoTokenProvided
+	}
+	if err := a.canChangeToken(userID, token); err != nil {
+		return nil, err
+	}
+	t, err := a.Token(userID, token)
+	if err != nil {
+		return nil, err
+	}
+	if label != nil {
+		t.Label = *label
+	}
+	if expires != nil {
+		t.Expires = *expires
+	}
+	if _, err := a.db.Exec(a.queries.updateToken, t.Label, t.Expires.Unix(), userID, token); err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+// RemoveToken deletes the token defined in User.Token
+func (a *Manager) RemoveToken(userID, token string) error {
+	if err := a.canChangeToken(userID, token); err != nil {
+		return err
+	}
+	if token == "" {
+		return errNoTokenProvided
+	}
+	if _, err := a.db.Exec(a.queries.deleteToken, userID, token); err != nil {
+		return err
+	}
+	return nil
+}
+
+// canChangeToken checks if the token can be changed. If the token is provisioned, it cannot be changed.
+func (a *Manager) canChangeToken(userID, token string) error {
+	t, err := a.Token(userID, token)
+	if err != nil {
+		return err
+	} else if t.Provisioned {
+		return ErrProvisionedTokenChange
+	}
+	return nil
+}
+
+// Token returns a specific token for a user
+func (a *Manager) Token(userID, token string) (*Token, error) {
+	rows, err := a.db.Query(a.queries.selectToken, userID, token)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return a.readToken(rows)
+}
+
+// Tokens returns all existing tokens for the user with the given user ID
+func (a *Manager) Tokens(userID string) ([]*Token, error) {
+	rows, err := a.db.Query(a.queries.selectTokens, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tokens := make([]*Token, 0)
+	for {
+		token, err := a.readToken(rows)
+		if errors.Is(err, ErrTokenNotFound) {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens, nil
+}
+
+// AllProvisionedTokens returns all provisioned tokens
+func (a *Manager) AllProvisionedTokens() ([]*Token, error) {
+	rows, err := a.db.Query(a.queries.selectAllProvisionedTokens)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tokens := make([]*Token, 0)
+	for {
+		token, err := a.readToken(rows)
+		if errors.Is(err, ErrTokenNotFound) {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens, nil
+}
+
+// UpdateTokenLastAccess updates the last access time and origin for one or more tokens in a single transaction
+func (a *Manager) UpdateTokenLastAccess(updates map[string]*TokenUpdate) error {
+	tx, err := a.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for token, update := range updates {
+		if _, err := tx.Exec(a.queries.updateTokenLastAccess, update.LastAccess.Unix(), update.LastOrigin.String(), token); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+// RemoveProvisionedToken deletes a provisioned token by value, regardless of user
+func (a *Manager) RemoveProvisionedToken(token string) error {
+	if token == "" {
+		return errNoTokenProvided
+	}
+	if _, err := a.db.Exec(a.queries.deleteProvisionedToken, token); err != nil {
+		return err
+	}
+	return nil
+}
+
+// RemoveExpiredTokens deletes all expired tokens from the database
+func (a *Manager) RemoveExpiredTokens() error {
+	if _, err := a.db.Exec(a.queries.deleteExpiredTokens, time.Now().Unix()); err != nil {
+		return err
+	}
+	return nil
+}
+
+// EnqueueTokenUpdate adds the token update to a queue which writes out token access times
+// in batches at a regular interval
+func (a *Manager) EnqueueTokenUpdate(tokenID string, update *TokenUpdate) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.tokenQueue[tokenID] = update
+}
+
+func (a *Manager) writeTokenUpdateQueue() error {
+	a.mu.Lock()
+	if len(a.tokenQueue) == 0 {
+		a.mu.Unlock()
+		log.Tag(tag).Trace("No token updates to commit")
+		return nil
+	}
+	tokenQueue := a.tokenQueue
+	a.tokenQueue = make(map[string]*TokenUpdate)
+	a.mu.Unlock()
+
+	log.Tag(tag).Debug("Writing token update queue for %d token(s)", len(tokenQueue))
+	for tokenID, update := range tokenQueue {
+		log.Tag(tag).Trace("Updating token %s with last access time %v", tokenID, update.LastAccess.Unix())
+	}
+	return a.UpdateTokenLastAccess(tokenQueue)
+}
+
+func (a *Manager) readToken(rows *sql.Rows) (*Token, error) {
+	var token, label, lastOrigin string
+	var lastAccess, expires int64
+	var provisioned bool
+	if !rows.Next() {
+		return nil, ErrTokenNotFound
+	}
+	if err := rows.Scan(&token, &label, &lastAccess, &lastOrigin, &expires, &provisioned); err != nil {
+		return nil, err
+	} else if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	lastOriginIP, err := netip.ParseAddr(lastOrigin)
+	if err != nil {
+		lastOriginIP = netip.IPv4Unspecified()
+	}
+	return &Token{
+		Value:       token,
+		Label:       label,
+		LastAccess:  time.Unix(lastAccess, 0),
+		LastOrigin:  lastOriginIP,
+		Expires:     time.Unix(expires, 0),
+		Provisioned: provisioned,
+	}, nil
+}
+
 // AddTier creates a new tier in the database
 func (a *Manager) AddTier(tier *Tier) error {
 	if tier.ID == "" {
@@ -1451,6 +1286,7 @@ func (a *Manager) RemovePhoneNumber(userID, phoneNumber string) error {
 	_, err := a.db.Exec(a.queries.deletePhoneNumber, userID, phoneNumber)
 	return err
 }
+
 func (a *Manager) readPhoneNumber(rows *sql.Rows) (string, error) {
 	var phoneNumber string
 	if !rows.Next() {
@@ -1472,21 +1308,147 @@ func (a *Manager) ChangeBilling(username string, billing *Billing) error {
 	return nil
 }
 
-// UserIDByUsername returns the user ID for the given username
-func (a *Manager) UserIDByUsername(username string) (string, error) {
-	rows, err := a.db.Query(a.queries.selectUserIDFromUsername, username)
+// maybeProvisionUsersAccessAndTokens provisions users, access control entries, and tokens based on the config.
+func (a *Manager) maybeProvisionUsersAccessAndTokens() error {
+	if !a.config.ProvisionEnabled {
+		return nil
+	}
+	existingUsers, err := a.Users()
 	if err != nil {
-		return "", err
+		return err
 	}
-	defer rows.Close()
-	if !rows.Next() {
-		return "", ErrUserNotFound
+	provisionUsernames := util.Map(a.config.Users, func(u *User) string {
+		return u.Name
+	})
+	if err := a.maybeProvisionUsers(provisionUsernames, existingUsers); err != nil {
+		return fmt.Errorf("failed to provision users: %v", err)
 	}
-	var userID string
-	if err := rows.Scan(&userID); err != nil {
-		return "", err
+	if err := a.maybeProvisionGrants(); err != nil {
+		return fmt.Errorf("failed to provision grants: %v", err)
 	}
-	return userID, nil
+	if err := a.maybeProvisionTokens(provisionUsernames); err != nil {
+		return fmt.Errorf("failed to provision tokens: %v", err)
+	}
+	return nil
+}
+
+// maybeProvisionUsers checks if the users in the config are provisioned, and adds or updates them.
+// It also removes users that are provisioned, but not in the config anymore.
+func (a *Manager) maybeProvisionUsers(provisionUsernames []string, existingUsers []*User) error {
+	// Remove users that are provisioned, but not in the config anymore
+	for _, user := range existingUsers {
+		if user.Name == Everyone {
+			continue
+		} else if user.Provisioned && !util.Contains(provisionUsernames, user.Name) {
+			if err := a.removeUser(user.Name); err != nil {
+				return fmt.Errorf("failed to remove provisioned user %s: %v", user.Name, err)
+			}
+		}
+	}
+	// Add or update provisioned users
+	for _, user := range a.config.Users {
+		if user.Name == Everyone {
+			continue
+		}
+		existingUser, exists := util.Find(existingUsers, func(u *User) bool {
+			return u.Name == user.Name
+		})
+		if !exists {
+			if err := a.addUser(user.Name, user.Hash, user.Role, true, true); err != nil && !errors.Is(err, ErrUserExists) {
+				return fmt.Errorf("failed to add provisioned user %s: %v", user.Name, err)
+			}
+		} else {
+			if !existingUser.Provisioned {
+				if err := a.ChangeProvisioned(user.Name, true); err != nil {
+					return fmt.Errorf("failed to change provisioned status for user %s: %v", user.Name, err)
+				}
+			}
+			if existingUser.Hash != user.Hash {
+				if err := a.changePasswordHash(user.Name, user.Hash); err != nil {
+					return fmt.Errorf("failed to change password for provisioned user %s: %v", user.Name, err)
+				}
+			}
+			if existingUser.Role != user.Role {
+				if err := a.changeRole(user.Name, user.Role); err != nil {
+					return fmt.Errorf("failed to change role for provisioned user %s: %v", user.Name, err)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// maybeProvisionGrants removes all provisioned grants, and (re-)adds the grants from the config.
+//
+// Unlike users and tokens, grants can be just re-added, because they do not carry any state (such as last
+// access time) or do not have dependent resources (such as grants or tokens).
+func (a *Manager) maybeProvisionGrants() error {
+	// Remove all provisioned grants
+	if err := a.ResetAllProvisionedAccess(); err != nil {
+		return err
+	}
+	// (Re-)add provisioned grants
+	for username, grants := range a.config.Access {
+		user, exists := util.Find(a.config.Users, func(u *User) bool {
+			return u.Name == username
+		})
+		if !exists && username != Everyone {
+			return fmt.Errorf("user %s is not a provisioned user, refusing to add ACL entry", username)
+		} else if user != nil && user.Role == RoleAdmin {
+			return fmt.Errorf("adding access control entries is not allowed for admin roles for user %s", username)
+		}
+		for _, grant := range grants {
+			if err := a.resetAccess(username, grant.TopicPattern); err != nil {
+				return fmt.Errorf("failed to reset access for user %s and topic %s: %v", username, grant.TopicPattern, err)
+			}
+			if err := a.allowAccess(username, grant.TopicPattern, grant.Permission, true); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (a *Manager) maybeProvisionTokens(provisionUsernames []string) error {
+	// Remove tokens that are provisioned, but not in the config anymore
+	existingTokens, err := a.AllProvisionedTokens()
+	if err != nil {
+		return fmt.Errorf("failed to retrieve existing provisioned tokens: %v", err)
+	}
+	var provisionTokens []string
+	for _, userTokens := range a.config.Tokens {
+		for _, token := range userTokens {
+			provisionTokens = append(provisionTokens, token.Value)
+		}
+	}
+	for _, existingToken := range existingTokens {
+		if !slices.Contains(provisionTokens, existingToken.Value) {
+			if err := a.RemoveProvisionedToken(existingToken.Value); err != nil {
+				return fmt.Errorf("failed to remove provisioned token %s: %v", existingToken.Value, err)
+			}
+		}
+	}
+	// (Re-)add provisioned tokens
+	for username, tokens := range a.config.Tokens {
+		if !slices.Contains(provisionUsernames, username) && username != Everyone {
+			return fmt.Errorf("user %s is not a provisioned user, refusing to add tokens", username)
+		}
+		userID, err := a.UserIDByUsername(username)
+		if err != nil {
+			return fmt.Errorf("failed to find provisioned user %s for provisioned tokens: %v", username, err)
+		}
+		for _, token := range tokens {
+			if _, err := a.createToken(userID, token.Value, token.Label, time.Unix(0, 0), netip.IPv4Unspecified(), time.Unix(0, 0), 0, true); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// Close closes the underlying database
+func (a *Manager) Close() error {
+	return a.db.Close()
 }
 
 // isUniqueConstraintError checks if the error is a unique constraint violation for both SQLite and PostgreSQL
