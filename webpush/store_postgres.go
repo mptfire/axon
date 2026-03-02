@@ -72,7 +72,7 @@ const (
 
 // NewPostgresStore creates a new PostgreSQL-backed web push store using an existing database connection pool.
 func NewPostgresStore(db *sql.DB) (*Store, error) {
-	if err := setupPostgresDB(db); err != nil {
+	if err := setupPostgres(db); err != nil {
 		return nil, err
 	}
 	return &Store{
@@ -95,11 +95,11 @@ func NewPostgresStore(db *sql.DB) (*Store, error) {
 	}, nil
 }
 
-func setupPostgresDB(db *sql.DB) error {
+func setupPostgres(db *sql.DB) error {
 	var schemaVersion int
 	err := db.QueryRow(postgresSelectSchemaVersionQuery).Scan(&schemaVersion)
 	if err != nil {
-		return setupNewPostgresDB(db)
+		return setupNewPostgres(db)
 	}
 	if schemaVersion > pgCurrentSchemaVersion {
 		return fmt.Errorf("unexpected schema version: version %d is higher than current version %d", schemaVersion, pgCurrentSchemaVersion)
@@ -107,7 +107,7 @@ func setupPostgresDB(db *sql.DB) error {
 	return nil
 }
 
-func setupNewPostgresDB(db *sql.DB) error {
+func setupNewPostgres(db *sql.DB) error {
 	tx, err := db.Begin()
 	if err != nil {
 		return err

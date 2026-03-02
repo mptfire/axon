@@ -2999,11 +2999,10 @@ func TestServer_MessageHistoryAndStatsEndpoint(t *testing.T) {
 
 func TestServer_MessageHistoryMaxSize(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
-		t.Parallel()
+		// Do not run in parallel, we've seen race conditions with SQLite closing
 		s := newTestServer(t, newTestConfig(t, databaseURL))
 		for i := 0; i < 20; i++ {
-			s.messages = int64(i)
-			s.execManager()
+			s.updateAndWriteStats(int64(i))
 		}
 		require.Equal(t, []int64{10, 11, 12, 13, 14, 15, 16, 17, 18, 19}, s.messagesHistory)
 	})

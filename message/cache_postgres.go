@@ -75,7 +75,7 @@ const (
 	postgresUpdateMessageTimeQuery = `UPDATE message SET time = $1 WHERE mid = $2`
 )
 
-var pgQueries = queries{
+var postgresQueries = queries{
 	insertMessage:                    postgresInsertMessageQuery,
 	deleteMessage:                    postgresDeleteMessageQuery,
 	selectScheduledMessageIDsBySeqID: postgresSelectScheduledMessageIDsBySeqIDQuery,
@@ -106,5 +106,5 @@ func NewPostgresStore(db *sql.DB, batchSize int, batchTimeout time.Duration) (*C
 	if err := setupPostgres(db); err != nil {
 		return nil, err
 	}
-	return newCache(db, pgQueries, nil, batchSize, batchTimeout, false), nil
+	return newCache(db, postgresQueries, nil, batchSize, batchTimeout, false), nil
 }
