@@ -2327,9 +2327,7 @@ func (s *Server) updateAndWriteStats(messagesCount int64) {
 		s.messagesHistory = s.messagesHistory[1:]
 	}
 	s.mu.Unlock()
-	go func() {
-		if err := s.messageCache.UpdateStats(messagesCount); err != nil {
-			log.Tag(tagManager).Err(err).Warn("Cannot write messages stats")
-		}
-	}()
+	if err := s.messageCache.UpdateStats(messagesCount); err != nil {
+		log.Tag(tagManager).Err(err).Warn("Cannot write messages stats")
+	}
 }
