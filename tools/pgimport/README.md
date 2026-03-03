@@ -1,6 +1,10 @@
 # pgimport
 
-Migrates ntfy data from SQLite to PostgreSQL.
+One-off migration script to import ntfy data from SQLite to PostgreSQL.
+
+This is **not** a generic migration tool. It only works with specific SQLite schema versions
+(message cache v14, user db v6, web push v1) and their corresponding PostgreSQL schemas.
+If your database versions differ, this tool will refuse to run.
 
 ## Build
 

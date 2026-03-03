@@ -1,3 +1,6 @@
+// pgimport is a one-off migration script to import ntfy data from SQLite to PostgreSQL.
+// It is not a generic migration tool. It expects specific schema versions for each database
+// (message cache v14, user db v6, web push v1) and will refuse to run if versions don't match.
 package main
 
 import (
@@ -33,7 +36,7 @@ var flags = []cli.Flag{
 func main() {
 	app := &cli.App{
 		Name:      "pgimport",
-		Usage:     "SQLite to PostgreSQL migration tool for ntfy",
+		Usage:     "One-off SQLite to PostgreSQL migration script for ntfy",
 		UsageText: "pgimport [OPTIONS]",
 		Flags:     flags,
 		Before:    loadConfigFile("config", flags),
