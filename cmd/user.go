@@ -11,7 +11,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
-	"heckel.io/ntfy/v2/db"
+	"heckel.io/ntfy/v2/db/pg"
 	"heckel.io/ntfy/v2/server"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
@@ -379,7 +379,7 @@ func createUserManager(c *cli.Context) (*user.Manager, error) {
 		QueueWriterInterval: user.DefaultUserStatsQueueWriterInterval,
 	}
 	if databaseURL != "" {
-		pool, dbErr := db.OpenPostgres(databaseURL)
+		pool, dbErr := pg.Open(databaseURL)
 		if dbErr != nil {
 			return nil, dbErr
 		}

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"heckel.io/ntfy/v2/db"
+	"heckel.io/ntfy/v2/db/pg"
 	"heckel.io/ntfy/v2/util"
 )
 
@@ -30,7 +30,7 @@ func CreateTestPostgresSchema(t *testing.T) string {
 	q.Set("pool_max_conns", testPoolMaxConns)
 	u.RawQuery = q.Encode()
 	dsn = u.String()
-	setupDB, err := db.OpenPostgres(dsn)
+	setupDB, err := pg.Open(dsn)
 	require.Nil(t, err)
 	_, err = setupDB.Exec(fmt.Sprintf("CREATE SCHEMA %s", schema))
 	require.Nil(t, err)
@@ -39,7 +39,7 @@ func CreateTestPostgresSchema(t *testing.T) string {
 	u.RawQuery = q.Encode()
 	schemaDSN := u.String()
 	t.Cleanup(func() {
-		cleanDB, err := db.OpenPostgres(dsn)
+		cleanDB, err := pg.Open(dsn)
 		if err == nil {
 			cleanDB.Exec(fmt.Sprintf("DROP SCHEMA %s CASCADE", schema))
 			cleanDB.Close()
@@ -54,7 +54,7 @@ func CreateTestPostgresSchema(t *testing.T) string {
 func CreateTestPostgres(t *testing.T) *sql.DB {
 	t.Helper()
 	schemaDSN := CreateTestPostgresSchema(t)
-	testDB, err := db.OpenPostgres(schemaDSN)
+	testDB, err := pg.Open(schemaDSN)
 	require.Nil(t, err)
 	t.Cleanup(func() {
 		testDB.Close()

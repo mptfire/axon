@@ -11,7 +11,7 @@ import (
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 	"gopkg.in/yaml.v2"
-	"heckel.io/ntfy/v2/db"
+	"heckel.io/ntfy/v2/db/pg"
 )
 
 const (
@@ -79,7 +79,7 @@ func execImport(c *cli.Context) error {
 	}
 	fmt.Println()
 
-	pgDB, err := db.OpenPostgres(databaseURL)
+	pgDB, err := pg.Open(databaseURL)
 	if err != nil {
 		return fmt.Errorf("cannot connect to PostgreSQL: %w", err)
 	}

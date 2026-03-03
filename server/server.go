@@ -33,7 +33,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v2"
-	"heckel.io/ntfy/v2/db"
+	"heckel.io/ntfy/v2/db/pg"
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/message"
 	"heckel.io/ntfy/v2/model"
@@ -178,11 +178,11 @@ func New(conf *Config) (*Server, error) {
 	if payments.Available && conf.StripeSecretKey != "" {
 		stripe = newStripeAPI()
 	}
-	// OpenPostgres shared PostgreSQL connection pool if configured
+	// Open shared PostgreSQL connection pool if configured
 	var pool *sql.DB
 	if conf.DatabaseURL != "" {
 		var err error
-		pool, err = db.OpenPostgres(conf.DatabaseURL)
+		pool, err = pg.Open(conf.DatabaseURL)
 		if err != nil {
 			return nil, err
 		}

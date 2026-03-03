@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
-	"heckel.io/ntfy/v2/db"
+	"heckel.io/ntfy/v2/db/pg"
 	dbtest "heckel.io/ntfy/v2/db/test"
 	"heckel.io/ntfy/v2/util"
 )
@@ -36,7 +36,7 @@ func forEachBackend(t *testing.T, f func(t *testing.T, newManager newManagerFunc
 	t.Run("postgres", func(t *testing.T) {
 		schemaDSN := dbtest.CreateTestPostgresSchema(t)
 		f(t, func(config *Config) *Manager {
-			pool, err := db.OpenPostgres(schemaDSN)
+			pool, err := pg.Open(schemaDSN)
 			require.Nil(t, err)
 			a, err := NewPostgresManager(pool, config)
 			require.Nil(t, err)
