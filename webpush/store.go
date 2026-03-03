@@ -130,12 +130,13 @@ func (s *Store) RemoveSubscriptionsByUserID(userID string) error {
 
 // RemoveExpiredSubscriptions removes all subscriptions that have not been updated for a given time period.
 func (s *Store) RemoveExpiredSubscriptions(expireAfter time.Duration) error {
-	_, err := s.db.Exec(s.queries.deleteSubscriptionByAge, time.Now().Add(-expireAfter).Unix())
-	if err != nil {
+	return db.ExecTx(s.db, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(s.queries.deleteSubscriptionByAge, time.Now().Add(-expireAfter).Unix()); err != nil {
+			return err
+		}
+		_, err := tx.Exec(s.queries.deleteSubscriptionTopicWithoutSubscription)
 		return err
-	}
-	_, err = s.db.Exec(s.queries.deleteSubscriptionTopicWithoutSubscription)
-	return err
+	})
 }
 
 // SetSubscriptionUpdatedAt updates the updated_at timestamp for a subscription by endpoint. This is
