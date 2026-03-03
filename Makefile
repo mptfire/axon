@@ -267,13 +267,13 @@ check: test web-fmt-check fmt-check vet web-lint lint staticcheck
 checkv: testv web-fmt-check fmt-check vet web-lint lint staticcheck
 
 test: .PHONY
-	go test -parallel 3 $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
+	go test -parallel 3 $(shell go list ./... | grep -vE 'ntfy/v2/(test|examples|tools|web)')
 
 testv: .PHONY
-	go test -v -parallel 3 $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
+	go test -v -parallel 3 $(shell go list ./... | grep -vE 'ntfy/v2/(test|examples|tools|web)')
 
 race: .PHONY
-	go test -v -race $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
+	go test -v -race $(shell go list ./... | grep -vE 'ntfy/v2/(test|examples|tools|web)')
 
 coverage:
 	mkdir -p build/coverage
