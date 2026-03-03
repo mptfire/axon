@@ -111,11 +111,9 @@ func NewSQLiteStore(filename, startupQueries string) (*Store, error) {
 
 func setupSQLite(db *sql.DB) error {
 	var schemaVersion int
-	err := db.QueryRow(sqliteSelectSchemaVersionQuery).Scan(&schemaVersion)
-	if err != nil {
+	if err := db.QueryRow(sqliteSelectSchemaVersionQuery).Scan(&schemaVersion); err != nil {
 		return setupNewSQLite(db)
-	}
-	if schemaVersion > sqliteCurrentSchemaVersion {
+	} else if schemaVersion > sqliteCurrentSchemaVersion {
 		return fmt.Errorf("unexpected schema version: version %d is higher than current version %d", schemaVersion, sqliteCurrentSchemaVersion)
 	}
 	return nil
