@@ -56,7 +56,6 @@ help:
 	@echo "  make race                       - Run tests with -race flag"
 	@echo "  make coverage                   - Run tests and show coverage"
 	@echo "  make coverage-html              - Run tests and show coverage (as HTML)"
-	@echo "  make coverage-upload            - Upload coverage results to codecov.io"
 	@echo
 	@echo "Lint/format:"
 	@echo "  make fmt                        - Run 'go fmt'"
@@ -285,9 +284,6 @@ coverage-html:
 	mkdir -p build/coverage
 	go test -race -coverprofile=build/coverage/coverage.txt -covermode=atomic $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
 	go tool cover -html build/coverage/coverage.txt
-
-coverage-upload:
-	cd build/coverage && (curl -s https://codecov.io/bash | bash)
 
 
 # Lint/formatting targets
