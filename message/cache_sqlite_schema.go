@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"heckel.io/ntfy/v2/db"
 	"heckel.io/ntfy/v2/log"
 )
 
@@ -382,85 +383,70 @@ func sqliteMigrateFrom8(db *sql.DB, _ time.Duration) error {
 	return nil
 }
 
-func sqliteMigrateFrom9(db *sql.DB, cacheDuration time.Duration) error {
+func sqliteMigrateFrom9(sqlDB *sql.DB, cacheDuration time.Duration) error {
 	log.Tag(tagMessageCache).Info("Migrating cache database schema: from 9 to 10")
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(sqliteMigrate9To10AlterMessagesTableQuery); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(sqliteMigrate9To10UpdateMessageExpiryQuery, int64(cacheDuration.Seconds())); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 10); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return db.ExecTx(sqlDB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(sqliteMigrate9To10AlterMessagesTableQuery); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(sqliteMigrate9To10UpdateMessageExpiryQuery, int64(cacheDuration.Seconds())); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 10); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
-func sqliteMigrateFrom10(db *sql.DB, _ time.Duration) error {
+func sqliteMigrateFrom10(sqlDB *sql.DB, _ time.Duration) error {
 	log.Tag(tagMessageCache).Info("Migrating cache database schema: from 10 to 11")
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(sqliteMigrate10To11AlterMessagesTableQuery); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 11); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return db.ExecTx(sqlDB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(sqliteMigrate10To11AlterMessagesTableQuery); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 11); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
-func sqliteMigrateFrom11(db *sql.DB, _ time.Duration) error {
+func sqliteMigrateFrom11(sqlDB *sql.DB, _ time.Duration) error {
 	log.Tag(tagMessageCache).Info("Migrating cache database schema: from 11 to 12")
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(sqliteMigrate11To12AlterMessagesTableQuery); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 12); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return db.ExecTx(sqlDB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(sqliteMigrate11To12AlterMessagesTableQuery); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 12); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
-func sqliteMigrateFrom12(db *sql.DB, _ time.Duration) error {
+func sqliteMigrateFrom12(sqlDB *sql.DB, _ time.Duration) error {
 	log.Tag(tagMessageCache).Info("Migrating cache database schema: from 12 to 13")
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(sqliteMigrate12To13AlterMessagesTableQuery); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 13); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return db.ExecTx(sqlDB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(sqliteMigrate12To13AlterMessagesTableQuery); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 13); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
-func sqliteMigrateFrom13(db *sql.DB, _ time.Duration) error {
+func sqliteMigrateFrom13(sqlDB *sql.DB, _ time.Duration) error {
 	log.Tag(tagMessageCache).Info("Migrating cache database schema: from 13 to 14")
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(sqliteMigrate13To14AlterMessagesTableQuery); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 14); err != nil {
-		return err
-	}
-	return tx.Commit()
+	return db.ExecTx(sqlDB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(sqliteMigrate13To14AlterMessagesTableQuery); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 14); err != nil {
+			return err
+		}
+		return nil
+	})
 }

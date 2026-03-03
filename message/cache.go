@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"heckel.io/ntfy/v2/db"
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/util"
@@ -334,17 +335,14 @@ func (c *Cache) Topics() ([]string, error) {
 func (c *Cache) DeleteMessages(ids ...string) error {
 	c.maybeLock()
 	defer c.maybeUnlock()
-	tx, err := c.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	for _, id := range ids {
-		if _, err := tx.Exec(c.queries.deleteMessage, id); err != nil {
-			return err
+	return db.ExecTx(c.db, func(tx *sql.Tx) error {
+		for _, id := range ids {
+			if _, err := tx.Exec(c.queries.deleteMessage, id); err != nil {
+				return err
+			}
 		}
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 
 // DeleteScheduledBySequenceID deletes unpublished (scheduled) messages with the given topic and sequence ID.
@@ -352,54 +350,43 @@ func (c *Cache) DeleteMessages(ids ...string) error {
 func (c *Cache) DeleteScheduledBySequenceID(topic, sequenceID string) ([]string, error) {
 	c.maybeLock()
 	defer c.maybeUnlock()
-	tx, err := c.db.Begin()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
-	// First, get the message IDs of scheduled messages to be deleted
-	rows, err := tx.Query(c.queries.selectScheduledMessageIDsBySeqID, topic, sequenceID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	ids := make([]string, 0)
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+	return db.QueryTx(c.db, func(tx *sql.Tx) ([]string, error) {
+		rows, err := tx.Query(c.queries.selectScheduledMessageIDsBySeqID, topic, sequenceID)
+		if err != nil {
 			return nil, err
 		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	rows.Close() // Close rows before executing delete in same transaction
-	// Then delete the messages
-	if _, err := tx.Exec(c.queries.deleteScheduledBySequenceID, topic, sequenceID); err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-	return ids, nil
+		defer rows.Close()
+		ids := make([]string, 0)
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				return nil, err
+			}
+			ids = append(ids, id)
+		}
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		rows.Close() // Close rows before executing delete in same transaction
+		if _, err := tx.Exec(c.queries.deleteScheduledBySequenceID, topic, sequenceID); err != nil {
+			return nil, err
+		}
+		return ids, nil
+	})
 }
 
 // ExpireMessages marks messages in the given topics as expired
 func (c *Cache) ExpireMessages(topics ...string) error {
 	c.maybeLock()
 	defer c.maybeUnlock()
-	tx, err := c.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	for _, t := range topics {
-		if _, err := tx.Exec(c.queries.updateMessagesForTopicExpiry, time.Now().Unix()-1, t); err != nil {
-			return err
+	return db.ExecTx(c.db, func(tx *sql.Tx) error {
+		for _, t := range topics {
+			if _, err := tx.Exec(c.queries.updateMessagesForTopicExpiry, time.Now().Unix()-1, t); err != nil {
+				return err
+			}
 		}
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 
 // AttachmentsExpired returns message IDs with expired attachments that have not been deleted
@@ -427,17 +414,14 @@ func (c *Cache) AttachmentsExpired() ([]string, error) {
 func (c *Cache) MarkAttachmentsDeleted(ids ...string) error {
 	c.maybeLock()
 	defer c.maybeUnlock()
-	tx, err := c.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	for _, id := range ids {
-		if _, err := tx.Exec(c.queries.updateAttachmentDeleted, id); err != nil {
-			return err
+	return db.ExecTx(c.db, func(tx *sql.Tx) error {
+		for _, id := range ids {
+			if _, err := tx.Exec(c.queries.updateAttachmentDeleted, id); err != nil {
+				return err
+			}
 		}
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 
 // AttachmentBytesUsedBySender returns the total size of active attachments sent by the given sender

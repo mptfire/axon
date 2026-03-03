@@ -3,6 +3,8 @@ package message
 import (
 	"database/sql"
 	"fmt"
+
+	"heckel.io/ntfy/v2/db"
 )
 
 // Initial PostgreSQL schema
@@ -55,34 +57,29 @@ const (
 
 // PostgreSQL schema management queries
 const (
-	pgCurrentSchemaVersion           = 14
+	postgresCurrentSchemaVersion     = 14
 	postgresInsertSchemaVersionQuery = `INSERT INTO schema_version (store, version) VALUES ('message', $1)`
 	postgresSelectSchemaVersionQuery = `SELECT version FROM schema_version WHERE store = 'message'`
 )
 
 func setupPostgres(db *sql.DB) error {
 	var schemaVersion int
-	err := db.QueryRow(postgresSelectSchemaVersionQuery).Scan(&schemaVersion)
-	if err != nil {
+	if err := db.QueryRow(postgresSelectSchemaVersionQuery).Scan(&schemaVersion); err != nil {
 		return setupNewPostgresDB(db)
-	}
-	if schemaVersion > pgCurrentSchemaVersion {
-		return fmt.Errorf("unexpected schema version: version %d is higher than current version %d", schemaVersion, pgCurrentSchemaVersion)
+	} else if schemaVersion > postgresCurrentSchemaVersion {
+		return fmt.Errorf("unexpected schema version: version %d is higher than current version %d", schemaVersion, postgresCurrentSchemaVersion)
 	}
 	return nil
 }
 
-func setupNewPostgresDB(db *sql.DB) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(postgresCreateTablesQuery); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(postgresInsertSchemaVersionQuery, pgCurrentSchemaVersion); err != nil {
-		return err
-	}
-	return tx.Commit()
+func setupNewPostgresDB(sqlDB *sql.DB) error {
+	return db.ExecTx(sqlDB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(postgresCreateTablesQuery); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(postgresInsertSchemaVersionQuery, postgresCurrentSchemaVersion); err != nil {
+			return err
+		}
+		return nil
+	})
 }

@@ -3,6 +3,8 @@ package webpush
 import (
 	"database/sql"
 	"fmt"
+
+	"heckel.io/ntfy/v2/db"
 )
 
 const (
@@ -107,17 +109,14 @@ func setupPostgres(db *sql.DB) error {
 	return nil
 }
 
-func setupNewPostgres(db *sql.DB) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(postgresCreateTablesQuery); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(postgresInsertSchemaVersionQuery, pgCurrentSchemaVersion); err != nil {
-		return err
-	}
-	return tx.Commit()
+func setupNewPostgres(sqlDB *sql.DB) error {
+	return db.ExecTx(sqlDB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(postgresCreateTablesQuery); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(postgresInsertSchemaVersionQuery, pgCurrentSchemaVersion); err != nil {
+			return err
+		}
+		return nil
+	})
 }

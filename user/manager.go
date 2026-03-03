@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
+	"heckel.io/ntfy/v2/db"
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/util"
@@ -122,7 +123,7 @@ func (a *Manager) AddUser(username, password string, role Role, hashed bool) err
 	if err != nil {
 		return err
 	}
-	return execTx(a.db, func(tx *sql.Tx) error {
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
 		return a.addUserTx(tx, username, hash, role, false)
 	})
 }
@@ -150,7 +151,7 @@ func (a *Manager) RemoveUser(username string) error {
 	if err := a.CanChangeUser(username); err != nil {
 		return err
 	}
-	return execTx(a.db, func(tx *sql.Tx) error {
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
 		return a.removeUserTx(tx, username)
 	})
 }
@@ -173,7 +174,7 @@ func (a *Manager) MarkUserRemoved(user *User) error {
 	if !AllowedUsername(user.Name) {
 		return ErrInvalidArgument
 	}
-	return execTx(a.db, func(tx *sql.Tx) error {
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
 		if err := a.resetUserAccessTx(tx, user.Name); err != nil {
 			return err
 		}
@@ -205,7 +206,7 @@ func (a *Manager) ChangePassword(username, password string, hashed bool) error {
 	if err != nil {
 		return err
 	}
-	return execTx(a.db, func(tx *sql.Tx) error {
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
 		return a.changePasswordHashTx(tx, username, hash)
 	})
 }
@@ -224,7 +225,7 @@ func (a *Manager) ChangeRole(username string, role Role) error {
 	if err := a.CanChangeUser(username); err != nil {
 		return err
 	}
-	return execTx(a.db, func(tx *sql.Tx) error {
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
 		return a.changeRoleTx(tx, username, role)
 	})
 }
@@ -365,7 +366,7 @@ func (a *Manager) writeUserStatsQueue() error {
 	a.statsQueue = make(map[string]*Stats)
 	a.mu.Unlock()
 
-	return execTx(a.db, func(tx *sql.Tx) error {
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
 		log.Tag(tag).Debug("Writing user stats queue for %d user(s)", len(statsQueue))
 		for userID, update := range statsQueue {
 			log.
@@ -573,7 +574,7 @@ func (a *Manager) resolvePerms(base, perm Permission) error {
 // read/write access to a topic. The parameter topicPattern may include wildcards (*). The ACL entry
 // owner may either be a user (username), or the system (empty).
 func (a *Manager) AllowAccess(username string, topicPattern string, permission Permission) error {
-	return execTx(a.db, func(tx *sql.Tx) error {
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
 		return a.allowAccessTx(tx, username, topicPattern, permission, false)
 	})
 }
@@ -591,7 +592,7 @@ func (a *Manager) allowAccessTx(tx *sql.Tx, username string, topicPattern string
 // ResetAccess removes an access control list entry for a specific username/topic, or (if topic is
 // empty) for an entire user. The parameter topicPattern may include wildcards (*).
 func (a *Manager) ResetAccess(username string, topicPattern string) error {
-	return execTx(a.db, func(tx *sql.Tx) error {
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
 		return a.resetAccessTx(tx, username, topicPattern)
 	})
 }
@@ -715,7 +716,7 @@ func (a *Manager) AddReservation(username string, topic string, everyone Permiss
 	if !AllowedUsername(username) || username == Everyone || !AllowedTopic(topic) {
 		return ErrInvalidArgument
 	}
-	return execTx(a.db, func(tx *sql.Tx) error {
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
 		if err := a.addReservationAccessTx(tx, username, topic, true, true, username); err != nil {
 			return err
 		}
@@ -735,7 +736,7 @@ func (a *Manager) RemoveReservations(username string, topics ...string) error {
 			return ErrInvalidArgument
 		}
 	}
-	return execTx(a.db, func(tx *sql.Tx) error {
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
 		for _, topic := range topics {
 			if err := a.resetTopicAccessTx(tx, username, topic); err != nil {
 				return err
@@ -874,7 +875,7 @@ func (a *Manager) resetTopicAccessTx(tx *sql.Tx, username, topicPattern string) 
 // after a fixed duration unless ChangeToken is called. This function also prunes tokens for the
 // given user, if there are too many of them.
 func (a *Manager) CreateToken(userID, label string, expires time.Time, origin netip.Addr, provisioned bool) (*Token, error) {
-	return queryTx(a.db, func(tx *sql.Tx) (*Token, error) {
+	return db.QueryTx(a.db, func(tx *sql.Tx) (*Token, error) {
 		return a.createTokenTx(tx, userID, GenerateToken(), label, time.Now(), origin, expires, tokenMaxCount, provisioned)
 	})
 }
@@ -1033,7 +1034,7 @@ func (a *Manager) writeTokenUpdateQueue() error {
 	a.tokenQueue = make(map[string]*TokenUpdate)
 	a.mu.Unlock()
 
-	return execTx(a.db, func(tx *sql.Tx) error {
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
 		log.Tag(tag).Debug("Writing token update queue for %d token(s)", len(tokenQueue))
 		for tokenID, update := range tokenQueue {
 			log.Tag(tag).Trace("Updating token %s with last access time %v", tokenID, update.LastAccess.Unix())
@@ -1254,7 +1255,7 @@ func (a *Manager) maybeProvisionUsersAccessAndTokens() error {
 	if err != nil {
 		return err
 	}
-	return execTx(a.db, func(tx *sql.Tx) error {
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
 		if err := a.maybeProvisionUsers(tx, provisionUsernames, existingUsers); err != nil {
 			return fmt.Errorf("failed to provision users: %v", err)
 		}

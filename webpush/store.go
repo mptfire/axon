@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"time"
 
+	"heckel.io/ntfy/v2/db"
 	"heckel.io/ntfy/v2/util"
 )
 
@@ -46,41 +47,38 @@ type queries struct {
 
 // UpsertSubscription adds or updates Web Push subscriptions for the given topics and user ID.
 func (s *Store) UpsertSubscription(endpoint string, auth, p256dh, userID string, subscriberIP netip.Addr, topics []string) error {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	// Read number of subscriptions for subscriber IP address
-	var subscriptionCount int
-	if err := tx.QueryRow(s.queries.selectSubscriptionCountBySubscriberIP, subscriberIP.String()).Scan(&subscriptionCount); err != nil {
-		return err
-	}
-	// Read existing subscription ID for endpoint (or create new ID)
-	var subscriptionID string
-	if err := tx.QueryRow(s.queries.selectSubscriptionIDByEndpoint, endpoint).Scan(&subscriptionID); errors.Is(err, sql.ErrNoRows) {
-		if subscriptionCount >= subscriptionEndpointLimitPerSubscriberIP {
-			return ErrWebPushTooManySubscriptions
-		}
-		subscriptionID = util.RandomStringPrefix(subscriptionIDPrefix, subscriptionIDLength)
-	} else if err != nil {
-		return err
-	}
-	// Insert or update subscription
-	updatedAt, warnedAt := time.Now().Unix(), 0
-	if _, err := tx.Exec(s.queries.upsertSubscription, subscriptionID, endpoint, auth, p256dh, userID, subscriberIP.String(), updatedAt, warnedAt); err != nil {
-		return err
-	}
-	// Replace all subscription topics
-	if _, err := tx.Exec(s.queries.deleteSubscriptionTopicAll, subscriptionID); err != nil {
-		return err
-	}
-	for _, topic := range topics {
-		if _, err = tx.Exec(s.queries.insertSubscriptionTopic, subscriptionID, topic); err != nil {
+	return db.ExecTx(s.db, func(tx *sql.Tx) error {
+		// Read number of subscriptions for subscriber IP address
+		var subscriptionCount int
+		if err := tx.QueryRow(s.queries.selectSubscriptionCountBySubscriberIP, subscriberIP.String()).Scan(&subscriptionCount); err != nil {
 			return err
 		}
-	}
-	return tx.Commit()
+		// Read existing subscription ID for endpoint (or create new ID)
+		var subscriptionID string
+		if err := tx.QueryRow(s.queries.selectSubscriptionIDByEndpoint, endpoint).Scan(&subscriptionID); errors.Is(err, sql.ErrNoRows) {
+			if subscriptionCount >= subscriptionEndpointLimitPerSubscriberIP {
+				return ErrWebPushTooManySubscriptions
+			}
+			subscriptionID = util.RandomStringPrefix(subscriptionIDPrefix, subscriptionIDLength)
+		} else if err != nil {
+			return err
+		}
+		// Insert or update subscription
+		updatedAt, warnedAt := time.Now().Unix(), 0
+		if _, err := tx.Exec(s.queries.upsertSubscription, subscriptionID, endpoint, auth, p256dh, userID, subscriberIP.String(), updatedAt, warnedAt); err != nil {
+			return err
+		}
+		// Replace all subscription topics
+		if _, err := tx.Exec(s.queries.deleteSubscriptionTopicAll, subscriptionID); err != nil {
+			return err
+		}
+		for _, topic := range topics {
+			if _, err := tx.Exec(s.queries.insertSubscriptionTopic, subscriptionID, topic); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // SubscriptionsForTopic returns all subscriptions for the given topic.
@@ -105,17 +103,14 @@ func (s *Store) SubscriptionsExpiring(warnAfter time.Duration) ([]*Subscription,
 
 // MarkExpiryWarningSent marks the given subscriptions as having received a warning about expiring soon.
 func (s *Store) MarkExpiryWarningSent(subscriptions []*Subscription) error {
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	for _, subscription := range subscriptions {
-		if _, err := tx.Exec(s.queries.updateSubscriptionWarningSent, time.Now().Unix(), subscription.ID); err != nil {
-			return err
+	return db.ExecTx(s.db, func(tx *sql.Tx) error {
+		for _, subscription := range subscriptions {
+			if _, err := tx.Exec(s.queries.updateSubscriptionWarningSent, time.Now().Unix(), subscription.ID); err != nil {
+				return err
+			}
 		}
-	}
-	return tx.Commit()
+		return nil
+	})
 }
 
 // RemoveSubscriptionsByEndpoint removes the subscription for the given endpoint.

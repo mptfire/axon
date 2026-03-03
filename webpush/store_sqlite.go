@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
+
+	"heckel.io/ntfy/v2/db"
 )
 
 const (
@@ -119,19 +121,16 @@ func setupSQLite(db *sql.DB) error {
 	return nil
 }
 
-func setupNewSQLite(db *sql.DB) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(sqliteCreateTablesQuery); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(sqliteInsertSchemaVersionQuery, sqliteCurrentSchemaVersion); err != nil {
-		return err
-	}
-	return tx.Commit()
+func setupNewSQLite(sqlDB *sql.DB) error {
+	return db.ExecTx(sqlDB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(sqliteCreateTablesQuery); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(sqliteInsertSchemaVersionQuery, sqliteCurrentSchemaVersion); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func runSQLiteStartupQueries(db *sql.DB, startupQueries string) error {
