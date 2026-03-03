@@ -216,24 +216,13 @@ func setupSQLite(db *sql.DB, startupQueries string, cacheDuration time.Duration)
 		return err
 	}
 	// If 'messages' table does not exist, this must be a new database
-	rowsMC, err := db.Query(sqliteSelectMessagesCountQuery)
-	if err != nil {
+	var messagesCount int
+	if err := db.QueryRow(sqliteSelectMessagesCountQuery).Scan(&messagesCount); err != nil {
 		return setupNewSQLite(db)
 	}
-	rowsMC.Close()
-	// If 'messages' table exists, check 'schemaVersion' table
-	schemaVersion := 0
-	rowsSV, err := db.Query(sqliteSelectSchemaVersionQuery)
-	if err == nil {
-		defer rowsSV.Close()
-		if !rowsSV.Next() {
-			return fmt.Errorf("cannot determine schema version: cache file may be corrupt")
-		}
-		if err := rowsSV.Scan(&schemaVersion); err != nil {
-			return err
-		}
-		rowsSV.Close()
-	}
+	// If 'messages' table exists (schema >= 0), check 'schemaVersion' table
+	var schemaVersion int
+	db.QueryRow(sqliteSelectSchemaVersionQuery).Scan(&schemaVersion) // Error means schema version is zero!
 	// Do migrations
 	if schemaVersion == sqliteCurrentSchemaVersion {
 		return nil
