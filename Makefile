@@ -276,7 +276,7 @@ race: .PHONY
 
 coverage:
 	mkdir -p build/coverage
-	go test -v -race -coverprofile=build/coverage/coverage.txt -covermode=atomic $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
+	go test -v -race -coverprofile=build/coverage/coverage.txt -covermode=atomic $(shell go list ./... | grep -vE 'ntfy/v2/(test|examples|tools|web)')
 	go tool cover -func build/coverage/coverage.txt
 
 coverage-html:
