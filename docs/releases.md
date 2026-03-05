@@ -1724,3 +1724,13 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 **Bug fixes + maintenance:**
 
 * Preserve `<br>` line breaks in HTML-only emails received via SMTP ([#690](https://github.com/binwiederhier/ntfy/issues/690), [#1620](https://github.com/binwiederhier/ntfy/pull/1620), thanks to [@uzkikh](https://github.com/uzkikh) for the fix and to [@teastrainer](https://github.com/teastrainer) for reporting)
+
+### ntfy Android v1.24.x (UNRELEASED)
+
+**Features:**
+
+* Show notification when connection to server has been lost for 15+ minutes, with dismiss, snooze and never-show-again actions
+
+**Bug fixes + maintenance:**
+
+* Fix crash in settings when fragment is detached during backup/restore or log operations
