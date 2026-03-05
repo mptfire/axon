@@ -265,14 +265,16 @@ cli-build-results:
 
 check: test web-fmt-check fmt-check vet web-lint lint staticcheck
 
+checkv: testv web-fmt-check fmt-check vet web-lint lint staticcheck
+
 test: .PHONY
-	go test $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/(test|examples|tools)')
+	go test $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/v2/(test|examples|tools)')
 
 testv: .PHONY
-	go test -v $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/(test|examples|tools)')
+	go test -v $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/v2/(test|examples|tools)')
 
 race: .PHONY
-	go test -v -race $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/(test|examples|tools)')
+	go test -v -race $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/v2/(test|examples|tools)')
 
 coverage:
 	mkdir -p build/coverage
@@ -281,7 +283,7 @@ coverage:
 
 coverage-html:
 	mkdir -p build/coverage
-	go test -race -coverprofile=build/coverage/coverage.txt -covermode=atomic $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/(test|examples|tools)')
+	go test -race -coverprofile=build/coverage/coverage.txt -covermode=atomic $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/v2/(test|examples|tools)')
 	go tool cover -html build/coverage/coverage.txt
 
 coverage-upload:
