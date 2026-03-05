@@ -1731,6 +1731,10 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ### ntfy Android v1.24.x (UNRELEASED)
 
+**Features:**
+
+* Show notification when connection to server has been lost for 15+ minutes, with dismiss, snooze and never-show-again actions
+
 **Bug fixes + maintenance:**
 
 * Fix crash in settings when fragment is detached during backup/restore or log operations
