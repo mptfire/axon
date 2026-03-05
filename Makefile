@@ -56,6 +56,7 @@ help:
 	@echo "  make race                       - Run tests with -race flag"
 	@echo "  make coverage                   - Run tests and show coverage"
 	@echo "  make coverage-html              - Run tests and show coverage (as HTML)"
+	@echo "  make coverage-upload            - Upload coverage results to codecov.io"
 	@echo
 	@echo "Lint/format:"
 	@echo "  make fmt                        - Run 'go fmt'"
@@ -264,26 +265,27 @@ cli-build-results:
 
 check: test web-fmt-check fmt-check vet web-lint lint staticcheck
 
-checkv: testv web-fmt-check fmt-check vet web-lint lint staticcheck
-
 test: .PHONY
-	go test -parallel 3 $(shell go list ./... | grep -vE 'ntfy/v2/(test|examples|tools|web)')
+	go test $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/(test|examples|tools)')
 
 testv: .PHONY
-	go test -v -parallel 3 $(shell go list ./... | grep -vE 'ntfy/v2/(test|examples|tools|web)')
+	go test -v $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/(test|examples|tools)')
 
 race: .PHONY
-	go test -v -race $(shell go list ./... | grep -vE 'ntfy/v2/(test|examples|tools|web)')
+	go test -v -race $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/(test|examples|tools)')
 
 coverage:
 	mkdir -p build/coverage
-	go test -v -race -coverprofile=build/coverage/coverage.txt -covermode=atomic $(shell go list ./... | grep -vE 'ntfy/v2/(test|examples|tools|web)')
+	go test -v -race -coverprofile=build/coverage/coverage.txt -covermode=atomic $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/v2/(test|examples|tools|web)')
 	go tool cover -func build/coverage/coverage.txt
 
 coverage-html:
 	mkdir -p build/coverage
-	go test -race -coverprofile=build/coverage/coverage.txt -covermode=atomic $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
+	go test -race -coverprofile=build/coverage/coverage.txt -covermode=atomic $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/(test|examples|tools)')
 	go tool cover -html build/coverage/coverage.txt
+
+coverage-upload:
+	cd build/coverage && (curl -s https://codecov.io/bash | bash)
 
 
 # Lint/formatting targets
