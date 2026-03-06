@@ -1441,6 +1441,54 @@ func TestManager_UpdateNonProvisionedUsersToProvisionedUsers(t *testing.T) {
 	})
 }
 
+func TestManager_RemoveProvisionedOnEmptyConfig(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		// Start with provisioned users, access, and tokens
+		conf := &Config{
+			DefaultAccess:    PermissionReadWrite,
+			ProvisionEnabled: true,
+			BcryptCost:       bcrypt.MinCost,
+			Users: []*User{
+				{Name: "provuser", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
+			},
+			Access: map[string][]*Grant{
+				"provuser": {
+					{TopicPattern: "stats", Permission: PermissionReadWrite},
+				},
+			},
+			Tokens: map[string][]*Token{
+				"provuser": {
+					{Value: "tk_op56p8lz5bf3cxkz9je99v9oc37lo", Label: "Provisioned token"},
+				},
+			},
+		}
+		a := newTestManagerFromConfig(t, newManager, conf)
+
+		// Also add a manual (non-provisioned) user
+		require.Nil(t, a.AddUser("manualuser", "manual", RoleUser, false))
+
+		// Verify initial state
+		users, err := a.Users()
+		require.Nil(t, err)
+		require.Len(t, users, 3) // provuser, manualuser, everyone
+
+		// Re-open with empty provisioning config (simulates config change)
+		require.Nil(t, a.Close())
+		conf.Users = nil
+		conf.Access = nil
+		conf.Tokens = nil
+		a = newTestManagerFromConfig(t, newManager, conf)
+
+		// Provisioned user should be removed, manual user should remain
+		users, err = a.Users()
+		require.Nil(t, err)
+		require.Len(t, users, 2)
+		require.Equal(t, "manualuser", users[0].Name)
+		require.False(t, users[0].Provisioned)
+		require.Equal(t, "*", users[1].Name) // everyone
+	})
+}
+
 func TestToFromSQLWildcard(t *testing.T) {
 	require.Equal(t, "up%", toSQLWildcard("up*"))
 	require.Equal(t, "up\\_%", toSQLWildcard("up_*"))

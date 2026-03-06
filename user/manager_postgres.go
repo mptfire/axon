@@ -7,6 +7,17 @@ import (
 // PostgreSQL queries
 const (
 	// User queries
+	postgresSelectUsersQuery = `
+		SELECT u.id, u.user_name, u.pass, u.role, u.prefs, u.sync_topic, u.provisioned, u.stats_messages, u.stats_emails, u.stats_calls, u.stripe_customer_id, u.stripe_subscription_id, u.stripe_subscription_status, u.stripe_subscription_interval, u.stripe_subscription_paid_until, u.stripe_subscription_cancel_at, u.deleted, t.id, t.code, t.name, t.messages_limit, t.messages_expiry_duration, t.emails_limit, t.calls_limit, t.reservations_limit, t.attachment_file_size_limit, t.attachment_total_size_limit, t.attachment_expiry_duration, t.attachment_bandwidth_limit, t.stripe_monthly_price_id, t.stripe_yearly_price_id
+		FROM "user" u
+		LEFT JOIN tier t on t.id = u.tier_id
+		ORDER BY
+			CASE u.role
+				WHEN 'admin' THEN 1
+				WHEN 'anonymous' THEN 3
+				ELSE 2
+			END, u.user_name
+	`
 	postgresSelectUserByIDQuery = `
 		SELECT u.id, u.user_name, u.pass, u.role, u.prefs, u.sync_topic, u.provisioned, u.stats_messages, u.stats_emails, u.stats_calls, u.stripe_customer_id, u.stripe_subscription_id, u.stripe_subscription_status, u.stripe_subscription_interval, u.stripe_subscription_paid_until, u.stripe_subscription_cancel_at, u.deleted, t.id, t.code, t.name, t.messages_limit, t.messages_expiry_duration, t.emails_limit, t.calls_limit, t.reservations_limit, t.attachment_file_size_limit, t.attachment_total_size_limit, t.attachment_expiry_duration, t.attachment_bandwidth_limit, t.stripe_monthly_price_id, t.stripe_yearly_price_id
 		FROM "user" u
@@ -56,6 +67,7 @@ const (
 	postgresDeleteUserQuery               = `DELETE FROM "user" WHERE user_name = $1`
 	postgresDeleteUserTierQuery           = `UPDATE "user" SET tier_id = null WHERE user_name = $1`
 	postgresDeleteUsersMarkedQuery        = `DELETE FROM "user" WHERE deleted < $1`
+	postgresDeleteUsersProvisionedQuery   = `DELETE FROM "user" WHERE provisioned = true`
 
 	// Access queries
 	postgresSelectTopicPermsQuery = `
@@ -146,13 +158,14 @@ const (
 		ON CONFLICT (user_id, token)
 		DO UPDATE SET label = excluded.label, expires = excluded.expires, provisioned = excluded.provisioned
 	`
-	postgresUpdateTokenQuery            = `UPDATE user_token SET label = $1, expires = $2 WHERE user_id = $3 AND token = $4`
-	postgresUpdateTokenLastAccessQuery  = `UPDATE user_token SET last_access = $1, last_origin = $2 WHERE token = $3`
-	postgresDeleteTokenQuery            = `DELETE FROM user_token WHERE user_id = $1 AND token = $2`
-	postgresDeleteProvisionedTokenQuery = `DELETE FROM user_token WHERE token = $1`
-	postgresDeleteAllTokenQuery         = `DELETE FROM user_token WHERE user_id = $1`
-	postgresDeleteExpiredTokensQuery    = `DELETE FROM user_token WHERE expires > 0 AND expires < $1`
-	postgresDeleteExcessTokensQuery     = `
+	postgresUpdateTokenQuery                = `UPDATE user_token SET label = $1, expires = $2 WHERE user_id = $3 AND token = $4`
+	postgresUpdateTokenLastAccessQuery      = `UPDATE user_token SET last_access = $1, last_origin = $2 WHERE token = $3`
+	postgresDeleteTokenQuery                = `DELETE FROM user_token WHERE user_id = $1 AND token = $2`
+	postgresDeleteProvisionedTokenQuery     = `DELETE FROM user_token WHERE token = $1`
+	postgresDeleteAllProvisionedTokensQuery = `DELETE FROM user_token WHERE provisioned = true`
+	postgresDeleteAllTokenQuery             = `DELETE FROM user_token WHERE user_id = $1`
+	postgresDeleteExpiredTokensQuery        = `DELETE FROM user_token WHERE expires > 0 AND expires < $1`
+	postgresDeleteExcessTokensQuery         = `
 		DELETE FROM user_token
 		WHERE user_id = $1
 		  AND (user_id, token) NOT IN (
@@ -210,6 +223,7 @@ var postgresQueries = queries{
 	selectUserByToken:            postgresSelectUserByTokenQuery,
 	selectUserByStripeCustomerID: postgresSelectUserByStripeCustomerIDQuery,
 	selectUsernames:              postgresSelectUsernamesQuery,
+	selectUsers:                  postgresSelectUsersQuery,
 	selectUserCount:              postgresSelectUserCountQuery,
 	selectUserIDFromUsername:     postgresSelectUserIDFromUsernameQuery,
 	insertUser:                   postgresInsertUserQuery,
@@ -224,6 +238,7 @@ var postgresQueries = queries{
 	deleteUser:                   postgresDeleteUserQuery,
 	deleteUserTier:               postgresDeleteUserTierQuery,
 	deleteUsersMarked:            postgresDeleteUsersMarkedQuery,
+	deleteUsersProvisioned:       postgresDeleteUsersProvisionedQuery,
 	selectTopicPerms:             postgresSelectTopicPermsQuery,
 	selectUserAllAccess:          postgresSelectUserAllAccessQuery,
 	selectUserAccess:             postgresSelectUserAccessQuery,
@@ -246,6 +261,7 @@ var postgresQueries = queries{
 	updateTokenLastAccess:        postgresUpdateTokenLastAccessQuery,
 	deleteToken:                  postgresDeleteTokenQuery,
 	deleteProvisionedToken:       postgresDeleteProvisionedTokenQuery,
+	deleteAllProvisionedTokens:   postgresDeleteAllProvisionedTokensQuery,
 	deleteAllToken:               postgresDeleteAllTokenQuery,
 	deleteExpiredTokens:          postgresDeleteExpiredTokensQuery,
 	deleteExcessTokens:           postgresDeleteExcessTokensQuery,

@@ -23,6 +23,159 @@ const (
 	expectedMessageSchemaVersion = 14
 	expectedUserSchemaVersion    = 6
 	expectedWebPushSchemaVersion = 1
+
+	everyoneID = "u_everyone"
+
+	// Initial PostgreSQL schema for message store (from message/cache_postgres_schema.go)
+	createMessageSchemaQuery = `
+		CREATE TABLE IF NOT EXISTS message (
+			id BIGSERIAL PRIMARY KEY,
+			mid TEXT NOT NULL,
+			sequence_id TEXT NOT NULL,
+			time BIGINT NOT NULL,
+			event TEXT NOT NULL,
+			expires BIGINT NOT NULL,
+			topic TEXT NOT NULL,
+			message TEXT NOT NULL,
+			title TEXT NOT NULL,
+			priority INT NOT NULL,
+			tags TEXT NOT NULL,
+			click TEXT NOT NULL,
+			icon TEXT NOT NULL,
+			actions TEXT NOT NULL,
+			attachment_name TEXT NOT NULL,
+			attachment_type TEXT NOT NULL,
+			attachment_size BIGINT NOT NULL,
+			attachment_expires BIGINT NOT NULL,
+			attachment_url TEXT NOT NULL,
+			attachment_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+			sender TEXT NOT NULL,
+			user_id TEXT NOT NULL,
+			content_type TEXT NOT NULL,
+			encoding TEXT NOT NULL,
+			published BOOLEAN NOT NULL DEFAULT FALSE
+		);
+		CREATE INDEX IF NOT EXISTS idx_message_mid ON message (mid);
+		CREATE INDEX IF NOT EXISTS idx_message_sequence_id ON message (sequence_id);
+		CREATE INDEX IF NOT EXISTS idx_message_topic_published_time ON message (topic, published, time, id);
+		CREATE INDEX IF NOT EXISTS idx_message_published_expires ON message (published, expires);
+		CREATE INDEX IF NOT EXISTS idx_message_sender_attachment_expires ON message (sender, attachment_expires) WHERE user_id = '';
+		CREATE INDEX IF NOT EXISTS idx_message_user_id_attachment_expires ON message (user_id, attachment_expires);
+		CREATE TABLE IF NOT EXISTS message_stats (
+			key TEXT PRIMARY KEY,
+			value BIGINT
+		);
+		INSERT INTO message_stats (key, value) VALUES ('messages', 0);
+		CREATE TABLE IF NOT EXISTS schema_version (
+			store TEXT PRIMARY KEY,
+			version INT NOT NULL
+		);
+		INSERT INTO schema_version (store, version) VALUES ('message', 14);
+	`
+
+	// Initial PostgreSQL schema for user store (from user/manager_postgres_schema.go)
+	createUserSchemaQuery = `
+		CREATE TABLE IF NOT EXISTS tier (
+			id TEXT PRIMARY KEY,
+			code TEXT NOT NULL,
+			name TEXT NOT NULL,
+			messages_limit BIGINT NOT NULL,
+			messages_expiry_duration BIGINT NOT NULL,
+			emails_limit BIGINT NOT NULL,
+			calls_limit BIGINT NOT NULL,
+			reservations_limit BIGINT NOT NULL,
+			attachment_file_size_limit BIGINT NOT NULL,
+			attachment_total_size_limit BIGINT NOT NULL,
+			attachment_expiry_duration BIGINT NOT NULL,
+			attachment_bandwidth_limit BIGINT NOT NULL,
+			stripe_monthly_price_id TEXT,
+			stripe_yearly_price_id TEXT,
+			UNIQUE(code),
+			UNIQUE(stripe_monthly_price_id),
+			UNIQUE(stripe_yearly_price_id)
+		);
+		CREATE TABLE IF NOT EXISTS "user" (
+		    id TEXT PRIMARY KEY,
+			tier_id TEXT REFERENCES tier(id),
+			user_name TEXT NOT NULL UNIQUE,
+			pass TEXT NOT NULL,
+			role TEXT NOT NULL CHECK (role IN ('anonymous', 'admin', 'user')),
+			prefs JSONB NOT NULL DEFAULT '{}',
+			sync_topic TEXT NOT NULL,
+			provisioned BOOLEAN NOT NULL,
+			stats_messages BIGINT NOT NULL DEFAULT 0,
+			stats_emails BIGINT NOT NULL DEFAULT 0,
+			stats_calls BIGINT NOT NULL DEFAULT 0,
+			stripe_customer_id TEXT UNIQUE,
+			stripe_subscription_id TEXT UNIQUE,
+			stripe_subscription_status TEXT,
+			stripe_subscription_interval TEXT,
+			stripe_subscription_paid_until BIGINT,
+			stripe_subscription_cancel_at BIGINT,
+			created BIGINT NOT NULL,
+			deleted BIGINT
+		);
+		CREATE TABLE IF NOT EXISTS user_access (
+			user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+			topic TEXT NOT NULL,
+			read BOOLEAN NOT NULL,
+			write BOOLEAN NOT NULL,
+			owner_user_id TEXT REFERENCES "user"(id) ON DELETE CASCADE,
+			provisioned BOOLEAN NOT NULL,
+			PRIMARY KEY (user_id, topic)
+		);
+		CREATE TABLE IF NOT EXISTS user_token (
+			user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+			token TEXT NOT NULL UNIQUE,
+			label TEXT NOT NULL,
+			last_access BIGINT NOT NULL,
+			last_origin TEXT NOT NULL,
+			expires BIGINT NOT NULL,
+			provisioned BOOLEAN NOT NULL,
+			PRIMARY KEY (user_id, token)
+		);
+		CREATE TABLE IF NOT EXISTS user_phone (
+			user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+			phone_number TEXT NOT NULL,
+			PRIMARY KEY (user_id, phone_number)
+		);
+		CREATE TABLE IF NOT EXISTS schema_version (
+			store TEXT PRIMARY KEY,
+			version INT NOT NULL
+		);
+		INSERT INTO "user" (id, user_name, pass, role, sync_topic, provisioned, created)
+		VALUES ('` + everyoneID + `', '*', '', 'anonymous', '', false, EXTRACT(EPOCH FROM NOW())::BIGINT)
+		ON CONFLICT (id) DO NOTHING;
+		INSERT INTO schema_version (store, version) VALUES ('user', 6);
+	`
+
+	// Initial PostgreSQL schema for web push store (from webpush/store_postgres.go)
+	createWebPushSchemaQuery = `
+		CREATE TABLE IF NOT EXISTS webpush_subscription (
+			id TEXT PRIMARY KEY,
+			endpoint TEXT NOT NULL UNIQUE,
+			key_auth TEXT NOT NULL,
+			key_p256dh TEXT NOT NULL,
+			user_id TEXT NOT NULL,
+			subscriber_ip TEXT NOT NULL,
+			updated_at BIGINT NOT NULL,
+			warned_at BIGINT NOT NULL DEFAULT 0
+		);
+		CREATE INDEX IF NOT EXISTS idx_webpush_subscriber_ip ON webpush_subscription (subscriber_ip);
+		CREATE INDEX IF NOT EXISTS idx_webpush_updated_at ON webpush_subscription (updated_at);
+		CREATE INDEX IF NOT EXISTS idx_webpush_user_id ON webpush_subscription (user_id);
+		CREATE TABLE IF NOT EXISTS webpush_subscription_topic (
+			subscription_id TEXT NOT NULL REFERENCES webpush_subscription (id) ON DELETE CASCADE,
+			topic TEXT NOT NULL,
+			PRIMARY KEY (subscription_id, topic)
+		);
+		CREATE INDEX IF NOT EXISTS idx_webpush_topic ON webpush_subscription_topic (topic);
+		CREATE TABLE IF NOT EXISTS schema_version (
+			store TEXT PRIMARY KEY,
+			version INT NOT NULL
+		);
+		INSERT INTO schema_version (store, version) VALUES ('webpush', 1);
+	`
 )
 
 var flags = []cli.Flag{
@@ -31,6 +184,7 @@ var flags = []cli.Flag{
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "cache-file", Aliases: []string{"cache_file"}, Usage: "SQLite message cache file path"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "auth-file", Aliases: []string{"auth_file"}, Usage: "SQLite user/auth database file path"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "web-push-file", Aliases: []string{"web_push_file"}, Usage: "SQLite web push database file path"}),
+	&cli.BoolFlag{Name: "create-schema", Usage: "create initial PostgreSQL schema before importing"},
 }
 
 func main() {
@@ -88,6 +242,12 @@ func execImport(c *cli.Context) error {
 	}
 	defer pgDB.Close()
 
+	if c.Bool("create-schema") {
+		if err := createSchema(pgDB, cacheFile, authFile, webPushFile); err != nil {
+			return fmt.Errorf("cannot create schema: %w", err)
+		}
+	}
+
 	if authFile != "" {
 		if err := verifySchemaVersion(pgDB, "user", expectedUserSchemaVersion); err != nil {
 			return err
@@ -136,6 +296,34 @@ func execImport(c *cli.Context) error {
 		return fmt.Errorf("verification FAILED, see above for details")
 	}
 	fmt.Println("Verification successful. Migration complete.")
+	return nil
+}
+
+func createSchema(pgDB *sql.DB, cacheFile, authFile, webPushFile string) error {
+	fmt.Println("Creating initial PostgreSQL schema ...")
+	// User schema must be created before message schema, because message_stats and
+	// schema_version use "INSERT INTO" without "ON CONFLICT", so user schema (which
+	// also creates the schema_version table) must come first.
+	if authFile != "" {
+		fmt.Println("  Creating user schema ...")
+		if _, err := pgDB.Exec(createUserSchemaQuery); err != nil {
+			return fmt.Errorf("creating user schema: %w", err)
+		}
+	}
+	if cacheFile != "" {
+		fmt.Println("  Creating message schema ...")
+		if _, err := pgDB.Exec(createMessageSchemaQuery); err != nil {
+			return fmt.Errorf("creating message schema: %w", err)
+		}
+	}
+	if webPushFile != "" {
+		fmt.Println("  Creating web push schema ...")
+		if _, err := pgDB.Exec(createWebPushSchemaQuery); err != nil {
+			return fmt.Errorf("creating web push schema: %w", err)
+		}
+	}
+	fmt.Println("  Schema creation complete.")
+	fmt.Println()
 	return nil
 }
 

@@ -283,6 +283,7 @@ type queries struct {
 	selectUserByToken            string
 	selectUserByStripeCustomerID string
 	selectUsernames              string
+	selectUsers                  string
 	selectUserCount              string
 	selectUserIDFromUsername     string
 	insertUser                   string
@@ -297,6 +298,7 @@ type queries struct {
 	deleteUser                   string
 	deleteUserTier               string
 	deleteUsersMarked            string
+	deleteUsersProvisioned       string
 
 	// Access queries
 	selectTopicPerms            string
@@ -323,6 +325,7 @@ type queries struct {
 	updateTokenLastAccess      string
 	deleteToken                string
 	deleteProvisionedToken     string
+	deleteAllProvisionedTokens string
 	deleteAllToken             string
 	deleteExpiredTokens        string
 	deleteExcessTokens         string

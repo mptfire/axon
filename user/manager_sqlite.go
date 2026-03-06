@@ -12,6 +12,17 @@ import (
 
 const (
 	// User queries
+	sqliteSelectUsersQuery = `
+		SELECT u.id, u.user, u.pass, u.role, u.prefs, u.sync_topic, u.provisioned, u.stats_messages, u.stats_emails, u.stats_calls, u.stripe_customer_id, u.stripe_subscription_id, u.stripe_subscription_status, u.stripe_subscription_interval, u.stripe_subscription_paid_until, u.stripe_subscription_cancel_at, deleted, t.id, t.code, t.name, t.messages_limit, t.messages_expiry_duration, t.emails_limit, t.calls_limit, t.reservations_limit, t.attachment_file_size_limit, t.attachment_total_size_limit, t.attachment_expiry_duration, t.attachment_bandwidth_limit, t.stripe_monthly_price_id, t.stripe_yearly_price_id
+		FROM user u
+		LEFT JOIN tier t on t.id = u.tier_id
+		ORDER BY
+			CASE u.role
+				WHEN 'admin' THEN 1
+				WHEN 'anonymous' THEN 3
+				ELSE 2
+			END, u.user
+	`
 	sqliteSelectUserByIDQuery = `
 		SELECT u.id, u.user, u.pass, u.role, u.prefs, u.sync_topic, u.provisioned, u.stats_messages, u.stats_emails, u.stats_calls, u.stripe_customer_id, u.stripe_subscription_id, u.stripe_subscription_status, u.stripe_subscription_interval, u.stripe_subscription_paid_until, u.stripe_subscription_cancel_at, deleted, t.id, t.code, t.name, t.messages_limit, t.messages_expiry_duration, t.emails_limit, t.calls_limit, t.reservations_limit, t.attachment_file_size_limit, t.attachment_total_size_limit, t.attachment_expiry_duration, t.attachment_bandwidth_limit, t.stripe_monthly_price_id, t.stripe_yearly_price_id
 		FROM user u
@@ -61,6 +72,7 @@ const (
 	sqliteDeleteUserQuery               = `DELETE FROM user WHERE user = ?`
 	sqliteDeleteUserTierQuery           = `UPDATE user SET tier_id = null WHERE user = ?`
 	sqliteDeleteUsersMarkedQuery        = `DELETE FROM user WHERE deleted < ?`
+	sqliteDeleteUsersProvisionedQuery   = `DELETE FROM user WHERE provisioned = 1`
 
 	// Access queries
 	sqliteSelectTopicPermsQuery = `
@@ -144,13 +156,14 @@ const (
 		ON CONFLICT (user_id, token)
 		DO UPDATE SET label = excluded.label, expires = excluded.expires, provisioned = excluded.provisioned
 	`
-	sqliteUpdateTokenQuery            = `UPDATE user_token SET label = ?, expires = ? WHERE user_id = ? AND token = ?`
-	sqliteUpdateTokenLastAccessQuery  = `UPDATE user_token SET last_access = ?, last_origin = ? WHERE token = ?`
-	sqliteDeleteTokenQuery            = `DELETE FROM user_token WHERE user_id = ? AND token = ?`
-	sqliteDeleteProvisionedTokenQuery = `DELETE FROM user_token WHERE token = ?`
-	sqliteDeleteAllTokenQuery         = `DELETE FROM user_token WHERE user_id = ?`
-	sqliteDeleteExpiredTokensQuery    = `DELETE FROM user_token WHERE expires > 0 AND expires < ?`
-	sqliteDeleteExcessTokensQuery     = `
+	sqliteUpdateTokenQuery                = `UPDATE user_token SET label = ?, expires = ? WHERE user_id = ? AND token = ?`
+	sqliteUpdateTokenLastAccessQuery      = `UPDATE user_token SET last_access = ?, last_origin = ? WHERE token = ?`
+	sqliteDeleteTokenQuery                = `DELETE FROM user_token WHERE user_id = ? AND token = ?`
+	sqliteDeleteProvisionedTokenQuery     = `DELETE FROM user_token WHERE token = ?`
+	sqliteDeleteAllProvisionedTokensQuery = `DELETE FROM user_token WHERE provisioned = 1`
+	sqliteDeleteAllTokenQuery             = `DELETE FROM user_token WHERE user_id = ?`
+	sqliteDeleteExpiredTokensQuery        = `DELETE FROM user_token WHERE expires > 0 AND expires < ?`
+	sqliteDeleteExcessTokensQuery         = `
 		DELETE FROM user_token
 		WHERE user_id = ?
 		  AND (user_id, token) NOT IN (
@@ -207,6 +220,7 @@ var sqliteQueries = queries{
 	selectUserByToken:            sqliteSelectUserByTokenQuery,
 	selectUserByStripeCustomerID: sqliteSelectUserByStripeCustomerIDQuery,
 	selectUsernames:              sqliteSelectUsernamesQuery,
+	selectUsers:                  sqliteSelectUsersQuery,
 	selectUserCount:              sqliteSelectUserCountQuery,
 	selectUserIDFromUsername:     sqliteSelectUserIDFromUsernameQuery,
 	insertUser:                   sqliteInsertUserQuery,
@@ -221,6 +235,7 @@ var sqliteQueries = queries{
 	deleteUser:                   sqliteDeleteUserQuery,
 	deleteUserTier:               sqliteDeleteUserTierQuery,
 	deleteUsersMarked:            sqliteDeleteUsersMarkedQuery,
+	deleteUsersProvisioned:       sqliteDeleteUsersProvisionedQuery,
 	selectTopicPerms:             sqliteSelectTopicPermsQuery,
 	selectUserAllAccess:          sqliteSelectUserAllAccessQuery,
 	selectUserAccess:             sqliteSelectUserAccessQuery,
@@ -243,6 +258,7 @@ var sqliteQueries = queries{
 	updateTokenLastAccess:        sqliteUpdateTokenLastAccessQuery,
 	deleteToken:                  sqliteDeleteTokenQuery,
 	deleteProvisionedToken:       sqliteDeleteProvisionedTokenQuery,
+	deleteAllProvisionedTokens:   sqliteDeleteAllProvisionedTokensQuery,
 	deleteAllToken:               sqliteDeleteAllTokenQuery,
 	deleteExpiredTokens:          sqliteDeleteExpiredTokensQuery,
 	deleteExcessTokens:           sqliteDeleteExcessTokensQuery,

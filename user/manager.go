@@ -422,33 +422,14 @@ func (a *Manager) UserByStripeCustomer(customerID string) (*User, error) {
 	return a.readUser(rows)
 }
 
-// Users returns a list of users
+// Users returns a list of users. It loads all users in a single query
+// rather than one query per user to avoid N+1 performance issues.
 func (a *Manager) Users() ([]*User, error) {
-	rows, err := a.db.Query(a.queries.selectUsernames)
+	rows, err := a.db.Query(a.queries.selectUsers)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	usernames := make([]string, 0)
-	for rows.Next() {
-		var username string
-		if err := rows.Scan(&username); err != nil {
-			return nil, err
-		} else if err := rows.Err(); err != nil {
-			return nil, err
-		}
-		usernames = append(usernames, username)
-	}
-	rows.Close()
-	users := make([]*User, 0)
-	for _, username := range usernames {
-		user, err := a.User(username)
-		if err != nil {
-			return nil, err
-		}
-		users = append(users, user)
-	}
-	return users, nil
+	return a.readUsers(rows)
 }
 
 // UsersCount returns the number of users in the database
@@ -470,14 +451,35 @@ func (a *Manager) UsersCount() (int64, error) {
 
 func (a *Manager) readUser(rows *sql.Rows) (*User, error) {
 	defer rows.Close()
+	if !rows.Next() {
+		return nil, ErrUserNotFound
+	}
+	user, err := a.scanUser(rows)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (a *Manager) readUsers(rows *sql.Rows) ([]*User, error) {
+	defer rows.Close()
+	users := make([]*User, 0)
+	for rows.Next() {
+		user, err := a.scanUser(rows)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	return users, nil
+}
+
+func (a *Manager) scanUser(rows *sql.Rows) (*User, error) {
 	var id, username, hash, role, prefs, syncTopic string
 	var provisioned bool
 	var stripeCustomerID, stripeSubscriptionID, stripeSubscriptionStatus, stripeSubscriptionInterval, stripeMonthlyPriceID, stripeYearlyPriceID, tierID, tierCode, tierName sql.NullString
 	var messages, emails, calls int64
 	var messagesLimit, messagesExpiryDuration, emailsLimit, callsLimit, reservationsLimit, attachmentFileSizeLimit, attachmentTotalSizeLimit, attachmentExpiryDuration, attachmentBandwidthLimit, stripeSubscriptionPaidUntil, stripeSubscriptionCancelAt, deleted sql.NullInt64
-	if !rows.Next() {
-		return nil, ErrUserNotFound
-	}
 	if err := rows.Scan(&id, &username, &hash, &role, &prefs, &syncTopic, &provisioned, &messages, &emails, &calls, &stripeCustomerID, &stripeSubscriptionID, &stripeSubscriptionStatus, &stripeSubscriptionInterval, &stripeSubscriptionPaidUntil, &stripeSubscriptionCancelAt, &deleted, &tierID, &tierCode, &tierName, &messagesLimit, &messagesExpiryDuration, &emailsLimit, &callsLimit, &reservationsLimit, &attachmentFileSizeLimit, &attachmentTotalSizeLimit, &attachmentExpiryDuration, &attachmentBandwidthLimit, &stripeMonthlyPriceID, &stripeYearlyPriceID); err != nil {
 		return nil, err
 	} else if err := rows.Err(); err != nil {
@@ -1244,6 +1246,12 @@ func (a *Manager) maybeProvisionUsersAccessAndTokens() error {
 	if !a.config.ProvisionEnabled {
 		return nil
 	}
+	// If there is nothing to provision, remove any previously provisioned items using
+	// cheap targeted queries, avoiding the expensive Users() call that loads all users.
+	if len(a.config.Users) == 0 && len(a.config.Access) == 0 && len(a.config.Tokens) == 0 {
+		return a.removeAllProvisioned()
+	}
+	// If there are provisioned users, do it the slow way
 	existingUsers, err := a.Users()
 	if err != nil {
 		return err
@@ -1264,6 +1272,23 @@ func (a *Manager) maybeProvisionUsersAccessAndTokens() error {
 		}
 		if err := a.maybeProvisionTokens(tx, provisionUsernames, existingTokens); err != nil {
 			return fmt.Errorf("failed to provision tokens: %v", err)
+		}
+		return nil
+	})
+}
+
+// removeAllProvisioned removes all provisioned users, access entries, and tokens. This is the fast path
+// for when there is nothing to provision, avoiding the expensive Users() call.
+func (a *Manager) removeAllProvisioned() error {
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(a.queries.deleteUserAccessProvisioned); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(a.queries.deleteAllProvisionedTokens); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(a.queries.deleteUsersProvisioned); err != nil {
+			return err
 		}
 		return nil
 	})
