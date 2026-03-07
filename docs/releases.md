@@ -23,7 +23,7 @@ went through all queries multiple times and reviewed the logic over and over aga
 which took lots of evenings.
 
 I'll not instantly switch ntfy.sh over. Instead, I'm kindly asking the community to test the Postgres support and report back to me
-if things are working (or not working). There is a one-off migration tool (entirely written by AI) that you can use to migrate.
+if things are working (or not working). There is a [one-off migration tool](https://github.com/binwiederhier/ntfy/tree/main/tools/pgimport) (entirely written by AI) that you can use to migrate.
 
 **Features:**
 
