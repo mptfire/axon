@@ -6,11 +6,47 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 | Component        | Version | Release date |
 |------------------|---------|--------------|
-| ntfy server      | v2.17.0 | Feb 8, 2026  |
-| ntfy Android app | v1.23.0 | Deb 22, 2026 |
+| ntfy server      | v2.18.0 | Mar 7, 2026  |
+| ntfy Android app | v1.24.0 | Mar 5, 2026  |
 | ntfy iOS app     | v1.3    | Nov 26, 2023 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+### ntfy server v2.18.0
+Released March 7, 2026
+
+This is the biggest release I've ever done on the server. It's 14,997 added lines of code, and 10,202 lines removed, all from
+one [pull request](https://github.com/binwiederhier/ntfy/pull/1619) that adds [PostgreSQL support](config.md#postgresql-experimental).
+
+The code was written by Cursor and Claude, but reviewed and heavily tested over 2-3 weeks by me. I created comparison documents,
+went through all queries multiple times and reviewed the logic over and over again. I also did load tests and manual regression tests,
+which took lots of evenings.
+
+I'll not instantly switch ntfy.sh over. Instead, I'm kindly asking the community to test the Postgres support and report back to me
+if things are working (or not working). There is a one-off migration tool (entirely written by AI) that you can use to migrate.
+
+**Features:**
+
+* Add experimental [PostgreSQL support](config.md#postgresql-experimental) as an alternative database backend (message cache, user manager, web push subscriptions) via `database-url` config option ([#1114](https://github.com/binwiederhier/ntfy/issues/1114)/[#1619](https://github.com/binwiederhier/ntfy/pull/1619), thanks to [@brettinternet](https://github.com/brettinternet) for reporting)
+
+**Bug fixes + maintenance:**
+
+* Preserve `<br>` line breaks in HTML-only emails received via SMTP ([#690](https://github.com/binwiederhier/ntfy/issues/690), [#1620](https://github.com/binwiederhier/ntfy/pull/1620), thanks to [@uzkikh](https://github.com/uzkikh) for the fix and to [@teastrainer](https://github.com/teastrainer) for reporting)
+
+### ntfy Android v1.24.0
+Released March 5, 2026
+
+This is a tiny release that will revert the "reconnecting ..." behavior of the foreground notification. Lots of people
+have complained about it, so I'm replacing it with a notification that shows up when the server connection has failed
+for >15 minutes, hoping that people will be less annoyed by that.
+
+**Features:**
+
+* Show notification when connection to server has been lost for 15+ minutes, with dismiss, snooze and never-show-again actions
+
+**Bug fixes + maintenance:**
+
+* Fix crash in settings when fragment is detached during backup/restore or log operations
 
 ## ntfy Android v1.23.0
 Released February 22, 2026
@@ -1719,22 +1755,4 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-### ntfy server v2.18.x (UNRELEASED)
-
-**Features:**
-
-* Add experimental [PostgreSQL support](config.md#postgresql-experimental) as an alternative database backend (message cache, user manager, web push subscriptions) via `database-url` config option ([#1114](https://github.com/binwiederhier/ntfy/issues/1114), thanks to [@brettinternet](https://github.com/brettinternet) for reporting)
-
-**Bug fixes + maintenance:**
-
-* Preserve `<br>` line breaks in HTML-only emails received via SMTP ([#690](https://github.com/binwiederhier/ntfy/issues/690), [#1620](https://github.com/binwiederhier/ntfy/pull/1620), thanks to [@uzkikh](https://github.com/uzkikh) for the fix and to [@teastrainer](https://github.com/teastrainer) for reporting)
-
-### ntfy Android v1.24.x (UNRELEASED)
-
-**Features:**
-
-* Show notification when connection to server has been lost for 15+ minutes, with dismiss, snooze and never-show-again actions
-
-**Bug fixes + maintenance:**
-
-* Fix crash in settings when fragment is detached during backup/restore or log operations
+_None_
