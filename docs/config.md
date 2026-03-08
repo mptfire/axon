@@ -135,6 +135,245 @@ using Docker Compose (i.e. `docker-compose.yml`):
 	    command: serve
     ```
 
+## Config generator
+
+Use this interactive tool to build your ntfy configuration. Select options below and copy the generated config.
+
+<div id="config-generator-app">
+<div id="cg-left">
+<div class="cg-section">
+<div class="cg-section-header">Basic Setup</div>
+<div class="cg-section-body">
+<div class="cg-field">
+<label>Base URL</label>
+<input type="text" data-key="base-url" placeholder="https://ntfy.example.com">
+</div>
+<div class="cg-field">
+<label>Listen address</label>
+<input type="text" data-key="listen-http" placeholder=":80">
+</div>
+<div class="cg-checkbox">
+<input type="checkbox" data-key="behind-proxy" id="cg-behind-proxy">
+<label for="cg-behind-proxy">Behind a proxy (nginx, Apache, etc.)</label>
+</div>
+</div>
+</div>
+<div class="cg-section">
+<div class="cg-section-header">Database</div>
+<div class="cg-section-body">
+<div class="cg-radio-group">
+<label><input type="radio" name="cg-db-type" value="sqlite" checked> SQLite</label>
+<label><input type="radio" name="cg-db-type" value="postgres"> PostgreSQL</label>
+</div>
+<div id="cg-sqlite-fields">
+<div class="cg-field">
+<label>Cache file</label>
+<input type="text" data-key="cache-file" placeholder="/var/cache/ntfy/cache.db">
+</div>
+</div>
+<div id="cg-postgres-fields" style="display:none">
+<div class="cg-field">
+<label>Database URL</label>
+<input type="text" data-key="database-url" placeholder="postgres://user:pass@host:5432/ntfy">
+</div>
+</div>
+</div>
+</div>
+<div class="cg-section">
+<div class="cg-section-header">Access Control</div>
+<div class="cg-section-body">
+<div class="cg-checkbox">
+<input type="checkbox" id="cg-auth-toggle" data-toggle="cg-auth-fields">
+<label for="cg-auth-toggle">Enable access control</label>
+</div>
+<div class="cg-conditional" id="cg-auth-fields">
+<div class="cg-field">
+<label>Auth file</label>
+<input type="text" data-key="auth-file" placeholder="/var/lib/ntfy/auth.db">
+</div>
+<div class="cg-field">
+<label>Default access</label>
+<select data-key="auth-default-access">
+<option value="">-- select --</option>
+<option value="read-write">read-write</option>
+<option value="read-only">read-only</option>
+<option value="write-only">write-only</option>
+<option value="deny-all">deny-all</option>
+</select>
+</div>
+<div class="cg-checkbox">
+<input type="checkbox" data-key="enable-login" id="cg-enable-login">
+<label for="cg-enable-login">Enable login</label>
+</div>
+<div class="cg-checkbox">
+<input type="checkbox" data-key="enable-signup" id="cg-enable-signup">
+<label for="cg-enable-signup">Enable signup</label>
+</div>
+<div class="cg-field">
+<label>Provisioned users</label>
+<div class="cg-repeatable-container" id="cg-auth-users-container"></div>
+<button type="button" class="cg-btn-add" data-add-type="user">+ Add user</button>
+</div>
+<div class="cg-field">
+<label>Provisioned ACLs</label>
+<div class="cg-repeatable-container" id="cg-auth-acls-container"></div>
+<button type="button" class="cg-btn-add" data-add-type="acl">+ Add ACL</button>
+</div>
+<div class="cg-field">
+<label>Provisioned tokens</label>
+<div class="cg-repeatable-container" id="cg-auth-tokens-container"></div>
+<button type="button" class="cg-btn-add" data-add-type="token">+ Add token</button>
+</div>
+</div>
+</div>
+</div>
+<div class="cg-section">
+<div class="cg-section-header">Attachments</div>
+<div class="cg-section-body">
+<div class="cg-checkbox">
+<input type="checkbox" id="cg-attach-toggle" data-toggle="cg-attach-fields">
+<label for="cg-attach-toggle">Enable attachments</label>
+</div>
+<div class="cg-conditional" id="cg-attach-fields">
+<div class="cg-field">
+<label>Cache directory</label>
+<input type="text" data-key="attachment-cache-dir" placeholder="/var/cache/ntfy/attachments">
+</div>
+<div class="cg-field">
+<label>File size limit</label>
+<input type="text" data-key="attachment-file-size-limit" placeholder="15M">
+</div>
+<div class="cg-field">
+<label>Total size limit</label>
+<input type="text" data-key="attachment-total-size-limit" placeholder="5G">
+</div>
+<div class="cg-field">
+<label>Expiry duration</label>
+<input type="text" data-key="attachment-expiry-duration" placeholder="3h">
+</div>
+</div>
+</div>
+</div>
+<div class="cg-section">
+<div class="cg-section-header">Message Cache</div>
+<div class="cg-section-body">
+<div class="cg-field">
+<label>Cache duration</label>
+<input type="text" data-key="cache-duration" placeholder="12h">
+</div>
+</div>
+</div>
+<div class="cg-section">
+<div class="cg-section-header">Web Push</div>
+<div class="cg-section-body">
+<div class="cg-checkbox">
+<input type="checkbox" id="cg-webpush-toggle" data-toggle="cg-webpush-fields">
+<label for="cg-webpush-toggle">Enable web push</label>
+</div>
+<div class="cg-conditional" id="cg-webpush-fields">
+<div class="cg-field">
+<label>Public key</label>
+<input type="text" data-key="web-push-public-key" placeholder="Public key">
+</div>
+<div class="cg-field">
+<label>Private key</label>
+<input type="text" data-key="web-push-private-key" placeholder="Private key">
+</div>
+<div class="cg-field">
+<label>Web push file</label>
+<input type="text" data-key="web-push-file" placeholder="/var/lib/ntfy/webpush.db">
+</div>
+<div class="cg-field">
+<label>Email address</label>
+<input type="text" data-key="web-push-email-address" placeholder="admin@example.com">
+</div>
+</div>
+</div>
+</div>
+<div class="cg-section">
+<div class="cg-section-header">Email Notifications (Outgoing)</div>
+<div class="cg-section-body">
+<div class="cg-checkbox">
+<input type="checkbox" id="cg-smtp-out-toggle" data-toggle="cg-smtp-out-fields">
+<label for="cg-smtp-out-toggle">Enable email sending</label>
+</div>
+<div class="cg-conditional" id="cg-smtp-out-fields">
+<div class="cg-field">
+<label>SMTP server address</label>
+<input type="text" data-key="smtp-sender-addr" placeholder="smtp.example.com:587">
+</div>
+<div class="cg-field">
+<label>Sender email</label>
+<input type="text" data-key="smtp-sender-from" placeholder="ntfy@example.com">
+</div>
+<div class="cg-field">
+<label>SMTP username</label>
+<input type="text" data-key="smtp-sender-user" placeholder="Username">
+</div>
+<div class="cg-field">
+<label>SMTP password</label>
+<input type="password" data-key="smtp-sender-pass" placeholder="Password">
+</div>
+</div>
+</div>
+</div>
+<div class="cg-section">
+<div class="cg-section-header">Email Publishing (Incoming)</div>
+<div class="cg-section-body">
+<div class="cg-checkbox">
+<input type="checkbox" id="cg-smtp-in-toggle" data-toggle="cg-smtp-in-fields">
+<label for="cg-smtp-in-toggle">Enable email publishing</label>
+</div>
+<div class="cg-conditional" id="cg-smtp-in-fields">
+<div class="cg-field">
+<label>Listen address</label>
+<input type="text" data-key="smtp-server-listen" placeholder=":25">
+</div>
+<div class="cg-field">
+<label>Domain</label>
+<input type="text" data-key="smtp-server-domain" placeholder="ntfy.example.com">
+</div>
+<div class="cg-field">
+<label>Address prefix</label>
+<input type="text" data-key="smtp-server-addr-prefix" placeholder="ntfy-">
+</div>
+</div>
+</div>
+</div>
+<div class="cg-section">
+<div class="cg-section-header">Upstream Server</div>
+<div class="cg-section-body">
+<div class="cg-checkbox">
+<input type="checkbox" id="cg-upstream-check">
+<label for="cg-upstream-check">iOS users will use this server</label>
+</div>
+<input type="hidden" data-key="upstream-base-url">
+</div>
+</div>
+<div class="cg-section">
+<div class="cg-section-header">Monitoring</div>
+<div class="cg-section-body">
+<div class="cg-checkbox">
+<input type="checkbox" id="cg-metrics-check">
+<label for="cg-metrics-check">Enable Prometheus metrics</label>
+</div>
+<input type="checkbox" data-key="enable-metrics" style="display:none">
+</div>
+</div>
+</div>
+<div id="cg-right">
+<div class="cg-tabs">
+<div class="cg-tab active" data-format="server-yml">server.yml</div>
+<div class="cg-tab" data-format="docker-compose">docker-compose.yml</div>
+<div class="cg-tab" data-format="env-vars">Environment variables</div>
+</div>
+<div class="cg-output-wrap">
+<button type="button" id="cg-copy-btn" class="cg-btn-copy">Copy</button>
+<pre><code id="cg-code"><span class="cg-empty-msg">Configure options on the left to generate your config...</span></code></pre>
+</div>
+</div>
+</div>
+
 ## Database options
 ntfy uses a database for storing messages ([message cache](#message-cache)), users and [access control](#access-control), and [web push](#web-push) subscriptions.
 You can choose between **SQLite** and **PostgreSQL** as the database backend.
