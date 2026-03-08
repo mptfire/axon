@@ -136,9 +136,11 @@ const ChangePassword = () => {
           ⬤⬤⬤⬤⬤⬤⬤⬤⬤⬤
         </Typography>
         {!account?.provisioned ? (
-          <IconButton onClick={handleDialogOpen} aria-label={t("account_basics_password_description")}>
-            <EditIcon />
-          </IconButton>
+          <Tooltip title={t("account_basics_password_description")}>
+            <IconButton onClick={handleDialogOpen} aria-label={t("account_basics_password_description")}>
+              <EditIcon />
+            </IconButton>
+          </Tooltip>
         ) : (
           <Tooltip title={t("account_basics_cannot_edit_or_delete_provisioned_user")}>
             <span>
@@ -899,12 +901,16 @@ const TokensTable = (props) => {
             <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
               {token.token !== session.token() && !token.provisioned && (
                 <>
-                  <IconButton onClick={() => handleEditClick(token)} aria-label={t("account_tokens_dialog_title_edit")}>
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton onClick={() => handleDeleteClick(token)} aria-label={t("account_tokens_dialog_title_delete")}>
-                    <CloseIcon />
-                  </IconButton>
+                  <Tooltip title={t("account_tokens_dialog_title_edit")}>
+                    <IconButton onClick={() => handleEditClick(token)} aria-label={t("account_tokens_dialog_title_edit")}>
+                      <EditIcon />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={t("account_tokens_dialog_title_delete")}>
+                    <IconButton onClick={() => handleDeleteClick(token)} aria-label={t("account_tokens_dialog_title_delete")}>
+                      <CloseIcon />
+                    </IconButton>
+                  </Tooltip>
                 </>
               )}
               {token.token === session.token() && (

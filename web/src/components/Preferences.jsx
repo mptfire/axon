@@ -385,12 +385,16 @@ const UserTable = (props) => {
             <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
               {(!session.exists() || user.baseUrl !== config.base_url) && (
                 <>
-                  <IconButton onClick={() => handleEditClick(user)} aria-label={t("prefs_users_edit_button")}>
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton onClick={() => handleDeleteClick(user)} aria-label={t("prefs_users_delete_button")}>
-                    <CloseIcon />
-                  </IconButton>
+                  <Tooltip title={t("prefs_users_edit_button")}>
+                    <IconButton onClick={() => handleEditClick(user)} aria-label={t("prefs_users_edit_button")}>
+                      <EditIcon />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={t("prefs_users_delete_button")}>
+                    <IconButton onClick={() => handleDeleteClick(user)} aria-label={t("prefs_users_delete_button")}>
+                      <CloseIcon />
+                    </IconButton>
+                  </Tooltip>
                 </>
               )}
               {session.exists() && user.baseUrl === config.base_url && (
@@ -738,12 +742,16 @@ const ReservationsTable = (props) => {
                   />
                 </Tooltip>
               )}
-              <IconButton onClick={() => handleEditClick(reservation)} aria-label={t("prefs_reservations_edit_button")}>
-                <EditIcon />
-              </IconButton>
-              <IconButton onClick={() => handleDeleteClick(reservation)} aria-label={t("prefs_reservations_delete_button")}>
-                <CloseIcon />
-              </IconButton>
+              <Tooltip title={t("prefs_reservations_edit_button")}>
+                <IconButton onClick={() => handleEditClick(reservation)} aria-label={t("prefs_reservations_edit_button")}>
+                  <EditIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={t("prefs_reservations_delete_button")}>
+                <IconButton onClick={() => handleDeleteClick(reservation)} aria-label={t("prefs_reservations_delete_button")}>
+                  <CloseIcon />
+                </IconButton>
+              </Tooltip>
             </TableCell>
           </TableRow>
         ))}

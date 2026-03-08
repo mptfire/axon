@@ -1755,8 +1755,9 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-### ntfy server v2.19.0 (UNRELEASED)
+### ntfy server v2.19.x (UNRELEASED)
 
 **Bug fixes + maintenance:**
 
-* Throttle notification sound in web app to play at most once every 2 seconds
+* Web: Throttle notification sound in web app to play at most once every 2 seconds (similar to [#1550](https://github.com/binwiederhier/ntfy/issues/1550), thanks to [@jlaffaye](https://github.com/jlaffaye) for reporting)
+* Web: Add hover tooltips to icon buttons in web app account and preferences pages ([#1565](https://github.com/binwiederhier/ntfy/issues/1565), thanks to [@jermanuts](https://github.com/jermanuts) for reporting)
