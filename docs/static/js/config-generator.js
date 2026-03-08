@@ -6,7 +6,6 @@
         { key: "base-url", env: "NTFY_BASE_URL", section: "basic" },
         { key: "listen-http", env: "NTFY_LISTEN_HTTP", section: "basic", def: ":80" },
         { key: "behind-proxy", env: "NTFY_BEHIND_PROXY", section: "basic", type: "bool" },
-        { key: "cache-file", env: "NTFY_CACHE_FILE", section: "database", def: "/var/cache/ntfy/cache.db" },
         { key: "database-url", env: "NTFY_DATABASE_URL", section: "database" },
         { key: "auth-file", env: "NTFY_AUTH_FILE", section: "auth", def: "/var/lib/ntfy/auth.db" },
         { key: "auth-default-access", env: "NTFY_AUTH_DEFAULT_ACCESS", section: "auth" },
@@ -16,6 +15,7 @@
         { key: "attachment-file-size-limit", env: "NTFY_ATTACHMENT_FILE_SIZE_LIMIT", section: "attach", def: "15M" },
         { key: "attachment-total-size-limit", env: "NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT", section: "attach", def: "5G" },
         { key: "attachment-expiry-duration", env: "NTFY_ATTACHMENT_EXPIRY_DURATION", section: "attach", def: "3h" },
+        { key: "cache-file", env: "NTFY_CACHE_FILE", section: "cache", def: "/var/cache/ntfy/cache.db" },
         { key: "cache-duration", env: "NTFY_CACHE_DURATION", section: "cache", def: "12h" },
         { key: "web-push-public-key", env: "NTFY_WEB_PUSH_PUBLIC_KEY", section: "webpush" },
         { key: "web-push-private-key", env: "NTFY_WEB_PUSH_PRIVATE_KEY", section: "webpush" },
@@ -37,21 +37,29 @@
         "/var/cache/ntfy/attachments": "/var/lib/ntfy/attachments",
     };
 
+    // Feature checkbox ID → detail section ID
+    var FEATURE_MAP = {
+        "cg-feat-cache": "cg-detail-cache",
+        "cg-feat-attach": "cg-detail-attach",
+        "cg-feat-webpush": "cg-detail-webpush",
+        "cg-feat-smtp-out": "cg-detail-smtp-out",
+        "cg-feat-smtp-in": "cg-detail-smtp-in",
+    };
+
     function collectValues() {
         var values = {};
         var gen = document.getElementById("config-generator-app");
         if (!gen) return values;
 
-        var isPostgres = gen.querySelector('input[name="cg-db-type"][value="postgres"]');
-        isPostgres = isPostgres && isPostgres.checked;
-
         CONFIG.forEach(function (c) {
             var el = gen.querySelector('[data-key="' + c.key + '"]');
             if (!el) return;
 
-            // Skip hidden fields
-            var container = el.closest(".cg-conditional");
-            if (container && !container.classList.contains("visible")) return;
+            // Skip fields in hidden detail sections
+            var section = el.closest(".cg-detail-section");
+            if (section && section.style.display === "none") return;
+
+            // Skip hidden individual fields (e.g. auth-file when using PostgreSQL)
             var field = el.closest(".cg-field");
             if (field && field.style.display === "none") return;
 
@@ -151,13 +159,6 @@
 
         // Auth ACLs
         if (values["_auth-acls"]) {
-            lines.push("auth-default-access:");
-            lines.push("  everyone:");
-            values["_auth-acls"].forEach(function (a) {
-                // This uses the topic-level provisioning format
-            });
-            // Actually use provisioned format
-            lines.pop(); lines.pop();
             lines.push("auth-access:");
             values["_auth-acls"].forEach(function (a) {
                 lines.push("  - user: " + (a.user || "*"));
@@ -249,47 +250,6 @@
         return lines.join("\n");
     }
 
-    function generateEnvVars(values) {
-        var lines = [];
-
-        CONFIG.forEach(function (c) {
-            if (!(c.key in values)) return;
-            var val = values[c.key];
-            if (c.type === "bool") val = "true";
-            // Use single quotes if value contains $
-            var q = val.indexOf("$") !== -1 ? "'" : '"';
-            lines.push("export " + c.env + "=" + q + val + q);
-        });
-
-        if (values["_auth-users"]) {
-            values["_auth-users"].forEach(function (u, i) {
-                var q = u.password.indexOf("$") !== -1 ? "'" : '"';
-                lines.push("export NTFY_AUTH_USERS_" + i + '_USERNAME="' + u.username + '"');
-                lines.push("export NTFY_AUTH_USERS_" + i + "_PASSWORD=" + q + u.password + q);
-                lines.push("export NTFY_AUTH_USERS_" + i + '_ROLE="' + u.role + '"');
-            });
-        }
-
-        if (values["_auth-acls"]) {
-            values["_auth-acls"].forEach(function (a, i) {
-                lines.push("export NTFY_AUTH_ACCESS_" + i + '_USER="' + (a.user || "*") + '"');
-                lines.push("export NTFY_AUTH_ACCESS_" + i + '_TOPIC="' + a.topic + '"');
-                lines.push("export NTFY_AUTH_ACCESS_" + i + '_PERMISSION="' + a.permission + '"');
-            });
-        }
-
-        if (values["_auth-tokens"]) {
-            values["_auth-tokens"].forEach(function (t, i) {
-                var q = t.token.indexOf("$") !== -1 ? "'" : '"';
-                lines.push("export NTFY_AUTH_TOKENS_" + i + '_USER="' + t.user + '"');
-                lines.push("export NTFY_AUTH_TOKENS_" + i + "_TOKEN=" + q + t.token + q);
-                if (t.label) lines.push("export NTFY_AUTH_TOKENS_" + i + '_LABEL="' + t.label + '"');
-            });
-        }
-
-        return lines.join("\n");
-    }
-
     function updateOutput() {
         var gen = document.getElementById("config-generator-app");
         if (!gen) return;
@@ -301,7 +261,6 @@
         var activeTab = gen.querySelector(".cg-tab.active");
         var format = activeTab ? activeTab.getAttribute("data-format") : "server-yml";
 
-        var output = "";
         var hasValues = false;
         for (var k in values) {
             if (values.hasOwnProperty(k)) { hasValues = true; break; }
@@ -312,29 +271,69 @@
             return;
         }
 
-        if (format === "server-yml") {
-            output = generateServerYml(values);
-        } else if (format === "docker-compose") {
+        var output = "";
+        if (format === "docker-compose") {
             output = generateDockerCompose(values);
         } else {
-            output = generateEnvVars(values);
+            output = generateServerYml(values);
         }
 
         codeEl.textContent = output;
     }
 
-    function updateConditionalVisibility() {
+    // Set a field's value only if it is currently empty
+    function prefill(gen, key, value) {
+        var el = gen.querySelector('[data-key="' + key + '"]');
+        if (el && !el.value.trim()) el.value = value;
+    }
+
+    // Set a select's value (always, to reflect wizard state)
+    function prefillSelect(gen, key, value) {
+        var el = gen.querySelector('[data-key="' + key + '"]');
+        if (el) el.value = value;
+    }
+
+    function updateVisibility() {
         var gen = document.getElementById("config-generator-app");
         if (!gen) return;
 
         var isPostgres = gen.querySelector('input[name="cg-db-type"][value="postgres"]');
         isPostgres = isPostgres && isPostgres.checked;
 
-        // Database fields
-        var sqliteFields = gen.querySelector("#cg-sqlite-fields");
-        var pgFields = gen.querySelector("#cg-postgres-fields");
-        if (sqliteFields) sqliteFields.style.display = isPostgres ? "none" : "block";
-        if (pgFields) pgFields.style.display = isPostgres ? "block" : "none";
+        var isPrivate = gen.querySelector('input[name="cg-server-type"][value="private"]');
+        isPrivate = isPrivate && isPrivate.checked;
+
+        var cacheEnabled = gen.querySelector("#cg-feat-cache");
+        cacheEnabled = cacheEnabled && cacheEnabled.checked;
+
+        var attachEnabled = gen.querySelector("#cg-feat-attach");
+        attachEnabled = attachEnabled && attachEnabled.checked;
+
+        var webpushEnabled = gen.querySelector("#cg-feat-webpush");
+        webpushEnabled = webpushEnabled && webpushEnabled.checked;
+
+        var smtpOutEnabled = gen.querySelector("#cg-feat-smtp-out");
+        smtpOutEnabled = smtpOutEnabled && smtpOutEnabled.checked;
+
+        var smtpInEnabled = gen.querySelector("#cg-feat-smtp-in");
+        smtpInEnabled = smtpInEnabled && smtpInEnabled.checked;
+
+        // Show database question only if a DB-dependent feature is selected
+        var needsDb = isPrivate || cacheEnabled || webpushEnabled;
+        var dbStep = gen.querySelector("#cg-wizard-db");
+        if (dbStep) dbStep.style.display = needsDb ? "" : "none";
+
+        // Database detail section (PostgreSQL only; SQLite needs no extra config)
+        var pgSection = gen.querySelector("#cg-detail-db-postgres");
+        if (pgSection) pgSection.style.display = (needsDb && isPostgres) ? "" : "none";
+
+        // Hide cache-file in message cache section when PostgreSQL
+        var cacheFileField = gen.querySelector("#cg-cache-file-field");
+        if (cacheFileField) cacheFileField.style.display = isPostgres ? "none" : "";
+
+        // Auth detail section
+        var authSection = gen.querySelector("#cg-detail-auth");
+        if (authSection) authSection.style.display = isPrivate ? "" : "none";
 
         // Hide auth-file and web-push-file if PostgreSQL
         var authFile = gen.querySelector('[data-key="auth-file"]');
@@ -348,18 +347,75 @@
             if (wpField) wpField.style.display = isPostgres ? "none" : "";
         }
 
-        // Conditional sections (checkboxes that show/hide detail fields)
-        var toggles = gen.querySelectorAll("[data-toggle]");
-        toggles.forEach(function (toggle) {
-            var target = gen.querySelector("#" + toggle.getAttribute("data-toggle"));
-            if (target) {
-                if (toggle.checked) {
-                    target.classList.add("visible");
-                } else {
-                    target.classList.remove("visible");
-                }
+        // Feature toggles → detail sections
+        for (var featId in FEATURE_MAP) {
+            var checkbox = gen.querySelector("#" + featId);
+            var section = gen.querySelector("#" + FEATURE_MAP[featId]);
+            if (checkbox && section) {
+                section.style.display = checkbox.checked ? "" : "none";
             }
-        });
+        }
+
+        // Upstream special handling
+        var upstreamCheck = gen.querySelector("#cg-feat-upstream");
+        var upstreamInput = gen.querySelector('[data-key="upstream-base-url"]');
+        if (upstreamCheck && upstreamInput) {
+            upstreamInput.value = upstreamCheck.checked ? "https://ntfy.sh" : "";
+        }
+
+        // Metrics special handling
+        var metricsCheck = gen.querySelector("#cg-feat-metrics");
+        var metricsInput = gen.querySelector('[data-key="enable-metrics"]');
+        if (metricsCheck && metricsInput) {
+            metricsInput.checked = metricsCheck.checked;
+        }
+
+        // --- Pre-fill defaults based on wizard selections ---
+
+        // Database
+        if (isPostgres) {
+            prefill(gen, "database-url", "postgres://user:pass@host:5432/ntfy");
+        }
+
+        // Access control: always sync default-access with open/private
+        if (isPrivate) {
+            prefillSelect(gen, "auth-default-access", "deny-all");
+            if (!isPostgres) prefill(gen, "auth-file", "/var/lib/ntfy/auth.db");
+        } else {
+            prefillSelect(gen, "auth-default-access", "read-write");
+        }
+
+        // Persistent message cache
+        if (cacheEnabled) {
+            if (!isPostgres) prefill(gen, "cache-file", "/var/cache/ntfy/cache.db");
+            prefill(gen, "cache-duration", "12h");
+        }
+
+        // Attachments
+        if (attachEnabled) {
+            prefill(gen, "attachment-cache-dir", "/var/cache/ntfy/attachments");
+            prefill(gen, "attachment-file-size-limit", "15M");
+            prefill(gen, "attachment-total-size-limit", "5G");
+            prefill(gen, "attachment-expiry-duration", "3h");
+        }
+
+        // Web push
+        if (webpushEnabled) {
+            if (!isPostgres) prefill(gen, "web-push-file", "/var/lib/ntfy/webpush.db");
+            prefill(gen, "web-push-email-address", "admin@example.com");
+        }
+
+        // Email notifications (outgoing)
+        if (smtpOutEnabled) {
+            prefill(gen, "smtp-sender-addr", "smtp.example.com:587");
+            prefill(gen, "smtp-sender-from", "ntfy@example.com");
+        }
+
+        // Email publishing (incoming)
+        if (smtpInEnabled) {
+            prefill(gen, "smtp-server-listen", ":25");
+            prefill(gen, "smtp-server-domain", "ntfy.example.com");
+        }
     }
 
     function addRepeatableRow(container, type) {
@@ -401,17 +457,6 @@
         var gen = document.getElementById("config-generator-app");
         if (!gen) return;
 
-        // Accordion toggle
-        gen.querySelectorAll(".cg-section-header").forEach(function (header) {
-            header.addEventListener("click", function () {
-                header.parentElement.classList.toggle("open");
-            });
-        });
-
-        // Open first section by default
-        var first = gen.querySelector(".cg-section");
-        if (first) first.classList.add("open");
-
         // Tab switching
         gen.querySelectorAll(".cg-tab").forEach(function (tab) {
             tab.addEventListener("click", function () {
@@ -425,23 +470,7 @@
         gen.querySelectorAll("input, select").forEach(function (el) {
             var evt = (el.type === "checkbox" || el.type === "radio") ? "change" : "input";
             el.addEventListener(evt, function () {
-                updateConditionalVisibility();
-                updateOutput();
-            });
-        });
-
-        // Conditional toggles
-        gen.querySelectorAll("[data-toggle]").forEach(function (toggle) {
-            toggle.addEventListener("change", function () {
-                updateConditionalVisibility();
-                updateOutput();
-            });
-        });
-
-        // Database radio
-        gen.querySelectorAll('input[name="cg-db-type"]').forEach(function (r) {
-            r.addEventListener("change", function () {
-                updateConditionalVisibility();
+                updateVisibility();
                 updateOutput();
             });
         });
@@ -459,38 +488,33 @@
         // Copy button
         var copyBtn = gen.querySelector("#cg-copy-btn");
         if (copyBtn) {
+            var copyIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+            var checkIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
             copyBtn.addEventListener("click", function () {
                 var code = gen.querySelector("#cg-code");
                 if (code && code.textContent) {
                     navigator.clipboard.writeText(code.textContent).then(function () {
-                        copyBtn.textContent = "Copied!";
-                        setTimeout(function () { copyBtn.textContent = "Copy"; }, 2000);
+                        copyBtn.innerHTML = checkIcon;
+                        copyBtn.style.color = "var(--md-primary-fg-color)";
+                        setTimeout(function () {
+                            copyBtn.innerHTML = copyIcon;
+                            copyBtn.style.color = "";
+                        }, 2000);
                     });
                 }
             });
         }
 
-        // Upstream checkbox special handling
-        var upstreamCheck = gen.querySelector("#cg-upstream-check");
-        if (upstreamCheck) {
-            upstreamCheck.addEventListener("change", function () {
-                var input = gen.querySelector('[data-key="upstream-base-url"]');
-                if (input) input.value = upstreamCheck.checked ? "https://ntfy.sh" : "";
-                updateOutput();
-            });
+        // Pre-fill base-url if not on ntfy.sh
+        var baseUrlInput = gen.querySelector('[data-key="base-url"]');
+        if (baseUrlInput && !baseUrlInput.value.trim()) {
+            var host = window.location.hostname;
+            if (host && host.indexOf("ntfy.sh") === -1) {
+                baseUrlInput.value = "https://ntfy.example.com";
+            }
         }
 
-        // Metrics checkbox special handling
-        var metricsCheck = gen.querySelector("#cg-metrics-check");
-        if (metricsCheck) {
-            metricsCheck.addEventListener("change", function () {
-                var input = gen.querySelector('[data-key="enable-metrics"]');
-                if (input) input.checked = metricsCheck.checked;
-                updateOutput();
-            });
-        }
-
-        updateConditionalVisibility();
+        updateVisibility();
         updateOutput();
     }
 

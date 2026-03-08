@@ -141,52 +141,61 @@ Use this interactive tool to build your ntfy configuration. Select options below
 
 <div id="config-generator-app">
 <div id="cg-left">
-<div class="cg-section">
-<div class="cg-section-header">Basic Setup</div>
-<div class="cg-section-body">
-<div class="cg-field">
-<label>Base URL</label>
-<input type="text" data-key="base-url" placeholder="https://ntfy.example.com">
+<div class="cg-wizard">
+<div class="cg-wizard-step">
+<label class="cg-wizard-label">What's your ntfy service URL?</label>
+<input type="text" data-key="base-url" placeholder="https://ntfy.example.com" class="cg-wizard-input">
 </div>
-<div class="cg-field">
-<label>Listen address</label>
-<input type="text" data-key="listen-http" placeholder=":80">
-</div>
-<div class="cg-checkbox">
-<input type="checkbox" data-key="behind-proxy" id="cg-behind-proxy">
-<label for="cg-behind-proxy">Behind a proxy (nginx, Apache, etc.)</label>
+<div class="cg-wizard-step">
+<label class="cg-wizard-label">Are you running ntfy behind a proxy?</label>
+<div class="cg-wizard-toggle">
+<label><input type="checkbox" data-key="behind-proxy" id="cg-behind-proxy"> Yes, behind nginx/Apache/Caddy</label>
 </div>
 </div>
+<div class="cg-wizard-step">
+<label class="cg-wizard-label">Is this an open server or a private server?</label>
+<div class="cg-radio-group">
+<label><input type="radio" name="cg-server-type" value="open" checked> Open (anyone can read/write)</label>
+<label><input type="radio" name="cg-server-type" value="private"> Private (requires authentication)</label>
 </div>
-<div class="cg-section">
-<div class="cg-section-header">Database</div>
-<div class="cg-section-body">
+</div>
+<div class="cg-wizard-step">
+<label class="cg-wizard-label">Which features do you want to enable?</label>
+<div class="cg-feature-grid">
+<label><input type="checkbox" id="cg-feat-cache"> Persistent message cache</label>
+<label><input type="checkbox" id="cg-feat-attach"> Attachments</label>
+<label><input type="checkbox" id="cg-feat-webpush"> Web push</label>
+<label><input type="checkbox" id="cg-feat-smtp-out"> Email notifications (outgoing)</label>
+<label><input type="checkbox" id="cg-feat-smtp-in"> Email publishing (incoming)</label>
+<label><input type="checkbox" id="cg-feat-upstream"> Upstream server (iOS push)</label>
+<label><input type="checkbox" id="cg-feat-metrics"> Prometheus metrics</label>
+</div>
+</div>
+<div class="cg-wizard-step" id="cg-wizard-db" style="display:none">
+<label class="cg-wizard-label">Which database backend would you like to use?</label>
 <div class="cg-radio-group">
 <label><input type="radio" name="cg-db-type" value="sqlite" checked> SQLite</label>
 <label><input type="radio" name="cg-db-type" value="postgres"> PostgreSQL</label>
 </div>
-<div id="cg-sqlite-fields">
+</div>
+</div>
+<div id="cg-details">
+<div class="cg-detail-section" id="cg-detail-basic">
+<div class="cg-detail-heading">Server</div>
 <div class="cg-field">
-<label>Cache file</label>
-<input type="text" data-key="cache-file" placeholder="/var/cache/ntfy/cache.db">
+<label>Listen address</label>
+<input type="text" data-key="listen-http" placeholder=":80">
 </div>
 </div>
-<div id="cg-postgres-fields" style="display:none">
+<div class="cg-detail-section" id="cg-detail-db-postgres" style="display:none">
+<div class="cg-detail-heading">Database (PostgreSQL)</div>
 <div class="cg-field">
 <label>Database URL</label>
 <input type="text" data-key="database-url" placeholder="postgres://user:pass@host:5432/ntfy">
 </div>
 </div>
-</div>
-</div>
-<div class="cg-section">
-<div class="cg-section-header">Access Control</div>
-<div class="cg-section-body">
-<div class="cg-checkbox">
-<input type="checkbox" id="cg-auth-toggle" data-toggle="cg-auth-fields">
-<label for="cg-auth-toggle">Enable access control</label>
-</div>
-<div class="cg-conditional" id="cg-auth-fields">
+<div class="cg-detail-section" id="cg-detail-auth" style="display:none">
+<div class="cg-detail-heading">Access Control</div>
 <div class="cg-field">
 <label>Auth file</label>
 <input type="text" data-key="auth-file" placeholder="/var/lib/ntfy/auth.db">
@@ -225,16 +234,19 @@ Use this interactive tool to build your ntfy configuration. Select options below
 <button type="button" class="cg-btn-add" data-add-type="token">+ Add token</button>
 </div>
 </div>
+<div class="cg-detail-section" id="cg-detail-cache" style="display:none">
+<div class="cg-detail-heading">Message Cache</div>
+<div class="cg-field" id="cg-cache-file-field">
+<label>Cache file</label>
+<input type="text" data-key="cache-file" placeholder="/var/cache/ntfy/cache.db">
+</div>
+<div class="cg-field">
+<label>Cache duration</label>
+<input type="text" data-key="cache-duration" placeholder="12h">
 </div>
 </div>
-<div class="cg-section">
-<div class="cg-section-header">Attachments</div>
-<div class="cg-section-body">
-<div class="cg-checkbox">
-<input type="checkbox" id="cg-attach-toggle" data-toggle="cg-attach-fields">
-<label for="cg-attach-toggle">Enable attachments</label>
-</div>
-<div class="cg-conditional" id="cg-attach-fields">
+<div class="cg-detail-section" id="cg-detail-attach" style="display:none">
+<div class="cg-detail-heading">Attachments</div>
 <div class="cg-field">
 <label>Cache directory</label>
 <input type="text" data-key="attachment-cache-dir" placeholder="/var/cache/ntfy/attachments">
@@ -252,25 +264,8 @@ Use this interactive tool to build your ntfy configuration. Select options below
 <input type="text" data-key="attachment-expiry-duration" placeholder="3h">
 </div>
 </div>
-</div>
-</div>
-<div class="cg-section">
-<div class="cg-section-header">Message Cache</div>
-<div class="cg-section-body">
-<div class="cg-field">
-<label>Cache duration</label>
-<input type="text" data-key="cache-duration" placeholder="12h">
-</div>
-</div>
-</div>
-<div class="cg-section">
-<div class="cg-section-header">Web Push</div>
-<div class="cg-section-body">
-<div class="cg-checkbox">
-<input type="checkbox" id="cg-webpush-toggle" data-toggle="cg-webpush-fields">
-<label for="cg-webpush-toggle">Enable web push</label>
-</div>
-<div class="cg-conditional" id="cg-webpush-fields">
+<div class="cg-detail-section" id="cg-detail-webpush" style="display:none">
+<div class="cg-detail-heading">Web Push</div>
 <div class="cg-field">
 <label>Public key</label>
 <input type="text" data-key="web-push-public-key" placeholder="Public key">
@@ -288,16 +283,8 @@ Use this interactive tool to build your ntfy configuration. Select options below
 <input type="text" data-key="web-push-email-address" placeholder="admin@example.com">
 </div>
 </div>
-</div>
-</div>
-<div class="cg-section">
-<div class="cg-section-header">Email Notifications (Outgoing)</div>
-<div class="cg-section-body">
-<div class="cg-checkbox">
-<input type="checkbox" id="cg-smtp-out-toggle" data-toggle="cg-smtp-out-fields">
-<label for="cg-smtp-out-toggle">Enable email sending</label>
-</div>
-<div class="cg-conditional" id="cg-smtp-out-fields">
+<div class="cg-detail-section" id="cg-detail-smtp-out" style="display:none">
+<div class="cg-detail-heading">Email Notifications (Outgoing)</div>
 <div class="cg-field">
 <label>SMTP server address</label>
 <input type="text" data-key="smtp-sender-addr" placeholder="smtp.example.com:587">
@@ -315,16 +302,8 @@ Use this interactive tool to build your ntfy configuration. Select options below
 <input type="password" data-key="smtp-sender-pass" placeholder="Password">
 </div>
 </div>
-</div>
-</div>
-<div class="cg-section">
-<div class="cg-section-header">Email Publishing (Incoming)</div>
-<div class="cg-section-body">
-<div class="cg-checkbox">
-<input type="checkbox" id="cg-smtp-in-toggle" data-toggle="cg-smtp-in-fields">
-<label for="cg-smtp-in-toggle">Enable email publishing</label>
-</div>
-<div class="cg-conditional" id="cg-smtp-in-fields">
+<div class="cg-detail-section" id="cg-detail-smtp-in" style="display:none">
+<div class="cg-detail-heading">Email Publishing (Incoming)</div>
 <div class="cg-field">
 <label>Listen address</label>
 <input type="text" data-key="smtp-server-listen" placeholder=":25">
@@ -338,37 +317,17 @@ Use this interactive tool to build your ntfy configuration. Select options below
 <input type="text" data-key="smtp-server-addr-prefix" placeholder="ntfy-">
 </div>
 </div>
-</div>
-</div>
-<div class="cg-section">
-<div class="cg-section-header">Upstream Server</div>
-<div class="cg-section-body">
-<div class="cg-checkbox">
-<input type="checkbox" id="cg-upstream-check">
-<label for="cg-upstream-check">iOS users will use this server</label>
-</div>
 <input type="hidden" data-key="upstream-base-url">
-</div>
-</div>
-<div class="cg-section">
-<div class="cg-section-header">Monitoring</div>
-<div class="cg-section-body">
-<div class="cg-checkbox">
-<input type="checkbox" id="cg-metrics-check">
-<label for="cg-metrics-check">Enable Prometheus metrics</label>
-</div>
 <input type="checkbox" data-key="enable-metrics" style="display:none">
-</div>
 </div>
 </div>
 <div id="cg-right">
 <div class="cg-tabs">
 <div class="cg-tab active" data-format="server-yml">server.yml</div>
 <div class="cg-tab" data-format="docker-compose">docker-compose.yml</div>
-<div class="cg-tab" data-format="env-vars">Environment variables</div>
+<button type="button" id="cg-copy-btn" class="cg-btn-copy" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
 </div>
 <div class="cg-output-wrap">
-<button type="button" id="cg-copy-btn" class="cg-btn-copy">Copy</button>
 <pre><code id="cg-code"><span class="cg-empty-msg">Configure options on the left to generate your config...</span></code></pre>
 </div>
 </div>
