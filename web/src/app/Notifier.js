@@ -8,6 +8,8 @@ import routes from "../components/routes";
  * support this; most importantly, all iOS browsers do not support window.Notification.
  */
 class Notifier {
+  lastSoundPlayedAt = 0;
+
   async notify(subscription, notification) {
     if (!this.supported()) {
       return;
@@ -49,11 +51,17 @@ class Notifier {
   }
 
   async playSound() {
-    // Play sound
+    // Play sound, but not more than once every 2 seconds
+    const now = Date.now();
+    if (now - this.lastSoundPlayedAt < 2000) {
+      console.log(`[Notifier] Not playing notification sound, since it was last played <2s ago`, this.lastSoundPlayedAt);
+      return;
+    }
     const sound = await prefs.sound();
     if (sound && sound !== "none") {
       try {
         await playSound(sound);
+        this.lastSoundPlayedAt = Date.now();
       } catch (e) {
         console.log(`[Notifier] Error playing audio`, e);
       }

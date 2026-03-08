@@ -12,7 +12,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
 
-### ntfy server v2.18.0
+## ntfy server v2.18.0
 Released March 7, 2026
 
 This is the biggest release I've ever done on the server. It's 14,997 added lines of code, and 10,202 lines removed, all from
@@ -33,7 +33,7 @@ if things are working (or not working). There is a [one-off migration tool](http
 
 * Preserve `<br>` line breaks in HTML-only emails received via SMTP ([#690](https://github.com/binwiederhier/ntfy/issues/690), [#1620](https://github.com/binwiederhier/ntfy/pull/1620), thanks to [@uzkikh](https://github.com/uzkikh) for the fix and to [@teastrainer](https://github.com/teastrainer) for reporting)
 
-### ntfy Android v1.24.0
+## ntfy Android v1.24.0
 Released March 5, 2026
 
 This is a tiny release that will revert the "reconnecting ..." behavior of the foreground notification. Lots of people
@@ -1755,4 +1755,8 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-_None_
+### ntfy server v2.19.0 (UNRELEASED)
+
+**Bug fixes + maintenance:**
+
+* Throttle notification sound in web app to play at most once every 2 seconds
