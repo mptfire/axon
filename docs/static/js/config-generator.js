@@ -29,7 +29,6 @@
         { key: "smtp-server-domain", env: "NTFY_SMTP_SERVER_DOMAIN", section: "smtp-in" },
         { key: "smtp-server-addr-prefix", env: "NTFY_SMTP_SERVER_ADDR_PREFIX", section: "smtp-in" },
         { key: "upstream-base-url", env: "NTFY_UPSTREAM_BASE_URL", section: "upstream" },
-        { key: "enable-metrics", env: "NTFY_ENABLE_METRICS", section: "metrics", type: "bool" },
     ];
 
     var DOCKER_PATH_MAP = {
@@ -37,31 +36,42 @@
         "/var/cache/ntfy/attachments": "/var/lib/ntfy/attachments",
     };
 
-    // Feature checkbox ID → detail section ID
-    var FEATURE_MAP = {
-        "cg-feat-cache": "cg-detail-cache",
-        "cg-feat-attach": "cg-detail-attach",
-        "cg-feat-webpush": "cg-detail-webpush",
-        "cg-feat-smtp-out": "cg-detail-smtp-out",
-        "cg-feat-smtp-in": "cg-detail-smtp-in",
+    // Feature checkbox → nav tab ID
+    var NAV_MAP = {
+        "cg-feat-auth": "cg-nav-auth",
+        "cg-feat-cache": "cg-nav-cache",
+        "cg-feat-attach": "cg-nav-attach",
+        "cg-feat-webpush": "cg-nav-webpush",
     };
 
     function collectValues() {
         var values = {};
-        var gen = document.getElementById("config-generator-app");
-        if (!gen) return values;
+        var modal = document.getElementById("cg-modal");
+        if (!modal) return values;
 
         CONFIG.forEach(function (c) {
-            var el = gen.querySelector('[data-key="' + c.key + '"]');
+            var el = modal.querySelector('[data-key="' + c.key + '"]');
             if (!el) return;
 
-            // Skip fields in hidden detail sections
-            var section = el.closest(".cg-detail-section");
-            if (section && section.style.display === "none") return;
+            // Skip fields in hidden panels (feature not enabled)
+            var panel = el.closest(".cg-panel");
+            if (panel) {
+                // Panel hidden directly (e.g. PostgreSQL panel when SQLite selected)
+                if (panel.style.display === "none") return;
+                // Panel with a nav tab that is hidden (feature not enabled)
+                if (!panel.classList.contains("active")) {
+                    var panelId = panel.id;
+                    var navTab = modal.querySelector('[data-panel="' + panelId + '"]');
+                    if (!navTab || navTab.style.display === "none") return;
+                }
+            }
 
-            // Skip hidden individual fields (e.g. auth-file when using PostgreSQL)
-            var field = el.closest(".cg-field");
-            if (field && field.style.display === "none") return;
+            // Skip hidden individual fields or sections
+            var ancestor = el.parentElement;
+            while (ancestor && ancestor !== modal) {
+                if (ancestor.style.display === "none") return;
+                ancestor = ancestor.parentElement;
+            }
 
             var val;
             if (c.type === "bool") {
@@ -74,7 +84,7 @@
         });
 
         // Provisioned users
-        var userRows = gen.querySelectorAll(".cg-auth-user-row");
+        var userRows = modal.querySelectorAll(".cg-auth-user-row");
         var users = [];
         userRows.forEach(function (row) {
             var u = row.querySelector('[data-field="username"]');
@@ -87,7 +97,7 @@
         if (users.length) values["_auth-users"] = users;
 
         // Provisioned ACLs
-        var aclRows = gen.querySelectorAll(".cg-auth-acl-row");
+        var aclRows = modal.querySelectorAll(".cg-auth-acl-row");
         var acls = [];
         aclRows.forEach(function (row) {
             var u = row.querySelector('[data-field="username"]');
@@ -100,7 +110,7 @@
         if (acls.length) values["_auth-acls"] = acls;
 
         // Provisioned tokens
-        var tokenRows = gen.querySelectorAll(".cg-auth-token-row");
+        var tokenRows = modal.querySelectorAll(".cg-auth-token-row");
         var tokens = [];
         tokenRows.forEach(function (row) {
             var u = row.querySelector('[data-field="username"]');
@@ -111,6 +121,13 @@
             }
         });
         if (tokens.length) values["_auth-tokens"] = tokens;
+
+        // UnifiedPush ACL
+        var upYes = modal.querySelector('input[name="cg-unifiedpush"][value="yes"]');
+        if (upYes && upYes.checked) {
+            if (!values["_auth-acls"]) values["_auth-acls"] = [];
+            values["_auth-acls"].unshift({ user: "*", topic: "up*", permission: "write-only" });
+        }
 
         return values;
     }
@@ -127,7 +144,6 @@
             "smtp-out": "# Email notifications (outgoing)",
             "smtp-in": "# Email publishing (incoming)",
             upstream: "# Upstream",
-            metrics: "# Monitoring",
         };
         var lastSection = "";
 
@@ -146,34 +162,28 @@
             }
         });
 
-        // Auth users
         if (values["_auth-users"]) {
             if (lastSection !== "auth") { lines.push(""); lines.push("# Access control"); }
             lines.push("auth-users:");
             values["_auth-users"].forEach(function (u) {
-                lines.push("  - username: " + u.username);
-                lines.push("    password: " + u.password);
-                lines.push("    role: " + u.role);
+                lines.push('  - "' + u.username + ":" + u.password + ":" + u.role + '"');
             });
         }
 
-        // Auth ACLs
         if (values["_auth-acls"]) {
+            if (!values["_auth-users"] && lastSection !== "auth") { lines.push(""); lines.push("# Access control"); }
             lines.push("auth-access:");
             values["_auth-acls"].forEach(function (a) {
-                lines.push("  - user: " + (a.user || "*"));
-                lines.push("    topic: " + a.topic);
-                lines.push("    permission: " + a.permission);
+                lines.push('  - "' + (a.user || "*") + ":" + a.topic + ":" + a.permission + '"');
             });
         }
 
-        // Auth tokens
         if (values["_auth-tokens"]) {
             lines.push("auth-tokens:");
             values["_auth-tokens"].forEach(function (t) {
-                lines.push("  - user: " + t.user);
-                lines.push("    token: " + t.token);
-                if (t.label) lines.push("    label: " + t.label);
+                var entry = t.user + ":" + t.token;
+                if (t.label) entry += ":" + t.label;
+                lines.push('  - "' + entry + '"');
             });
         }
 
@@ -198,10 +208,8 @@
             if (c.type === "bool") {
                 val = "true";
             } else {
-                // Adjust paths for Docker
                 val = dockerPath(val);
             }
-            // Double $ in bcrypt hashes
             if (val.indexOf("$") !== -1) {
                 val = val.replace(/\$/g, "$$$$");
                 lines.push("      # Note: $ is doubled to $$ for docker-compose");
@@ -209,34 +217,29 @@
             lines.push("      " + c.env + ": " + val);
         });
 
-        // Auth users in Docker
         if (values["_auth-users"]) {
+            var usersVal = values["_auth-users"].map(function (u) {
+                return u.username + ":" + u.password + ":" + u.role;
+            }).join(",");
+            usersVal = usersVal.replace(/\$/g, "$$$$");
             lines.push("      # Note: $ is doubled to $$ for docker-compose");
-            values["_auth-users"].forEach(function (u, i) {
-                var pw = u.password.replace(/\$/g, "$$$$");
-                lines.push("      NTFY_AUTH_USERS_" + i + "_USERNAME: " + u.username);
-                lines.push("      NTFY_AUTH_USERS_" + i + "_PASSWORD: " + pw);
-                lines.push("      NTFY_AUTH_USERS_" + i + "_ROLE: " + u.role);
-            });
+            lines.push("      NTFY_AUTH_USERS: " + usersVal);
         }
 
-        // Auth ACLs in Docker
         if (values["_auth-acls"]) {
-            values["_auth-acls"].forEach(function (a, i) {
-                lines.push("      NTFY_AUTH_ACCESS_" + i + "_USER: " + (a.user || "*"));
-                lines.push("      NTFY_AUTH_ACCESS_" + i + "_TOPIC: " + a.topic);
-                lines.push("      NTFY_AUTH_ACCESS_" + i + "_PERMISSION: " + a.permission);
-            });
+            var aclsVal = values["_auth-acls"].map(function (a) {
+                return (a.user || "*") + ":" + a.topic + ":" + a.permission;
+            }).join(",");
+            lines.push("      NTFY_AUTH_ACCESS: " + aclsVal);
         }
 
-        // Auth tokens in Docker
         if (values["_auth-tokens"]) {
-            values["_auth-tokens"].forEach(function (t, i) {
-                var tok = t.token.replace(/\$/g, "$$$$");
-                lines.push("      NTFY_AUTH_TOKENS_" + i + "_USER: " + t.user);
-                lines.push("      NTFY_AUTH_TOKENS_" + i + "_TOKEN: " + tok);
-                if (t.label) lines.push("      NTFY_AUTH_TOKENS_" + i + "_LABEL: " + t.label);
-            });
+            var tokensVal = values["_auth-tokens"].map(function (t) {
+                var entry = t.user + ":" + t.token;
+                if (t.label) entry += ":" + t.label;
+                return entry;
+            }).join(",");
+            lines.push("      NTFY_AUTH_TOKENS: " + tokensVal);
         }
 
         lines.push("    volumes:");
@@ -250,15 +253,84 @@
         return lines.join("\n");
     }
 
+    function generateEnvVars(values) {
+        var lines = [];
+
+        CONFIG.forEach(function (c) {
+            if (!(c.key in values)) return;
+            var val = values[c.key];
+            if (c.type === "bool") val = "true";
+            var q = val.indexOf("$") !== -1 ? "'" : '"';
+            lines.push(c.env + "=" + q + val + q);
+        });
+
+        if (values["_auth-users"]) {
+            var usersStr = values["_auth-users"].map(function (u) {
+                return u.username + ":" + u.password + ":" + u.role;
+            }).join(",");
+            var q = usersStr.indexOf("$") !== -1 ? "'" : '"';
+            lines.push("NTFY_AUTH_USERS=" + q + usersStr + q);
+        }
+
+        if (values["_auth-acls"]) {
+            var aclsStr = values["_auth-acls"].map(function (a) {
+                return (a.user || "*") + ":" + a.topic + ":" + a.permission;
+            }).join(",");
+            lines.push('NTFY_AUTH_ACCESS="' + aclsStr + '"');
+        }
+
+        if (values["_auth-tokens"]) {
+            var tokensStr = values["_auth-tokens"].map(function (t) {
+                var entry = t.user + ":" + t.token;
+                if (t.label) entry += ":" + t.label;
+                return entry;
+            }).join(",");
+            lines.push('NTFY_AUTH_TOKENS="' + tokensStr + '"');
+        }
+
+        return lines.join("\n");
+    }
+
+    // Web Push VAPID key generation (P-256 ECDH)
+    function generateVAPIDKeys() {
+        return crypto.subtle.generateKey(
+            { name: "ECDH", namedCurve: "P-256" },
+            true,
+            ["deriveBits"]
+        ).then(function (keyPair) {
+            return Promise.all([
+                crypto.subtle.exportKey("raw", keyPair.publicKey),
+                crypto.subtle.exportKey("pkcs8", keyPair.privateKey)
+            ]);
+        }).then(function (keys) {
+            var pubBytes = new Uint8Array(keys[0]);
+            var privPkcs8 = new Uint8Array(keys[1]);
+            // Extract raw 32-byte private key from PKCS#8 (last 32 bytes of the DER)
+            var privBytes = privPkcs8.slice(privPkcs8.length - 32);
+            return {
+                publicKey: arrayToBase64Url(pubBytes),
+                privateKey: arrayToBase64Url(privBytes)
+            };
+        });
+    }
+
+    function arrayToBase64Url(arr) {
+        var str = "";
+        for (var i = 0; i < arr.length; i++) {
+            str += String.fromCharCode(arr[i]);
+        }
+        return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    }
+
     function updateOutput() {
-        var gen = document.getElementById("config-generator-app");
-        if (!gen) return;
+        var modal = document.getElementById("cg-modal");
+        if (!modal) return;
 
         var values = collectValues();
-        var codeEl = gen.querySelector("#cg-code");
+        var codeEl = modal.querySelector("#cg-code");
         if (!codeEl) return;
 
-        var activeTab = gen.querySelector(".cg-tab.active");
+        var activeTab = modal.querySelector(".cg-output-tab.active");
         var format = activeTab ? activeTab.getAttribute("data-format") : "server-yml";
 
         var hasValues = false;
@@ -274,148 +346,264 @@
         var output = "";
         if (format === "docker-compose") {
             output = generateDockerCompose(values);
+        } else if (format === "env-vars") {
+            output = generateEnvVars(values);
         } else {
             output = generateServerYml(values);
         }
 
         codeEl.textContent = output;
+
+        // Validation warnings
+        var warnings = validate(modal, values);
+        var warningsEl = modal.querySelector("#cg-warnings");
+        if (warningsEl) {
+            if (warnings.length) {
+                warningsEl.innerHTML = warnings.map(function (w) {
+                    return '<div class="cg-warning">' + w + '</div>';
+                }).join("");
+                warningsEl.style.display = "";
+            } else {
+                warningsEl.style.display = "none";
+            }
+        }
     }
 
-    // Set a field's value only if it is currently empty
-    function prefill(gen, key, value) {
-        var el = gen.querySelector('[data-key="' + key + '"]');
+    function validate(modal, values) {
+        var warnings = [];
+        var baseUrl = values["base-url"] || "";
+
+        // base-url format
+        if (baseUrl) {
+            if (baseUrl.indexOf("http://") !== 0 && baseUrl.indexOf("https://") !== 0) {
+                warnings.push("base-url must start with http:// or https://");
+            } else {
+                try {
+                    var u = new URL(baseUrl);
+                    if (u.pathname !== "/" && u.pathname !== "") {
+                        warnings.push("base-url must not have a path, ntfy does not support sub-paths");
+                    }
+                } catch (e) {
+                    warnings.push("base-url is not a valid URL");
+                }
+            }
+        }
+
+        // Web push requires all fields + base-url
+        var wpPublic = values["web-push-public-key"];
+        var wpPrivate = values["web-push-private-key"];
+        var wpEmail = values["web-push-email-address"];
+        var wpFile = values["web-push-file"];
+        var dbUrl = values["database-url"];
+        if (wpPublic || wpPrivate || wpEmail) {
+            var missing = [];
+            if (!wpPublic) missing.push("web-push-public-key");
+            if (!wpPrivate) missing.push("web-push-private-key");
+            if (!wpFile && !dbUrl) missing.push("web-push-file or database-url");
+            if (!wpEmail) missing.push("web-push-email-address");
+            if (!baseUrl) missing.push("base-url");
+            if (missing.length) {
+                warnings.push("Web push requires: " + missing.join(", "));
+            }
+        }
+
+        // SMTP sender requires base-url and smtp-sender-from
+        if (values["smtp-sender-addr"]) {
+            var smtpMissing = [];
+            if (!baseUrl) smtpMissing.push("base-url");
+            if (!values["smtp-sender-from"]) smtpMissing.push("smtp-sender-from");
+            if (smtpMissing.length) {
+                warnings.push("Email sending requires: " + smtpMissing.join(", "));
+            }
+        }
+
+        // SMTP server requires domain
+        if (values["smtp-server-listen"] && !values["smtp-server-domain"]) {
+            warnings.push("Email publishing requires smtp-server-domain");
+        }
+
+        // Attachments require base-url
+        if (values["attachment-cache-dir"] && !baseUrl) {
+            warnings.push("Attachments require base-url to be set");
+        }
+
+        // Upstream requires base-url and can't equal it
+        if (values["upstream-base-url"]) {
+            if (!baseUrl) {
+                warnings.push("Upstream server requires base-url to be set");
+            } else if (baseUrl === values["upstream-base-url"]) {
+                warnings.push("base-url and upstream-base-url cannot be the same");
+            }
+        }
+
+        // enable-signup requires enable-login
+        if (values["enable-signup"] && !values["enable-login"]) {
+            warnings.push("Enable signup requires enable-login to also be set");
+        }
+
+        return warnings;
+    }
+
+    function prefill(modal, key, value) {
+        var el = modal.querySelector('[data-key="' + key + '"]');
         if (el && !el.value.trim()) el.value = value;
     }
 
-    // Set a select's value (always, to reflect wizard state)
-    function prefillSelect(gen, key, value) {
-        var el = gen.querySelector('[data-key="' + key + '"]');
+    function prefillSelect(modal, key, value) {
+        var el = modal.querySelector('[data-key="' + key + '"]');
         if (el) el.value = value;
     }
 
     function updateVisibility() {
-        var gen = document.getElementById("config-generator-app");
-        if (!gen) return;
+        var modal = document.getElementById("cg-modal");
+        if (!modal) return;
 
-        var isPostgres = gen.querySelector('input[name="cg-db-type"][value="postgres"]');
+        var isPostgres = modal.querySelector('input[name="cg-db-type"][value="postgres"]');
         isPostgres = isPostgres && isPostgres.checked;
 
-        var isPrivate = gen.querySelector('input[name="cg-server-type"][value="private"]');
+        var isPrivate = modal.querySelector('input[name="cg-server-type"][value="private"]');
         isPrivate = isPrivate && isPrivate.checked;
 
-        var cacheEnabled = gen.querySelector("#cg-feat-cache");
+        var isUnifiedPush = modal.querySelector('input[name="cg-unifiedpush"][value="yes"]');
+        isUnifiedPush = isUnifiedPush && isUnifiedPush.checked;
+
+        // Auto-check auth when private or UnifiedPush is selected
+        var authCheck = modal.querySelector("#cg-feat-auth");
+        if (authCheck) {
+            var authForced = isPrivate || isUnifiedPush || isPostgres;
+            if (authForced) authCheck.checked = true;
+            authCheck.disabled = authForced;
+        }
+
+        var authEnabled = authCheck && authCheck.checked;
+
+        var cacheEnabled = modal.querySelector("#cg-feat-cache");
         cacheEnabled = cacheEnabled && cacheEnabled.checked;
 
-        var attachEnabled = gen.querySelector("#cg-feat-attach");
+        var attachEnabled = modal.querySelector("#cg-feat-attach");
         attachEnabled = attachEnabled && attachEnabled.checked;
 
-        var webpushEnabled = gen.querySelector("#cg-feat-webpush");
+        var webpushEnabled = modal.querySelector("#cg-feat-webpush");
         webpushEnabled = webpushEnabled && webpushEnabled.checked;
 
-        var smtpOutEnabled = gen.querySelector("#cg-feat-smtp-out");
+        var smtpOutEnabled = modal.querySelector("#cg-feat-smtp-out");
         smtpOutEnabled = smtpOutEnabled && smtpOutEnabled.checked;
 
-        var smtpInEnabled = gen.querySelector("#cg-feat-smtp-in");
+        var smtpInEnabled = modal.querySelector("#cg-feat-smtp-in");
         smtpInEnabled = smtpInEnabled && smtpInEnabled.checked;
 
         // Show database question only if a DB-dependent feature is selected
-        var needsDb = isPrivate || cacheEnabled || webpushEnabled;
-        var dbStep = gen.querySelector("#cg-wizard-db");
+        var needsDb = authEnabled || cacheEnabled || webpushEnabled;
+        var dbStep = modal.querySelector("#cg-wizard-db");
         if (dbStep) dbStep.style.display = needsDb ? "" : "none";
 
-        // Database detail section (PostgreSQL only; SQLite needs no extra config)
-        var pgSection = gen.querySelector("#cg-detail-db-postgres");
-        if (pgSection) pgSection.style.display = (needsDb && isPostgres) ? "" : "none";
+        // Nav tabs for features
+        for (var featId in NAV_MAP) {
+            var checkbox = modal.querySelector("#" + featId);
+            var navTab = modal.querySelector("#" + NAV_MAP[featId]);
+            if (checkbox && navTab) {
+                navTab.style.display = checkbox.checked ? "" : "none";
+            }
+        }
 
-        // Hide cache-file in message cache section when PostgreSQL
-        var cacheFileField = gen.querySelector("#cg-cache-file-field");
-        if (cacheFileField) cacheFileField.style.display = isPostgres ? "none" : "";
+        // Email tab — show if either outgoing or incoming is enabled
+        var navEmail = modal.querySelector("#cg-nav-email");
+        if (navEmail) navEmail.style.display = (smtpOutEnabled || smtpInEnabled) ? "" : "none";
+        var emailOutSection = modal.querySelector("#cg-email-out-section");
+        if (emailOutSection) emailOutSection.style.display = smtpOutEnabled ? "" : "none";
+        var emailInSection = modal.querySelector("#cg-email-in-section");
+        if (emailInSection) emailInSection.style.display = smtpInEnabled ? "" : "none";
 
-        // Auth detail section
-        var authSection = gen.querySelector("#cg-detail-auth");
-        if (authSection) authSection.style.display = isPrivate ? "" : "none";
+        // If active nav tab got hidden, switch to General
+        var activeNav = modal.querySelector(".cg-nav-tab.active");
+        if (activeNav && activeNav.style.display === "none") {
+            switchPanel(modal, "cg-panel-general");
+        }
 
         // Hide auth-file and web-push-file if PostgreSQL
-        var authFile = gen.querySelector('[data-key="auth-file"]');
+        var authFile = modal.querySelector('[data-key="auth-file"]');
         if (authFile) {
             var authField = authFile.closest(".cg-field");
             if (authField) authField.style.display = isPostgres ? "none" : "";
         }
-        var wpFile = gen.querySelector('[data-key="web-push-file"]');
+        var wpFile = modal.querySelector('[data-key="web-push-file"]');
         if (wpFile) {
             var wpField = wpFile.closest(".cg-field");
             if (wpField) wpField.style.display = isPostgres ? "none" : "";
         }
 
-        // Feature toggles → detail sections
-        for (var featId in FEATURE_MAP) {
-            var checkbox = gen.querySelector("#" + featId);
-            var section = gen.querySelector("#" + FEATURE_MAP[featId]);
-            if (checkbox && section) {
-                section.style.display = checkbox.checked ? "" : "none";
-            }
+        // Hide cache-file when PostgreSQL
+        var cacheFileField = modal.querySelector("#cg-cache-file-field");
+        if (cacheFileField) cacheFileField.style.display = isPostgres ? "none" : "";
+
+        // Database tab — show only when PostgreSQL is selected and a DB-dependent feature is on
+        var navDb = modal.querySelector("#cg-nav-database");
+        if (navDb) navDb.style.display = (needsDb && isPostgres) ? "" : "none";
+
+        // iOS question → upstream-base-url
+        var iosYes = modal.querySelector('input[name="cg-ios"][value="yes"]');
+        var upstreamInput = modal.querySelector('[data-key="upstream-base-url"]');
+        if (iosYes && upstreamInput) {
+            upstreamInput.value = iosYes.checked ? "https://ntfy.sh" : "";
         }
 
-        // Upstream special handling
-        var upstreamCheck = gen.querySelector("#cg-feat-upstream");
-        var upstreamInput = gen.querySelector('[data-key="upstream-base-url"]');
-        if (upstreamCheck && upstreamInput) {
-            upstreamInput.value = upstreamCheck.checked ? "https://ntfy.sh" : "";
+        // Proxy radio → hidden checkbox
+        var proxyYes = modal.querySelector('input[name="cg-proxy"][value="yes"]');
+        var proxyCheckbox = modal.querySelector("#cg-behind-proxy");
+        if (proxyYes && proxyCheckbox) {
+            proxyCheckbox.checked = proxyYes.checked;
         }
 
-        // Metrics special handling
-        var metricsCheck = gen.querySelector("#cg-feat-metrics");
-        var metricsInput = gen.querySelector('[data-key="enable-metrics"]');
-        if (metricsCheck && metricsInput) {
-            metricsInput.checked = metricsCheck.checked;
-        }
-
-        // --- Pre-fill defaults based on wizard selections ---
-
-        // Database
+        // --- Pre-fill defaults ---
         if (isPostgres) {
-            prefill(gen, "database-url", "postgres://user:pass@host:5432/ntfy");
+            prefill(modal, "database-url", "postgres://user:pass@host:5432/ntfy");
         }
 
-        // Access control: always sync default-access with open/private
+        if (authEnabled) {
+            if (!isPostgres) prefill(modal, "auth-file", "/var/lib/ntfy/auth.db");
+        }
         if (isPrivate) {
-            prefillSelect(gen, "auth-default-access", "deny-all");
-            if (!isPostgres) prefill(gen, "auth-file", "/var/lib/ntfy/auth.db");
+            prefillSelect(modal, "auth-default-access", "deny-all");
         } else {
-            prefillSelect(gen, "auth-default-access", "read-write");
+            prefillSelect(modal, "auth-default-access", "read-write");
         }
 
-        // Persistent message cache
         if (cacheEnabled) {
-            if (!isPostgres) prefill(gen, "cache-file", "/var/cache/ntfy/cache.db");
-            prefill(gen, "cache-duration", "12h");
+            if (!isPostgres) prefill(modal, "cache-file", "/var/cache/ntfy/cache.db");
+            prefill(modal, "cache-duration", "12h");
         }
 
-        // Attachments
         if (attachEnabled) {
-            prefill(gen, "attachment-cache-dir", "/var/cache/ntfy/attachments");
-            prefill(gen, "attachment-file-size-limit", "15M");
-            prefill(gen, "attachment-total-size-limit", "5G");
-            prefill(gen, "attachment-expiry-duration", "3h");
+            prefill(modal, "attachment-cache-dir", "/var/cache/ntfy/attachments");
+            prefill(modal, "attachment-file-size-limit", "15M");
+            prefill(modal, "attachment-total-size-limit", "5G");
+            prefill(modal, "attachment-expiry-duration", "3h");
         }
 
-        // Web push
         if (webpushEnabled) {
-            if (!isPostgres) prefill(gen, "web-push-file", "/var/lib/ntfy/webpush.db");
-            prefill(gen, "web-push-email-address", "admin@example.com");
+            if (!isPostgres) prefill(modal, "web-push-file", "/var/lib/ntfy/webpush.db");
+            prefill(modal, "web-push-email-address", "admin@example.com");
         }
 
-        // Email notifications (outgoing)
         if (smtpOutEnabled) {
-            prefill(gen, "smtp-sender-addr", "smtp.example.com:587");
-            prefill(gen, "smtp-sender-from", "ntfy@example.com");
+            prefill(modal, "smtp-sender-addr", "smtp.example.com:587");
+            prefill(modal, "smtp-sender-from", "ntfy@example.com");
         }
 
-        // Email publishing (incoming)
         if (smtpInEnabled) {
-            prefill(gen, "smtp-server-listen", ":25");
-            prefill(gen, "smtp-server-domain", "ntfy.example.com");
+            prefill(modal, "smtp-server-listen", ":25");
+            prefill(modal, "smtp-server-domain", "ntfy.example.com");
         }
+    }
+
+    function switchPanel(modal, panelId) {
+        modal.querySelectorAll(".cg-nav-tab").forEach(function (t) { t.classList.remove("active"); });
+        modal.querySelectorAll(".cg-panel").forEach(function (p) { p.classList.remove("active"); });
+
+        var navTab = modal.querySelector('[data-panel="' + panelId + '"]');
+        var panel = modal.querySelector("#" + panelId);
+        if (navTab) navTab.classList.add("active");
+        if (panel) panel.classList.add("active");
     }
 
     function addRepeatableRow(container, type) {
@@ -454,20 +642,54 @@
     }
 
     function initGenerator() {
-        var gen = document.getElementById("config-generator-app");
-        if (!gen) return;
+        var modal = document.getElementById("cg-modal");
+        if (!modal) return;
 
-        // Tab switching
-        gen.querySelectorAll(".cg-tab").forEach(function (tab) {
+        var openBtn = document.getElementById("cg-open-btn");
+        var closeBtn = document.getElementById("cg-close-btn");
+        var backdrop = modal.querySelector(".cg-modal-backdrop");
+
+        function openModal() {
+            modal.style.display = "";
+            document.body.style.overflow = "hidden";
+            updateVisibility();
+            updateOutput();
+        }
+
+        function closeModal() {
+            modal.style.display = "none";
+            document.body.style.overflow = "";
+        }
+
+        if (openBtn) openBtn.addEventListener("click", openModal);
+        if (closeBtn) closeBtn.addEventListener("click", closeModal);
+        if (backdrop) backdrop.addEventListener("click", closeModal);
+
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape" && modal.style.display !== "none") {
+                closeModal();
+            }
+        });
+
+        // Left nav tab switching
+        modal.querySelectorAll(".cg-nav-tab").forEach(function (tab) {
             tab.addEventListener("click", function () {
-                gen.querySelectorAll(".cg-tab").forEach(function (t) { t.classList.remove("active"); });
+                var panelId = tab.getAttribute("data-panel");
+                switchPanel(modal, panelId);
+            });
+        });
+
+        // Output format tab switching
+        modal.querySelectorAll(".cg-output-tab").forEach(function (tab) {
+            tab.addEventListener("click", function () {
+                modal.querySelectorAll(".cg-output-tab").forEach(function (t) { t.classList.remove("active"); });
                 tab.classList.add("active");
                 updateOutput();
             });
         });
 
         // All form inputs trigger update
-        gen.querySelectorAll("input, select").forEach(function (el) {
+        modal.querySelectorAll("input, select").forEach(function (el) {
             var evt = (el.type === "checkbox" || el.type === "radio") ? "change" : "input";
             el.addEventListener(evt, function () {
                 updateVisibility();
@@ -476,7 +698,7 @@
         });
 
         // Add buttons for repeatable rows
-        gen.querySelectorAll(".cg-btn-add").forEach(function (btn) {
+        modal.querySelectorAll(".cg-btn-add[data-add-type]").forEach(function (btn) {
             btn.addEventListener("click", function () {
                 var type = btn.getAttribute("data-add-type");
                 var container = btn.previousElementSibling;
@@ -486,12 +708,12 @@
         });
 
         // Copy button
-        var copyBtn = gen.querySelector("#cg-copy-btn");
+        var copyBtn = modal.querySelector("#cg-copy-btn");
         if (copyBtn) {
             var copyIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
             var checkIcon = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
             copyBtn.addEventListener("click", function () {
-                var code = gen.querySelector("#cg-code");
+                var code = modal.querySelector("#cg-code");
                 if (code && code.textContent) {
                     navigator.clipboard.writeText(code.textContent).then(function () {
                         copyBtn.innerHTML = checkIcon;
@@ -505,8 +727,39 @@
             });
         }
 
+        // VAPID key generation for web push
+        var vapidKeysGenerated = false;
+        var regenBtn = modal.querySelector("#cg-regen-keys");
+
+        function fillVAPIDKeys() {
+            generateVAPIDKeys().then(function (keys) {
+                var pubInput = modal.querySelector('[data-key="web-push-public-key"]');
+                var privInput = modal.querySelector('[data-key="web-push-private-key"]');
+                if (pubInput) pubInput.value = keys.publicKey;
+                if (privInput) privInput.value = keys.privateKey;
+                updateOutput();
+            });
+        }
+
+        if (regenBtn) {
+            regenBtn.addEventListener("click", function () {
+                fillVAPIDKeys();
+            });
+        }
+
+        // Auto-generate keys when web push is first enabled
+        var webpushFeat = modal.querySelector("#cg-feat-webpush");
+        if (webpushFeat) {
+            webpushFeat.addEventListener("change", function () {
+                if (webpushFeat.checked && !vapidKeysGenerated) {
+                    vapidKeysGenerated = true;
+                    fillVAPIDKeys();
+                }
+            });
+        }
+
         // Pre-fill base-url if not on ntfy.sh
-        var baseUrlInput = gen.querySelector('[data-key="base-url"]');
+        var baseUrlInput = modal.querySelector('[data-key="base-url"]');
         if (baseUrlInput && !baseUrlInput.value.trim()) {
             var host = window.location.hostname;
             if (host && host.indexOf("ntfy.sh") === -1) {
@@ -514,8 +767,10 @@
             }
         }
 
-        updateVisibility();
-        updateOutput();
+        // Auto-open if URL hash points to config generator
+        if (window.location.hash === "#config-generator") {
+            openModal();
+        }
     }
 
     if (document.readyState === "loading") {

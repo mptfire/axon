@@ -137,65 +137,83 @@ using Docker Compose (i.e. `docker-compose.yml`):
 
 ## Config generator
 
-Use this interactive tool to build your ntfy configuration. Select options below and copy the generated config.
-
-<div id="config-generator-app">
+<button type="button" id="cg-open-btn" class="cg-open-btn">Open config generator</button>
+<div id="cg-modal" class="cg-modal" style="display:none">
+<div class="cg-modal-backdrop"></div>
+<div class="cg-modal-dialog">
+<div class="cg-modal-header">
+<span class="cg-modal-title">Config generator</span>
+<button type="button" id="cg-close-btn" class="cg-modal-close" title="Close">&times;</button>
+</div>
+<div class="cg-modal-body">
 <div id="cg-left">
-<div class="cg-wizard">
-<div class="cg-wizard-step">
-<label class="cg-wizard-label">What's your ntfy service URL?</label>
-<input type="text" data-key="base-url" placeholder="https://ntfy.example.com" class="cg-wizard-input">
+<div class="cg-nav">
+<div class="cg-nav-tab active" data-panel="cg-panel-general">General</div>
+<div class="cg-nav-tab" data-panel="cg-panel-database" id="cg-nav-database" style="display:none">Database</div>
+<div class="cg-nav-tab" data-panel="cg-panel-auth" id="cg-nav-auth" style="display:none">Access Control</div>
+<div class="cg-nav-tab" data-panel="cg-panel-cache" id="cg-nav-cache" style="display:none">Message Cache</div>
+<div class="cg-nav-tab" data-panel="cg-panel-attach" id="cg-nav-attach" style="display:none">Attachments</div>
+<div class="cg-nav-tab" data-panel="cg-panel-webpush" id="cg-nav-webpush" style="display:none">Web Push</div>
+<div class="cg-nav-tab" data-panel="cg-panel-email" id="cg-nav-email" style="display:none">Email</div>
 </div>
-<div class="cg-wizard-step">
-<label class="cg-wizard-label">Are you running ntfy behind a proxy?</label>
-<div class="cg-wizard-toggle">
-<label><input type="checkbox" data-key="behind-proxy" id="cg-behind-proxy"> Yes, behind nginx/Apache/Caddy</label>
+<div class="cg-panels">
+<div class="cg-panel active" id="cg-panel-general">
+<div class="cg-field">
+<label>What's your ntfy service URL?</label>
+<input type="text" data-key="base-url" placeholder="https://ntfy.example.com">
+</div>
+<div class="cg-field">
+<label>Listen address</label>
+<input type="text" data-key="listen-http" placeholder=":80">
+</div>
+<div class="cg-field">
+<label>Will ntfy run behind a proxy (e.g. nginx, Caddy, Apache2)?</label>
+<div class="cg-radio-group">
+<label><input type="radio" name="cg-proxy" value="no" checked> No</label>
+<label><input type="radio" name="cg-proxy" value="yes"> Yes</label>
 </div>
 </div>
-<div class="cg-wizard-step">
-<label class="cg-wizard-label">Is this an open server or a private server?</label>
+<div class="cg-field">
+<label>Is this an open server or a private server?</label>
 <div class="cg-radio-group">
 <label><input type="radio" name="cg-server-type" value="open" checked> Open (anyone can read/write)</label>
 <label><input type="radio" name="cg-server-type" value="private"> Private (requires authentication)</label>
 </div>
 </div>
-<div class="cg-wizard-step">
-<label class="cg-wizard-label">Which features do you want to enable?</label>
+<div class="cg-field">
+<label>Will iOS/iPhone users use this server?</label>
+<div class="cg-radio-group">
+<label><input type="radio" name="cg-ios" value="no" checked> No</label>
+<label><input type="radio" name="cg-ios" value="yes"> Yes</label>
+</div>
+</div>
+<div class="cg-field">
+<label>Do you want to use ntfy as a UnifiedPush distributor?</label>
+<div class="cg-radio-group">
+<label><input type="radio" name="cg-unifiedpush" value="no" checked> No</label>
+<label><input type="radio" name="cg-unifiedpush" value="yes"> Yes</label>
+</div>
+</div>
+<div class="cg-field">
+<label>Which features do you want to enable?</label>
 <div class="cg-feature-grid">
+<label><input type="checkbox" id="cg-feat-auth"> User management and access control</label>
 <label><input type="checkbox" id="cg-feat-cache"> Persistent message cache</label>
 <label><input type="checkbox" id="cg-feat-attach"> Attachments</label>
 <label><input type="checkbox" id="cg-feat-webpush"> Web push</label>
 <label><input type="checkbox" id="cg-feat-smtp-out"> Email notifications (outgoing)</label>
 <label><input type="checkbox" id="cg-feat-smtp-in"> Email publishing (incoming)</label>
-<label><input type="checkbox" id="cg-feat-upstream"> Upstream server (iOS push)</label>
-<label><input type="checkbox" id="cg-feat-metrics"> Prometheus metrics</label>
 </div>
 </div>
-<div class="cg-wizard-step" id="cg-wizard-db" style="display:none">
-<label class="cg-wizard-label">Which database backend would you like to use?</label>
+<div class="cg-field" id="cg-wizard-db" style="display:none">
+<label>Which database backend would you like to use?</label>
 <div class="cg-radio-group">
 <label><input type="radio" name="cg-db-type" value="sqlite" checked> SQLite</label>
 <label><input type="radio" name="cg-db-type" value="postgres"> PostgreSQL</label>
 </div>
 </div>
 </div>
-<div id="cg-details">
-<div class="cg-detail-section" id="cg-detail-basic">
-<div class="cg-detail-heading">Server</div>
-<div class="cg-field">
-<label>Listen address</label>
-<input type="text" data-key="listen-http" placeholder=":80">
-</div>
-</div>
-<div class="cg-detail-section" id="cg-detail-db-postgres" style="display:none">
-<div class="cg-detail-heading">Database (PostgreSQL)</div>
-<div class="cg-field">
-<label>Database URL</label>
-<input type="text" data-key="database-url" placeholder="postgres://user:pass@host:5432/ntfy">
-</div>
-</div>
-<div class="cg-detail-section" id="cg-detail-auth" style="display:none">
-<div class="cg-detail-heading">Access Control</div>
+<div class="cg-panel" id="cg-panel-auth">
 <div class="cg-field">
 <label>Auth file</label>
 <input type="text" data-key="auth-file" placeholder="/var/lib/ntfy/auth.db">
@@ -234,8 +252,7 @@ Use this interactive tool to build your ntfy configuration. Select options below
 <button type="button" class="cg-btn-add" data-add-type="token">+ Add token</button>
 </div>
 </div>
-<div class="cg-detail-section" id="cg-detail-cache" style="display:none">
-<div class="cg-detail-heading">Message Cache</div>
+<div class="cg-panel" id="cg-panel-cache">
 <div class="cg-field" id="cg-cache-file-field">
 <label>Cache file</label>
 <input type="text" data-key="cache-file" placeholder="/var/cache/ntfy/cache.db">
@@ -245,8 +262,7 @@ Use this interactive tool to build your ntfy configuration. Select options below
 <input type="text" data-key="cache-duration" placeholder="12h">
 </div>
 </div>
-<div class="cg-detail-section" id="cg-detail-attach" style="display:none">
-<div class="cg-detail-heading">Attachments</div>
+<div class="cg-panel" id="cg-panel-attach">
 <div class="cg-field">
 <label>Cache directory</label>
 <input type="text" data-key="attachment-cache-dir" placeholder="/var/cache/ntfy/attachments">
@@ -264,16 +280,16 @@ Use this interactive tool to build your ntfy configuration. Select options below
 <input type="text" data-key="attachment-expiry-duration" placeholder="3h">
 </div>
 </div>
-<div class="cg-detail-section" id="cg-detail-webpush" style="display:none">
-<div class="cg-detail-heading">Web Push</div>
+<div class="cg-panel" id="cg-panel-webpush">
 <div class="cg-field">
 <label>Public key</label>
-<input type="text" data-key="web-push-public-key" placeholder="Public key">
+<input type="text" data-key="web-push-public-key" placeholder="Public key" readonly>
 </div>
 <div class="cg-field">
 <label>Private key</label>
-<input type="text" data-key="web-push-private-key" placeholder="Private key">
+<input type="text" data-key="web-push-private-key" placeholder="Private key" readonly>
 </div>
+<button type="button" id="cg-regen-keys" class="cg-btn-add" style="margin-bottom:12px">Regenerate keys</button>
 <div class="cg-field">
 <label>Web push file</label>
 <input type="text" data-key="web-push-file" placeholder="/var/lib/ntfy/webpush.db">
@@ -283,8 +299,9 @@ Use this interactive tool to build your ntfy configuration. Select options below
 <input type="text" data-key="web-push-email-address" placeholder="admin@example.com">
 </div>
 </div>
-<div class="cg-detail-section" id="cg-detail-smtp-out" style="display:none">
-<div class="cg-detail-heading">Email Notifications (Outgoing)</div>
+<div class="cg-panel" id="cg-panel-email">
+<div id="cg-email-out-section" style="display:none">
+<div class="cg-field"><label><strong>Outgoing (notifications)</strong></label></div>
 <div class="cg-field">
 <label>SMTP server address</label>
 <input type="text" data-key="smtp-sender-addr" placeholder="smtp.example.com:587">
@@ -302,8 +319,8 @@ Use this interactive tool to build your ntfy configuration. Select options below
 <input type="password" data-key="smtp-sender-pass" placeholder="Password">
 </div>
 </div>
-<div class="cg-detail-section" id="cg-detail-smtp-in" style="display:none">
-<div class="cg-detail-heading">Email Publishing (Incoming)</div>
+<div id="cg-email-in-section" style="display:none">
+<div class="cg-field"><label><strong>Incoming (publishing)</strong></label></div>
 <div class="cg-field">
 <label>Listen address</label>
 <input type="text" data-key="smtp-server-listen" placeholder=":25">
@@ -317,18 +334,29 @@ Use this interactive tool to build your ntfy configuration. Select options below
 <input type="text" data-key="smtp-server-addr-prefix" placeholder="ntfy-">
 </div>
 </div>
+</div>
+<div class="cg-panel" id="cg-panel-database">
+<div class="cg-field">
+<label>Database URL</label>
+<input type="text" data-key="database-url" placeholder="postgres://user:pass@host:5432/ntfy">
+</div>
+</div>
 <input type="hidden" data-key="upstream-base-url">
-<input type="checkbox" data-key="enable-metrics" style="display:none">
+<input type="checkbox" data-key="behind-proxy" id="cg-behind-proxy" style="display:none">
 </div>
 </div>
 <div id="cg-right">
-<div class="cg-tabs">
-<div class="cg-tab active" data-format="server-yml">server.yml</div>
-<div class="cg-tab" data-format="docker-compose">docker-compose.yml</div>
+<div class="cg-output-tabs">
+<div class="cg-output-tab active" data-format="server-yml">server.yml</div>
+<div class="cg-output-tab" data-format="docker-compose">docker-compose.yml</div>
+<div class="cg-output-tab" data-format="env-vars">Env variables</div>
 <button type="button" id="cg-copy-btn" class="cg-btn-copy" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
 </div>
 <div class="cg-output-wrap">
 <pre><code id="cg-code"><span class="cg-empty-msg">Configure options on the left to generate your config...</span></code></pre>
+<div id="cg-warnings" style="display:none"></div>
+</div>
+</div>
 </div>
 </div>
 </div>
