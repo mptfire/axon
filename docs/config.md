@@ -137,20 +137,28 @@ using Docker Compose (i.e. `docker-compose.yml`):
 
 ## Config generator
 
+This generator helps you configure your self-hosted ntfy instance. It's not fully featured, but it is a good starting point. Please refer to the relevant sections in the doc for more details.
+
 <button type="button" id="cg-open-btn" class="cg-open-btn">Open config generator</button>
 <div id="cg-modal" class="cg-modal" style="display:none">
 <div class="cg-modal-backdrop"></div>
 <div class="cg-modal-dialog">
 <div class="cg-modal-header">
+<div class="cg-modal-header-left">
 <span class="cg-modal-title">Config generator</span>
+<span class="cg-modal-desc">This generator helps you configure your self-hosted ntfy instance. It's not fully featured, but it is a good starting point.</span>
+</div>
+<div class="cg-modal-header-actions">
+<button type="button" id="cg-reset-btn" class="cg-modal-reset" title="Reset all values">Reset</button>
 <button type="button" id="cg-close-btn" class="cg-modal-close" title="Close">&times;</button>
+</div>
 </div>
 <div class="cg-modal-body">
 <div id="cg-left">
 <div class="cg-nav">
 <div class="cg-nav-tab active" data-panel="cg-panel-general">General</div>
 <div class="cg-nav-tab" data-panel="cg-panel-database" id="cg-nav-database" style="display:none">Database</div>
-<div class="cg-nav-tab" data-panel="cg-panel-auth" id="cg-nav-auth" style="display:none">Access Control</div>
+<div class="cg-nav-tab" data-panel="cg-panel-auth" id="cg-nav-auth" style="display:none">Users</div>
 <div class="cg-nav-tab" data-panel="cg-panel-cache" id="cg-nav-cache" style="display:none">Message Cache</div>
 <div class="cg-nav-tab" data-panel="cg-panel-attach" id="cg-nav-attach" style="display:none">Attachments</div>
 <div class="cg-nav-tab" data-panel="cg-panel-webpush" id="cg-nav-webpush" style="display:none">Web Push</div>
@@ -158,129 +166,137 @@ using Docker Compose (i.e. `docker-compose.yml`):
 </div>
 <div class="cg-panels">
 <div class="cg-panel active" id="cg-panel-general">
-<div class="cg-field">
-<label>What's your ntfy service URL?</label>
+<div class="cg-field cg-inline-field">
+<label>What URL will ntfy be reachable on?</label>
 <input type="text" data-key="base-url" placeholder="https://ntfy.example.com">
 </div>
-<div class="cg-field">
-<label>Listen address</label>
-<input type="text" data-key="listen-http" placeholder=":80">
-</div>
-<div class="cg-field">
-<label>Will ntfy run behind a proxy (e.g. nginx, Caddy, Apache2)?</label>
-<div class="cg-radio-group">
-<label><input type="radio" name="cg-proxy" value="no" checked> No</label>
-<label><input type="radio" name="cg-proxy" value="yes"> Yes</label>
+<div class="cg-field cg-inline-field">
+<label>Will ntfy run behind a proxy (e.g. nginx, Caddy)? <a href="/config/#behind-a-proxy-tls-etc" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
+<div class="cg-btn-group">
+<label><input type="radio" name="cg-proxy" value="no" checked><span>No</span></label>
+<label><input type="radio" name="cg-proxy" value="yes"><span>Yes</span></label>
 </div>
 </div>
-<div class="cg-field">
-<label>Is this an open server or a private server?</label>
-<div class="cg-radio-group">
-<label><input type="radio" name="cg-server-type" value="open" checked> Open (anyone can read/write)</label>
-<label><input type="radio" name="cg-server-type" value="private"> Private (requires authentication)</label>
+<div class="cg-field cg-inline-field">
+<label>Is this an open or private server? <a href="/config/#access-control" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
+<div class="cg-btn-group">
+<label><input type="radio" name="cg-server-type" value="open" checked><span>Open</span></label>
+<label><input type="radio" name="cg-server-type" value="private"><span>Private</span></label>
 </div>
 </div>
-<div class="cg-field">
-<label>Will iOS/iPhone users use this server?</label>
-<div class="cg-radio-group">
-<label><input type="radio" name="cg-ios" value="no" checked> No</label>
-<label><input type="radio" name="cg-ios" value="yes"> Yes</label>
+<div class="cg-field cg-inline-field">
+<label>Will iOS/iPhone users use this server? <a href="/config/#ios-instant-notifications" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
+<div class="cg-btn-group">
+<label><input type="radio" name="cg-ios" value="no" checked><span>No</span></label>
+<label><input type="radio" name="cg-ios" value="yes"><span>Yes</span></label>
 </div>
 </div>
-<div class="cg-field">
-<label>Do you want to use ntfy as a UnifiedPush distributor?</label>
-<div class="cg-radio-group">
-<label><input type="radio" name="cg-unifiedpush" value="no" checked> No</label>
-<label><input type="radio" name="cg-unifiedpush" value="yes"> Yes</label>
+<div class="cg-field cg-inline-field">
+<label>Do you want to use ntfy as a UnifiedPush distributor? <a href="/config/#example-unifiedpush" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
+<div class="cg-btn-group">
+<label><input type="radio" name="cg-unifiedpush" value="no" checked><span>No</span></label>
+<label><input type="radio" name="cg-unifiedpush" value="yes"><span>Yes</span></label>
 </div>
 </div>
 <div class="cg-field">
 <label>Which features do you want to enable?</label>
 <div class="cg-feature-grid">
-<label><input type="checkbox" id="cg-feat-auth"> User management and access control</label>
-<label><input type="checkbox" id="cg-feat-cache"> Persistent message cache</label>
-<label><input type="checkbox" id="cg-feat-attach"> Attachments</label>
-<label><input type="checkbox" id="cg-feat-webpush"> Web push</label>
-<label><input type="checkbox" id="cg-feat-smtp-out"> Email notifications (outgoing)</label>
-<label><input type="checkbox" id="cg-feat-smtp-in"> Email publishing (incoming)</label>
+<div class="cg-feature-row"><label><input type="checkbox" id="cg-feat-auth"> User management and access control</label><button type="button" class="cg-btn-configure" data-panel="cg-panel-auth" style="display:none">Configure</button></div>
+<div class="cg-feature-row"><label><input type="checkbox" id="cg-feat-cache"> Persistent message cache</label><button type="button" class="cg-btn-configure" data-panel="cg-panel-cache" style="display:none">Configure</button></div>
+<div class="cg-feature-row"><label><input type="checkbox" id="cg-feat-attach"> Attachments</label><button type="button" class="cg-btn-configure" data-panel="cg-panel-attach" style="display:none">Configure</button></div>
+<div class="cg-feature-row"><label><input type="checkbox" id="cg-feat-webpush"> Web push</label><button type="button" class="cg-btn-configure" data-panel="cg-panel-webpush" style="display:none">Configure</button></div>
+<div class="cg-feature-row"><label><input type="checkbox" id="cg-feat-smtp-out"> Email notifications</label><button type="button" class="cg-btn-configure" data-panel="cg-panel-email" style="display:none">Configure</button></div>
+<div class="cg-feature-row"><label><input type="checkbox" id="cg-feat-smtp-in"> Email publishing</label><button type="button" class="cg-btn-configure" data-panel="cg-panel-email" style="display:none">Configure</button></div>
 </div>
 </div>
-<div class="cg-field" id="cg-wizard-db" style="display:none">
-<label>Which database backend would you like to use?</label>
-<div class="cg-radio-group">
-<label><input type="radio" name="cg-db-type" value="sqlite" checked> SQLite</label>
-<label><input type="radio" name="cg-db-type" value="postgres"> PostgreSQL</label>
+<div class="cg-field cg-inline-field" id="cg-wizard-db" style="display:none">
+<label>Which database backend? <a href="/config/#database-options" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
+<div class="cg-btn-group">
+<label><input type="radio" name="cg-db-type" value="sqlite" checked><span>SQLite</span></label>
+<label><input type="radio" name="cg-db-type" value="postgres"><span>PostgreSQL</span></label>
 </div>
 </div>
 </div>
 <div class="cg-panel" id="cg-panel-auth">
-<div class="cg-field">
-<label>Auth file</label>
+<div class="cg-panel-desc">Configure user management, access control, and provisioned users/ACLs. See <a href="/config/#access-control" target="_blank">access control</a> for details.</div>
+<div class="cg-field cg-inline-field">
+<label>Where should the user database be stored?</label>
 <input type="text" data-key="auth-file" placeholder="/var/lib/ntfy/auth.db">
 </div>
-<div class="cg-field">
-<label>Default access</label>
-<select data-key="auth-default-access">
-<option value="">-- select --</option>
-<option value="read-write">read-write</option>
-<option value="read-only">read-only</option>
-<option value="write-only">write-only</option>
-<option value="deny-all">deny-all</option>
+<div class="cg-field cg-inline-field">
+<label>What is the default access policy? <a href="/config/#access-control" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
+<select id="cg-default-access-select">
+<option value="read-write" selected>Read &amp; Write</option>
+<option value="read-only">Read Only</option>
+<option value="write-only">Write Only</option>
+<option value="deny-all">Deny All</option>
 </select>
 </div>
-<div class="cg-checkbox">
-<input type="checkbox" data-key="enable-login" id="cg-enable-login">
-<label for="cg-enable-login">Enable login</label>
+<div class="cg-field cg-inline-field">
+<label>Enable login page?</label>
+<div class="cg-btn-group">
+<label><input type="radio" name="cg-enable-login" value="no" checked><span>No</span></label>
+<label><input type="radio" name="cg-enable-login" value="yes"><span>Yes</span></label>
 </div>
-<div class="cg-checkbox">
-<input type="checkbox" data-key="enable-signup" id="cg-enable-signup">
-<label for="cg-enable-signup">Enable signup</label>
 </div>
+<div class="cg-field cg-inline-field">
+<label>Enable signup?</label>
+<div class="cg-btn-group">
+<label><input type="radio" name="cg-enable-signup" value="no" checked><span>No</span></label>
+<label><input type="radio" name="cg-enable-signup" value="yes"><span>Yes</span></label>
+</div>
+</div>
+<input type="hidden" data-key="auth-default-access">
+<input type="checkbox" data-key="enable-login" id="cg-enable-login-hidden" style="display:none">
+<input type="checkbox" data-key="enable-signup" id="cg-enable-signup-hidden" style="display:none">
 <div class="cg-field">
-<label>Provisioned users</label>
+<label>Provisioned users <a href="/config/#users-and-roles" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
 <div class="cg-repeatable-container" id="cg-auth-users-container"></div>
 <button type="button" class="cg-btn-add" data-add-type="user">+ Add user</button>
 </div>
 <div class="cg-field">
-<label>Provisioned ACLs</label>
+<label>Provisioned ACLs <a href="/config/#access-control-list-acl" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
 <div class="cg-repeatable-container" id="cg-auth-acls-container"></div>
 <button type="button" class="cg-btn-add" data-add-type="acl">+ Add ACL</button>
 </div>
 <div class="cg-field">
-<label>Provisioned tokens</label>
+<label>Provisioned tokens <a href="/config/#access-tokens" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
 <div class="cg-repeatable-container" id="cg-auth-tokens-container"></div>
 <button type="button" class="cg-btn-add" data-add-type="token">+ Add token</button>
 </div>
 </div>
 <div class="cg-panel" id="cg-panel-cache">
-<div class="cg-field" id="cg-cache-file-field">
-<label>Cache file</label>
+<div class="cg-panel-desc">Configure the message cache to allow devices to retrieve missed notifications. See <a href="/config/#message-cache" target="_blank">message cache</a> for details.</div>
+<div class="cg-field cg-inline-field" id="cg-cache-file-field">
+<label>Where should the cache be stored?</label>
 <input type="text" data-key="cache-file" placeholder="/var/cache/ntfy/cache.db">
 </div>
-<div class="cg-field">
-<label>Cache duration</label>
+<div class="cg-field cg-inline-field">
+<label>How long should messages be cached?</label>
 <input type="text" data-key="cache-duration" placeholder="12h">
 </div>
 </div>
 <div class="cg-panel" id="cg-panel-attach">
-<div class="cg-field">
-<label>Cache directory</label>
+<div class="cg-panel-desc">Allow users to upload and attach files to notifications. See <a href="/config/#attachments" target="_blank">attachments</a> for details.</div>
+<div class="cg-field cg-inline-field">
+<label>Where should attachments be stored?</label>
 <input type="text" data-key="attachment-cache-dir" placeholder="/var/cache/ntfy/attachments">
 </div>
-<div class="cg-field">
-<label>File size limit</label>
+<div class="cg-field cg-inline-field">
+<label>Max file size per attachment?</label>
 <input type="text" data-key="attachment-file-size-limit" placeholder="15M">
 </div>
-<div class="cg-field">
-<label>Total size limit</label>
+<div class="cg-field cg-inline-field">
+<label>Total attachment storage limit?</label>
 <input type="text" data-key="attachment-total-size-limit" placeholder="5G">
 </div>
-<div class="cg-field">
-<label>Expiry duration</label>
+<div class="cg-field cg-inline-field">
+<label>How long before attachments expire?</label>
 <input type="text" data-key="attachment-expiry-duration" placeholder="3h">
 </div>
 </div>
 <div class="cg-panel" id="cg-panel-webpush">
+<div class="cg-panel-desc">Enable browser push notifications via the Web Push API. VAPID keys are generated automatically. See <a href="/config/#web-push" target="_blank">web push</a> for details.</div>
 <div class="cg-field">
 <label>Public key</label>
 <input type="text" data-key="web-push-public-key" placeholder="Public key" readonly>
@@ -300,6 +316,7 @@ using Docker Compose (i.e. `docker-compose.yml`):
 </div>
 </div>
 <div class="cg-panel" id="cg-panel-email">
+<div class="cg-panel-desc">Configure outgoing email notifications and/or incoming email publishing. See <a href="/config/#e-mail-notifications" target="_blank">email notifications</a> and <a href="/config/#e-mail-publishing" target="_blank">email publishing</a> for details.</div>
 <div id="cg-email-out-section" style="display:none">
 <div class="cg-field"><label><strong>Outgoing (notifications)</strong></label></div>
 <div class="cg-field">
@@ -336,6 +353,7 @@ using Docker Compose (i.e. `docker-compose.yml`):
 </div>
 </div>
 <div class="cg-panel" id="cg-panel-database">
+<div class="cg-panel-desc">Configure the PostgreSQL connection. See <a href="/config/#postgresql-experimental" target="_blank">PostgreSQL</a> for details.</div>
 <div class="cg-field">
 <label>Database URL</label>
 <input type="text" data-key="database-url" placeholder="postgres://user:pass@host:5432/ntfy">

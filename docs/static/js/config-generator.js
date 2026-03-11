@@ -4,37 +4,31 @@
 
     var CONFIG = [
         { key: "base-url", env: "NTFY_BASE_URL", section: "basic" },
-        { key: "listen-http", env: "NTFY_LISTEN_HTTP", section: "basic", def: ":80" },
         { key: "behind-proxy", env: "NTFY_BEHIND_PROXY", section: "basic", type: "bool" },
         { key: "database-url", env: "NTFY_DATABASE_URL", section: "database" },
-        { key: "auth-file", env: "NTFY_AUTH_FILE", section: "auth", def: "/var/lib/ntfy/auth.db" },
-        { key: "auth-default-access", env: "NTFY_AUTH_DEFAULT_ACCESS", section: "auth" },
+        { key: "auth-file", env: "NTFY_AUTH_FILE", section: "auth" },
+        { key: "auth-default-access", env: "NTFY_AUTH_DEFAULT_ACCESS", section: "auth", def: "read-write" },
         { key: "enable-login", env: "NTFY_ENABLE_LOGIN", section: "auth", type: "bool" },
         { key: "enable-signup", env: "NTFY_ENABLE_SIGNUP", section: "auth", type: "bool" },
-        { key: "attachment-cache-dir", env: "NTFY_ATTACHMENT_CACHE_DIR", section: "attach", def: "/var/cache/ntfy/attachments" },
+        { key: "attachment-cache-dir", env: "NTFY_ATTACHMENT_CACHE_DIR", section: "attach" },
         { key: "attachment-file-size-limit", env: "NTFY_ATTACHMENT_FILE_SIZE_LIMIT", section: "attach", def: "15M" },
         { key: "attachment-total-size-limit", env: "NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT", section: "attach", def: "5G" },
         { key: "attachment-expiry-duration", env: "NTFY_ATTACHMENT_EXPIRY_DURATION", section: "attach", def: "3h" },
-        { key: "cache-file", env: "NTFY_CACHE_FILE", section: "cache", def: "/var/cache/ntfy/cache.db" },
+        { key: "cache-file", env: "NTFY_CACHE_FILE", section: "cache" },
         { key: "cache-duration", env: "NTFY_CACHE_DURATION", section: "cache", def: "12h" },
         { key: "web-push-public-key", env: "NTFY_WEB_PUSH_PUBLIC_KEY", section: "webpush" },
         { key: "web-push-private-key", env: "NTFY_WEB_PUSH_PRIVATE_KEY", section: "webpush" },
-        { key: "web-push-file", env: "NTFY_WEB_PUSH_FILE", section: "webpush", def: "/var/lib/ntfy/webpush.db" },
+        { key: "web-push-file", env: "NTFY_WEB_PUSH_FILE", section: "webpush" },
         { key: "web-push-email-address", env: "NTFY_WEB_PUSH_EMAIL_ADDRESS", section: "webpush" },
         { key: "smtp-sender-addr", env: "NTFY_SMTP_SENDER_ADDR", section: "smtp-out" },
         { key: "smtp-sender-from", env: "NTFY_SMTP_SENDER_FROM", section: "smtp-out" },
         { key: "smtp-sender-user", env: "NTFY_SMTP_SENDER_USER", section: "smtp-out" },
         { key: "smtp-sender-pass", env: "NTFY_SMTP_SENDER_PASS", section: "smtp-out" },
-        { key: "smtp-server-listen", env: "NTFY_SMTP_SERVER_LISTEN", section: "smtp-in", def: ":25" },
+        { key: "smtp-server-listen", env: "NTFY_SMTP_SERVER_LISTEN", section: "smtp-in" },
         { key: "smtp-server-domain", env: "NTFY_SMTP_SERVER_DOMAIN", section: "smtp-in" },
         { key: "smtp-server-addr-prefix", env: "NTFY_SMTP_SERVER_ADDR_PREFIX", section: "smtp-in" },
         { key: "upstream-base-url", env: "NTFY_UPSTREAM_BASE_URL", section: "upstream" },
     ];
-
-    var DOCKER_PATH_MAP = {
-        "/var/cache/ntfy/cache.db": "/var/lib/ntfy/cache.db",
-        "/var/cache/ntfy/attachments": "/var/lib/ntfy/attachments",
-    };
 
     // Feature checkbox → nav tab ID
     var NAV_MAP = {
@@ -80,6 +74,7 @@
                 val = el.value.trim();
                 if (!val) return;
             }
+            if (val && c.def && val === c.def) return;
             if (val) values[c.key] = val;
         });
 
@@ -146,6 +141,7 @@
             upstream: "# Upstream",
         };
         var lastSection = "";
+        var hadAuth = false;
 
         CONFIG.forEach(function (c) {
             if (!(c.key in values)) return;
@@ -154,6 +150,7 @@
                 if (sections[c.section]) lines.push(sections[c.section]);
                 lastSection = c.section;
             }
+            if (c.section === "auth") hadAuth = true;
             var val = values[c.key];
             if (c.type === "bool") {
                 lines.push(c.key + ": true");
@@ -162,36 +159,54 @@
             }
         });
 
+        // Find where auth section ends to insert users/acls/tokens there
+        var authInsertIdx = lines.length;
+        if (hadAuth) {
+            for (var i = 0; i < lines.length; i++) {
+                if (lines[i] === "# Access control") {
+                    // Find the end of this section (next section comment or end)
+                    for (var j = i + 1; j < lines.length; j++) {
+                        if (lines[j].indexOf("# ") === 0) { authInsertIdx = j - 1; break; }
+                        authInsertIdx = j + 1;
+                    }
+                    break;
+                }
+            }
+        }
+
+        var authExtra = [];
         if (values["_auth-users"]) {
-            if (lastSection !== "auth") { lines.push(""); lines.push("# Access control"); }
-            lines.push("auth-users:");
+            if (!hadAuth) { authExtra.push(""); authExtra.push("# Access control"); hadAuth = true; }
+            authExtra.push("auth-users:");
             values["_auth-users"].forEach(function (u) {
-                lines.push('  - "' + u.username + ":" + u.password + ":" + u.role + '"');
+                authExtra.push('  - "' + u.username + ":" + u.password + ":" + u.role + '"');
             });
         }
 
         if (values["_auth-acls"]) {
-            if (!values["_auth-users"] && lastSection !== "auth") { lines.push(""); lines.push("# Access control"); }
-            lines.push("auth-access:");
+            if (!hadAuth) { authExtra.push(""); authExtra.push("# Access control"); hadAuth = true; }
+            authExtra.push("auth-access:");
             values["_auth-acls"].forEach(function (a) {
-                lines.push('  - "' + (a.user || "*") + ":" + a.topic + ":" + a.permission + '"');
+                authExtra.push('  - "' + (a.user || "*") + ":" + a.topic + ":" + a.permission + '"');
             });
         }
 
         if (values["_auth-tokens"]) {
-            lines.push("auth-tokens:");
+            if (!hadAuth) { authExtra.push(""); authExtra.push("# Access control"); hadAuth = true; }
+            authExtra.push("auth-tokens:");
             values["_auth-tokens"].forEach(function (t) {
                 var entry = t.user + ":" + t.token;
                 if (t.label) entry += ":" + t.label;
-                lines.push('  - "' + entry + '"');
+                authExtra.push('  - "' + entry + '"');
             });
         }
 
-        return lines.join("\n");
-    }
+        // Splice auth extras into the right position
+        if (authExtra.length) {
+            lines.splice.apply(lines, [authInsertIdx, 0].concat(authExtra));
+        }
 
-    function dockerPath(p) {
-        return DOCKER_PATH_MAP[p] || p;
+        return lines.join("\n");
     }
 
     function generateDockerCompose(values) {
@@ -207,8 +222,6 @@
             var val = values[c.key];
             if (c.type === "bool") {
                 val = "true";
-            } else {
-                val = dockerPath(val);
             }
             if (val.indexOf("$") !== -1) {
                 val = val.replace(/\$/g, "$$$$");
@@ -243,12 +256,11 @@
         }
 
         lines.push("    volumes:");
-        lines.push("      - ./:/var/lib/ntfy");
+        lines.push("      - /var/cache/ntfy:/var/cache/ntfy");
+        lines.push("      - /etc/ntfy:/etc/ntfy");
         lines.push("    ports:");
-
-        var listen = values["listen-http"] || ":80";
-        var port = listen.replace(/.*:/, "");
-        lines.push('      - "8080:' + port + '"');
+        lines.push('      - "80:80"');
+        lines.push("    restart: unless-stopped");
 
         return lines.join("\n");
     }
@@ -449,10 +461,6 @@
         if (el && !el.value.trim()) el.value = value;
     }
 
-    function prefillSelect(modal, key, value) {
-        var el = modal.querySelector('[data-key="' + key + '"]');
-        if (el) el.value = value;
-    }
 
     function updateVisibility() {
         var modal = document.getElementById("cg-modal");
@@ -514,6 +522,14 @@
         var emailInSection = modal.querySelector("#cg-email-in-section");
         if (emailInSection) emailInSection.style.display = smtpInEnabled ? "" : "none";
 
+        // Show/hide configure buttons next to feature checkboxes
+        modal.querySelectorAll(".cg-btn-configure").forEach(function (btn) {
+            var row = btn.closest(".cg-feature-row");
+            if (!row) return;
+            var cb = row.querySelector('input[type="checkbox"]');
+            btn.style.display = (cb && cb.checked) ? "" : "none";
+        });
+
         // If active nav tab got hidden, switch to General
         var activeNav = modal.querySelector(".cg-nav-tab.active");
         if (activeNav && activeNav.style.display === "none") {
@@ -554,6 +570,22 @@
             proxyCheckbox.checked = proxyYes.checked;
         }
 
+        // Default access select → hidden input
+        var accessSelect = modal.querySelector("#cg-default-access-select");
+        var accessHidden = modal.querySelector('input[type="hidden"][data-key="auth-default-access"]');
+        if (accessSelect && accessHidden) {
+            accessHidden.value = accessSelect.value;
+        }
+
+        // Login/signup radios → hidden checkboxes
+        var loginYes = modal.querySelector('input[name="cg-enable-login"][value="yes"]');
+        var loginHidden = modal.querySelector("#cg-enable-login-hidden");
+        if (loginYes && loginHidden) loginHidden.checked = loginYes.checked;
+
+        var signupYes = modal.querySelector('input[name="cg-enable-signup"][value="yes"]');
+        var signupHidden = modal.querySelector("#cg-enable-signup-hidden");
+        if (signupYes && signupHidden) signupHidden.checked = signupYes.checked;
+
         // --- Pre-fill defaults ---
         if (isPostgres) {
             prefill(modal, "database-url", "postgres://user:pass@host:5432/ntfy");
@@ -563,9 +595,17 @@
             if (!isPostgres) prefill(modal, "auth-file", "/var/lib/ntfy/auth.db");
         }
         if (isPrivate) {
-            prefillSelect(modal, "auth-default-access", "deny-all");
+            // Set default access select to deny-all
+            if (accessSelect) accessSelect.value = "deny-all";
+            if (accessHidden) accessHidden.value = "deny-all";
+            // Enable login
+            var loginYesRadio = modal.querySelector('input[name="cg-enable-login"][value="yes"]');
+            if (loginYesRadio) loginYesRadio.checked = true;
+            if (loginHidden) loginHidden.checked = true;
         } else {
-            prefillSelect(modal, "auth-default-access", "read-write");
+            // Open server: reset default access to read-write
+            if (accessSelect) accessSelect.value = "read-write";
+            if (accessHidden) accessHidden.value = "read-write";
         }
 
         if (cacheEnabled) {
@@ -661,8 +701,54 @@
             document.body.style.overflow = "";
         }
 
+        var resetBtn = document.getElementById("cg-reset-btn");
+
+        function resetAll() {
+            // Reset all text/password inputs
+            modal.querySelectorAll('input[type="text"], input[type="password"]').forEach(function (el) {
+                el.value = "";
+            });
+            // Uncheck all checkboxes
+            modal.querySelectorAll('input[type="checkbox"]').forEach(function (el) {
+                el.checked = false;
+                el.disabled = false;
+            });
+            // Reset radio buttons to first option
+            var radioGroups = {};
+            modal.querySelectorAll('input[type="radio"]').forEach(function (el) {
+                if (!radioGroups[el.name]) {
+                    radioGroups[el.name] = true;
+                    var first = modal.querySelector('input[type="radio"][name="' + el.name + '"]');
+                    if (first) first.checked = true;
+                } else {
+                    el.checked = false;
+                }
+            });
+            // Reset selects to first option
+            modal.querySelectorAll("select").forEach(function (el) {
+                el.selectedIndex = 0;
+            });
+            // Remove all repeatable rows
+            modal.querySelectorAll(".cg-auth-user-row, .cg-auth-acl-row, .cg-auth-token-row").forEach(function (row) {
+                row.remove();
+            });
+            // Re-prefill base-url
+            var baseUrlInput = modal.querySelector('[data-key="base-url"]');
+            if (baseUrlInput) {
+                var host = window.location.hostname;
+                if (host && host.indexOf("ntfy.sh") === -1) {
+                    baseUrlInput.value = "https://ntfy.example.com";
+                }
+            }
+            // Reset to General tab
+            switchPanel(modal, "cg-panel-general");
+            updateVisibility();
+            updateOutput();
+        }
+
         if (openBtn) openBtn.addEventListener("click", openModal);
         if (closeBtn) closeBtn.addEventListener("click", closeModal);
+        if (resetBtn) resetBtn.addEventListener("click", resetAll);
         if (backdrop) backdrop.addEventListener("click", closeModal);
 
         document.addEventListener("keydown", function (e) {
@@ -676,6 +762,14 @@
             tab.addEventListener("click", function () {
                 var panelId = tab.getAttribute("data-panel");
                 switchPanel(modal, panelId);
+            });
+        });
+
+        // Configure buttons in feature grid
+        modal.querySelectorAll(".cg-btn-configure").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+                var panelId = btn.getAttribute("data-panel");
+                if (panelId) switchPanel(modal, panelId);
             });
         });
 

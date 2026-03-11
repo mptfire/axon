@@ -53,9 +53,45 @@
     flex-shrink: 0;
 }
 
+.cg-modal-header-left {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    min-width: 0;
+}
+
 .cg-modal-title {
     font-weight: 600;
     font-size: 0.95rem;
+    white-space: nowrap;
+}
+
+.cg-modal-desc {
+    font-size: 0.75rem;
+    color: #888;
+}
+
+.cg-modal-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cg-modal-reset {
+    background: none;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: #777;
+    cursor: pointer;
+    padding: 4px 12px;
+    font-family: inherit;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.cg-modal-reset:hover {
+    color: #333;
+    border-color: #999;
 }
 
 .cg-modal-close {
@@ -134,6 +170,30 @@
     display: block;
 }
 
+.cg-panel-desc {
+    font-size: 0.75rem;
+    color: #888;
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
+
+.cg-panel-desc a {
+    color: var(--md-primary-fg-color);
+}
+
+.cg-help {
+    color: var(--md-primary-fg-color);
+    text-decoration: none;
+    margin-left: 4px;
+    vertical-align: middle;
+    flex-shrink: 0;
+    transition: color 0.15s;
+}
+
+.cg-help:hover {
+    color: var(--md-primary-fg-color--dark, #2a6e5f);
+}
+
 /* Right panel */
 #cg-right {
     flex: 1;
@@ -195,6 +255,8 @@
     flex: 1;
     overflow: auto;
     padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
 }
 
 .cg-output-wrap pre {
@@ -207,7 +269,7 @@
     overflow-x: auto;
     font-size: 0.76rem;
     line-height: 1.5;
-    min-height: 100px;
+    flex: 1;
     white-space: pre;
 }
 
@@ -228,11 +290,16 @@
 
 /* Form fields */
 .cg-field {
-    margin-bottom: 12px;
+    margin-bottom: 0;
+    padding: 8px 12px;
 }
 
-.cg-field:last-child {
-    margin-bottom: 0;
+.cg-field:nth-child(odd) {
+    background: #f8f8f8;
+}
+
+.cg-field:nth-child(even) {
+    background: #fff;
 }
 
 .cg-field > label {
@@ -301,10 +368,96 @@
     accent-color: var(--md-primary-fg-color);
 }
 
+/* Inline field: label + control side by side */
+.cg-inline-field {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.cg-inline-field > label {
+    margin-bottom: 0;
+    width: 60%;
+    flex-shrink: 0;
+}
+
+.cg-inline-field > input[type="text"],
+.cg-inline-field > select {
+    padding: 4px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-family: inherit;
+    box-sizing: border-box;
+    line-height: 1.4;
+    background: #fff;
+}
+
+.cg-inline-field > input[type="text"]:focus,
+.cg-inline-field > select:focus {
+    border-color: var(--md-primary-fg-color);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(51, 133, 116, 0.15);
+}
+
+/* Button group toggle */
+.cg-btn-group {
+    display: flex;
+    flex-shrink: 0;
+}
+
+.cg-btn-group label {
+    cursor: pointer;
+    margin: 0;
+}
+
+.cg-btn-group input[type="radio"] {
+    display: none;
+}
+
+.cg-btn-group span {
+    display: block;
+    padding: 4px 14px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.4;
+    border: 1px solid #ccc;
+    color: #555;
+    background: #fff;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    user-select: none;
+}
+
+.cg-btn-group label:first-child span {
+    border-radius: 4px 0 0 4px;
+}
+
+.cg-btn-group label:last-child span {
+    border-radius: 0 4px 4px 0;
+}
+
+.cg-btn-group label + label span {
+    margin-left: -1px;
+}
+
+.cg-btn-group input[type="radio"]:checked + span {
+    background: var(--md-primary-fg-color);
+    color: #fff;
+    border-color: var(--md-primary-fg-color);
+    position: relative;
+    z-index: 1;
+}
+
 .cg-feature-grid {
     display: flex;
     flex-direction: column;
     gap: 5px;
+}
+
+.cg-feature-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .cg-feature-grid label {
@@ -317,6 +470,24 @@
 
 .cg-feature-grid input[type="checkbox"] {
     accent-color: var(--md-primary-fg-color);
+}
+
+.cg-btn-configure {
+    background: none;
+    border: 1px solid var(--md-primary-fg-color);
+    border-radius: 10px;
+    color: var(--md-primary-fg-color);
+    font-size: 0.68rem;
+    font-family: inherit;
+    padding: 1px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, color 0.15s;
+}
+
+.cg-btn-configure:hover {
+    background: var(--md-primary-fg-color);
+    color: #fff;
 }
 
 /* Repeatable rows */
@@ -392,6 +563,20 @@ body[data-md-color-scheme="slate"] .cg-modal-title {
     color: #ddd;
 }
 
+body[data-md-color-scheme="slate"] .cg-modal-desc {
+    color: #777;
+}
+
+body[data-md-color-scheme="slate"] .cg-modal-reset {
+    border-color: #555;
+    color: #888;
+}
+
+body[data-md-color-scheme="slate"] .cg-modal-reset:hover {
+    border-color: #888;
+    color: #ddd;
+}
+
 body[data-md-color-scheme="slate"] .cg-modal-close {
     color: #777;
 }
@@ -442,6 +627,18 @@ body[data-md-color-scheme="slate"] .cg-output-wrap pre {
     border-color: #444;
 }
 
+body[data-md-color-scheme="slate"] .cg-field:nth-child(odd) {
+    background: #232334;
+}
+
+body[data-md-color-scheme="slate"] .cg-field:nth-child(even) {
+    background: #1e1e2e;
+}
+
+body[data-md-color-scheme="slate"] .cg-panel-desc {
+    color: #777;
+}
+
 body[data-md-color-scheme="slate"] .cg-field > label {
     color: #aaa;
 }
@@ -452,6 +649,18 @@ body[data-md-color-scheme="slate"] .cg-field select {
     background: #2a2a3a;
     border-color: #555;
     color: #ddd;
+}
+
+body[data-md-color-scheme="slate"] .cg-btn-group span {
+    background: #2a2a3a;
+    border-color: #555;
+    color: #aaa;
+}
+
+body[data-md-color-scheme="slate"] .cg-btn-group input[type="radio"]:checked + span {
+    background: var(--md-primary-fg-color);
+    color: #fff;
+    border-color: var(--md-primary-fg-color);
 }
 
 body[data-md-color-scheme="slate"] .cg-checkbox label {
