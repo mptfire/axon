@@ -1757,6 +1757,10 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ### ntfy server v2.19.x (UNRELEASED)
 
+**Features:**
+
+* Support PostgreSQL read replicas for offloading non-critical read queries via `database-replica-urls` config option
+
 **Bug fixes + maintenance:**
 
 * Web: Throttle notification sound in web app to play at most once every 2 seconds (similar to [#1550](https://github.com/binwiederhier/ntfy/issues/1550), thanks to [@jlaffaye](https://github.com/jlaffaye) for reporting)

@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"sync/atomic"
 	"time"
+
+	"heckel.io/ntfy/v2/log"
 )
 
 const (
@@ -46,6 +48,12 @@ func NewDB(primary *sql.DB, replicas []*sql.DB) *DB {
 	return d
 }
 
+// Primary returns the underlying primary *sql.DB. This is only intended for
+// one-time schema setup during store initialization, not for regular queries.
+func (d *DB) Primary() *sql.DB {
+	return d.primary
+}
+
 // Query delegates to the primary database.
 func (d *DB) Query(query string, args ...any) (*sql.Rows, error) {
 	return d.primary.Query(query, args...)
@@ -79,12 +87,6 @@ func (d *DB) Close() error {
 	return d.primary.Close()
 }
 
-// SetupPrimary returns the underlying primary *sql.DB. This is only intended for
-// one-time schema setup during store initialization, not for regular queries.
-func (d *DB) SetupPrimary() *sql.DB {
-	return d.primary
-}
-
 // ReadOnly returns a *sql.DB suitable for read-only queries. It round-robins across healthy
 // replicas. If a replica's health status is stale (older than replicaHealthCheckInterval), it
 // is re-checked with a ping. If all replicas are unhealthy or none are configured, the primary
@@ -111,46 +113,20 @@ func (d *DB) isHealthy(r *replica) bool {
 	lastChecked := r.lastChecked.Load()
 	if now-lastChecked >= int64(replicaHealthCheckInterval.Seconds()) {
 		if r.lastChecked.CompareAndSwap(lastChecked, now) {
+			wasHealthy := r.healthy.Load()
 			if err := r.db.Ping(); err != nil {
 				r.healthy.Store(false)
+				if wasHealthy {
+					log.Error("Database replica is now unhealthy: %s", err)
+				}
 				return false
 			}
 			r.healthy.Store(true)
+			if !wasHealthy {
+				log.Info("Database replica is now healthy again")
+			}
 			return true
 		}
 	}
 	return r.healthy.Load()
-}
-
-// ExecTx executes a function within a database transaction. If the function returns an error,
-// the transaction is rolled back. Otherwise, the transaction is committed.
-func ExecTx(db Beginner, f func(tx *sql.Tx) error) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if err := f(tx); err != nil {
-		return err
-	}
-	return tx.Commit()
-}
-
-// QueryTx executes a function within a database transaction and returns the result. If the function
-// returns an error, the transaction is rolled back. Otherwise, the transaction is committed.
-func QueryTx[T any](db Beginner, f func(tx *sql.Tx) (T, error)) (T, error) {
-	tx, err := db.Begin()
-	if err != nil {
-		var zero T
-		return zero, err
-	}
-	defer tx.Rollback()
-	t, err := f(tx)
-	if err != nil {
-		return t, err
-	}
-	if err := tx.Commit(); err != nil {
-		return t, err
-	}
-	return t, nil
 }

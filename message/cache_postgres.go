@@ -104,7 +104,7 @@ var postgresQueries = queries{
 
 // NewPostgresStore creates a new PostgreSQL-backed message cache store using an existing database connection pool.
 func NewPostgresStore(d *db.DB, batchSize int, batchTimeout time.Duration) (*Cache, error) {
-	if err := setupPostgres(d.SetupPrimary()); err != nil {
+	if err := setupPostgres(d.Primary()); err != nil {
 		return nil, err
 	}
 	return newCache(d, postgresQueries, nil, batchSize, batchTimeout, false), nil

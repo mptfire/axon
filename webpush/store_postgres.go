@@ -74,7 +74,7 @@ const (
 
 // NewPostgresStore creates a new PostgreSQL-backed web push store using an existing database connection pool.
 func NewPostgresStore(d *ntfydb.DB) (*Store, error) {
-	if err := setupPostgres(d.SetupPrimary()); err != nil {
+	if err := setupPostgres(d.Primary()); err != nil {
 		return nil, err
 	}
 	return &Store{

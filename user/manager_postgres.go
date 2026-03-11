@@ -279,7 +279,7 @@ var postgresQueries = queries{
 
 // NewPostgresManager creates a new Manager backed by a PostgreSQL database
 func NewPostgresManager(d *db.DB, config *Config) (*Manager, error) {
-	if err := setupPostgres(d.SetupPrimary()); err != nil {
+	if err := setupPostgres(d.Primary()); err != nil {
 		return nil, err
 	}
 	return newManager(d, postgresQueries, config)
