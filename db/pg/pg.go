@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
@@ -27,6 +28,12 @@ func Open(dsn string) (*sql.DB, error) {
 	u, err := url.Parse(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("invalid database URL: %w", err)
+	}
+	switch u.Scheme {
+	case "postgres", "postgresql":
+		// OK
+	default:
+		return nil, fmt.Errorf("invalid database URL scheme %q, must be \"postgres\" or \"postgresql\" (URL: %s)", u.Scheme, censorPassword(u))
 	}
 	q := u.Query()
 	maxOpenConns, err := extractIntParam(q, paramMaxOpenConns, defaultMaxOpenConns)
@@ -61,7 +68,7 @@ func Open(dsn string) (*sql.DB, error) {
 		db.SetConnMaxIdleTime(connMaxIdleTime)
 	}
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("ping failed: %w", err)
+		return nil, fmt.Errorf("database ping failed (URL: %s): %w", censorPassword(u), err)
 	}
 	return db, nil
 }
@@ -77,6 +84,14 @@ func extractIntParam(q url.Values, key string, defaultValue int) (int, error) {
 		return 0, fmt.Errorf("invalid %s value %q: %w", key, s, err)
 	}
 	return v, nil
+}
+
+// censorPassword returns a string representation of the URL with the password replaced by "*****".
+func censorPassword(u *url.URL) string {
+	if password, hasPassword := u.User.Password(); hasPassword {
+		return strings.Replace(u.String(), ":"+password+"@", ":*****@", 1)
+	}
+	return u.String()
 }
 
 func extractDurationParam(q url.Values, key string, defaultValue time.Duration) (time.Duration, error) {
