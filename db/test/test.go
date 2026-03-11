@@ -1,13 +1,13 @@
 package dbtest
 
 import (
-	"database/sql"
 	"fmt"
 	"net/url"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"heckel.io/ntfy/v2/db"
 	"heckel.io/ntfy/v2/db/pg"
 	"heckel.io/ntfy/v2/util"
 )
@@ -48,16 +48,17 @@ func CreateTestPostgresSchema(t *testing.T) string {
 	return schemaDSN
 }
 
-// CreateTestPostgres creates a temporary PostgreSQL schema and returns an open *sql.DB connection to it.
+// CreateTestPostgres creates a temporary PostgreSQL schema and returns an open *db.DB connection to it.
 // It registers cleanup functions to close the DB and drop the schema when the test finishes.
 // If NTFY_TEST_DATABASE_URL is not set, the test is skipped.
-func CreateTestPostgres(t *testing.T) *sql.DB {
+func CreateTestPostgres(t *testing.T) *db.DB {
 	t.Helper()
 	schemaDSN := CreateTestPostgresSchema(t)
 	testDB, err := pg.Open(schemaDSN)
 	require.Nil(t, err)
+	d := db.NewDB(testDB, nil)
 	t.Cleanup(func() {
-		testDB.Close()
+		d.Close()
 	})
-	return testDB
+	return d
 }

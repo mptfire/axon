@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"heckel.io/ntfy/v2/db"
+	ntfydb "heckel.io/ntfy/v2/db"
 )
 
 const (
@@ -73,12 +73,12 @@ const (
 )
 
 // NewPostgresStore creates a new PostgreSQL-backed web push store using an existing database connection pool.
-func NewPostgresStore(db *sql.DB) (*Store, error) {
-	if err := setupPostgres(db); err != nil {
+func NewPostgresStore(d *ntfydb.DB) (*Store, error) {
+	if err := setupPostgres(d.SetupPrimary()); err != nil {
 		return nil, err
 	}
 	return &Store{
-		db: db,
+		db: d,
 		queries: queries{
 			selectSubscriptionIDByEndpoint:             postgresSelectSubscriptionIDByEndpointQuery,
 			selectSubscriptionCountBySubscriberIP:      postgresSelectSubscriptionCountBySubscriberIPQuery,
@@ -110,7 +110,7 @@ func setupPostgres(db *sql.DB) error {
 }
 
 func setupNewPostgres(sqlDB *sql.DB) error {
-	return db.ExecTx(sqlDB, func(tx *sql.Tx) error {
+	return ntfydb.ExecTx(sqlDB, func(tx *sql.Tx) error {
 		if _, err := tx.Exec(postgresCreateTablesQuery); err != nil {
 			return err
 		}
