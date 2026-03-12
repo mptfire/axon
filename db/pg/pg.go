@@ -13,15 +13,6 @@ import (
 	"heckel.io/ntfy/v2/db"
 )
 
-const (
-	paramMaxOpenConns    = "pool_max_conns"
-	paramMaxIdleConns    = "pool_max_idle_conns"
-	paramConnMaxLifetime = "pool_conn_max_lifetime"
-	paramConnMaxIdleTime = "pool_conn_max_idle_time"
-
-	defaultMaxOpenConns = 10
-)
-
 // Open opens a PostgreSQL connection pool for a primary database. It pings the database
 // to verify connectivity before returning.
 func Open(dsn string) (*db.Host, error) {
@@ -57,19 +48,19 @@ func open(dsn string) (*db.Host, error) {
 		return nil, fmt.Errorf("invalid database URL scheme %q, must be \"postgres\" or \"postgresql\" (URL: %s)", u.Scheme, censorPassword(u))
 	}
 	q := u.Query()
-	maxOpenConns, err := extractIntParam(q, paramMaxOpenConns, defaultMaxOpenConns)
+	maxOpenConns, err := extractIntParam(q, "pool_max_conns", 10)
 	if err != nil {
 		return nil, err
 	}
-	maxIdleConns, err := extractIntParam(q, paramMaxIdleConns, 0)
+	maxIdleConns, err := extractIntParam(q, "pool_max_idle_conns", 0)
 	if err != nil {
 		return nil, err
 	}
-	connMaxLifetime, err := extractDurationParam(q, paramConnMaxLifetime, 0)
+	connMaxLifetime, err := extractDurationParam(q, "pool_conn_max_lifetime", 0)
 	if err != nil {
 		return nil, err
 	}
-	connMaxIdleTime, err := extractDurationParam(q, paramConnMaxIdleTime, 0)
+	connMaxIdleTime, err := extractDurationParam(q, "pool_conn_max_idle_time", 0)
 	if err != nil {
 		return nil, err
 	}
