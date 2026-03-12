@@ -388,7 +388,7 @@ func (a *Manager) writeUserStatsQueue() error {
 
 // User returns the user with the given username if it exists, or ErrUserNotFound otherwise
 func (a *Manager) User(username string) (*User, error) {
-	rows, err := a.db.ReadOnly().Query(a.queries.selectUserByName, username)
+	rows, err := a.db.Query(a.queries.selectUserByName, username)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +397,7 @@ func (a *Manager) User(username string) (*User, error) {
 
 // UserByID returns the user with the given ID if it exists, or ErrUserNotFound otherwise
 func (a *Manager) UserByID(id string) (*User, error) {
-	rows, err := a.db.ReadOnly().Query(a.queries.selectUserByID, id)
+	rows, err := a.db.Query(a.queries.selectUserByID, id)
 	if err != nil {
 		return nil, err
 	}
@@ -406,7 +406,7 @@ func (a *Manager) UserByID(id string) (*User, error) {
 
 // userByToken returns the user with the given token if it exists and is not expired, or ErrUserNotFound otherwise
 func (a *Manager) userByToken(token string) (*User, error) {
-	rows, err := a.db.ReadOnly().Query(a.queries.selectUserByToken, token, time.Now().Unix())
+	rows, err := a.db.Query(a.queries.selectUserByToken, token, time.Now().Unix())
 	if err != nil {
 		return nil, err
 	}
@@ -642,7 +642,7 @@ func (a *Manager) AllowReservation(username string, topic string) error {
 // - Furthermore, the query prioritizes more specific permissions (longer!) over more generic ones, e.g. "test*" > "*"
 // - It also prioritizes write permissions over read permissions
 func (a *Manager) authorizeTopicAccess(usernameOrEveryone, topic string) (read, write, found bool, err error) {
-	rows, err := a.db.ReadOnly().Query(a.queries.selectTopicPerms, Everyone, usernameOrEveryone, topic)
+	rows, err := a.db.Query(a.queries.selectTopicPerms, Everyone, usernameOrEveryone, topic)
 	if err != nil {
 		return false, false, false, err
 	}
@@ -779,7 +779,7 @@ func (a *Manager) Reservations(username string) ([]Reservation, error) {
 
 // HasReservation returns true if the given topic access is owned by the user
 func (a *Manager) HasReservation(username, topic string) (bool, error) {
-	rows, err := a.db.ReadOnly().Query(a.queries.selectUserHasReservation, username, escapeUnderscore(topic))
+	rows, err := a.db.Query(a.queries.selectUserHasReservation, username, escapeUnderscore(topic))
 	if err != nil {
 		return false, err
 	}
@@ -813,7 +813,7 @@ func (a *Manager) ReservationsCount(username string) (int64, error) {
 
 // ReservationOwner returns user ID of the user that owns this topic, or an empty string if it's not owned by anyone
 func (a *Manager) ReservationOwner(topic string) (string, error) {
-	rows, err := a.db.ReadOnly().Query(a.queries.selectUserReservationsOwner, escapeUnderscore(topic))
+	rows, err := a.db.Query(a.queries.selectUserReservationsOwner, escapeUnderscore(topic))
 	if err != nil {
 		return "", err
 	}
@@ -830,7 +830,7 @@ func (a *Manager) ReservationOwner(topic string) (string, error) {
 
 // otherAccessCount returns the number of access entries for the given topic that are not owned by the user
 func (a *Manager) otherAccessCount(username, topic string) (int, error) {
-	rows, err := a.db.ReadOnly().Query(a.queries.selectOtherAccessCount, escapeUnderscore(topic), escapeUnderscore(topic), username)
+	rows, err := a.db.Query(a.queries.selectOtherAccessCount, escapeUnderscore(topic), escapeUnderscore(topic), username)
 	if err != nil {
 		return 0, err
 	}
