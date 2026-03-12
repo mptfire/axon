@@ -291,5 +291,5 @@ func NewSQLiteManager(filename, startupQueries string, config *Config) (*Manager
 	if err := runSQLiteStartupQueries(sqlDB, startupQueries); err != nil {
 		return nil, err
 	}
-	return newManager(db.NewDB(sqlDB, nil), sqliteQueries, config)
+	return newManager(db.New(&db.Host{DB: sqlDB}, nil), sqliteQueries, config)
 }

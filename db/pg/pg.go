@@ -9,6 +9,8 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // PostgreSQL driver
+
+	"heckel.io/ntfy/v2/db"
 )
 
 const (
@@ -20,11 +22,30 @@ const (
 	defaultMaxOpenConns = 10
 )
 
-// Open opens a PostgreSQL database connection pool from a DSN string. It supports custom
+// Open opens a PostgreSQL connection pool for a primary database. It pings the database
+// to verify connectivity before returning.
+func Open(dsn string) (*db.Host, error) {
+	d, err := open(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+	if err := d.DB.Ping(); err != nil {
+		return nil, fmt.Errorf("database ping failed on %v: %w", d.Addr, err)
+	}
+	return d, nil
+}
+
+// OpenReplica opens a PostgreSQL connection pool for a read replica. Unlike Open, it does
+// not ping the database, since replicas are health-checked in the background by db.DB.
+func OpenReplica(dsn string) (*db.Host, error) {
+	return open(dsn)
+}
+
+// open opens a PostgreSQL database connection pool from a DSN string. It supports custom
 // query parameters for pool configuration: pool_max_conns (default 10), pool_max_idle_conns,
 // pool_conn_max_lifetime, and pool_conn_max_idle_time. These parameters are stripped from
 // the DSN before passing it to the driver.
-func Open(dsn string) (*sql.DB, error) {
+func open(dsn string) (*db.Host, error) {
 	u, err := url.Parse(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("invalid database URL: %w", err)
@@ -53,24 +74,24 @@ func Open(dsn string) (*sql.DB, error) {
 		return nil, err
 	}
 	u.RawQuery = q.Encode()
-	db, err := sql.Open("pgx", u.String())
+	d, err := sql.Open("pgx", u.String())
 	if err != nil {
 		return nil, err
 	}
-	db.SetMaxOpenConns(maxOpenConns)
+	d.SetMaxOpenConns(maxOpenConns)
 	if maxIdleConns > 0 {
-		db.SetMaxIdleConns(maxIdleConns)
+		d.SetMaxIdleConns(maxIdleConns)
 	}
 	if connMaxLifetime > 0 {
-		db.SetConnMaxLifetime(connMaxLifetime)
+		d.SetConnMaxLifetime(connMaxLifetime)
 	}
 	if connMaxIdleTime > 0 {
-		db.SetConnMaxIdleTime(connMaxIdleTime)
+		d.SetConnMaxIdleTime(connMaxIdleTime)
 	}
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("database ping failed (URL: %s): %w", censorPassword(u), err)
-	}
-	return db, nil
+	return &db.Host{
+		Addr: u.Host,
+		DB:   d,
+	}, nil
 }
 
 func extractIntParam(q url.Values, key string, defaultValue int) (int, error) {

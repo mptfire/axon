@@ -90,7 +90,7 @@ func NewSQLiteStore(filename, startupQueries string) (*Store, error) {
 		return nil, err
 	}
 	return &Store{
-		db: db.NewDB(sqlDB, nil),
+		db: db.New(&db.Host{DB: sqlDB}, nil),
 		queries: queries{
 			selectSubscriptionIDByEndpoint:             sqliteSelectSubscriptionIDByEndpointQuery,
 			selectSubscriptionCountBySubscriberIP:      sqliteSelectSubscriptionCountBySubscriberIPQuery,

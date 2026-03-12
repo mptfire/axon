@@ -118,7 +118,7 @@ func NewSQLiteStore(filename, startupQueries string, cacheDuration time.Duration
 	if err := setupSQLite(sqlDB, startupQueries, cacheDuration); err != nil {
 		return nil, err
 	}
-	return newCache(db.NewDB(sqlDB, nil), sqliteQueries, &sync.Mutex{}, batchSize, batchTimeout, nop), nil
+	return newCache(db.New(&db.Host{DB: sqlDB}, nil), sqliteQueries, &sync.Mutex{}, batchSize, batchTimeout, nop), nil
 }
 
 // NewMemStore creates an in-memory cache

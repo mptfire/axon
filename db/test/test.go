@@ -30,19 +30,19 @@ func CreateTestPostgresSchema(t *testing.T) string {
 	q.Set("pool_max_conns", testPoolMaxConns)
 	u.RawQuery = q.Encode()
 	dsn = u.String()
-	setupDB, err := pg.Open(dsn)
+	setupHost, err := pg.Open(dsn)
 	require.Nil(t, err)
-	_, err = setupDB.Exec(fmt.Sprintf("CREATE SCHEMA %s", schema))
+	_, err = setupHost.DB.Exec(fmt.Sprintf("CREATE SCHEMA %s", schema))
 	require.Nil(t, err)
-	require.Nil(t, setupDB.Close())
+	require.Nil(t, setupHost.DB.Close())
 	q.Set("search_path", schema)
 	u.RawQuery = q.Encode()
 	schemaDSN := u.String()
 	t.Cleanup(func() {
-		cleanDB, err := pg.Open(dsn)
+		cleanHost, err := pg.Open(dsn)
 		if err == nil {
-			cleanDB.Exec(fmt.Sprintf("DROP SCHEMA %s CASCADE", schema))
-			cleanDB.Close()
+			cleanHost.DB.Exec(fmt.Sprintf("DROP SCHEMA %s CASCADE", schema))
+			cleanHost.DB.Close()
 		}
 	})
 	return schemaDSN
@@ -54,9 +54,9 @@ func CreateTestPostgresSchema(t *testing.T) string {
 func CreateTestPostgres(t *testing.T) *db.DB {
 	t.Helper()
 	schemaDSN := CreateTestPostgresSchema(t)
-	testDB, err := pg.Open(schemaDSN)
+	testHost, err := pg.Open(schemaDSN)
 	require.Nil(t, err)
-	d := db.NewDB(testDB, nil)
+	d := db.New(testHost, nil)
 	t.Cleanup(func() {
 		d.Close()
 	})

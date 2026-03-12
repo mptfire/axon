@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"embed"
 	"encoding/base64"
 	"encoding/json"
@@ -186,20 +185,20 @@ func New(conf *Config) (*Server, error) {
 		if err != nil {
 			return nil, err
 		}
-		var replicas []*sql.DB
+		var replicas []*db.Host
 		for _, replicaURL := range conf.DatabaseReplicaURLs {
-			r, err := pg.Open(replicaURL)
+			r, err := pg.OpenReplica(replicaURL)
 			if err != nil {
 				// Close already-opened replicas before returning
 				for _, opened := range replicas {
-					opened.Close()
+					opened.DB.Close()
 				}
-				primary.Close()
+				primary.DB.Close()
 				return nil, fmt.Errorf("failed to open database replica: %w", err)
 			}
 			replicas = append(replicas, r)
 		}
-		pool = db.NewDB(primary, replicas)
+		pool = db.New(primary, replicas)
 	}
 	messageCache, err := createMessageCache(conf, pool)
 	if err != nil {

@@ -37,9 +37,9 @@ func forEachBackend(t *testing.T, f func(t *testing.T, newManager newManagerFunc
 	t.Run("postgres", func(t *testing.T) {
 		schemaDSN := dbtest.CreateTestPostgresSchema(t)
 		f(t, func(config *Config) *Manager {
-			pool, err := pg.Open(schemaDSN)
+			host, err := pg.Open(schemaDSN)
 			require.Nil(t, err)
-			a, err := NewPostgresManager(db.NewDB(pool, nil), config)
+			a, err := NewPostgresManager(db.New(host, nil), config)
 			require.Nil(t, err)
 			return a
 		})
