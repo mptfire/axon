@@ -10,6 +10,7 @@ import (
 )
 
 const (
+	tag                            = "db"
 	replicaHealthCheckInitialDelay = 5 * time.Second
 	replicaHealthCheckInterval     = 30 * time.Second
 	replicaHealthCheckTimeout      = 10 * time.Second
@@ -138,13 +139,11 @@ func (d *DB) checkReplicas(ctx context.Context) {
 		cancel()
 		if err != nil {
 			r.healthy.Store(false)
-			if wasHealthy {
-				log.Error("Database replica %s is unhealthy: %s", r.Addr, err)
-			}
+			log.Tag(tag).Error("Database replica %s is unhealthy: %s", r.Addr, err)
 		} else {
 			r.healthy.Store(true)
 			if !wasHealthy {
-				log.Info("Database replica %s is healthy", r.Addr)
+				log.Tag(tag).Info("Database replica %s is healthy", r.Addr)
 			}
 		}
 	}
