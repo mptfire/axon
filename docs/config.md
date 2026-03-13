@@ -149,11 +149,7 @@ no external dependencies:
 
 ### PostgreSQL (EXPERIMENTAL)
 As an alternative, you can configure ntfy to use PostgreSQL for **all** database-backed stores by setting the
-`database-url` option to a PostgreSQL connection string:
-
-```yaml
-database-url: "postgres://user:pass@host:5432/ntfy"
-```
+`database-url` option to a PostgreSQL connection string.
 
 When `database-url` is set, ntfy will use PostgreSQL for the [message cache](#message-cache),
 [access control](#access-control), and [web push](#web-push) subscriptions instead of SQLite. The `cache-file`,
@@ -165,11 +161,44 @@ topics. To restrict access, set `auth-default-access` to `deny-all` (see [access
 
 You can also set this via the environment variable `NTFY_DATABASE_URL` or the command line flag `--database-url`.
 
+To offload read-heavy queries from the primary database, you can optionally configure one or more read replicas
+using the `database-replica-urls` option. When configured, non-critical read-only queries (e.g. fetching messages, checking access permissions, etc)
+are distributed across the replicas using round-robin, while all writes and correctness-critical reads continue to go
+to the primary. If a replica becomes unhealthy, ntfy automatically falls back to the primary until the replica recovers.
+You can also set this via the environment variable `NTFY_DATABASE_REPLICA_URLS` (comma-separated) or the command line
+flag `--database-replica-urls`.
+
+Examples:
+
+=== "Simple"
+    ```yaml
+    database-url: "postgres://user:pass@host:5432/ntfy"
+    ```
+    
+=== "With SSL and pool tuning"
+    ```yaml
+    database-url: "postgres://user:pass@host:5432/ntfy?sslmode=require&pool_max_conns=50&pool_conn_max_idle_time=5m"
+    ```
+    
+=== "With CA certificate"
+    ```yaml
+    database-url: "postgres://user:pass@host:25060/ntfy?sslmode=require&sslrootcert=/etc/ntfy/db-ca-cert.pem&pool_max_conns=30"
+    ```
+
+=== "With read replicas"
+    ```yaml
+    database-url: "postgres://user:pass@primary:5432/ntfy?sslmode=require&sslrootcert=/etc/ntfy/db-ca-cert.pem&pool_max_conns=30"
+    database-replica-urls:
+      - "postgres://user:pass@replica1:5432/ntfy?sslmode=require&sslrootcert=/etc/ntfy/db-ca-cert.pem&pool_max_conns=30"
+      - "postgres://user:pass@replica2:5432/ntfy?sslmode=require&sslrootcert=/etc/ntfy/db-ca-cert.pem&pool_max_conns=30"
+    ```
+
 The database URL supports the standard [PostgreSQL connection parameters](https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-PARAMKEYWORDS)
 as query parameters, such as `sslmode`, `connect_timeout`, `sslcert`, `sslkey`, `sslrootcert`, and `application_name`.
 See the [pgx driver documentation](https://pkg.go.dev/github.com/jackc/pgx/v5) for the full list of supported parameters.
 
-In addition, ntfy supports the following custom query parameters to tune the connection pool:
+In addition, ntfy supports the following custom query parameters to tune the connection pool (these apply to both
+the primary and replica URLs):
 
 | Parameter                 | Default | Description                                                                      |
 |---------------------------|---------|----------------------------------------------------------------------------------|
@@ -178,11 +207,6 @@ In addition, ntfy supports the following custom query parameters to tune the con
 | `pool_conn_max_lifetime`  | -       | Maximum amount of time a connection may be reused (Go duration, e.g. `5m`, `1h`) |
 | `pool_conn_max_idle_time` | -       | Maximum amount of time a connection may be idle (Go duration, e.g. `30s`, `5m`)  |
 
-Example:
-
-```yaml
-database-url: "postgres://user:pass@host:5432/ntfy?sslmode=require&pool_max_conns=50&pool_conn_max_idle_time=5m"
-```
 
 ## Message cache
 If desired, ntfy can temporarily keep notifications in an in-memory or an on-disk cache. Caching messages for a short period
@@ -1819,6 +1843,7 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `cert-file`                                | `NTFY_CERT_FILE`                                | *filename*                                          | -                 | HTTPS/TLS certificate file, only used if `listen-https` is set.                                                                                                                                                                 |
 | `firebase-key-file`                        | `NTFY_FIREBASE_KEY_FILE`                        | *filename*                                          | -                 | If set, also publish messages to a Firebase Cloud Messaging (FCM) topic for your app. This is optional and only required to save battery when using the Android app. See [Firebase (FCM)](#firebase-fcm).                       |
 | `database-url`                             | `NTFY_DATABASE_URL`                             | *string (connection URL)*                           | -                 | PostgreSQL connection string (e.g. `postgres://user:pass@host:5432/ntfy`). If set, uses PostgreSQL for all database-backed stores (message cache, user manager, web push) instead of SQLite. See [database options](#database-options). |
+| `database-replica-urls`                    | `NTFY_DATABASE_REPLICA_URLS`                    | *list of strings (connection URLs)*                 | -                 | PostgreSQL read replica connection strings. Non-critical read-only queries are distributed across replicas (round-robin) with automatic fallback to primary. Requires `database-url`. See [read replicas](#read-replicas). |
 | `cache-file`                               | `NTFY_CACHE_FILE`                               | *filename*                                          | -                 | If set, messages are cached in a local SQLite database instead of only in-memory. This allows for service restarts without losing messages in support of the since= parameter. See [message cache](#message-cache).             |
 | `cache-duration`                           | `NTFY_CACHE_DURATION`                           | *duration*                                          | 12h               | Duration for which messages will be buffered before they are deleted. This is required to support the `since=...` and `poll=1` parameter. Set this to `0` to disable the cache entirely.                                        |
 | `cache-startup-queries`                    | `NTFY_CACHE_STARTUP_QUERIES`                    | *string (SQL queries)*                              | -                 | SQL queries to run during database startup; this is useful for tuning and [enabling WAL mode](#message-cache)                                                                                                                   |
