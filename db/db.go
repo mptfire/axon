@@ -16,12 +16,6 @@ const (
 	replicaHealthCheckTimeout      = 10 * time.Second
 )
 
-// Beginner is an interface for types that can begin a database transaction.
-// Both *sql.DB and *DB implement this.
-type Beginner interface {
-	Begin() (*sql.Tx, error)
-}
-
 // DB wraps a primary *sql.DB and optional read replicas. All standard query/exec methods
 // delegate to the primary. The ReadOnly() method returns a *sql.DB from a healthy replica
 // (round-robin), falling back to the primary if no replicas are configured or all are unhealthy.
@@ -30,13 +24,6 @@ type DB struct {
 	replicas []*Host
 	counter  atomic.Uint64
 	cancel   context.CancelFunc
-}
-
-// Host pairs a *sql.DB with the host:port it was opened against.
-type Host struct {
-	Addr    string // "host:port"
-	DB      *sql.DB
-	healthy atomic.Bool
 }
 
 // New creates a new DB that wraps the given primary and optional replica connections.
@@ -53,12 +40,6 @@ func New(primary *Host, replicas []*Host) *DB {
 		go d.healthCheckLoop(ctx)
 	}
 	return d
-}
-
-// Primary returns the underlying primary *sql.DB. This is only intended for
-// one-time schema setup during store initialization, not for regular queries.
-func (d *DB) Primary() *sql.DB {
-	return d.primary.DB
 }
 
 // Query delegates to the primary database.
@@ -86,13 +67,10 @@ func (d *DB) Ping() error {
 	return d.primary.DB.Ping()
 }
 
-// Close closes the primary database and all replicas, and stops the health-check goroutine.
-func (d *DB) Close() error {
-	d.cancel()
-	for _, r := range d.replicas {
-		r.DB.Close()
-	}
-	return d.primary.DB.Close()
+// Primary returns the underlying primary *sql.DB. This is only intended for
+// one-time schema setup during store initialization, not for regular queries.
+func (d *DB) Primary() *sql.DB {
+	return d.primary.DB
 }
 
 // ReadOnly returns a *sql.DB suitable for read-only queries. It round-robins across healthy
@@ -110,6 +88,15 @@ func (d *DB) ReadOnly() *sql.DB {
 		}
 	}
 	return d.primary.DB
+}
+
+// Close closes the primary database and all replicas, and stops the health-check goroutine.
+func (d *DB) Close() error {
+	d.cancel()
+	for _, r := range d.replicas {
+		r.DB.Close()
+	}
+	return d.primary.DB.Close()
 }
 
 // healthCheckLoop checks replicas immediately, then periodically on a ticker.

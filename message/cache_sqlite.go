@@ -111,14 +111,14 @@ func NewSQLiteStore(filename, startupQueries string, cacheDuration time.Duration
 	if !util.FileExists(parentDir) {
 		return nil, fmt.Errorf("cache database directory %s does not exist or is not accessible", parentDir)
 	}
-	sqlDB, err := sql.Open("sqlite3", filename)
+	d, err := sql.Open("sqlite3", filename)
 	if err != nil {
 		return nil, err
 	}
-	if err := setupSQLite(sqlDB, startupQueries, cacheDuration); err != nil {
+	if err := setupSQLite(d, startupQueries, cacheDuration); err != nil {
 		return nil, err
 	}
-	return newCache(db.New(&db.Host{DB: sqlDB}, nil), sqliteQueries, &sync.Mutex{}, batchSize, batchTimeout, nop), nil
+	return newCache(db.New(&db.Host{DB: d}, nil), sqliteQueries, &sync.Mutex{}, batchSize, batchTimeout, nop), nil
 }
 
 // NewMemStore creates an in-memory cache

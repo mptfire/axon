@@ -281,15 +281,15 @@ func NewSQLiteManager(filename, startupQueries string, config *Config) (*Manager
 	if !util.FileExists(parentDir) {
 		return nil, fmt.Errorf("user database directory %s does not exist or is not accessible", parentDir)
 	}
-	sqlDB, err := sql.Open("sqlite3", filename)
+	d, err := sql.Open("sqlite3", filename)
 	if err != nil {
 		return nil, err
 	}
-	if err := setupSQLite(sqlDB); err != nil {
+	if err := setupSQLite(d); err != nil {
 		return nil, err
 	}
-	if err := runSQLiteStartupQueries(sqlDB, startupQueries); err != nil {
+	if err := runSQLiteStartupQueries(d, startupQueries); err != nil {
 		return nil, err
 	}
-	return newManager(db.New(&db.Host{DB: sqlDB}, nil), sqliteQueries, config)
+	return newManager(db.New(&db.Host{DB: d}, nil), sqliteQueries, config)
 }
