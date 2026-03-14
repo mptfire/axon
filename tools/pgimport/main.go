@@ -236,10 +236,11 @@ func execImport(c *cli.Context) error {
 	}
 	fmt.Println()
 
-	pgDB, err := pg.Open(databaseURL)
+	pgHost, err := pg.Open(databaseURL)
 	if err != nil {
 		return fmt.Errorf("cannot connect to PostgreSQL: %w", err)
 	}
+	pgDB := pgHost.DB
 	defer pgDB.Close()
 
 	if c.Bool("create-schema") {

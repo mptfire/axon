@@ -42,6 +42,7 @@ extra:
       link: https://github.com/binwiederhier
 extra_javascript:
   - static/js/extra.js
+  - static/js/bcrypt.js
   - static/js/config-generator.js
 extra_css:
   - static/css/extra.css

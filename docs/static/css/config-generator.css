@@ -549,13 +549,20 @@
     outline: none;
 }
 
+.cg-repeatable-row input:disabled,
+.cg-repeatable-row select:disabled {
+    background: #eee;
+    color: #999;
+    cursor: not-allowed;
+}
+
 .cg-btn-remove {
     background: none;
     border: 1px solid #ccc;
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.9rem;
-    padding: 3px 7px;
+    padding: 5px 8px;
     color: #999;
     line-height: 1;
 }
@@ -712,6 +719,12 @@ body[data-md-color-scheme="slate"] .cg-repeatable-row select {
     background: #2a2a3a;
     border-color: #555;
     color: #ddd;
+}
+
+body[data-md-color-scheme="slate"] .cg-repeatable-row input:disabled,
+body[data-md-color-scheme="slate"] .cg-repeatable-row select:disabled {
+    background: #1a1a28;
+    color: #666;
 }
 
 body[data-md-color-scheme="slate"] .cg-btn-remove {
