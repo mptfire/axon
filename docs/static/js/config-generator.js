@@ -317,7 +317,7 @@
       }
       if (c.section === "auth") hadAuth = true;
       const val = values[c.key];
-      lines.push(c.type === "bool" ? `${c.key}: true` : `${c.key}: "${val}"`);
+      lines.push(c.type === "bool" ? `${c.key}: true` : `${c.key}: "${escapeYamlValue(val)}"`);
     });
 
     // Find insertion point for auth-users/auth-access/auth-tokens:
@@ -347,7 +347,7 @@
         hadAuth = true;
       }
       authExtra.push("auth-users:");
-      users.forEach((entry) => authExtra.push(`  - "${entry}"`));
+      users.forEach((entry) => authExtra.push(`  - "${escapeYamlValue(entry)}"`));
     }
 
     const acls = formatAuthAcls(values);
@@ -358,7 +358,7 @@
         hadAuth = true;
       }
       authExtra.push("auth-access:");
-      acls.forEach((entry) => authExtra.push(`  - "${entry}"`));
+      acls.forEach((entry) => authExtra.push(`  - "${escapeYamlValue(entry)}"`));
     }
 
     const tokens = formatAuthTokens(values);
@@ -369,7 +369,7 @@
         hadAuth = true;
       }
       authExtra.push("auth-tokens:");
-      tokens.forEach((entry) => authExtra.push(`  - "${entry}"`));
+      tokens.forEach((entry) => authExtra.push(`  - "${escapeYamlValue(entry)}"`));
     }
 
     // Splice auth extras into the right position
@@ -397,7 +397,7 @@
         val = val.replace(/\$/g, "$$$$");
         hasDollarNote = true;
       }
-      lines.push(`      ${c.env}: "${val}"`);
+      lines.push(`      ${c.env}: "${escapeYamlValue(val)}"`);
     });
 
     const users = formatAuthUsers(values);
@@ -405,17 +405,17 @@
       let usersVal = users.join(",");
       usersVal = usersVal.replace(/\$/g, "$$$$");
       hasDollarNote = true;
-      lines.push(`      NTFY_AUTH_USERS: "${usersVal}"`);
+      lines.push(`      NTFY_AUTH_USERS: "${escapeYamlValue(usersVal)}"`);
     }
 
     const acls = formatAuthAcls(values);
     if (acls) {
-      lines.push(`      NTFY_AUTH_ACCESS: "${acls.join(",")}"`);
+      lines.push(`      NTFY_AUTH_ACCESS: "${escapeYamlValue(acls.join(","))}"`);
     }
 
     const tokens = formatAuthTokens(values);
     if (tokens) {
-      lines.push(`      NTFY_AUTH_TOKENS: "${tokens.join(",")}"`);
+      lines.push(`      NTFY_AUTH_TOKENS: "${escapeYamlValue(tokens.join(","))}"`);
     }
 
     if (hasDollarNote) {
@@ -444,25 +444,22 @@
     CONFIG.forEach((c) => {
       if (!(c.key in values)) return;
       const val = c.type === "bool" ? "true" : values[c.key];
-      const q = val.includes("$") ? "'" : "\"";
-      lines.push(`${c.env}=${q}${val}${q}`);
+      lines.push(`${c.env}=${escapeShellValue(val)}`);
     });
 
     const users = formatAuthUsers(values);
     if (users) {
-      const usersStr = users.join(",");
-      const q = usersStr.includes("$") ? "'" : "\"";
-      lines.push(`NTFY_AUTH_USERS=${q}${usersStr}${q}`);
+      lines.push(`NTFY_AUTH_USERS=${escapeShellValue(users.join(","))}`);
     }
 
     const acls = formatAuthAcls(values);
     if (acls) {
-      lines.push(`NTFY_AUTH_ACCESS="${acls.join(",")}"`);
+      lines.push(`NTFY_AUTH_ACCESS=${escapeShellValue(acls.join(","))}`);
     }
 
     const tokens = formatAuthTokens(values);
     if (tokens) {
-      lines.push(`NTFY_AUTH_TOKENS="${tokens.join(",")}"`);
+      lines.push(`NTFY_AUTH_TOKENS=${escapeShellValue(tokens.join(","))}`);
     }
 
     return lines.join("\n");
@@ -640,11 +637,17 @@
 
   // --- Helpers ---
 
+  function secureRandomInt(max) {
+    const arr = new Uint32Array(1);
+    crypto.getRandomValues(arr);
+    return arr[0] % max;
+  }
+
   function generateToken() {
     const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
     let token = "tk_";
     for (let i = 0; i < 29; i++) {
-      token += chars.charAt(Math.floor(Math.random() * chars.length));
+      token += chars.charAt(secureRandomInt(chars.length));
     }
     return token;
   }
@@ -653,9 +656,26 @@
     const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let password = "";
     for (let i = 0; i < 16; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
+      password += chars.charAt(secureRandomInt(chars.length));
     }
     return password;
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function escapeYamlValue(str) {
+    return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  }
+
+  function escapeShellValue(val) {
+    // Use single quotes for values with $, double quotes otherwise
+    // Escape the chosen quote character within the value
+    if (val.includes("$")) {
+      return "'" + val.replace(/'/g, "'\\''") + "'";
+    }
+    return '"' + val.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
   }
 
   function prefill(modal, key, value) {
@@ -898,14 +918,14 @@
     row.className = `cg-repeatable-row cg-auth-${type}-row`;
 
     if (type === "user") {
-      const username = `newuser${Math.floor(Math.random() * 100) + 1}`;
+      const username = `newuser${secureRandomInt(100) + 1}`;
       row.innerHTML =
-        `<input type="text" data-field="username" placeholder="Username" value="${username}">` +
-        `<input type="text" data-field="password" placeholder="Password" value="${generatePassword()}">` +
+        `<input type="text" data-field="username" placeholder="Username" value="${escapeHtml(username)}">` +
+        `<input type="text" data-field="password" placeholder="Password" value="${escapeHtml(generatePassword())}">` +
         "<select data-field=\"role\"><option value=\"user\">User</option><option value=\"admin\">Admin</option></select>" +
         "<button type=\"button\" class=\"cg-btn-remove\" title=\"Remove\">&times;</button>";
     } else if (type === "acl") {
-      let aclUser = `someuser${Math.floor(Math.random() * 100) + 1}`;
+      let aclUser = `someuser${secureRandomInt(100) + 1}`;
       const modal = container.closest(".cg-modal");
       if (modal) {
         const userRows = modal.querySelectorAll(".cg-auth-user-row");
@@ -919,7 +939,7 @@
         }
       }
       row.innerHTML =
-        `<input type="text" data-field="username" placeholder="Username (* for everyone)" value="${aclUser}">` +
+        `<input type="text" data-field="username" placeholder="Username (* for everyone)" value="${escapeHtml(aclUser)}">` +
         "<input type=\"text\" data-field=\"topic\" placeholder=\"Topic pattern\" value=\"sometopic*\">" +
         "<select data-field=\"permission\"><option value=\"read-write\">Read &amp; Write</option><option value=\"read-only\">Read Only</option><option value=\"write-only\">Write Only</option><option value=\"deny\">Deny</option></select>" +
         "<button type=\"button\" class=\"cg-btn-remove\" title=\"Remove\">&times;</button>";
@@ -932,8 +952,8 @@
         if (name && name.value.trim()) tokenUser = name.value.trim();
       }
       row.innerHTML =
-        `<input type="text" data-field="username" placeholder="Username" value="${tokenUser}">` +
-        `<input type="text" data-field="token" placeholder="Token" value="${generateToken()}">` +
+        `<input type="text" data-field="username" placeholder="Username" value="${escapeHtml(tokenUser)}">` +
+        `<input type="text" data-field="token" placeholder="Token" value="${escapeHtml(generateToken())}">` +
         "<input type=\"text\" data-field=\"label\" placeholder=\"Label (optional)\">" +
         "<button type=\"button\" class=\"cg-btn-remove\" title=\"Remove\">&times;</button>";
     }
