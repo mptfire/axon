@@ -608,6 +608,15 @@
         return token;
     }
 
+    function generatePassword() {
+        const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        let password = "";
+        for (let i = 0; i < 16; i++) {
+            password += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return password;
+    }
+
     function prefill(modal, key, value) {
         const el = modal.querySelector(`[data-key="${key}"]`);
         if (el && !el.value.trim() && !el.dataset.cleared) el.value = value;
@@ -999,6 +1008,21 @@
                     if (loginRequiredRadio) loginRequiredRadio.checked = true;
                     if (els.loginHidden) els.loginHidden.checked = true;
                     if (els.requireLoginHidden) els.requireLoginHidden.checked = true;
+                    // Add default admin user if no users exist
+                    const usersContainer = modal.querySelector("#cg-auth-users-container");
+                    if (usersContainer && !usersContainer.querySelector(".cg-auth-user-row")) {
+                        const onUpdate = () => { updateVisibility(els); updateOutput(els); };
+                        addRepeatableRow(usersContainer, "user", onUpdate);
+                        const row = usersContainer.querySelector(".cg-auth-user-row:last-child");
+                        if (row) {
+                            const u = row.querySelector('[data-field="username"]');
+                            const p = row.querySelector('[data-field="password"]');
+                            const r = row.querySelector('[data-field="role"]');
+                            if (u) u.value = "ntfyadmin";
+                            if (p) p.value = generatePassword();
+                            if (r) r.value = "admin";
+                        }
+                    }
                 }
                 // "custom" doesn't change anything
             });
