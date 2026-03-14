@@ -426,10 +426,26 @@
       }
     }
 
+    // Derive volumes from configured file/directory paths
+    const dirs = new Set();
+    ["auth-file", "cache-file", "web-push-file"].forEach((key) => {
+      if (values[key]) {
+        const dir = values[key].substring(0, values[key].lastIndexOf("/"));
+        if (dir) dirs.add(dir);
+      }
+    });
+    if (values["attachment-cache-dir"]) {
+      dirs.add(values["attachment-cache-dir"]);
+    }
+
+    if (dirs.size) {
+      lines.push("    volumes:");
+      [...dirs].sort().forEach((dir) => {
+        lines.push(`      - ${dir}:${dir}`);
+      });
+    }
+
     lines.push(
-      "    volumes:",
-      "      - /var/cache/ntfy:/var/cache/ntfy",
-      "      - /etc/ntfy:/etc/ntfy",
       "    ports:",
       "      - \"80:80\"",
       "    restart: unless-stopped"

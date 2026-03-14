@@ -139,7 +139,15 @@ using Docker Compose (i.e. `docker-compose.yml`):
 
 This generator helps you configure your self-hosted ntfy instance. It's not fully featured, but it is a good starting point. Please refer to the relevant sections in the doc for more details.
 
+<div style="text-align: center;">
 <button type="button" id="cg-open-btn" class="cg-open-btn">Open config generator</button>
+</div>
+
+<figure markdown style="padding-left: 50px; padding-right: 50px; cursor: pointer;" onclick="document.getElementById('cg-open-btn').click();">
+  <img src="../../static/img/config-generator.png"/>
+  <figcaption>The config generator helps you create a custom config for your self-hosted ntfy instance. Click to open.</figcaption>
+</figure>
+
 <div id="cg-modal" class="cg-modal" style="display:none">
 <div class="cg-modal-backdrop"></div>
 <div class="cg-modal-dialog">
