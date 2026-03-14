@@ -9,6 +9,7 @@
         { key: "auth-file", env: "NTFY_AUTH_FILE", section: "auth" },
         { key: "auth-default-access", env: "NTFY_AUTH_DEFAULT_ACCESS", section: "auth", def: "read-write" },
         { key: "enable-login", env: "NTFY_ENABLE_LOGIN", section: "auth", type: "bool" },
+        { key: "require-login", env: "NTFY_REQUIRE_LOGIN", section: "auth", type: "bool" },
         { key: "enable-signup", env: "NTFY_ENABLE_SIGNUP", section: "auth", type: "bool" },
         { key: "attachment-cache-dir", env: "NTFY_ATTACHMENT_CACHE_DIR", section: "attach" },
         { key: "attachment-file-size-limit", env: "NTFY_ATTACHMENT_FILE_SIZE_LIMIT", section: "attach", def: "15M" },
@@ -381,6 +382,17 @@
         }
     }
 
+    var durationRegex = /^(\d+)\s*(d|days?|h|hours?|m|mins?|minutes?|s|secs?|seconds?)$/i;
+    var sizeRegex = /^(\d+)([tgmkb])?$/i;
+
+    function isValidDuration(s) {
+        return durationRegex.test(s);
+    }
+
+    function isValidSize(s) {
+        return sizeRegex.test(s);
+    }
+
     function validate(modal, values) {
         var warnings = [];
         var baseUrl = values["base-url"] || "";
@@ -399,6 +411,11 @@
                     warnings.push("base-url is not a valid URL");
                 }
             }
+        }
+
+        // database-url must start with postgres://
+        if (values["database-url"] && values["database-url"].indexOf("postgres://") !== 0) {
+            warnings.push("database-url must start with postgres://");
         }
 
         // Web push requires all fields + base-url
@@ -453,12 +470,43 @@
             warnings.push("Enable signup requires enable-login to also be set");
         }
 
+        // Duration field validation
+        var durationFields = [
+            { key: "cache-duration", label: "Cache duration" },
+            { key: "attachment-expiry-duration", label: "Attachment expiry duration" },
+        ];
+        durationFields.forEach(function (f) {
+            if (values[f.key] && !isValidDuration(values[f.key])) {
+                warnings.push(f.label + " must be a valid duration (e.g. 12h, 3d, 30m, 60s)");
+            }
+        });
+
+        // Size field validation
+        var sizeFields = [
+            { key: "attachment-file-size-limit", label: "Attachment file size limit" },
+            { key: "attachment-total-size-limit", label: "Attachment total size limit" },
+        ];
+        sizeFields.forEach(function (f) {
+            if (values[f.key] && !isValidSize(values[f.key])) {
+                warnings.push(f.label + " must be a valid size (e.g. 15M, 5G, 100K)");
+            }
+        });
+
         return warnings;
+    }
+
+    function generateToken() {
+        var chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+        var token = "tk_";
+        for (var i = 0; i < 29; i++) {
+            token += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return token;
     }
 
     function prefill(modal, key, value) {
         var el = modal.querySelector('[data-key="' + key + '"]');
-        if (el && !el.value.trim()) el.value = value;
+        if (el && !el.value.trim() && !el.dataset.cleared) el.value = value;
     }
 
 
@@ -469,20 +517,22 @@
         var isPostgres = modal.querySelector('input[name="cg-db-type"][value="postgres"]');
         isPostgres = isPostgres && isPostgres.checked;
 
-        var isPrivate = modal.querySelector('input[name="cg-server-type"][value="private"]');
-        isPrivate = isPrivate && isPrivate.checked;
+        // Auto-enable auth when PostgreSQL is selected
+        if (isPostgres) {
+            var authCb = modal.querySelector("#cg-feat-auth");
+            if (authCb && !authCb.checked) {
+                authCb.checked = true;
+            }
+        }
+
+        var serverTypeRadio = modal.querySelector('input[name="cg-server-type"]:checked');
+        var serverType = serverTypeRadio ? serverTypeRadio.value : "open";
+        var isPrivate = serverType === "private";
 
         var isUnifiedPush = modal.querySelector('input[name="cg-unifiedpush"][value="yes"]');
         isUnifiedPush = isUnifiedPush && isUnifiedPush.checked;
 
-        // Auto-check auth when private or UnifiedPush is selected
         var authCheck = modal.querySelector("#cg-feat-auth");
-        if (authCheck) {
-            var authForced = isPrivate || isUnifiedPush || isPostgres;
-            if (authForced) authCheck.checked = true;
-            authCheck.disabled = authForced;
-        }
-
         var authEnabled = authCheck && authCheck.checked;
 
         var cacheEnabled = modal.querySelector("#cg-feat-cache");
@@ -536,21 +586,26 @@
             switchPanel(modal, "cg-panel-general");
         }
 
-        // Hide auth-file and web-push-file if PostgreSQL
-        var authFile = modal.querySelector('[data-key="auth-file"]');
-        if (authFile) {
-            var authField = authFile.closest(".cg-field");
-            if (authField) authField.style.display = isPostgres ? "none" : "";
-        }
-        var wpFile = modal.querySelector('[data-key="web-push-file"]');
-        if (wpFile) {
-            var wpField = wpFile.closest(".cg-field");
-            if (wpField) wpField.style.display = isPostgres ? "none" : "";
-        }
-
-        // Hide cache-file when PostgreSQL
-        var cacheFileField = modal.querySelector("#cg-cache-file-field");
-        if (cacheFileField) cacheFileField.style.display = isPostgres ? "none" : "";
+        // Show "Using PostgreSQL" instead of file inputs when PostgreSQL is selected
+        ["auth-file", "web-push-file", "cache-file"].forEach(function (key) {
+            var input = modal.querySelector('[data-key="' + key + '"]');
+            if (!input) return;
+            var field = input.closest(".cg-field");
+            if (!field) return;
+            input.style.display = isPostgres ? "none" : "";
+            var pgLabel = field.querySelector(".cg-pg-label");
+            if (isPostgres) {
+                if (!pgLabel) {
+                    pgLabel = document.createElement("span");
+                    pgLabel.className = "cg-pg-label";
+                    pgLabel.textContent = "Using PostgreSQL";
+                    input.parentNode.insertBefore(pgLabel, input.nextSibling);
+                }
+                pgLabel.style.display = "";
+            } else if (pgLabel) {
+                pgLabel.style.display = "none";
+            }
+        });
 
         // Database tab — show only when PostgreSQL is selected and a DB-dependent feature is on
         var navDb = modal.querySelector("#cg-nav-database");
@@ -577,10 +632,13 @@
             accessHidden.value = accessSelect.value;
         }
 
-        // Login/signup radios → hidden checkboxes
-        var loginYes = modal.querySelector('input[name="cg-enable-login"][value="yes"]');
+        // Login mode three-way toggle → hidden checkboxes
+        var loginMode = modal.querySelector('input[name="cg-login-mode"]:checked');
+        var loginModeVal = loginMode ? loginMode.value : "disabled";
         var loginHidden = modal.querySelector("#cg-enable-login-hidden");
-        if (loginYes && loginHidden) loginHidden.checked = loginYes.checked;
+        var requireLoginHidden = modal.querySelector("#cg-require-login-hidden");
+        if (loginHidden) loginHidden.checked = (loginModeVal === "enabled" || loginModeVal === "required");
+        if (requireLoginHidden) requireLoginHidden.checked = (loginModeVal === "required");
 
         var signupYes = modal.querySelector('input[name="cg-enable-signup"][value="yes"]');
         var signupHidden = modal.querySelector("#cg-enable-signup-hidden");
@@ -594,30 +652,25 @@
         if (authEnabled) {
             if (!isPostgres) prefill(modal, "auth-file", "/var/lib/ntfy/auth.db");
         }
-        if (isPrivate) {
-            // Set default access select to deny-all
-            if (accessSelect) accessSelect.value = "deny-all";
-            if (accessHidden) accessHidden.value = "deny-all";
-            // Enable login
-            var loginYesRadio = modal.querySelector('input[name="cg-enable-login"][value="yes"]');
-            if (loginYesRadio) loginYesRadio.checked = true;
-            if (loginHidden) loginHidden.checked = true;
-        } else {
-            // Open server: reset default access to read-write
-            if (accessSelect) accessSelect.value = "read-write";
-            if (accessHidden) accessHidden.value = "read-write";
+
+        // Auto-detect server type based on current auth settings
+        if (serverType !== "custom") {
+            var currentAccess = accessSelect ? accessSelect.value : "read-write";
+            var currentLoginEnabled = loginModeVal !== "disabled";
+            var matchesOpen = currentAccess === "read-write" && !currentLoginEnabled;
+            var matchesPrivate = currentAccess === "deny-all" && currentLoginEnabled;
+            if (!matchesOpen && !matchesPrivate) {
+                var customRadio = modal.querySelector('input[name="cg-server-type"][value="custom"]');
+                if (customRadio) customRadio.checked = true;
+            }
         }
 
         if (cacheEnabled) {
             if (!isPostgres) prefill(modal, "cache-file", "/var/cache/ntfy/cache.db");
-            prefill(modal, "cache-duration", "12h");
         }
 
         if (attachEnabled) {
             prefill(modal, "attachment-cache-dir", "/var/cache/ntfy/attachments");
-            prefill(modal, "attachment-file-size-limit", "15M");
-            prefill(modal, "attachment-total-size-limit", "5G");
-            prefill(modal, "attachment-expiry-duration", "3h");
         }
 
         if (webpushEnabled) {
@@ -654,7 +707,7 @@
             row.innerHTML =
                 '<input type="text" data-field="username" placeholder="Username">' +
                 '<input type="text" data-field="password" placeholder="Password hash (bcrypt)">' +
-                '<select data-field="role"><option value="user">user</option><option value="admin">admin</option></select>' +
+                '<select data-field="role"><option value="user">User</option><option value="admin">Admin</option></select>' +
                 '<button type="button" class="cg-btn-remove" title="Remove">&times;</button>';
         } else if (type === "acl") {
             row.innerHTML =
@@ -665,7 +718,7 @@
         } else if (type === "token") {
             row.innerHTML =
                 '<input type="text" data-field="username" placeholder="Username">' +
-                '<input type="text" data-field="token" placeholder="Token">' +
+                '<input type="text" data-field="token" placeholder="Token" value="' + generateToken() + '">' +
                 '<input type="text" data-field="label" placeholder="Label (optional)">' +
                 '<button type="button" class="cg-btn-remove" title="Remove">&times;</button>';
         }
@@ -704,9 +757,10 @@
         var resetBtn = document.getElementById("cg-reset-btn");
 
         function resetAll() {
-            // Reset all text/password inputs
+            // Reset all text/password inputs and clear flags
             modal.querySelectorAll('input[type="text"], input[type="password"]').forEach(function (el) {
                 el.value = "";
+                delete el.dataset.cleared;
             });
             // Uncheck all checkboxes
             modal.querySelectorAll('input[type="checkbox"]').forEach(function (el) {
@@ -782,10 +836,70 @@
             });
         });
 
+        // Auth checkbox: clean up when unchecked
+        var authCheckbox = modal.querySelector("#cg-feat-auth");
+        if (authCheckbox) {
+            authCheckbox.addEventListener("change", function () {
+                if (!authCheckbox.checked) {
+                    // Clear auth-file
+                    var authFile = modal.querySelector('[data-key="auth-file"]');
+                    if (authFile) { authFile.value = ""; delete authFile.dataset.cleared; }
+                    // Reset default access
+                    var accessSelect = modal.querySelector("#cg-default-access-select");
+                    if (accessSelect) accessSelect.value = "read-write";
+                    // Reset login mode to Disabled
+                    var loginDisabled = modal.querySelector('input[name="cg-login-mode"][value="disabled"]');
+                    if (loginDisabled) loginDisabled.checked = true;
+                    var signupNo = modal.querySelector('input[name="cg-enable-signup"][value="no"]');
+                    if (signupNo) signupNo.checked = true;
+                    // Reset UnifiedPush to No
+                    var upNo = modal.querySelector('input[name="cg-unifiedpush"][value="no"]');
+                    if (upNo) upNo.checked = true;
+                    // Remove provisioned users/ACLs/tokens
+                    modal.querySelectorAll(".cg-auth-user-row, .cg-auth-acl-row, .cg-auth-token-row").forEach(function (row) {
+                        row.remove();
+                    });
+                    // Switch server type to Open
+                    var openRadio = modal.querySelector('input[name="cg-server-type"][value="open"]');
+                    if (openRadio) openRadio.checked = true;
+                }
+            });
+        }
+
+        // Server type radio: apply mode settings when clicked
+        modal.querySelectorAll('input[name="cg-server-type"]').forEach(function (radio) {
+            radio.addEventListener("change", function () {
+                var accessSelect = modal.querySelector("#cg-default-access-select");
+                var loginDisabledRadio = modal.querySelector('input[name="cg-login-mode"][value="disabled"]');
+                var loginRequiredRadio = modal.querySelector('input[name="cg-login-mode"][value="required"]');
+                if (radio.value === "open") {
+                    if (accessSelect) accessSelect.value = "read-write";
+                    if (loginDisabledRadio) loginDisabledRadio.checked = true;
+                    var authCheck = modal.querySelector("#cg-feat-auth");
+                    if (authCheck) authCheck.checked = false;
+                    // Trigger the auth cleanup
+                    authCheck.dispatchEvent(new Event("change"));
+                } else if (radio.value === "private") {
+                    // Enable auth
+                    var authCheck = modal.querySelector("#cg-feat-auth");
+                    if (authCheck) authCheck.checked = true;
+                    if (accessSelect) accessSelect.value = "deny-all";
+                    if (loginRequiredRadio) loginRequiredRadio.checked = true;
+                }
+                // "custom" doesn't change anything
+            });
+        });
+
         // All form inputs trigger update
         modal.querySelectorAll("input, select").forEach(function (el) {
             var evt = (el.type === "checkbox" || el.type === "radio") ? "change" : "input";
             el.addEventListener(evt, function () {
+                // Mark text fields as cleared when user empties them
+                if (el.type === "text" && el.dataset.key && !el.value.trim()) {
+                    el.dataset.cleared = "1";
+                } else if (el.type === "text" && el.dataset.key && el.value.trim()) {
+                    delete el.dataset.cleared;
+                }
                 updateVisibility();
                 updateOutput();
             });

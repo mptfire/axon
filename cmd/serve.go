@@ -282,7 +282,9 @@ func execServe(c *cli.Context) error {
 	}
 
 	// Check values
-	if databaseURL != "" && (authFile != "" || cacheFile != "" || webPushFile != "") {
+	if databaseURL != "" && !strings.HasPrefix(databaseURL, "postgres://") {
+		return errors.New("if database-url is set, it must start with postgres://")
+	} else if databaseURL != "" && (authFile != "" || cacheFile != "" || webPushFile != "") {
 		return errors.New("if database-url is set, auth-file, cache-file, and web-push-file must not be set")
 	} else if firebaseKeyFile != "" && !util.FileExists(firebaseKeyFile) {
 		return errors.New("if set, FCM key file must exist")

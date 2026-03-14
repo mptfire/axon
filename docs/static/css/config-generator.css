@@ -66,6 +66,19 @@
     white-space: nowrap;
 }
 
+.cg-badge-beta {
+    display: inline-block;
+    padding: 1px 8px;
+    margin-left: 8px;
+    background: var(--md-primary-fg-color);
+    color: #fff;
+    font-size: 0.6rem;
+    font-weight: 600;
+    border-radius: 10px;
+    letter-spacing: 0.5px;
+    vertical-align: middle;
+}
+
 .cg-modal-desc {
     font-size: 0.75rem;
     color: #888;
@@ -381,6 +394,10 @@
     flex-shrink: 0;
 }
 
+.cg-panel:not(#cg-panel-general) .cg-inline-field > label {
+    width: 50%;
+}
+
 .cg-inline-field > input[type="text"],
 .cg-inline-field > select {
     padding: 4px 10px;
@@ -398,6 +415,12 @@
     border-color: var(--md-primary-fg-color);
     outline: none;
     box-shadow: 0 0 0 2px rgba(51, 133, 116, 0.15);
+}
+
+.cg-pg-label {
+    font-size: 0.75rem;
+    color: #888;
+    font-style: italic;
 }
 
 /* Button group toggle */

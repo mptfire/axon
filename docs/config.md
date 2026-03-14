@@ -145,7 +145,7 @@ This generator helps you configure your self-hosted ntfy instance. It's not full
 <div class="cg-modal-dialog">
 <div class="cg-modal-header">
 <div class="cg-modal-header-left">
-<span class="cg-modal-title">Config generator</span>
+<span class="cg-modal-title">Config generator</span><span class="cg-badge-beta">BETA</span>
 <span class="cg-modal-desc">This generator helps you configure your self-hosted ntfy instance. It's not fully featured, but it is a good starting point.</span>
 </div>
 <div class="cg-modal-header-actions">
@@ -178,10 +178,11 @@ This generator helps you configure your self-hosted ntfy instance. It's not full
 </div>
 </div>
 <div class="cg-field cg-inline-field">
-<label>Is this an open or private server? <a href="/config/#access-control" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
+<label>Will this ntfy server be open or private? <a href="/config/#access-control" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
 <div class="cg-btn-group">
 <label><input type="radio" name="cg-server-type" value="open" checked><span>Open</span></label>
 <label><input type="radio" name="cg-server-type" value="private"><span>Private</span></label>
+<label><input type="radio" name="cg-server-type" value="custom"><span>Custom</span></label>
 </div>
 </div>
 <div class="cg-field cg-inline-field">
@@ -210,7 +211,7 @@ This generator helps you configure your self-hosted ntfy instance. It's not full
 </div>
 </div>
 <div class="cg-field cg-inline-field" id="cg-wizard-db" style="display:none">
-<label>Which database backend? <a href="/config/#database-options" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
+<label>Which database backend would you like to use? <a href="/config/#database-options" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
 <div class="cg-btn-group">
 <label><input type="radio" name="cg-db-type" value="sqlite" checked><span>SQLite</span></label>
 <label><input type="radio" name="cg-db-type" value="postgres"><span>PostgreSQL</span></label>
@@ -224,7 +225,7 @@ This generator helps you configure your self-hosted ntfy instance. It's not full
 <input type="text" data-key="auth-file" placeholder="/var/lib/ntfy/auth.db">
 </div>
 <div class="cg-field cg-inline-field">
-<label>What is the default access policy? <a href="/config/#access-control" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
+<label>What should the default access policy be? <a href="/config/#access-control" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
 <select id="cg-default-access-select">
 <option value="read-write" selected>Read &amp; Write</option>
 <option value="read-only">Read Only</option>
@@ -233,14 +234,15 @@ This generator helps you configure your self-hosted ntfy instance. It's not full
 </select>
 </div>
 <div class="cg-field cg-inline-field">
-<label>Enable login page?</label>
+<label>Should login to the web app be enabled?</label>
 <div class="cg-btn-group">
-<label><input type="radio" name="cg-enable-login" value="no" checked><span>No</span></label>
-<label><input type="radio" name="cg-enable-login" value="yes"><span>Yes</span></label>
+<label><input type="radio" name="cg-login-mode" value="disabled" checked><span>Disabled</span></label>
+<label><input type="radio" name="cg-login-mode" value="enabled"><span>Enabled</span></label>
+<label><input type="radio" name="cg-login-mode" value="required"><span>Required</span></label>
 </div>
 </div>
 <div class="cg-field cg-inline-field">
-<label>Enable signup?</label>
+<label>Should it be possible to sign up via the web app?</label>
 <div class="cg-btn-group">
 <label><input type="radio" name="cg-enable-signup" value="no" checked><span>No</span></label>
 <label><input type="radio" name="cg-enable-signup" value="yes"><span>Yes</span></label>
@@ -248,6 +250,7 @@ This generator helps you configure your self-hosted ntfy instance. It's not full
 </div>
 <input type="hidden" data-key="auth-default-access">
 <input type="checkbox" data-key="enable-login" id="cg-enable-login-hidden" style="display:none">
+<input type="checkbox" data-key="require-login" id="cg-require-login-hidden" style="display:none">
 <input type="checkbox" data-key="enable-signup" id="cg-enable-signup-hidden" style="display:none">
 <div class="cg-field">
 <label>Provisioned users <a href="/config/#users-and-roles" target="_blank" class="cg-help"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8A8 8 0 1 1 0 8a8 8 0 0 1 16 0M5.496 6.033h.825c.138 0 .248-.113.266-.25.09-.656.54-1.134 1.342-1.134.686 0 1.314.343 1.314 1.168 0 .635-.374.927-.965 1.371-.673.489-1.206 1.06-1.168 1.987l.003.217a.25.25 0 0 0 .25.246h.811a.25.25 0 0 0 .25-.25v-.105c0-.718.273-.927 1.01-1.486.609-.463 1.244-.977 1.244-2.056 0-1.511-1.276-2.241-2.673-2.241-1.267 0-2.655.59-2.75 2.286a.237.237 0 0 0 .241.247m2.325 6.443c.61 0 1.029-.394 1.029-.927 0-.552-.42-.94-1.029-.94-.584 0-1.009.388-1.009.94 0 .533.425.927 1.01.927z"/></svg></a></label>
@@ -297,56 +300,59 @@ This generator helps you configure your self-hosted ntfy instance. It's not full
 </div>
 <div class="cg-panel" id="cg-panel-webpush">
 <div class="cg-panel-desc">Enable browser push notifications via the Web Push API. VAPID keys are generated automatically. See <a href="/config/#web-push" target="_blank">web push</a> for details.</div>
-<div class="cg-field">
-<label>Public key</label>
-<input type="text" data-key="web-push-public-key" placeholder="Public key" readonly>
-</div>
-<div class="cg-field">
-<label>Private key</label>
-<input type="text" data-key="web-push-private-key" placeholder="Private key" readonly>
-</div>
-<button type="button" id="cg-regen-keys" class="cg-btn-add" style="margin-bottom:12px">Regenerate keys</button>
-<div class="cg-field">
-<label>Web push file</label>
+<div class="cg-field cg-inline-field">
+<label>Where should web push data be stored?</label>
 <input type="text" data-key="web-push-file" placeholder="/var/lib/ntfy/webpush.db">
 </div>
-<div class="cg-field">
-<label>Email address</label>
+<div class="cg-field cg-inline-field">
+<label>Contact email address</label>
 <input type="text" data-key="web-push-email-address" placeholder="admin@example.com">
+</div>
+<div class="cg-field cg-inline-field">
+<label>Private key</label>
+<input type="text" data-key="web-push-private-key" placeholder="Auto-generated" readonly>
+</div>
+<div class="cg-field cg-inline-field">
+<label>Public key</label>
+<input type="text" data-key="web-push-public-key" placeholder="Auto-generated" readonly>
+</div>
+<div class="cg-field cg-inline-field">
+<label></label>
+<button type="button" id="cg-regen-keys" class="cg-btn-add">Regenerate keys</button>
 </div>
 </div>
 <div class="cg-panel" id="cg-panel-email">
 <div class="cg-panel-desc">Configure outgoing email notifications and/or incoming email publishing. See <a href="/config/#e-mail-notifications" target="_blank">email notifications</a> and <a href="/config/#e-mail-publishing" target="_blank">email publishing</a> for details.</div>
 <div id="cg-email-out-section" style="display:none">
 <div class="cg-field"><label><strong>Outgoing (notifications)</strong></label></div>
-<div class="cg-field">
+<div class="cg-field cg-inline-field">
 <label>SMTP server address</label>
 <input type="text" data-key="smtp-sender-addr" placeholder="smtp.example.com:587">
 </div>
-<div class="cg-field">
+<div class="cg-field cg-inline-field">
 <label>Sender email</label>
 <input type="text" data-key="smtp-sender-from" placeholder="ntfy@example.com">
 </div>
-<div class="cg-field">
+<div class="cg-field cg-inline-field">
 <label>SMTP username</label>
 <input type="text" data-key="smtp-sender-user" placeholder="Username">
 </div>
-<div class="cg-field">
+<div class="cg-field cg-inline-field">
 <label>SMTP password</label>
 <input type="password" data-key="smtp-sender-pass" placeholder="Password">
 </div>
 </div>
 <div id="cg-email-in-section" style="display:none">
 <div class="cg-field"><label><strong>Incoming (publishing)</strong></label></div>
-<div class="cg-field">
+<div class="cg-field cg-inline-field">
 <label>Listen address</label>
 <input type="text" data-key="smtp-server-listen" placeholder=":25">
 </div>
-<div class="cg-field">
+<div class="cg-field cg-inline-field">
 <label>Domain</label>
 <input type="text" data-key="smtp-server-domain" placeholder="ntfy.example.com">
 </div>
-<div class="cg-field">
+<div class="cg-field cg-inline-field">
 <label>Address prefix</label>
 <input type="text" data-key="smtp-server-addr-prefix" placeholder="ntfy-">
 </div>
