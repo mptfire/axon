@@ -162,6 +162,10 @@ This generator helps you configure your self-hosted ntfy instance. It's not full
 </div>
 </div>
 <div class="cg-modal-body">
+<div class="cg-mobile-toggle">
+  <button class="cg-mobile-toggle-btn active" data-show="left">Edit</button>
+  <button class="cg-mobile-toggle-btn" data-show="right">Preview</button>
+</div>
 <div id="cg-left">
 <div class="cg-nav">
 <div class="cg-nav-tab active" data-panel="cg-panel-general">General</div>
