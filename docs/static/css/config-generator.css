@@ -1,5 +1,10 @@
 /* Config Generator */
 
+/* Hidden utility */
+.cg-hidden {
+    display: none !important;
+}
+
 /* Open button */
 .cg-open-btn {
     display: inline-block;
@@ -415,6 +420,10 @@
     border-color: var(--md-primary-fg-color);
     outline: none;
     box-shadow: 0 0 0 2px rgba(51, 133, 116, 0.15);
+}
+
+#cg-email-in-section {
+    margin-top: 20px;
 }
 
 .cg-pg-label {
