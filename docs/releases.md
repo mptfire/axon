@@ -1761,6 +1761,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 * Support PostgreSQL read replicas for offloading non-critical read queries via `database-replica-urls` config option
 * Add interactive [config generator](config.md#config-generator) to the documentation to help create server configuration files
+* Add S3-compatible object storage as an alternative attachment backend via `attachment-s3-url` config option
 
 **Bug fixes + maintenance:**
 

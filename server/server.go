@@ -32,6 +32,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v2"
+	"heckel.io/ntfy/v2/attachment"
 	"heckel.io/ntfy/v2/db"
 	"heckel.io/ntfy/v2/db/pg"
 	"heckel.io/ntfy/v2/log"
@@ -64,7 +65,7 @@ type Server struct {
 	userManager       *user.Manager                       // Might be nil!
 	messageCache      *message.Cache                      // Database that stores the messages
 	webPush           *webpush.Store                      // Database that stores web push subscriptions
-	fileCache         *fileCache                          // File system based cache that stores attachments
+	fileCache         attachment.Store                    // Attachment store (file system or S3)
 	stripe            stripeAPI                           // Stripe API, can be replaced with a mock
 	priceCache        *util.LookupCache[map[string]int64] // Stripe price ID -> price as cents (USD implied!)
 	metricsHandler    http.Handler                        // Handles /metrics if enable-metrics set, and listen-metrics-http not set
@@ -227,12 +228,9 @@ func New(conf *Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	var fileCache *fileCache
-	if conf.AttachmentCacheDir != "" {
-		fileCache, err = newFileCache(conf.AttachmentCacheDir, conf.AttachmentTotalSizeLimit)
-		if err != nil {
-			return nil, err
-		}
+	fileCache, err := createAttachmentStore(conf)
+	if err != nil {
+		return nil, err
 	}
 	var userManager *user.Manager
 	if conf.AuthFile != "" || pool != nil {
@@ -299,6 +297,15 @@ func createMessageCache(conf *Config, pool *db.DB) (*message.Cache, error) {
 		return message.NewSQLiteStore(conf.CacheFile, conf.CacheStartupQueries, conf.CacheDuration, conf.CacheBatchSize, conf.CacheBatchTimeout, false)
 	}
 	return message.NewMemStore()
+}
+
+func createAttachmentStore(conf *Config) (attachment.Store, error) {
+	if conf.AttachmentS3URL != "" {
+		return attachment.NewS3Store(conf.AttachmentS3URL, conf.AttachmentTotalSizeLimit)
+	} else if conf.AttachmentCacheDir != "" {
+		return attachment.NewFileStore(conf.AttachmentCacheDir, conf.AttachmentTotalSizeLimit)
+	}
+	return nil, nil
 }
 
 // Run executes the main server. It listens on HTTP (+ HTTPS, if configured), and starts
@@ -752,7 +759,7 @@ func (s *Server) handleStats(w http.ResponseWriter, _ *http.Request, _ *visitor)
 // Before streaming the file to a client, it locates uploader (m.Sender or m.User) in the message cache, so it
 // can associate the download bandwidth with the uploader.
 func (s *Server) handleFile(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	if s.config.AttachmentCacheDir == "" {
+	if s.fileCache == nil {
 		return errHTTPInternalError
 	}
 	matches := fileRegex.FindStringSubmatch(r.URL.Path)
@@ -760,16 +767,16 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request, v *visitor) 
 		return errHTTPInternalErrorInvalidPath
 	}
 	messageID := matches[1]
-	file := filepath.Join(s.config.AttachmentCacheDir, messageID)
-	stat, err := os.Stat(file)
+	reader, size, err := s.fileCache.Read(messageID)
 	if err != nil {
 		return errHTTPNotFound.Fields(log.Context{
 			"message_id":    messageID,
-			"error_context": "filesystem",
+			"error_context": "attachment_store",
 		})
 	}
+	defer reader.Close()
 	w.Header().Set("Access-Control-Allow-Origin", s.config.AccessControlAllowOrigin) // CORS, allow cross-origin requests
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", stat.Size()))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", size))
 	if r.Method == http.MethodHead {
 		return nil
 	}
@@ -805,19 +812,14 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request, v *visitor) 
 	} else if m.Sender.IsValid() {
 		bandwidthVisitor = s.visitor(m.Sender, nil)
 	}
-	if !bandwidthVisitor.BandwidthAllowed(stat.Size()) {
+	if !bandwidthVisitor.BandwidthAllowed(size) {
 		return errHTTPTooManyRequestsLimitAttachmentBandwidth.With(m)
 	}
 	// Actually send file
-	f, err := os.Open(file)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
 	if m.Attachment.Name != "" {
 		w.Header().Set("Content-Disposition", "attachment; filename="+strconv.Quote(m.Attachment.Name))
 	}
-	_, err = io.Copy(util.NewContentTypeWriter(w, r.URL.Path), f)
+	_, err = io.Copy(util.NewContentTypeWriter(w, r.URL.Path), reader)
 	return err
 }
 
@@ -1408,7 +1410,7 @@ func (s *Server) renderTemplate(name, tpl, source string) (string, error) {
 }
 
 func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *model.Message, body *util.PeekedReadCloser) error {
-	if s.fileCache == nil || s.config.BaseURL == "" || s.config.AttachmentCacheDir == "" {
+	if s.fileCache == nil || s.config.BaseURL == "" {
 		return errHTTPBadRequestAttachmentsDisallowed.With(m)
 	}
 	vinfo, err := v.Info()

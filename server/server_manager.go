@@ -99,6 +99,9 @@ func (s *Server) execManager() {
 	mset(metricUsers, usersCount)
 	mset(metricSubscribers, subscribers)
 	mset(metricTopics, topicsCount)
+	if s.fileCache != nil {
+		mset(metricAttachmentsTotalSize, s.fileCache.Size())
+	}
 }
 
 func (s *Server) pruneVisitors() {

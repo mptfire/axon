@@ -489,20 +489,23 @@ Subscribers can retrieve cached messaging using the [`poll=1` parameter](subscri
 
 ## Attachments
 If desired, you may allow users to upload and [attach files to notifications](publish.md#attachments). To enable
-this feature, you have to simply configure an attachment cache directory and a base URL (`attachment-cache-dir`, `base-url`). 
-Once these options are set and the directory is writable by the server user, you can upload attachments via PUT.
+this feature, you have to configure an attachment storage backend and a base URL (`base-url`). Attachments can be stored
+either on the local filesystem (`attachment-cache-dir`) or in an S3-compatible object store (`attachment-s3-url`).
+Once configured, you can upload attachments via PUT.
 
-By default, attachments are stored in the disk-cache **for only 3 hours**. The main reason for this is to avoid legal issues
-and such when hosting user controlled content. Typically, this is more than enough time for the user (or the auto download 
+By default, attachments are stored **for only 3 hours**. The main reason for this is to avoid legal issues
+and such when hosting user controlled content. Typically, this is more than enough time for the user (or the auto download
 feature) to download the file. The following config options are relevant to attachments:
 
 * `base-url` is the root URL for the ntfy server; this is needed for the generated attachment URLs
-* `attachment-cache-dir` is the cache directory for attached files
-* `attachment-total-size-limit` is the size limit of the on-disk attachment cache (default: 5G)
+* `attachment-cache-dir` is the cache directory for attached files (mutually exclusive with `attachment-s3-url`)
+* `attachment-s3-url` is the S3 URL for attachment storage (mutually exclusive with `attachment-cache-dir`)
+* `attachment-total-size-limit` is the size limit of the attachment storage (default: 5G)
 * `attachment-file-size-limit` is the per-file attachment size limit (e.g. 300k, 2M, 100M, default: 15M)
 * `attachment-expiry-duration` is the duration after which uploaded attachments will be deleted (e.g. 3h, 20h, default: 3h)
 
-Here's an example config using mostly the defaults (except for the cache directory, which is empty by default): 
+### Filesystem storage
+Here's an example config using the local filesystem for attachment storage:
 
 === "/etc/ntfy/server.yml (minimal)"
     ``` yaml
@@ -519,6 +522,30 @@ Here's an example config using mostly the defaults (except for the cache directo
     attachment-expiry-duration: "3h"
     visitor-attachment-total-size-limit: "100M"
     visitor-attachment-daily-bandwidth-limit: "500M"
+    ```
+
+### S3 storage
+As an alternative to the local filesystem, you can store attachments in an S3-compatible object store (e.g. AWS S3,
+MinIO, DigitalOcean Spaces). This is useful for HA/cloud deployments where you don't want to rely on local disk storage.
+
+The `attachment-s3-url` option uses the following format:
+
+```
+s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT]
+```
+
+When `endpoint` is specified, path-style addressing is enabled automatically (useful for MinIO and other S3-compatible stores).
+
+=== "/etc/ntfy/server.yml (AWS S3)"
+    ``` yaml
+    base-url: "https://ntfy.sh"
+    attachment-s3-url: "s3://AKID:SECRET@my-bucket/attachments?region=us-east-1"
+    ```
+
+=== "/etc/ntfy/server.yml (MinIO/custom endpoint)"
+    ``` yaml
+    base-url: "https://ntfy.sh"
+    attachment-s3-url: "s3://AKID:SECRET@my-bucket/attachments?region=us-east-1&endpoint=https://s3.example.com"
     ```
 
 Please also refer to the [rate limiting](#rate-limiting) settings below, specifically `visitor-attachment-total-size-limit`
@@ -2116,7 +2143,8 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `behind-proxy`                             | `NTFY_BEHIND_PROXY`                             | *bool*                                              | false             | If set, use forwarded header (e.g. X-Forwarded-For, X-Client-IP) to determine visitor IP address (for rate limiting)                                                                                                            |
 | `proxy-forwarded-header`                   | `NTFY_PROXY_FORWARDED_HEADER`                   | *string*                                            | `X-Forwarded-For` | Use specified header to determine visitor IP address (for rate limiting)                                                                                                                                                        |
 | `proxy-trusted-hosts`                      | `NTFY_PROXY_TRUSTED_HOSTS`                      | *comma-separated host/IP/CIDR list*                 | -                 | Comma-separated list of trusted IP addresses, hosts, or CIDRs to remove from forwarded header                                                                                                                                   |
-| `attachment-cache-dir`                     | `NTFY_ATTACHMENT_CACHE_DIR`                     | *directory*                                         | -                 | Cache directory for attached files. To enable attachments, this has to be set.                                                                                                                                                  |
+| `attachment-cache-dir`                     | `NTFY_ATTACHMENT_CACHE_DIR`                     | *directory*                                         | -                 | Cache directory for attached files. Mutually exclusive with `attachment-s3-url`.                                                                                                                                                |
+| `attachment-s3-url`                        | `NTFY_ATTACHMENT_S3_URL`                        | *URL*                                               | -                 | S3 URL for attachment storage (format: `s3://KEY:SECRET@BUCKET[/PREFIX]?region=REGION`). Mutually exclusive with `attachment-cache-dir`.                                                                                        |
 | `attachment-total-size-limit`              | `NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT`              | *size*                                              | 5G                | Limit of the on-disk attachment cache directory. If the limits is exceeded, new attachments will be rejected.                                                                                                                   |
 | `attachment-file-size-limit`               | `NTFY_ATTACHMENT_FILE_SIZE_LIMIT`               | *size*                                              | 15M               | Per-file attachment size limit (e.g. 300k, 2M, 100M). Larger attachment will be rejected.                                                                                                                                       |
 | `attachment-expiry-duration`               | `NTFY_ATTACHMENT_EXPIRY_DURATION`               | *duration*                                          | 3h                | Duration after which uploaded attachments will be deleted (e.g. 3h, 20h). Strongly affects `visitor-attachment-total-size-limit`.                                                                                               |
@@ -2219,6 +2247,7 @@ OPTIONS:
    --auth-startup-queries value, --auth_startup_queries value                                                             queries run when the auth database is initialized [$NTFY_AUTH_STARTUP_QUERIES]
    --auth-default-access value, --auth_default_access value, -p value                                                     default permissions if no matching entries in the auth database are found (default: "read-write") [$NTFY_AUTH_DEFAULT_ACCESS]
    --attachment-cache-dir value, --attachment_cache_dir value                                                             cache directory for attached files [$NTFY_ATTACHMENT_CACHE_DIR]
+   --attachment-s3-url value, --attachment_s3_url value                                                                   S3 URL for attachment storage (s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION) [$NTFY_ATTACHMENT_S3_URL]
    --attachment-total-size-limit value, --attachment_total_size_limit value, -A value                                     limit of the on-disk attachment cache (default: "5G") [$NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT]
    --attachment-file-size-limit value, --attachment_file_size_limit value, -Y value                                       per-file attachment size limit (e.g. 300k, 2M, 100M) (default: "15M") [$NTFY_ATTACHMENT_FILE_SIZE_LIMIT]
    --attachment-expiry-duration value, --attachment_expiry_duration value, -X value                                       duration after which uploaded attachments will be deleted (e.g. 3h, 20h) (default: "3h") [$NTFY_ATTACHMENT_EXPIRY_DURATION]

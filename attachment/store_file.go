@@ -1,32 +1,29 @@
-package server
+package attachment
 
 import (
 	"errors"
-	"fmt"
-	"heckel.io/ntfy/v2/log"
-	"heckel.io/ntfy/v2/model"
-	"heckel.io/ntfy/v2/util"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sync"
+
+	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/util"
 )
 
-var (
-	fileIDRegex      = regexp.MustCompile(fmt.Sprintf(`^[-_A-Za-z0-9]{%d}$`, model.MessageIDLength))
-	errInvalidFileID = errors.New("invalid file ID")
-	errFileExists    = errors.New("file exists")
-)
+const tagFileStore = "file_store"
 
-type fileCache struct {
+var errFileExists = errors.New("file exists")
+
+type fileStore struct {
 	dir              string
 	totalSizeCurrent int64
 	totalSizeLimit   int64
 	mu               sync.Mutex
 }
 
-func newFileCache(dir string, totalSizeLimit int64) (*fileCache, error) {
+// NewFileStore creates a new file-system backed attachment store
+func NewFileStore(dir string, totalSizeLimit int64) (Store, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
@@ -34,18 +31,18 @@ func newFileCache(dir string, totalSizeLimit int64) (*fileCache, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &fileCache{
+	return &fileStore{
 		dir:              dir,
 		totalSizeCurrent: size,
 		totalSizeLimit:   totalSizeLimit,
 	}, nil
 }
 
-func (c *fileCache) Write(id string, in io.Reader, limiters ...util.Limiter) (int64, error) {
+func (c *fileStore) Write(id string, in io.Reader, limiters ...util.Limiter) (int64, error) {
 	if !fileIDRegex.MatchString(id) {
 		return 0, errInvalidFileID
 	}
-	log.Tag(tagFileCache).Field("message_id", id).Debug("Writing attachment")
+	log.Tag(tagFileStore).Field("message_id", id).Debug("Writing attachment")
 	file := filepath.Join(c.dir, id)
 	if _, err := os.Stat(file); err == nil {
 		return 0, errFileExists
@@ -68,20 +65,35 @@ func (c *fileCache) Write(id string, in io.Reader, limiters ...util.Limiter) (in
 	}
 	c.mu.Lock()
 	c.totalSizeCurrent += size
-	mset(metricAttachmentsTotalSize, c.totalSizeCurrent)
 	c.mu.Unlock()
 	return size, nil
 }
 
-func (c *fileCache) Remove(ids ...string) error {
+func (c *fileStore) Read(id string) (io.ReadCloser, int64, error) {
+	if !fileIDRegex.MatchString(id) {
+		return nil, 0, errInvalidFileID
+	}
+	file := filepath.Join(c.dir, id)
+	stat, err := os.Stat(file)
+	if err != nil {
+		return nil, 0, err
+	}
+	f, err := os.Open(file)
+	if err != nil {
+		return nil, 0, err
+	}
+	return f, stat.Size(), nil
+}
+
+func (c *fileStore) Remove(ids ...string) error {
 	for _, id := range ids {
 		if !fileIDRegex.MatchString(id) {
 			return errInvalidFileID
 		}
-		log.Tag(tagFileCache).Field("message_id", id).Debug("Deleting attachment")
+		log.Tag(tagFileStore).Field("message_id", id).Debug("Deleting attachment")
 		file := filepath.Join(c.dir, id)
 		if err := os.Remove(file); err != nil {
-			log.Tag(tagFileCache).Field("message_id", id).Err(err).Debug("Error deleting attachment")
+			log.Tag(tagFileStore).Field("message_id", id).Err(err).Debug("Error deleting attachment")
 		}
 	}
 	size, err := dirSize(c.dir)
@@ -91,17 +103,16 @@ func (c *fileCache) Remove(ids ...string) error {
 	c.mu.Lock()
 	c.totalSizeCurrent = size
 	c.mu.Unlock()
-	mset(metricAttachmentsTotalSize, size)
 	return nil
 }
 
-func (c *fileCache) Size() int64 {
+func (c *fileStore) Size() int64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.totalSizeCurrent
 }
 
-func (c *fileCache) Remaining() int64 {
+func (c *fileStore) Remaining() int64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	remaining := c.totalSizeLimit - c.totalSizeCurrent

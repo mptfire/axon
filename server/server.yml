@@ -159,6 +159,7 @@
 # - attachment-expiry-duration is the duration after which uploaded attachments will be deleted (e.g. 3h, 20h)
 #
 # attachment-cache-dir:
+# attachment-s3-url: "s3://ACCESS_KEY:SECRET_KEY@bucket/prefix?region=us-east-1"
 # attachment-total-size-limit: "5G"
 # attachment-file-size-limit: "15M"
 # attachment-expiry-duration: "3h"

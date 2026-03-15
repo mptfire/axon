@@ -112,6 +112,7 @@ type Config struct {
 	AuthBcryptCost                       int
 	AuthStatsQueueWriterInterval         time.Duration
 	AttachmentCacheDir                   string
+	AttachmentS3URL                      string
 	AttachmentTotalSizeLimit             int64
 	AttachmentFileSizeLimit              int64
 	AttachmentExpiryDuration             time.Duration
