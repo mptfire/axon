@@ -14,9 +14,17 @@ Please check out the release notes for [upcoming releases](#not-released-yet) be
 
 ## ntfy server v2.19.0
 
+This is a fast-follow release that enables Postgres read replica support.
+
+To offload read-heavy queries from the primary database, you can optionally configure one or more read replicas
+using the `database-replica-urls` option. When configured, non-critical read-only queries (e.g. fetching messages, 
+checking access permissions, etc) are distributed across the replicas using round-robin, while all writes and
+correctness-critical reads continue to go to the primary. If a replica becomes unhealthy, ntfy automatically falls back
+to the primary until the replica recovers.
+
 **Features:**
 
-* Support PostgreSQL read replicas for offloading non-critical read queries via `database-replica-urls` config option ([#1648](https://github.com/binwiederhier/ntfy/pull/1648))
+* Support [PostgreSQL read replicas](config.md#postgresql-experimental) for offloading non-critical read queries via `database-replica-urls` config option ([#1648](https://github.com/binwiederhier/ntfy/pull/1648))
 * Add interactive [config generator](config.md#config-generator) to the documentation to help create server configuration files ([#1654](https://github.com/binwiederhier/ntfy/pull/1654))
 
 **Bug fixes + maintenance:**
