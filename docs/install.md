@@ -28,6 +28,8 @@ resources to get started. _I am not affiliated with Kris or Alex, I just liked t
 Please check out the [releases page](https://github.com/binwiederhier/ntfy/releases) for binaries and
 deb/rpm packages.
 
+### Just download and run
+
 === "x86_64/amd64"
     ```bash
     wget https://github.com/binwiederhier/ntfy/releases/download/v2.19.1/ntfy_2.19.1_linux_amd64.tar.gz
@@ -63,6 +65,51 @@ deb/rpm packages.
     sudo mkdir /etc/ntfy && sudo cp ntfy_2.19.1_linux_arm64/{client,server}/*.yml /etc/ntfy
     sudo ntfy serve
     ```
+
+### Install permanently and start at boot
+The above allows you to quickly run ntfy. If you want to install it permanently and your OS/distribution of choice doesn't offer a package, there are a few more steps to follow.
+
+Create the ntfy user and group
+```useradd --system --home-dir /var/lib/ntfy --shell /bin/false --comment "User for the simple HTTP-based pub-sub notification service" ntfy```
+
+Depending on your init system, the following steps will diverge.
+
+#### On systemd systems
+
+Install the ntfy server unit file
+```bash
+sudo mv package/server/ntfy.service /etc/systemd/system/
+sudo chmod 644 /etc/systemd/system/ntfy.service
+```
+
+Notify systemd the new service exist
+```bash
+sudo systemctl daemon-reload
+```
+
+Launch the service on systemd
+```bash
+sudo systemctl ntfy start
+```
+
+#### On OpenRC systems
+
+Install the ntfy server service script 
+```bash
+sudo mv origin/path/ntfy.openrc /etc/init.d/ntfy
+sudo chmod 755 /etc/init.d/ntfy
+```
+
+Launch the ntfy server service
+```bash
+sudo rc-service ntfy start
+```
+
+Add ntfy server service to the default runlevel (so that it runs at startup)
+```bash
+sudo rc-update add ntfy default
+```
+
 
 ## Debian/Ubuntu repository
 
