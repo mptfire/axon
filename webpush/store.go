@@ -26,6 +26,7 @@ var (
 type Store struct {
 	db      *db.DB
 	queries queries
+
 }
 
 // queries holds the database-specific SQL queries.
@@ -63,9 +64,10 @@ func (s *Store) UpsertSubscription(endpoint string, auth, p256dh, userID string,
 		} else if err != nil {
 			return err
 		}
-		// Insert or update subscription
+		// Insert or update subscription, and read back the actual ID (which may differ from
+		// the generated one if another request for the same endpoint raced us and inserted first)
 		updatedAt, warnedAt := time.Now().Unix(), 0
-		if _, err := tx.Exec(s.queries.upsertSubscription, subscriptionID, endpoint, auth, p256dh, userID, subscriberIP.String(), updatedAt, warnedAt); err != nil {
+		if err := tx.QueryRow(s.queries.upsertSubscription, subscriptionID, endpoint, auth, p256dh, userID, subscriberIP.String(), updatedAt, warnedAt).Scan(&subscriptionID); err != nil {
 			return err
 		}
 		// Replace all subscription topics

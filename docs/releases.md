@@ -1791,4 +1791,5 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 **Bug fixes + maintenance:**
 
+* Fix race condition in web push subscription causing FK constraint violation when concurrent requests hit the same endpoint
 * Route authorization query to read-only database replica to reduce primary database load
