@@ -528,8 +528,7 @@ func (s *Server) maybeRemoveMessagesAndExcessReservations(r *http.Request, v *vi
 	removedTopics, err := s.userManager.RemoveExcessReservations(u.Name, reservationsLimit)
 	if err != nil {
 		return err
-	}
-	if len(removedTopics) == 0 {
+	} else if len(removedTopics) == 0 {
 		logvr(v, r).Tag(tagAccount).Debug("No excess reservations to remove")
 		return nil
 	}
