@@ -125,16 +125,16 @@ func (c *Cache) addMessages(ms []*model.Message) error {
 			return model.ErrUnexpectedMessageType
 		}
 		published := m.Time <= time.Now().Unix()
-		tags := strings.Join(m.Tags, ",")
+		tags := util.SanitizeUTF8(strings.Join(m.Tags, ","))
 		var attachmentName, attachmentType, attachmentURL string
 		var attachmentSize, attachmentExpires int64
 		var attachmentDeleted bool
 		if m.Attachment != nil {
-			attachmentName = m.Attachment.Name
-			attachmentType = m.Attachment.Type
+			attachmentName = util.SanitizeUTF8(m.Attachment.Name)
+			attachmentType = util.SanitizeUTF8(m.Attachment.Type)
 			attachmentSize = m.Attachment.Size
 			attachmentExpires = m.Attachment.Expires
-			attachmentURL = m.Attachment.URL
+			attachmentURL = util.SanitizeUTF8(m.Attachment.URL)
 		}
 		var actionsStr string
 		if len(m.Actions) > 0 {
@@ -154,13 +154,13 @@ func (c *Cache) addMessages(ms []*model.Message) error {
 			m.Time,
 			m.Event,
 			m.Expires,
-			m.Topic,
-			m.Message,
-			m.Title,
+			util.SanitizeUTF8(m.Topic),
+			util.SanitizeUTF8(m.Message),
+			util.SanitizeUTF8(m.Title),
 			m.Priority,
 			tags,
-			m.Click,
-			m.Icon,
+			util.SanitizeUTF8(m.Click),
+			util.SanitizeUTF8(m.Icon),
 			actionsStr,
 			attachmentName,
 			attachmentType,
@@ -170,7 +170,7 @@ func (c *Cache) addMessages(ms []*model.Message) error {
 			attachmentDeleted, // Always zero
 			sender,
 			m.User,
-			m.ContentType,
+			util.SanitizeUTF8(m.ContentType),
 			m.Encoding,
 			published,
 		)

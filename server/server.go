@@ -880,6 +880,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 	if m.Message == "" {
 		m.Message = emptyMessageBody
 	}
+	m.SanitizeUTF8()
 	delayed := m.Time > time.Now().Unix()
 	ev := logvrm(v, r, m).
 		Tag(tagPublish).
