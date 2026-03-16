@@ -478,8 +478,8 @@ func TestPayments_Webhook_Subscription_Updated_Downgrade_From_PastDue_To_Active(
 		}))
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
 		require.Nil(t, s.userManager.ChangeTier("phil", "pro"))
-		require.Nil(t, s.userManager.AddReservation("phil", "atopic", user.PermissionDenyAll))
-		require.Nil(t, s.userManager.AddReservation("phil", "ztopic", user.PermissionDenyAll))
+		require.Nil(t, s.userManager.AddReservation("phil", "atopic", user.PermissionDenyAll, 0))
+		require.Nil(t, s.userManager.AddReservation("phil", "ztopic", user.PermissionDenyAll, 0))
 
 		// Add billing details
 		u, err := s.userManager.User("phil")
@@ -589,7 +589,7 @@ func TestPayments_Webhook_Subscription_Deleted(t *testing.T) {
 		}))
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
 		require.Nil(t, s.userManager.ChangeTier("phil", "pro"))
-		require.Nil(t, s.userManager.AddReservation("phil", "atopic", user.PermissionDenyAll))
+		require.Nil(t, s.userManager.AddReservation("phil", "atopic", user.PermissionDenyAll, 0))
 
 		// Add billing details
 		u, err := s.userManager.User("phil")
