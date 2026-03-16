@@ -226,7 +226,7 @@ func TestManager_MarkUserRemoved_RemoveDeletedUsers(t *testing.T) {
 
 		// Create user, add reservations and token
 		require.Nil(t, a.AddUser("user", "pass", RoleAdmin, false))
-		require.Nil(t, a.AddReservation("user", "mytopic", PermissionRead))
+		require.Nil(t, a.AddReservation("user", "mytopic", PermissionRead, 0))
 
 		u, err := a.User("user")
 		require.Nil(t, err)
@@ -439,8 +439,8 @@ func TestManager_Reservations(t *testing.T) {
 		a := newTestManager(t, newManager, PermissionDenyAll)
 		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
-		require.Nil(t, a.AddReservation("ben", "ztopic_", PermissionDenyAll))
-		require.Nil(t, a.AddReservation("ben", "readme", PermissionRead))
+		require.Nil(t, a.AddReservation("ben", "ztopic_", PermissionDenyAll, 0))
+		require.Nil(t, a.AddReservation("ben", "readme", PermissionRead, 0))
 		require.Nil(t, a.AllowAccess("ben", "something-else", PermissionRead))
 
 		reservations, err := a.Reservations("ben")
@@ -523,7 +523,7 @@ func TestManager_ChangeRoleFromTierUserToAdmin(t *testing.T) {
 		}))
 		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
 		require.Nil(t, a.ChangeTier("ben", "pro"))
-		require.Nil(t, a.AddReservation("ben", "mytopic", PermissionDenyAll))
+		require.Nil(t, a.AddReservation("ben", "mytopic", PermissionDenyAll, 0))
 
 		ben, err := a.User("ben")
 		require.Nil(t, err)
@@ -1076,7 +1076,7 @@ func TestManager_Tier_Change_And_Reset(t *testing.T) {
 
 		// Add 10 reservations (pro tier allows that)
 		for i := 0; i < 4; i++ {
-			require.Nil(t, a.AddReservation("phil", fmt.Sprintf("topic%d", i), PermissionWrite))
+			require.Nil(t, a.AddReservation("phil", fmt.Sprintf("topic%d", i), PermissionWrite, 0))
 		}
 
 		// Downgrading will not work (too many reservations)
@@ -2118,7 +2118,7 @@ func TestStoreAuthorizeTopicAccessDenyAll(t *testing.T) {
 func TestStoreReservations(t *testing.T) {
 	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
 		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
-		require.Nil(t, manager.AddReservation("phil", "mytopic", PermissionRead))
+		require.Nil(t, manager.AddReservation("phil", "mytopic", PermissionRead, 0))
 
 		reservations, err := manager.Reservations("phil")
 		require.Nil(t, err)
@@ -2133,8 +2133,8 @@ func TestStoreReservations(t *testing.T) {
 func TestStoreReservationsCount(t *testing.T) {
 	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
 		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
-		require.Nil(t, manager.AddReservation("phil", "topic1", PermissionReadWrite))
-		require.Nil(t, manager.AddReservation("phil", "topic2", PermissionReadWrite))
+		require.Nil(t, manager.AddReservation("phil", "topic1", PermissionReadWrite, 0))
+		require.Nil(t, manager.AddReservation("phil", "topic2", PermissionReadWrite, 0))
 
 		count, err := manager.ReservationsCount("phil")
 		require.Nil(t, err)
@@ -2145,7 +2145,7 @@ func TestStoreReservationsCount(t *testing.T) {
 func TestStoreHasReservation(t *testing.T) {
 	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
 		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
-		require.Nil(t, manager.AddReservation("phil", "mytopic", PermissionReadWrite))
+		require.Nil(t, manager.AddReservation("phil", "mytopic", PermissionReadWrite, 0))
 
 		has, err := manager.HasReservation("phil", "mytopic")
 		require.Nil(t, err)
@@ -2160,7 +2160,7 @@ func TestStoreHasReservation(t *testing.T) {
 func TestStoreReservationOwner(t *testing.T) {
 	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
 		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
-		require.Nil(t, manager.AddReservation("phil", "mytopic", PermissionReadWrite))
+		require.Nil(t, manager.AddReservation("phil", "mytopic", PermissionReadWrite, 0))
 
 		owner, err := manager.ReservationOwner("mytopic")
 		require.Nil(t, err)
@@ -2169,6 +2169,26 @@ func TestStoreReservationOwner(t *testing.T) {
 		owner, err = manager.ReservationOwner("unowned")
 		require.Nil(t, err)
 		require.Empty(t, owner)
+	})
+}
+
+func TestStoreAddReservationWithLimit(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+
+		// Adding reservations within limit succeeds
+		require.Nil(t, manager.AddReservation("phil", "topic1", PermissionReadWrite, 2))
+		require.Nil(t, manager.AddReservation("phil", "topic2", PermissionRead, 2))
+
+		// Adding a third reservation exceeds the limit
+		require.Equal(t, ErrTooManyReservations, manager.AddReservation("phil", "topic3", PermissionRead, 2))
+
+		// Updating an existing reservation within the limit succeeds
+		require.Nil(t, manager.AddReservation("phil", "topic1", PermissionRead, 2))
+
+		reservations, err := manager.Reservations("phil")
+		require.Nil(t, err)
+		require.Len(t, reservations, 2)
 	})
 }
 
@@ -2431,7 +2451,7 @@ func TestStoreOtherAccessCount(t *testing.T) {
 	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
 		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
 		require.Nil(t, manager.AddUser("ben", "benpass", RoleUser, false))
-		require.Nil(t, manager.AddReservation("ben", "mytopic", PermissionReadWrite))
+		require.Nil(t, manager.AddReservation("ben", "mytopic", PermissionReadWrite, 0))
 
 		count, err := manager.otherAccessCount("phil", "mytopic")
 		require.Nil(t, err)
