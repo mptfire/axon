@@ -1787,4 +1787,8 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-Nothing to see here.
+### ntfy server v2.20.x (UNRELEASED)
+
+**Bug fixes + maintenance:**
+
+* Route authorization query to read-only database replica to reduce primary database load
