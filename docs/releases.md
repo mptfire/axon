@@ -13,6 +13,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
 
 ## ntfy server v2.19.0
+Released March 15, 2026
 
 This is a fast-follow release that enables Postgres read replica support.
 
