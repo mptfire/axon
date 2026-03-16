@@ -286,8 +286,8 @@ func execServe(c *cli.Context) error {
 	}
 
 	// Check values
-	if databaseURL != "" && !strings.HasPrefix(databaseURL, "postgres://") {
-		return errors.New("if database-url is set, it must start with postgres://")
+	if databaseURL != "" && !strings.HasPrefix(databaseURL, "postgres://") && !strings.HasPrefix(databaseURL, "postgresql://") {
+		return errors.New("if database-url is set, it must start with postgres:// or postgresql://")
 	} else if databaseURL != "" && (authFile != "" || cacheFile != "" || webPushFile != "") {
 		return errors.New("if database-url is set, auth-file, cache-file, and web-push-file must not be set")
 	} else if len(databaseReplicaURLs) > 0 && databaseURL == "" {

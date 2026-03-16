@@ -642,7 +642,7 @@ func (a *Manager) AllowReservation(username string, topic string) error {
 // - Furthermore, the query prioritizes more specific permissions (longer!) over more generic ones, e.g. "test*" > "*"
 // - It also prioritizes write permissions over read permissions
 func (a *Manager) authorizeTopicAccess(usernameOrEveryone, topic string) (read, write, found bool, err error) {
-	rows, err := a.db.Query(a.queries.selectTopicPerms, Everyone, usernameOrEveryone, topic)
+	rows, err := a.db.ReadOnly().Query(a.queries.selectTopicPerms, Everyone, usernameOrEveryone, topic)
 	if err != nil {
 		return false, false, false, err
 	}
