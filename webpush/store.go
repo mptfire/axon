@@ -26,7 +26,6 @@ var (
 type Store struct {
 	db      *db.DB
 	queries queries
-
 }
 
 // queries holds the database-specific SQL queries.
