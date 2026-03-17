@@ -27,6 +27,9 @@ const (
 	// above which PutObject switches from a simple PUT to multipart upload. S3 requires a minimum
 	// part size of 5 MB for all parts except the last.
 	partSize = 5 * 1024 * 1024
+
+	// maxPages is the max number of pages to iterate through when listing objects
+	maxPages = 10000
 )
 
 // ParseURL parses an S3 URL of the form:
