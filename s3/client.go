@@ -82,7 +82,7 @@ func (c *Client) GetObject(ctx context.Context, key string) (io.ReadCloser, int6
 	if err != nil {
 		return nil, 0, fmt.Errorf("s3: GetObject: %w", err)
 	}
-	if resp.StatusCode/100 != 2 {
+	if !isHTTPSuccess(resp) {
 		err := parseError(resp)
 		resp.Body.Close()
 		return nil, 0, err
@@ -126,7 +126,7 @@ func (c *Client) DeleteObjects(ctx context.Context, keys []string) error {
 		return fmt.Errorf("s3: DeleteObjects: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 {
+	if !isHTTPSuccess(resp) {
 		return parseError(resp)
 	}
 
@@ -176,7 +176,7 @@ func (c *Client) ListObjects(ctx context.Context, continuationToken string, maxK
 	if err != nil {
 		return nil, fmt.Errorf("s3: ListObjects read: %w", err)
 	}
-	if resp.StatusCode/100 != 2 {
+	if !isHTTPSuccess(resp) {
 		return nil, parseErrorFromBytes(resp.StatusCode, respBody)
 	}
 	var result listObjectsV2Response
@@ -228,7 +228,7 @@ func (c *Client) putObject(ctx context.Context, key string, body io.Reader, size
 		return fmt.Errorf("s3: PutObject: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 {
+	if !isHTTPSuccess(resp) {
 		return parseError(resp)
 	}
 	return nil
@@ -288,7 +288,7 @@ func (c *Client) initiateMultipartUpload(ctx context.Context, fullKey string) (s
 		return "", fmt.Errorf("s3: InitiateMultipartUpload: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 {
+	if !isHTTPSuccess(resp) {
 		return "", parseError(resp)
 	}
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
@@ -316,7 +316,7 @@ func (c *Client) uploadPart(ctx context.Context, fullKey, uploadID string, partN
 		return "", fmt.Errorf("s3: UploadPart: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 {
+	if !isHTTPSuccess(resp) {
 		return "", parseError(resp)
 	}
 	etag := resp.Header.Get("ETag")
@@ -347,7 +347,7 @@ func (c *Client) completeMultipartUpload(ctx context.Context, fullKey, uploadID 
 		return fmt.Errorf("s3: CompleteMultipartUpload: %w", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 {
+	if !isHTTPSuccess(resp) {
 		return parseError(resp)
 	}
 	// Read response body to check for errors (S3 can return 200 with an error body)

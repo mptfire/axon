@@ -154,6 +154,10 @@ func uriEncode(s string) string {
 	return buf.String()
 }
 
+func isHTTPSuccess(resp *http.Response) bool {
+	return resp.StatusCode/100 == 2
+}
+
 func sha256Hex(data []byte) string {
 	h := sha256.Sum256(data)
 	return hex.EncodeToString(h[:])
