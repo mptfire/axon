@@ -1543,6 +1543,30 @@ func TestServer_PublishEmailNoMailer_Fail(t *testing.T) {
 	})
 }
 
+func TestServer_PublishEmailAddressInvalid(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+		s.smtpSender = &testMailer{}
+		addresses := []string{
+			"test@example.com, other@example.com",
+			"invalidaddress",
+			"@nope",
+			"nope@",
+		}
+		for _, email := range addresses {
+			response := request(t, s, "PUT", "/mytopic", "fail", map[string]string{
+				"E-Mail": email,
+			})
+			require.Equal(t, 400, response.Code, "expected 400 for email: %s", email)
+		}
+		// Valid address should succeed
+		response := request(t, s, "PUT", "/mytopic", "success", map[string]string{
+			"E-Mail": "test@example.com",
+		})
+		require.Equal(t, 200, response.Code)
+	})
+}
+
 func TestServer_PublishAndExpungeTopicAfter16Hours(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()

@@ -6,11 +6,22 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 | Component        | Version | Release date |
 |------------------|---------|--------------|
-| ntfy server      | v2.19.1 | Mar 15, 2026 |
+| ntfy server      | v2.19.2 | Mar 16, 2026 |
 | ntfy Android app | v1.24.0 | Mar 5, 2026  |
 | ntfy iOS app     | v1.3    | Nov 26, 2023 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+### ntfy server v2.19.2
+Released March 16, 2026
+
+This is another small bugfix release for PostgreSQL, avoiding races between primary and read replica, as well as to
+further reduce primary load.
+
+**Bug fixes + maintenance:**
+
+* Fix race condition in web push subscription causing FK constraint violation when concurrent requests hit the same endpoint
+* Route authorization query to read-only database replica to reduce primary database load
 
 ## ntfy server v2.19.1
 Released March 15, 2026
@@ -1795,5 +1806,4 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 **Bug fixes + maintenance:**
 
-* Fix race condition in web push subscription causing FK constraint violation when concurrent requests hit the same endpoint
-* Route authorization query to read-only database replica to reduce primary database load
+* Reject invalid e-mail addresses (e.g. multiple comma-separated recipients) with HTTP 400

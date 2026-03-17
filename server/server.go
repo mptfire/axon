@@ -123,6 +123,7 @@ var (
 	fileRegex                                            = regexp.MustCompile(`^/file/([-_A-Za-z0-9]{1,64})(?:\.[A-Za-z0-9]{1,16})?$`)
 	urlRegex                                             = regexp.MustCompile(`^https?://`)
 	phoneNumberRegex                                     = regexp.MustCompile(`^\+\d{1,100}$`)
+	emailAddressRegex                                    = regexp.MustCompile(`^[^\s,;]+@[^\s,;]+$`)
 
 	//go:embed site
 	webFs       embed.FS
@@ -1165,6 +1166,9 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 		m.Icon = icon
 	}
 	email = readParam(r, "x-email", "x-e-mail", "email", "e-mail", "mail", "e")
+	if email != "" && !emailAddressRegex.MatchString(email) {
+		return false, false, "", "", "", false, "", errHTTPBadRequestEmailAddressInvalid
+	}
 	if s.smtpSender == nil && email != "" {
 		return false, false, "", "", "", false, "", errHTTPBadRequestEmailDisabled
 	}
