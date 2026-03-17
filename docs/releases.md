@@ -1798,4 +1798,8 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-Nothing.
+### ntfy server v2.20.x (UNRELEASED)
+
+**Bug fixes + maintenance:**
+
+* Reject invalid e-mail addresses (e.g. multiple comma-separated recipients) with HTTP 400
