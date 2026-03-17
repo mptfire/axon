@@ -22,6 +22,11 @@ const (
 
 	// maxResponseBytes caps the size of S3 response bodies we read into memory (10 MB)
 	maxResponseBytes = 10 * 1024 * 1024
+
+	// partSize is the size of each part for multipart uploads (5 MB). This is also the threshold
+	// above which PutObject switches from a simple PUT to multipart upload. S3 requires a minimum
+	// part size of 5 MB for all parts except the last.
+	partSize = 5 * 1024 * 1024
 )
 
 // ParseURL parses an S3 URL of the form:

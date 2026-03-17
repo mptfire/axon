@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,25 +51,22 @@ func New(config *Config) *Client {
 }
 
 // PutObject uploads body to the given key. The key is automatically prefixed with the client's
-// configured prefix. The body size must be known in advance. The payload is sent as
-// UNSIGNED-PAYLOAD, which is supported by all major S3-compatible providers over HTTPS.
-func (c *Client) PutObject(ctx context.Context, key string, body io.Reader, size int64) error {
-	fullKey := c.objectKey(key)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.objectURL(fullKey), body)
+// configured prefix. The body size does not need to be known in advance.
+//
+// If the entire body fits in a single part (5 MB), it is uploaded with a simple PUT request.
+// Otherwise, the body is uploaded using S3 multipart upload, reading one part at a time
+// into memory.
+func (c *Client) PutObject(ctx context.Context, key string, body io.Reader) error {
+	first := make([]byte, partSize)
+	n, err := io.ReadFull(body, first)
+	if errors.Is(err, io.ErrUnexpectedEOF) || err == io.EOF {
+		return c.putObject(ctx, key, bytes.NewReader(first[:n]), int64(n))
+	}
 	if err != nil {
-		return fmt.Errorf("s3: PutObject request: %w", err)
+		return fmt.Errorf("s3: PutObject read: %w", err)
 	}
-	req.ContentLength = size
-	c.signV4(req, unsignedPayload)
-	resp, err := c.httpClient().Do(req)
-	if err != nil {
-		return fmt.Errorf("s3: PutObject: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode/100 != 2 {
-		return parseError(resp)
-	}
-	return nil
+	combined := io.MultiReader(bytes.NewReader(first), body)
+	return c.putObjectMultipart(ctx, key, combined)
 }
 
 // GetObject downloads an object. The key is automatically prefixed with the client's configured
@@ -214,6 +212,171 @@ func (c *Client) ListAllObjects(ctx context.Context) ([]Object, error) {
 		token = result.NextContinuationToken
 	}
 	return nil, fmt.Errorf("s3: ListAllObjects exceeded %d pages", maxPages)
+}
+
+// putObject uploads a body with known size using a simple PUT with UNSIGNED-PAYLOAD.
+func (c *Client) putObject(ctx context.Context, key string, body io.Reader, size int64) error {
+	fullKey := c.objectKey(key)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.objectURL(fullKey), body)
+	if err != nil {
+		return fmt.Errorf("s3: PutObject request: %w", err)
+	}
+	req.ContentLength = size
+	c.signV4(req, unsignedPayload)
+	resp, err := c.httpClient().Do(req)
+	if err != nil {
+		return fmt.Errorf("s3: PutObject: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return parseError(resp)
+	}
+	return nil
+}
+
+// putObjectMultipart uploads body using S3 multipart upload. It reads the body in partSize
+// chunks, uploading each as a separate part. This allows uploading without knowing the total
+// body size in advance.
+func (c *Client) putObjectMultipart(ctx context.Context, key string, body io.Reader) error {
+	fullKey := c.objectKey(key)
+
+	// Step 1: Initiate multipart upload
+	uploadID, err := c.initiateMultipartUpload(ctx, fullKey)
+	if err != nil {
+		return err
+	}
+
+	// Step 2: Upload parts
+	var parts []completedPart
+	buf := make([]byte, partSize)
+	partNumber := 1
+	for {
+		n, err := io.ReadFull(body, buf)
+		if n > 0 {
+			etag, uploadErr := c.uploadPart(ctx, fullKey, uploadID, partNumber, buf[:n])
+			if uploadErr != nil {
+				c.abortMultipartUpload(ctx, fullKey, uploadID)
+				return uploadErr
+			}
+			parts = append(parts, completedPart{PartNumber: partNumber, ETag: etag})
+			partNumber++
+		}
+		if err == io.EOF || errors.Is(err, io.ErrUnexpectedEOF) {
+			break
+		}
+		if err != nil {
+			c.abortMultipartUpload(ctx, fullKey, uploadID)
+			return fmt.Errorf("s3: PutObject read: %w", err)
+		}
+	}
+
+	// Step 3: Complete multipart upload
+	return c.completeMultipartUpload(ctx, fullKey, uploadID, parts)
+}
+
+// initiateMultipartUpload starts a new multipart upload and returns the upload ID.
+func (c *Client) initiateMultipartUpload(ctx context.Context, fullKey string) (string, error) {
+	reqURL := c.objectURL(fullKey) + "?uploads"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("s3: InitiateMultipartUpload request: %w", err)
+	}
+	req.ContentLength = 0
+	c.signV4(req, emptyPayloadHash)
+	resp, err := c.httpClient().Do(req)
+	if err != nil {
+		return "", fmt.Errorf("s3: InitiateMultipartUpload: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return "", parseError(resp)
+	}
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
+	if err != nil {
+		return "", fmt.Errorf("s3: InitiateMultipartUpload read: %w", err)
+	}
+	var result initiateMultipartUploadResult
+	if err := xml.Unmarshal(respBody, &result); err != nil {
+		return "", fmt.Errorf("s3: InitiateMultipartUpload XML: %w", err)
+	}
+	return result.UploadID, nil
+}
+
+// uploadPart uploads a single part of a multipart upload and returns the ETag.
+func (c *Client) uploadPart(ctx context.Context, fullKey, uploadID string, partNumber int, data []byte) (string, error) {
+	reqURL := fmt.Sprintf("%s?partNumber=%d&uploadId=%s", c.objectURL(fullKey), partNumber, url.QueryEscape(uploadID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, reqURL, bytes.NewReader(data))
+	if err != nil {
+		return "", fmt.Errorf("s3: UploadPart request: %w", err)
+	}
+	req.ContentLength = int64(len(data))
+	c.signV4(req, unsignedPayload)
+	resp, err := c.httpClient().Do(req)
+	if err != nil {
+		return "", fmt.Errorf("s3: UploadPart: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return "", parseError(resp)
+	}
+	etag := resp.Header.Get("ETag")
+	return etag, nil
+}
+
+// completeMultipartUpload finalizes a multipart upload with the given parts.
+func (c *Client) completeMultipartUpload(ctx context.Context, fullKey, uploadID string, parts []completedPart) error {
+	var body bytes.Buffer
+	body.WriteString("<CompleteMultipartUpload>")
+	for _, p := range parts {
+		fmt.Fprintf(&body, "<Part><PartNumber>%d</PartNumber><ETag>%s</ETag></Part>", p.PartNumber, p.ETag)
+	}
+	body.WriteString("</CompleteMultipartUpload>")
+	bodyBytes := body.Bytes()
+	payloadHash := sha256Hex(bodyBytes)
+
+	reqURL := fmt.Sprintf("%s?uploadId=%s", c.objectURL(fullKey), url.QueryEscape(uploadID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return fmt.Errorf("s3: CompleteMultipartUpload request: %w", err)
+	}
+	req.ContentLength = int64(len(bodyBytes))
+	req.Header.Set("Content-Type", "application/xml")
+	c.signV4(req, payloadHash)
+	resp, err := c.httpClient().Do(req)
+	if err != nil {
+		return fmt.Errorf("s3: CompleteMultipartUpload: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return parseError(resp)
+	}
+	// Read response body to check for errors (S3 can return 200 with an error body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
+	if err != nil {
+		return fmt.Errorf("s3: CompleteMultipartUpload read: %w", err)
+	}
+	// Check if the response contains an error
+	var errResp ErrorResponse
+	if xml.Unmarshal(respBody, &errResp) == nil && errResp.Code != "" {
+		errResp.StatusCode = resp.StatusCode
+		return &errResp
+	}
+	return nil
+}
+
+// abortMultipartUpload cancels an in-progress multipart upload. Called on error to clean up.
+func (c *Client) abortMultipartUpload(ctx context.Context, fullKey, uploadID string) {
+	reqURL := fmt.Sprintf("%s?uploadId=%s", c.objectURL(fullKey), url.QueryEscape(uploadID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, reqURL, nil)
+	if err != nil {
+		return
+	}
+	c.signV4(req, emptyPayloadHash)
+	resp, err := c.httpClient().Do(req)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
 }
 
 // signV4 signs req in place using AWS Signature V4. payloadHash is the hex-encoded SHA-256

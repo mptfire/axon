@@ -58,44 +58,21 @@ func cmdPut(ctx context.Context, client *s3.Client) {
 	path := os.Args[3]
 
 	var r io.Reader
-	var size int64
 	if path == "-" {
-		// Read stdin into a temp file to get the size
-		tmp, err := os.CreateTemp("", "s3cli-*")
-		if err != nil {
-			fail("create temp file: %s", err)
-		}
-		defer os.Remove(tmp.Name())
-		n, err := io.Copy(tmp, os.Stdin)
-		if err != nil {
-			tmp.Close()
-			fail("read stdin: %s", err)
-		}
-		if _, err := tmp.Seek(0, io.SeekStart); err != nil {
-			tmp.Close()
-			fail("seek: %s", err)
-		}
-		r = tmp
-		size = n
-		defer tmp.Close()
+		r = os.Stdin
 	} else {
 		f, err := os.Open(path)
 		if err != nil {
 			fail("open %s: %s", path, err)
 		}
 		defer f.Close()
-		info, err := f.Stat()
-		if err != nil {
-			fail("stat %s: %s", path, err)
-		}
 		r = f
-		size = info.Size()
 	}
 
-	if err := client.PutObject(ctx, key, r, size); err != nil {
+	if err := client.PutObject(ctx, key, r); err != nil {
 		fail("put: %s", err)
 	}
-	fmt.Fprintf(os.Stderr, "uploaded %s (%d bytes)\n", key, size)
+	fmt.Fprintf(os.Stderr, "uploaded %s\n", key)
 }
 
 func cmdGet(ctx context.Context, client *s3.Client) {

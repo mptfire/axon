@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"sync"
 
 	"heckel.io/ntfy/v2/log"
@@ -51,33 +50,31 @@ func (c *s3Store) Write(id string, in io.Reader, limiters ...util.Limiter) (int6
 	}
 	log.Tag(tagS3Store).Field("message_id", id).Debug("Writing attachment to S3")
 
-	// Write through limiters into a temp file. This avoids buffering the full attachment in
-	// memory while still giving us the Content-Length that PutObject requires.
+	// Stream through limiters via an io.Pipe directly to S3. PutObject supports chunked
+	// uploads, so no temp file or Content-Length is needed.
 	limiters = append(limiters, util.NewFixedLimiter(c.Remaining()))
-	tmpFile, err := os.CreateTemp("", "ntfy-s3-upload-*")
-	if err != nil {
-		return 0, fmt.Errorf("s3 store: failed to create temp file: %w", err)
+	pr, pw := io.Pipe()
+	lw := util.NewLimitWriter(pw, limiters...)
+	var size int64
+	var copyErr error
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		size, copyErr = io.Copy(lw, in)
+		if copyErr != nil {
+			pw.CloseWithError(copyErr)
+		} else {
+			pw.Close()
+		}
+	}()
+	putErr := c.client.PutObject(context.Background(), id, pr)
+	pr.Close()
+	<-done
+	if copyErr != nil {
+		return 0, copyErr
 	}
-	tmpPath := tmpFile.Name()
-	defer os.Remove(tmpPath)
-	limitWriter := util.NewLimitWriter(tmpFile, limiters...)
-	size, err := io.Copy(limitWriter, in)
-	if err != nil {
-		tmpFile.Close()
-		return 0, err
-	}
-	if err := tmpFile.Close(); err != nil {
-		return 0, err
-	}
-
-	// Re-open the temp file for reading and stream it to S3
-	f, err := os.Open(tmpPath)
-	if err != nil {
-		return 0, err
-	}
-	defer f.Close()
-	if err := c.client.PutObject(context.Background(), id, f, size); err != nil {
-		return 0, err
+	if putErr != nil {
+		return 0, putErr
 	}
 	c.mu.Lock()
 	c.totalSizeCurrent += size

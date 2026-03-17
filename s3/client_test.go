@@ -23,27 +23,41 @@ import (
 // ListObjectsV2. Uses path-style addressing: /{bucket}/{key}. Objects are stored in memory.
 
 type mockS3Server struct {
-	objects map[string][]byte // full key (bucket/key) -> body
+	objects map[string][]byte         // full key (bucket/key) -> body
+	uploads map[string]map[int][]byte // uploadID -> partNumber -> data
+	nextID  int                       // counter for generating upload IDs
 	mu      sync.RWMutex
 }
 
 func newMockS3Server() (*httptest.Server, *mockS3Server) {
-	m := &mockS3Server{objects: make(map[string][]byte)}
+	m := &mockS3Server{
+		objects: make(map[string][]byte),
+		uploads: make(map[string]map[int][]byte),
+	}
 	return httptest.NewTLSServer(m), m
 }
 
 func (m *mockS3Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Path is /{bucket}[/{key...}]
 	path := strings.TrimPrefix(r.URL.Path, "/")
+	q := r.URL.Query()
 
 	switch {
+	case r.Method == http.MethodPut && q.Has("partNumber"):
+		m.handleUploadPart(w, r, path)
 	case r.Method == http.MethodPut:
 		m.handlePut(w, r, path)
-	case r.Method == http.MethodGet && r.URL.Query().Get("list-type") == "2":
+	case r.Method == http.MethodPost && q.Has("uploads"):
+		m.handleInitiateMultipart(w, r, path)
+	case r.Method == http.MethodPost && q.Has("uploadId"):
+		m.handleCompleteMultipart(w, r, path)
+	case r.Method == http.MethodDelete && q.Has("uploadId"):
+		m.handleAbortMultipart(w, r, path)
+	case r.Method == http.MethodGet && q.Get("list-type") == "2":
 		m.handleList(w, r, path)
 	case r.Method == http.MethodGet:
 		m.handleGet(w, r, path)
-	case r.Method == http.MethodPost && r.URL.Query().Has("delete"):
+	case r.Method == http.MethodPost && q.Has("delete"):
 		m.handleDelete(w, r, path)
 	default:
 		http.Error(w, "not implemented", http.StatusNotImplemented)
@@ -60,6 +74,77 @@ func (m *mockS3Server) handlePut(w http.ResponseWriter, r *http.Request, path st
 	m.objects[path] = body
 	m.mu.Unlock()
 	w.WriteHeader(http.StatusOK)
+}
+
+func (m *mockS3Server) handleInitiateMultipart(w http.ResponseWriter, r *http.Request, path string) {
+	m.mu.Lock()
+	m.nextID++
+	uploadID := fmt.Sprintf("upload-%d", m.nextID)
+	m.uploads[uploadID] = make(map[int][]byte)
+	m.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/xml")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?><InitiateMultipartUploadResult><UploadId>%s</UploadId></InitiateMultipartUploadResult>`, uploadID)
+}
+
+func (m *mockS3Server) handleUploadPart(w http.ResponseWriter, r *http.Request, path string) {
+	uploadID := r.URL.Query().Get("uploadId")
+	var partNumber int
+	fmt.Sscanf(r.URL.Query().Get("partNumber"), "%d", &partNumber)
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	m.mu.Lock()
+	parts, ok := m.uploads[uploadID]
+	if !ok {
+		m.mu.Unlock()
+		http.Error(w, "NoSuchUpload", http.StatusNotFound)
+		return
+	}
+	parts[partNumber] = body
+	m.mu.Unlock()
+
+	etag := fmt.Sprintf(`"etag-part-%d"`, partNumber)
+	w.Header().Set("ETag", etag)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (m *mockS3Server) handleCompleteMultipart(w http.ResponseWriter, r *http.Request, path string) {
+	uploadID := r.URL.Query().Get("uploadId")
+
+	m.mu.Lock()
+	parts, ok := m.uploads[uploadID]
+	if !ok {
+		m.mu.Unlock()
+		http.Error(w, "NoSuchUpload", http.StatusNotFound)
+		return
+	}
+
+	// Assemble parts in order
+	var assembled []byte
+	for i := 1; i <= len(parts); i++ {
+		assembled = append(assembled, parts[i]...)
+	}
+	m.objects[path] = assembled
+	delete(m.uploads, uploadID)
+	m.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/xml")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?><CompleteMultipartUploadResult><Key>%s</Key></CompleteMultipartUploadResult>`, path)
+}
+
+func (m *mockS3Server) handleAbortMultipart(w http.ResponseWriter, r *http.Request, path string) {
+	uploadID := r.URL.Query().Get("uploadId")
+	m.mu.Lock()
+	delete(m.uploads, uploadID)
+	m.mu.Unlock()
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (m *mockS3Server) handleGet(w http.ResponseWriter, r *http.Request, path string) {
@@ -333,7 +418,7 @@ func TestClient_PutGetObject(t *testing.T) {
 	ctx := context.Background()
 
 	// Put
-	err := client.PutObject(ctx, "test-key", strings.NewReader("hello world"), 11)
+	err := client.PutObject(ctx, "test-key", strings.NewReader("hello world"))
 	require.Nil(t, err)
 
 	// Get
@@ -353,7 +438,7 @@ func TestClient_PutGetObject_WithPrefix(t *testing.T) {
 
 	ctx := context.Background()
 
-	err := client.PutObject(ctx, "test-key", strings.NewReader("hello"), 5)
+	err := client.PutObject(ctx, "test-key", strings.NewReader("hello"))
 	require.Nil(t, err)
 
 	reader, _, err := client.GetObject(ctx, "test-key")
@@ -385,7 +470,7 @@ func TestClient_DeleteObjects(t *testing.T) {
 
 	// Put several objects
 	for i := 0; i < 5; i++ {
-		err := client.PutObject(ctx, fmt.Sprintf("key-%d", i), bytes.NewReader([]byte("data")), 4)
+		err := client.PutObject(ctx, fmt.Sprintf("key-%d", i), bytes.NewReader([]byte("data")))
 		require.Nil(t, err)
 	}
 	require.Equal(t, 5, mock.objectCount())
@@ -416,13 +501,13 @@ func TestClient_ListObjects(t *testing.T) {
 	// Client with prefix "pfx": list should only return objects under pfx/
 	client := newTestClient(server, "my-bucket", "pfx")
 	for i := 0; i < 3; i++ {
-		err := client.PutObject(ctx, fmt.Sprintf("%d", i), bytes.NewReader([]byte("x")), 1)
+		err := client.PutObject(ctx, fmt.Sprintf("%d", i), bytes.NewReader([]byte("x")))
 		require.Nil(t, err)
 	}
 
 	// Also put an object outside the prefix using a no-prefix client
 	clientNoPrefix := newTestClient(server, "my-bucket", "")
-	err := clientNoPrefix.PutObject(ctx, "other", bytes.NewReader([]byte("y")), 1)
+	err := clientNoPrefix.PutObject(ctx, "other", bytes.NewReader([]byte("y")))
 	require.Nil(t, err)
 
 	// List with prefix client: should only see 3
@@ -446,7 +531,7 @@ func TestClient_ListObjects_Pagination(t *testing.T) {
 
 	// Put 5 objects
 	for i := 0; i < 5; i++ {
-		err := client.PutObject(ctx, fmt.Sprintf("key-%02d", i), bytes.NewReader([]byte("x")), 1)
+		err := client.PutObject(ctx, fmt.Sprintf("key-%02d", i), bytes.NewReader([]byte("x")))
 		require.Nil(t, err)
 	}
 
@@ -478,7 +563,7 @@ func TestClient_ListAllObjects(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < 10; i++ {
-		err := client.PutObject(ctx, fmt.Sprintf("key-%02d", i), bytes.NewReader([]byte("x")), 1)
+		err := client.PutObject(ctx, fmt.Sprintf("key-%02d", i), bytes.NewReader([]byte("x")))
 		require.Nil(t, err)
 	}
 
@@ -499,12 +584,60 @@ func TestClient_PutObject_LargeBody(t *testing.T) {
 	for i := range data {
 		data[i] = byte(i % 256)
 	}
-	err := client.PutObject(ctx, "large", bytes.NewReader(data), int64(len(data)))
+	err := client.PutObject(ctx, "large", bytes.NewReader(data))
 	require.Nil(t, err)
 
 	reader, size, err := client.GetObject(ctx, "large")
 	require.Nil(t, err)
 	require.Equal(t, int64(1024*1024), size)
+	got, err := io.ReadAll(reader)
+	reader.Close()
+	require.Nil(t, err)
+	require.Equal(t, data, got)
+}
+
+func TestClient_PutObject_ChunkedUpload(t *testing.T) {
+	server, _ := newMockS3Server()
+	defer server.Close()
+	client := newTestClient(server, "my-bucket", "")
+
+	ctx := context.Background()
+
+	// 12 MB object, exceeds 5 MB partSize, triggers multipart upload path
+	data := make([]byte, 12*1024*1024)
+	for i := range data {
+		data[i] = byte(i % 256)
+	}
+	err := client.PutObject(ctx, "multipart", bytes.NewReader(data))
+	require.Nil(t, err)
+
+	reader, size, err := client.GetObject(ctx, "multipart")
+	require.Nil(t, err)
+	require.Equal(t, int64(12*1024*1024), size)
+	got, err := io.ReadAll(reader)
+	reader.Close()
+	require.Nil(t, err)
+	require.Equal(t, data, got)
+}
+
+func TestClient_PutObject_ExactPartSize(t *testing.T) {
+	server, _ := newMockS3Server()
+	defer server.Close()
+	client := newTestClient(server, "my-bucket", "")
+
+	ctx := context.Background()
+
+	// Exactly 5 MB (partSize), should use the simple put path (ReadFull succeeds fully)
+	data := make([]byte, 5*1024*1024)
+	for i := range data {
+		data[i] = byte(i % 256)
+	}
+	err := client.PutObject(ctx, "exact", bytes.NewReader(data))
+	require.Nil(t, err)
+
+	reader, size, err := client.GetObject(ctx, "exact")
+	require.Nil(t, err)
+	require.Equal(t, int64(5*1024*1024), size)
 	got, err := io.ReadAll(reader)
 	reader.Close()
 	require.Nil(t, err)
@@ -518,7 +651,7 @@ func TestClient_PutObject_NestedKey(t *testing.T) {
 
 	ctx := context.Background()
 
-	err := client.PutObject(ctx, "deep/nested/prefix/file.txt", strings.NewReader("nested"), 6)
+	err := client.PutObject(ctx, "deep/nested/prefix/file.txt", strings.NewReader("nested"))
 	require.Nil(t, err)
 
 	reader, _, err := client.GetObject(ctx, "deep/nested/prefix/file.txt")
@@ -548,7 +681,7 @@ func TestClient_ListAllObjects_20k(t *testing.T) {
 		for i := 0; i < batchSize; i++ {
 			idx := batch*batchSize + i
 			key := fmt.Sprintf("%08d", idx)
-			err := client.PutObject(ctx, key, bytes.NewReader([]byte("x")), 1)
+			err := client.PutObject(ctx, key, bytes.NewReader([]byte("x")))
 			require.Nil(t, err)
 		}
 	}
@@ -647,7 +780,7 @@ func TestClient_RealBucket(t *testing.T) {
 		content := "hello from ntfy s3 test"
 
 		// Put
-		err := client.PutObject(ctx, key, strings.NewReader(content), int64(len(content)))
+		err := client.PutObject(ctx, key, strings.NewReader(content))
 		require.Nil(t, err)
 
 		// Get
@@ -685,7 +818,7 @@ func TestClient_RealBucket(t *testing.T) {
 
 		// Put 10 objects
 		for i := 0; i < 10; i++ {
-			err := listClient.PutObject(ctx, fmt.Sprintf("%d", i), strings.NewReader("x"), 1)
+			err := listClient.PutObject(ctx, fmt.Sprintf("%d", i), strings.NewReader("x"))
 			require.Nil(t, err)
 		}
 
@@ -710,7 +843,7 @@ func TestClient_RealBucket(t *testing.T) {
 			data[i] = byte(i % 256)
 		}
 
-		err := client.PutObject(ctx, key, bytes.NewReader(data), int64(len(data)))
+		err := client.PutObject(ctx, key, bytes.NewReader(data))
 		require.Nil(t, err)
 
 		reader, size, err := client.GetObject(ctx, key)

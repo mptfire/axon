@@ -167,27 +167,41 @@ func newTestS3Store(t *testing.T, server *httptest.Server, bucket, prefix string
 // ListObjectsV2. Uses path-style addressing: /{bucket}/{key}. Objects are stored in memory.
 
 type mockS3Server struct {
-	objects map[string][]byte // full key (bucket/key) -> body
+	objects map[string][]byte         // full key (bucket/key) -> body
+	uploads map[string]map[int][]byte // uploadID -> partNumber -> data
+	nextID  int                       // counter for generating upload IDs
 	mu      sync.RWMutex
 }
 
 func newMockS3Server() *httptest.Server {
-	m := &mockS3Server{objects: make(map[string][]byte)}
+	m := &mockS3Server{
+		objects: make(map[string][]byte),
+		uploads: make(map[string]map[int][]byte),
+	}
 	return httptest.NewTLSServer(m)
 }
 
 func (m *mockS3Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Path is /{bucket}[/{key...}]
 	path := strings.TrimPrefix(r.URL.Path, "/")
+	q := r.URL.Query()
 
 	switch {
+	case r.Method == http.MethodPut && q.Has("partNumber"):
+		m.handleUploadPart(w, r, path)
 	case r.Method == http.MethodPut:
 		m.handlePut(w, r, path)
-	case r.Method == http.MethodGet && r.URL.Query().Get("list-type") == "2":
+	case r.Method == http.MethodPost && q.Has("uploads"):
+		m.handleInitiateMultipart(w, r, path)
+	case r.Method == http.MethodPost && q.Has("uploadId"):
+		m.handleCompleteMultipart(w, r, path)
+	case r.Method == http.MethodDelete && q.Has("uploadId"):
+		m.handleAbortMultipart(w, r, path)
+	case r.Method == http.MethodGet && q.Get("list-type") == "2":
 		m.handleList(w, r, path)
 	case r.Method == http.MethodGet:
 		m.handleGet(w, r, path)
-	case r.Method == http.MethodPost && r.URL.Query().Has("delete"):
+	case r.Method == http.MethodPost && q.Has("delete"):
 		m.handleDelete(w, r, path)
 	default:
 		http.Error(w, "not implemented", http.StatusNotImplemented)
@@ -204,6 +218,77 @@ func (m *mockS3Server) handlePut(w http.ResponseWriter, r *http.Request, path st
 	m.objects[path] = body
 	m.mu.Unlock()
 	w.WriteHeader(http.StatusOK)
+}
+
+func (m *mockS3Server) handleInitiateMultipart(w http.ResponseWriter, r *http.Request, path string) {
+	m.mu.Lock()
+	m.nextID++
+	uploadID := fmt.Sprintf("upload-%d", m.nextID)
+	m.uploads[uploadID] = make(map[int][]byte)
+	m.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/xml")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?><InitiateMultipartUploadResult><UploadId>%s</UploadId></InitiateMultipartUploadResult>`, uploadID)
+}
+
+func (m *mockS3Server) handleUploadPart(w http.ResponseWriter, r *http.Request, path string) {
+	uploadID := r.URL.Query().Get("uploadId")
+	var partNumber int
+	fmt.Sscanf(r.URL.Query().Get("partNumber"), "%d", &partNumber)
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	m.mu.Lock()
+	parts, ok := m.uploads[uploadID]
+	if !ok {
+		m.mu.Unlock()
+		http.Error(w, "NoSuchUpload", http.StatusNotFound)
+		return
+	}
+	parts[partNumber] = body
+	m.mu.Unlock()
+
+	etag := fmt.Sprintf(`"etag-part-%d"`, partNumber)
+	w.Header().Set("ETag", etag)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (m *mockS3Server) handleCompleteMultipart(w http.ResponseWriter, r *http.Request, path string) {
+	uploadID := r.URL.Query().Get("uploadId")
+
+	m.mu.Lock()
+	parts, ok := m.uploads[uploadID]
+	if !ok {
+		m.mu.Unlock()
+		http.Error(w, "NoSuchUpload", http.StatusNotFound)
+		return
+	}
+
+	// Assemble parts in order
+	var assembled []byte
+	for i := 1; i <= len(parts); i++ {
+		assembled = append(assembled, parts[i]...)
+	}
+	m.objects[path] = assembled
+	delete(m.uploads, uploadID)
+	m.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/xml")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?><CompleteMultipartUploadResult><Key>%s</Key></CompleteMultipartUploadResult>`, path)
+}
+
+func (m *mockS3Server) handleAbortMultipart(w http.ResponseWriter, r *http.Request, path string) {
+	uploadID := r.URL.Query().Get("uploadId")
+	m.mu.Lock()
+	delete(m.uploads, uploadID)
+	m.mu.Unlock()
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (m *mockS3Server) handleGet(w http.ResponseWriter, r *http.Request, path string) {

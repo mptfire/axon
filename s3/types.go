@@ -63,3 +63,14 @@ type deleteError struct {
 	Code    string `xml:"Code"`
 	Message string `xml:"Message"`
 }
+
+// initiateMultipartUploadResult is the XML response from S3 InitiateMultipartUpload
+type initiateMultipartUploadResult struct {
+	UploadID string `xml:"UploadId"`
+}
+
+// completedPart represents a successfully uploaded part for CompleteMultipartUpload
+type completedPart struct {
+	PartNumber int
+	ETag       string
+}
