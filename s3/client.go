@@ -196,7 +196,15 @@ func (c *Client) ListObjects(ctx context.Context, continuationToken string, maxK
 	}
 	objects := make([]Object, len(result.Contents))
 	for i, obj := range result.Contents {
-		objects[i] = Object(obj)
+		var lastModified time.Time
+		if obj.LastModified != "" {
+			lastModified, _ = time.Parse(time.RFC3339, obj.LastModified)
+		}
+		objects[i] = Object{
+			Key:          obj.Key,
+			Size:         obj.Size,
+			LastModified: lastModified,
+		}
 	}
 	return &ListResult{
 		Objects:               objects,

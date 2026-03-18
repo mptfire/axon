@@ -74,6 +74,8 @@ const (
 	postgresSelectStatsQuery       = `SELECT value FROM message_stats WHERE key = 'messages'`
 	postgresUpdateStatsQuery       = `UPDATE message_stats SET value = $1 WHERE key = 'messages'`
 	postgresUpdateMessageTimeQuery = `UPDATE message SET time = $1 WHERE mid = $2`
+
+	postgresSelectAttachmentIDsQuery = `SELECT mid FROM message WHERE attachment_expires > $1 AND attachment_deleted = FALSE`
 )
 
 var postgresQueries = queries{
@@ -100,6 +102,7 @@ var postgresQueries = queries{
 	selectStats:                      postgresSelectStatsQuery,
 	updateStats:                      postgresUpdateStatsQuery,
 	updateMessageTime:                postgresUpdateMessageTimeQuery,
+	selectAttachmentIDs:              postgresSelectAttachmentIDsQuery,
 }
 
 // NewPostgresStore creates a new PostgreSQL-backed message cache store using an existing database connection pool.

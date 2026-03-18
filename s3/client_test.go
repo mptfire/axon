@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -243,7 +244,7 @@ func (m *mockS3Server) handleList(w http.ResponseWriter, r *http.Request, bucket
 	var contents []listObject
 	for _, objKey := range allKeys {
 		body := m.objects[bucketPath+"/"+objKey]
-		contents = append(contents, listObject{Key: objKey, Size: int64(len(body))})
+		contents = append(contents, listObject{Key: objKey, Size: int64(len(body)), LastModified: time.Now().Format(time.RFC3339)})
 	}
 	m.mu.RUnlock()
 

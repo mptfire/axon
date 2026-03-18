@@ -1,6 +1,9 @@
 package s3
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // Config holds the parsed fields from an S3 URL. Use ParseURL to create one from a URL string.
 type Config struct {
@@ -15,8 +18,9 @@ type Config struct {
 
 // Object represents an S3 object returned by list operations.
 type Object struct {
-	Key  string
-	Size int64
+	Key          string
+	Size         int64
+	LastModified time.Time
 }
 
 // ListResult holds the response from a ListObjectsV2 call.
@@ -49,8 +53,9 @@ type listObjectsV2Response struct {
 }
 
 type listObject struct {
-	Key  string `xml:"Key"`
-	Size int64  `xml:"Size"`
+	Key          string `xml:"Key"`
+	Size         int64  `xml:"Size"`
+	LastModified string `xml:"LastModified"`
 }
 
 // deleteResult is the XML response from S3 DeleteObjects

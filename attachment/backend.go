@@ -1,0 +1,22 @@
+package attachment
+
+import (
+	"io"
+	"time"
+)
+
+// backendObject represents an object stored in a backend.
+type object struct {
+	ID           string
+	Size         int64
+	LastModified time.Time
+}
+
+// backend is a minimal I/O interface for storing and retrieving attachment files.
+// It has no knowledge of size tracking, limiting, or ID validation.
+type backend interface {
+	Put(id string, in io.Reader) error
+	Get(id string) (io.ReadCloser, int64, error)
+	Delete(ids ...string) error
+	List() ([]object, error)
+}

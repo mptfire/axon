@@ -65,7 +65,7 @@ type Server struct {
 	userManager       *user.Manager                       // Might be nil!
 	messageCache      *message.Cache                      // Database that stores the messages
 	webPush           *webpush.Store                      // Database that stores web push subscriptions
-	fileCache         attachment.Store                    // Attachment store (file system or S3)
+	fileCache         *attachment.Store                   // Attachment store (file system or S3)
 	stripe            stripeAPI                           // Stripe API, can be replaced with a mock
 	priceCache        *util.LookupCache[map[string]int64] // Stripe price ID -> price as cents (USD implied!)
 	metricsHandler    http.Handler                        // Handles /metrics if enable-metrics set, and listen-metrics-http not set
@@ -229,7 +229,7 @@ func New(conf *Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	fileCache, err := createAttachmentStore(conf)
+	fileCache, err := createAttachmentStore(conf, messageCache)
 	if err != nil {
 		return nil, err
 	}
@@ -300,11 +300,14 @@ func createMessageCache(conf *Config, pool *db.DB) (*message.Cache, error) {
 	return message.NewMemStore()
 }
 
-func createAttachmentStore(conf *Config) (attachment.Store, error) {
+func createAttachmentStore(conf *Config, messageCache *message.Cache) (*attachment.Store, error) {
+	idProvider := func() ([]string, error) {
+		return messageCache.AttachmentIDs()
+	}
 	if conf.AttachmentS3URL != "" {
-		return attachment.NewS3Store(conf.AttachmentS3URL, conf.AttachmentTotalSizeLimit)
+		return attachment.NewS3Store(conf.AttachmentS3URL, conf.AttachmentTotalSizeLimit, idProvider)
 	} else if conf.AttachmentCacheDir != "" {
-		return attachment.NewFileStore(conf.AttachmentCacheDir, conf.AttachmentTotalSizeLimit)
+		return attachment.NewFileStore(conf.AttachmentCacheDir, conf.AttachmentTotalSizeLimit, idProvider)
 	}
 	return nil, nil
 }
@@ -428,6 +431,9 @@ func (s *Server) Stop() {
 	}
 	if s.smtpServer != nil {
 		s.smtpServer.Close()
+	}
+	if s.fileCache != nil {
+		s.fileCache.Close()
 	}
 	s.closeDatabases()
 	close(s.closeChan)
