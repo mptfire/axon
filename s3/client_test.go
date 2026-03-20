@@ -374,13 +374,13 @@ func TestConfig_BucketURL_VirtualHosted(t *testing.T) {
 }
 
 func TestClient_ObjectURL_PathStyle(t *testing.T) {
-	c := &Client{config: &Config{Endpoint: "s3.example.com", Bucket: "my-bucket", PathStyle: true}}
-	require.Equal(t, "https://s3.example.com/my-bucket/prefix/obj", c.objectURL("prefix/obj"))
+	c := &Client{config: &Config{Endpoint: "s3.example.com", Bucket: "my-bucket", Prefix: "prefix", PathStyle: true}}
+	require.Equal(t, "https://s3.example.com/my-bucket/prefix/obj", c.objectURL("obj"))
 }
 
 func TestClient_ObjectURL_VirtualHosted(t *testing.T) {
-	c := &Client{config: &Config{Endpoint: "s3.us-east-1.amazonaws.com", Bucket: "my-bucket", PathStyle: false}}
-	require.Equal(t, "https://my-bucket.s3.us-east-1.amazonaws.com/prefix/obj", c.objectURL("prefix/obj"))
+	c := &Client{config: &Config{Endpoint: "s3.us-east-1.amazonaws.com", Bucket: "my-bucket", Prefix: "prefix", PathStyle: false}}
+	require.Equal(t, "https://my-bucket.s3.us-east-1.amazonaws.com/prefix/obj", c.objectURL("obj"))
 }
 
 func TestConfig_HostHeader_PathStyle(t *testing.T) {

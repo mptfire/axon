@@ -11,7 +11,7 @@ import (
 
 // signV4 signs req in place using AWS Signature V4. payloadHash is the hex-encoded SHA-256
 // of the request body, or the literal string "UNSIGNED-PAYLOAD" for streaming uploads.
-func (c *Client) signV4(req *http.Request, payloadHash string) {
+func (c *Client) signV4(req *http.Request, hash string) {
 	now := time.Now().UTC()
 	datestamp := now.Format("20060102")
 	amzDate := now.Format("20060102T150405Z")
@@ -19,7 +19,7 @@ func (c *Client) signV4(req *http.Request, payloadHash string) {
 	// Required headers
 	req.Header.Set("Host", c.config.HostHeader())
 	req.Header.Set("X-Amz-Date", amzDate)
-	req.Header.Set("X-Amz-Content-Sha256", payloadHash)
+	req.Header.Set("X-Amz-Content-Sha256", hash)
 
 	// Canonical headers (all headers we set, sorted by lowercase key)
 	signedKeys := make([]string, 0, len(req.Header))
@@ -46,7 +46,7 @@ func (c *Client) signV4(req *http.Request, payloadHash string) {
 		canonicalQueryString(req.URL.Query()),
 		chBuf.String(),
 		signedHeadersStr,
-		payloadHash,
+		hash,
 	}, "\n")
 
 	// String to sign
@@ -61,8 +61,9 @@ func (c *Client) signV4(req *http.Request, payloadHash string) {
 		[]byte("aws4_request"))
 
 	signature := hex.EncodeToString(hmacSHA256(signingKey, []byte(stringToSign)))
-	req.Header.Set("Authorization", fmt.Sprintf(
+	header := fmt.Sprintf(
 		"AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s",
 		c.config.AccessKey, credentialScope, signedHeadersStr, signature,
-	))
+	)
+	req.Header.Set("Authorization", header)
 }

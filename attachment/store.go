@@ -131,7 +131,6 @@ func (c *Store) Remove(ids ...string) error {
 // deletes orphans (not in the valid ID set and older than 1 hour), and recomputes
 // the total size from the remaining objects.
 func (c *Store) sync() error {
-	log.Tag(tagStore).Debug("Sync: starting sync loop")
 	localIDs, err := c.localIDs()
 	if err != nil {
 		return fmt.Errorf("attachment sync: failed to get valid IDs: %w", err)
@@ -161,21 +160,21 @@ func (c *Store) sync() error {
 			sizes[obj.ID] = obj.Size
 		}
 	}
-	log.Tag(tagStore).Debug("Sync: cache size updated to %s", util.FormatSizeHuman(size))
+	log.Tag(tagStore).Debug("Attachment cache size updated to %s", util.FormatSizeHuman(size))
 	c.mu.Lock()
 	c.size = size
 	c.sizes = sizes
 	c.mu.Unlock()
 	// Delete orphaned attachments
 	if len(orphanIDs) > 0 {
-		log.Tag(tagStore).Debug("Sync: deleting %d orphaned attachment(s)", len(orphanIDs))
+		log.Tag(tagStore).Debug("Deleting %d orphaned attachment(s)", len(orphanIDs))
 		if err := c.backend.Delete(orphanIDs...); err != nil {
 			return fmt.Errorf("attachment sync: failed to delete orphaned objects: %w", err)
 		}
 	}
 	// Clean up incomplete uploads (S3 only)
 	if err := c.backend.DeleteIncomplete(cutoff); err != nil {
-		log.Tag(tagStore).Err(err).Warn("Sync: failed to abort incomplete uploads")
+		log.Tag(tagStore).Err(err).Warn("Failed to abort incomplete uploads from attachment cache")
 	}
 	return nil
 }

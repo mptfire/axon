@@ -1,6 +1,7 @@
 package s3
 
 import (
+	"encoding/xml"
 	"fmt"
 	"net/http"
 	"time"
@@ -76,6 +77,17 @@ type listObject struct {
 	LastModified string `xml:"LastModified"`
 }
 
+// deleteRequest is the XML request body for S3 DeleteObjects
+type deleteRequest struct {
+	XMLName xml.Name        `xml:"Delete"`
+	Quiet   bool            `xml:"Quiet"`
+	Objects []*deleteObject `xml:"Object"`
+}
+
+type deleteObject struct {
+	Key string `xml:"Key"`
+}
+
 // deleteResult is the XML response from S3 DeleteObjects
 type deleteResult struct {
 	Errors []deleteError `xml:"Error"`
@@ -87,14 +99,14 @@ type deleteError struct {
 	Message string `xml:"Message"`
 }
 
-// MultipartUpload represents an in-progress multipart upload returned by ListMultipartUploads.
+// MultipartUpload represents an in-progress multipart upload returned by listMultipartUploads.
 type MultipartUpload struct {
 	Key       string
 	UploadID  string
 	Initiated time.Time
 }
 
-// listMultipartUploadsResult is the XML response from S3 ListMultipartUploads
+// listMultipartUploadsResult is the XML response from S3 listMultipartUploads
 type listMultipartUploadsResult struct {
 	Uploads            []listUpload `xml:"Upload"`
 	IsTruncated        bool         `xml:"IsTruncated"`
@@ -113,8 +125,14 @@ type initiateMultipartUploadResult struct {
 	UploadID string `xml:"UploadId"`
 }
 
+// completeMultipartUploadRequest is the XML request body for S3 CompleteMultipartUpload
+type completeMultipartUploadRequest struct {
+	XMLName xml.Name        `xml:"CompleteMultipartUpload"`
+	Parts   []completedPart `xml:"Part"`
+}
+
 // completedPart represents a successfully uploaded part for CompleteMultipartUpload
 type completedPart struct {
-	PartNumber int
-	ETag       string
+	PartNumber int    `xml:"PartNumber"`
+	ETag       string `xml:"ETag"`
 }

@@ -1,6 +1,3 @@
-// Package s3 provides a minimal S3-compatible client that works with AWS S3, DigitalOcean Spaces,
-// GCP Cloud Storage, MinIO, Backblaze B2, and other S3-compatible providers. It uses raw HTTP
-// requests with AWS Signature V4 signing, no AWS SDK dependency required.
 package s3
 
 import (
@@ -57,32 +54,26 @@ func (c *Client) PutObject(ctx context.Context, key string, body io.Reader) erro
 	first := make([]byte, partSize)
 	n, err := io.ReadFull(body, first)
 	if errors.Is(err, io.ErrUnexpectedEOF) || err == io.EOF {
-		log.Tag(tagS3Client).Debug("PutObject key=%s size=%d (simple)", key, n)
-		return c.putObject(ctx, key, bytes.NewReader(first[:n]), int64(n))
+		return c.putObjectSimple(ctx, key, bytes.NewReader(first[:n]), int64(n))
+	} else if err != nil {
+		return fmt.Errorf("error reading object %s from client: %w", key, err)
 	}
-	if err != nil {
-		return fmt.Errorf("s3: PutObject read: %w", err)
-	}
-	log.Tag(tagS3Client).Debug("PutObject key=%s (multipart)", key)
-	combined := io.MultiReader(bytes.NewReader(first), body)
-	return c.putObjectMultipart(ctx, key, combined)
+	return c.putObjectMultipart(ctx, key, io.MultiReader(bytes.NewReader(first), body))
 }
 
 // GetObject downloads an object. The key is automatically prefixed with the client's configured
 // prefix. The caller must close the returned ReadCloser.
 func (c *Client) GetObject(ctx context.Context, key string) (io.ReadCloser, int64, error) {
-	log.Tag(tagS3Client).Debug("GetObject key=%s", key)
-	fullKey := c.objectKey(key)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.objectURL(fullKey), nil)
+	log.Tag(tagS3Client).Debug("Fetching object %s from backend", key)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.objectURL(key), nil)
 	if err != nil {
-		return nil, 0, fmt.Errorf("s3: GetObject request: %w", err)
+		return nil, 0, fmt.Errorf("error creating HTTP GET request for %s: %w", key, err)
 	}
 	c.signV4(req, emptyPayloadHash)
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, 0, fmt.Errorf("s3: GetObject: %w", err)
-	}
-	if !isHTTPSuccess(resp) {
+		return nil, 0, fmt.Errorf("error fetching object %s: %w", key, err)
+	} else if !isHTTPSuccess(resp) {
 		err := parseError(resp)
 		resp.Body.Close()
 		return nil, 0, err
@@ -97,25 +88,27 @@ func (c *Client) GetObject(ctx context.Context, key string) (io.ReadCloser, int6
 // Even when S3 returns HTTP 200, individual keys may fail. If any per-key errors are present
 // in the response, they are returned as a combined error.
 func (c *Client) DeleteObjects(ctx context.Context, keys []string) error {
-	log.Tag(tagS3Client).Debug("DeleteObjects keys=%d", len(keys))
-	var body bytes.Buffer
-	body.WriteString("<Delete><Quiet>true</Quiet>")
-	for _, key := range keys {
-		body.WriteString("<Object><Key>")
-		xml.EscapeText(&body, []byte(c.objectKey(key)))
-		body.WriteString("</Key></Object>")
+	log.Tag(tagS3Client).Debug("Deleting %d object(s)", len(keys))
+	req := &deleteRequest{
+		Quiet: true,
 	}
-	body.WriteString("</Delete>")
-	bodyBytes := body.Bytes()
+	for _, key := range keys {
+		req.Objects = append(req.Objects, &deleteObject{Key: c.objectKey(key)})
+	}
+	body, err := xml.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("error marshalling XML for deleting objects: %w", err)
+	}
 
 	// Content-MD5 is required by the S3 protocol for DeleteObjects requests.
-	md5Sum := md5.Sum(bodyBytes) //nolint:gosec
-	contentMD5 := base64.StdEncoding.EncodeToString(md5Sum[:])
-
-	respBody, err := c.doWithBodyAndHeaders(ctx, http.MethodPost, c.config.BucketURL()+"?delete=", bodyBytes,
-		map[string]string{"Content-MD5": contentMD5}, "DeleteObjects")
+	md5Sum := md5.Sum(body) //nolint:gosec
+	headers := map[string]string{
+		"Content-MD5": base64.StdEncoding.EncodeToString(md5Sum[:]),
+	}
+	reqURL := c.config.BucketURL() + "?delete="
+	respBody, err := c.do(ctx, http.MethodPost, reqURL, body, headers, "DeleteObjects")
 	if err != nil {
-		return err
+		return fmt.Errorf("error deleting objects: %w", err)
 	}
 
 	// S3 may return HTTP 200 with per-key errors in the response body
@@ -128,7 +121,7 @@ func (c *Client) DeleteObjects(ctx context.Context, keys []string) error {
 		for _, e := range result.Errors {
 			msgs = append(msgs, fmt.Sprintf("%s: %s", e.Key, e.Message))
 		}
-		return fmt.Errorf("s3: DeleteObjects partial failure: %s", strings.Join(msgs, "; "))
+		return fmt.Errorf("error deleting objects, partial failure: %s", strings.Join(msgs, "; "))
 	}
 	return nil
 }
@@ -147,7 +140,7 @@ func (c *Client) listObjects(ctx context.Context, continuationToken string, maxK
 	if maxKeys > 0 {
 		query.Set("max-keys", strconv.Itoa(maxKeys))
 	}
-	respBody, err := c.do(ctx, http.MethodGet, c.config.BucketURL()+"?"+query.Encode(), nil, "ListObjects")
+	respBody, err := c.do(ctx, http.MethodGet, c.config.BucketURL()+"?"+query.Encode(), nil, nil, "ListObjects")
 	if err != nil {
 		return nil, err
 	}
@@ -198,12 +191,12 @@ func (c *Client) ListAllObjects(ctx context.Context) ([]Object, error) {
 	return nil, fmt.Errorf("s3: ListAllObjects exceeded %d pages", maxPages)
 }
 
-// putObject uploads a body with known size using a simple PUT with UNSIGNED-PAYLOAD.
-func (c *Client) putObject(ctx context.Context, key string, body io.Reader, size int64) error {
-	fullKey := c.objectKey(key)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.objectURL(fullKey), body)
+// putObjectSimple uploads a body with known size using a simple PUT with UNSIGNED-PAYLOAD.
+func (c *Client) putObjectSimple(ctx context.Context, key string, body io.Reader, size int64) error {
+	log.Tag(tagS3Client).Debug("Uploading object %s (%d bytes)", key, size)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.objectURL(key), body)
 	if err != nil {
-		return fmt.Errorf("s3: PutObject request: %w", err)
+		return fmt.Errorf("uploading object %s failed: %w", key, err)
 	}
 	req.ContentLength = size
 	c.signV4(req, unsignedPayload)
@@ -218,50 +211,32 @@ func (c *Client) putObject(ctx context.Context, key string, body io.Reader, size
 	return nil
 }
 
-// do creates a request, signs it with an empty payload, executes it, reads the response body,
-// and checks for errors. It is used for bodiless GET/POST requests.
-func (c *Client) do(ctx context.Context, method, reqURL string, body io.Reader, op string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, method, reqURL, body)
+// do creates a signed request, executes it, reads the response body, and checks for errors.
+// If body is nil, the request is sent with an empty payload. If body is non-nil, it is sent
+// with a computed SHA-256 payload hash and Content-Type: application/xml.
+func (c *Client) do(ctx context.Context, method, reqURL string, body []byte, headers map[string]string, op string) ([]byte, error) {
+	var reader io.Reader
+	var hash string
+	if body != nil {
+		reader = bytes.NewReader(body)
+		hash = sha256Hex(body)
+	} else {
+		hash = emptyPayloadHash
+	}
+	req, err := http.NewRequestWithContext(ctx, method, reqURL, reader)
 	if err != nil {
 		return nil, fmt.Errorf("s3: %s request: %w", op, err)
 	}
-	if body == nil {
+	if body != nil {
+		req.ContentLength = int64(len(body))
+		req.Header.Set("Content-Type", "application/xml")
+	} else {
 		req.ContentLength = 0
 	}
-	c.signV4(req, emptyPayloadHash)
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("s3: %s: %w", op, err)
-	}
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
-	resp.Body.Close()
-	if err != nil {
-		return nil, fmt.Errorf("s3: %s read: %w", op, err)
-	}
-	if !isHTTPSuccess(resp) {
-		return nil, parseErrorFromBytes(resp.StatusCode, respBody)
-	}
-	return respBody, nil
-}
-
-// doWithBody is like do, but sends a body with a computed SHA-256 payload hash and Content-Type: application/xml.
-func (c *Client) doWithBody(ctx context.Context, method, reqURL string, bodyBytes []byte, op string) ([]byte, error) {
-	return c.doWithBodyAndHeaders(ctx, method, reqURL, bodyBytes, nil, op)
-}
-
-// doWithBodyAndHeaders is like doWithBody, but allows setting additional headers (e.g. Content-MD5).
-func (c *Client) doWithBodyAndHeaders(ctx context.Context, method, reqURL string, bodyBytes []byte, headers map[string]string, op string) ([]byte, error) {
-	payloadHash := sha256Hex(bodyBytes)
-	req, err := http.NewRequestWithContext(ctx, method, reqURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return nil, fmt.Errorf("s3: %s request: %w", op, err)
-	}
-	req.ContentLength = int64(len(bodyBytes))
-	req.Header.Set("Content-Type", "application/xml")
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	c.signV4(req, payloadHash)
+	c.signV4(req, hash)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("s3: %s: %w", op, err)
@@ -275,14 +250,6 @@ func (c *Client) doWithBodyAndHeaders(ctx context.Context, method, reqURL string
 		return nil, parseErrorFromBytes(resp.StatusCode, respBody)
 	}
 	return respBody, nil
-}
-
-// objectKey prepends the configured prefix to the given key.
-func (c *Client) objectKey(key string) string {
-	if c.config.Prefix != "" {
-		return c.config.Prefix + "/" + key
-	}
-	return key
 }
 
 // prefixForList returns the prefix to use in ListObjectsV2 requests,
@@ -303,12 +270,16 @@ func (c *Client) stripPrefix(key string) string {
 	return key
 }
 
-// objectURL returns the full URL for an object (key should already include the prefix).
-// Each path segment is URI-encoded to handle special characters in keys.
-func (c *Client) objectURL(key string) string {
-	segments := strings.Split(key, "/")
-	for i, seg := range segments {
-		segments[i] = uriEncode(seg)
+// objectKey prepends the configured prefix to the given key.
+func (c *Client) objectKey(key string) string {
+	if c.config.Prefix != "" {
+		return c.config.Prefix + "/" + key
 	}
-	return c.config.BucketURL() + "/" + strings.Join(segments, "/")
+	return key
+}
+
+// objectURL returns the full URL for an object, automatically prepending the configured prefix.
+func (c *Client) objectURL(key string) string {
+	u, _ := url.JoinPath(c.config.BucketURL(), c.objectKey(key))
+	return u
 }
