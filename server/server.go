@@ -301,13 +301,13 @@ func createMessageCache(conf *Config, pool *db.DB) (*message.Cache, error) {
 }
 
 func createAttachmentStore(conf *Config, messageCache *message.Cache) (*attachment.Store, error) {
-	idProvider := func() ([]string, error) {
+	attachmentIDs := func() ([]string, error) {
 		return messageCache.AttachmentIDs()
 	}
-	if conf.AttachmentS3URL != "" {
-		return attachment.NewS3Store(conf.AttachmentS3URL, conf.AttachmentTotalSizeLimit, idProvider)
+	if strings.HasPrefix(conf.AttachmentCacheDir, "s3://") {
+		return attachment.NewS3Store(conf.AttachmentCacheDir, conf.AttachmentTotalSizeLimit, attachmentIDs)
 	} else if conf.AttachmentCacheDir != "" {
-		return attachment.NewFileStore(conf.AttachmentCacheDir, conf.AttachmentTotalSizeLimit, idProvider)
+		return attachment.NewFileStore(conf.AttachmentCacheDir, conf.AttachmentTotalSizeLimit, attachmentIDs)
 	}
 	return nil, nil
 }

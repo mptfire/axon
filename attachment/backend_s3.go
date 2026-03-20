@@ -4,13 +4,16 @@ import (
 	"context"
 	"io"
 	"strings"
-
-	"heckel.io/ntfy/v2/s3"
+	"time"
 
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/s3"
 )
 
-const tagS3Backend = "s3_backend"
+const (
+	tagS3Backend    = "s3_backend"
+	deleteBatchSize = 1000
+)
 
 type s3Backend struct {
 	client *s3.Client
@@ -28,24 +31,6 @@ func (b *s3Backend) Put(id string, in io.Reader) error {
 
 func (b *s3Backend) Get(id string) (io.ReadCloser, int64, error) {
 	return b.client.GetObject(context.Background(), id)
-}
-
-func (b *s3Backend) Delete(ids ...string) error {
-	// S3 DeleteObjects supports up to 1000 keys per call
-	for i := 0; i < len(ids); i += 1000 {
-		end := i + 1000
-		if end > len(ids) {
-			end = len(ids)
-		}
-		batch := ids[i:end]
-		for _, id := range batch {
-			log.Tag(tagS3Backend).Field("message_id", id).Debug("Deleting attachment from S3")
-		}
-		if err := b.client.DeleteObjects(context.Background(), batch); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (b *s3Backend) List() ([]object, error) {
@@ -67,4 +52,26 @@ func (b *s3Backend) List() ([]object, error) {
 		})
 	}
 	return result, nil
+}
+
+func (b *s3Backend) Delete(ids ...string) error {
+	// S3 DeleteObjects supports up to 1000 keys per call
+	for i := 0; i < len(ids); i += deleteBatchSize {
+		end := i + deleteBatchSize
+		if end > len(ids) {
+			end = len(ids)
+		}
+		batch := ids[i:end]
+		for _, id := range batch {
+			log.Tag(tagS3Backend).Field("message_id", id).Debug("Deleting attachment from S3")
+		}
+		if err := b.client.DeleteObjects(context.Background(), batch); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (b *s3Backend) DeleteIncomplete(cutoff time.Time) error {
+	return b.client.AbortIncompleteUploads(context.Background(), cutoff)
 }

@@ -57,8 +57,8 @@ func TestFileStore_Write_Remove_Success(t *testing.T) {
 	require.Nil(t, c.Remove("abcdefghijk1", "abcdefghijk5"))
 	require.NoFileExists(t, dir+"/abcdefghijk1")
 	require.NoFileExists(t, dir+"/abcdefghijk5")
-	// Size is not recomputed by Remove; it stays stale until next sync
-	require.Equal(t, int64(9990), c.Size())
+	require.Equal(t, int64(8*999), c.Size())
+	require.Equal(t, int64(10240-8*999), c.Remaining())
 }
 
 func TestFileStore_Write_FailedTotalSizeLimit(t *testing.T) {

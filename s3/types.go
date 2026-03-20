@@ -69,6 +69,27 @@ type deleteError struct {
 	Message string `xml:"Message"`
 }
 
+// MultipartUpload represents an in-progress multipart upload returned by ListMultipartUploads.
+type MultipartUpload struct {
+	Key       string
+	UploadID  string
+	Initiated time.Time
+}
+
+// listMultipartUploadsResult is the XML response from S3 ListMultipartUploads
+type listMultipartUploadsResult struct {
+	Uploads             []listUpload `xml:"Upload"`
+	IsTruncated         bool         `xml:"IsTruncated"`
+	NextKeyMarker       string       `xml:"NextKeyMarker"`
+	NextUploadIDMarker  string       `xml:"NextUploadIdMarker"`
+}
+
+type listUpload struct {
+	Key       string `xml:"Key"`
+	UploadID  string `xml:"UploadId"`
+	Initiated string `xml:"Initiated"`
+}
+
 // initiateMultipartUploadResult is the XML response from S3 InitiateMultipartUpload
 type initiateMultipartUploadResult struct {
 	UploadID string `xml:"UploadId"`

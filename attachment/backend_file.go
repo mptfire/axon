@@ -4,6 +4,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"heckel.io/ntfy/v2/log"
 )
@@ -41,6 +42,26 @@ func (b *fileBackend) Put(id string, in io.Reader) error {
 	return nil
 }
 
+func (b *fileBackend) List() ([]object, error) {
+	entries, err := os.ReadDir(b.dir)
+	if err != nil {
+		return nil, err
+	}
+	objects := make([]object, 0, len(entries))
+	for _, e := range entries {
+		info, err := e.Info()
+		if err != nil {
+			return nil, err
+		}
+		objects = append(objects, object{
+			ID:           e.Name(),
+			Size:         info.Size(),
+			LastModified: info.ModTime(),
+		})
+	}
+	return objects, nil
+}
+
 func (b *fileBackend) Get(id string) (io.ReadCloser, int64, error) {
 	file := filepath.Join(b.dir, id)
 	stat, err := os.Stat(file)
@@ -64,22 +85,6 @@ func (b *fileBackend) Delete(ids ...string) error {
 	return nil
 }
 
-func (b *fileBackend) List() ([]object, error) {
-	entries, err := os.ReadDir(b.dir)
-	if err != nil {
-		return nil, err
-	}
-	objects := make([]object, 0, len(entries))
-	for _, e := range entries {
-		info, err := e.Info()
-		if err != nil {
-			return nil, err
-		}
-		objects = append(objects, object{
-			ID:           e.Name(),
-			Size:         info.Size(),
-			LastModified: info.ModTime(),
-		})
-	}
-	return objects, nil
+func (b *fileBackend) DeleteIncomplete(_ time.Time) error {
+	return nil
 }

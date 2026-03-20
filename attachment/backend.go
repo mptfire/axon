@@ -17,6 +17,7 @@ type object struct {
 type backend interface {
 	Put(id string, in io.Reader) error
 	Get(id string) (io.ReadCloser, int64, error)
-	Delete(ids ...string) error
 	List() ([]object, error)
+	Delete(ids ...string) error
+	DeleteIncomplete(cutoff time.Time) error
 }

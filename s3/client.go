@@ -232,6 +232,77 @@ func (c *Client) ListAllObjects(ctx context.Context) ([]Object, error) {
 	return nil, fmt.Errorf("s3: ListAllObjects exceeded %d pages", maxPages)
 }
 
+// ListMultipartUploads returns in-progress multipart uploads for the client's prefix.
+// It paginates automatically, stopping after 10,000 pages as a safety valve.
+func (c *Client) ListMultipartUploads(ctx context.Context) ([]MultipartUpload, error) {
+	var all []MultipartUpload
+	var keyMarker, uploadIDMarker string
+	for page := 0; page < maxPages; page++ {
+		query := url.Values{"uploads": {""}}
+		if prefix := c.prefixForList(); prefix != "" {
+			query.Set("prefix", prefix)
+		}
+		if keyMarker != "" {
+			query.Set("key-marker", keyMarker)
+			query.Set("upload-id-marker", uploadIDMarker)
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.bucketURL()+"?"+query.Encode(), nil)
+		if err != nil {
+			return nil, fmt.Errorf("s3: ListMultipartUploads request: %w", err)
+		}
+		c.signV4(req, emptyPayloadHash)
+		resp, err := c.httpClient().Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("s3: ListMultipartUploads: %w", err)
+		}
+		respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("s3: ListMultipartUploads read: %w", err)
+		}
+		if !isHTTPSuccess(resp) {
+			return nil, parseErrorFromBytes(resp.StatusCode, respBody)
+		}
+		var result listMultipartUploadsResult
+		if err := xml.Unmarshal(respBody, &result); err != nil {
+			return nil, fmt.Errorf("s3: ListMultipartUploads XML: %w", err)
+		}
+		for _, u := range result.Uploads {
+			var initiated time.Time
+			if u.Initiated != "" {
+				initiated, _ = time.Parse(time.RFC3339, u.Initiated)
+			}
+			all = append(all, MultipartUpload{
+				Key:       u.Key,
+				UploadID:  u.UploadID,
+				Initiated: initiated,
+			})
+		}
+		if !result.IsTruncated {
+			return all, nil
+		}
+		keyMarker = result.NextKeyMarker
+		uploadIDMarker = result.NextUploadIDMarker
+	}
+	return nil, fmt.Errorf("s3: ListMultipartUploads exceeded %d pages", maxPages)
+}
+
+// AbortIncompleteUploads lists all in-progress multipart uploads and aborts those initiated
+// before the given cutoff time. This cleans up orphaned upload parts from interrupted uploads.
+func (c *Client) AbortIncompleteUploads(ctx context.Context, cutoff time.Time) error {
+	uploads, err := c.ListMultipartUploads(ctx)
+	if err != nil {
+		return err
+	}
+	for _, u := range uploads {
+		if !u.Initiated.IsZero() && u.Initiated.Before(cutoff) {
+			log.Tag(tagS3Client).Debug("DeleteIncomplete key=%s uploadId=%s initiated=%s", u.Key, u.UploadID, u.Initiated)
+			c.abortMultipartUpload(ctx, u.Key, u.UploadID)
+		}
+	}
+	return nil
+}
+
 // putObject uploads a body with known size using a simple PUT with UNSIGNED-PAYLOAD.
 func (c *Client) putObject(ctx context.Context, key string, body io.Reader, size int64) error {
 	fullKey := c.objectKey(key)

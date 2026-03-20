@@ -42,7 +42,7 @@ func TestS3Store_WriteReadRemove(t *testing.T) {
 
 	// Remove
 	require.Nil(t, cache.Remove("abcdefghijkl"))
-	// Size is not recomputed by Remove; stays stale until next sync
+	require.Equal(t, int64(0), cache.Size())
 
 	// Read after remove should fail
 	_, _, err = cache.Read("abcdefghijkl")
@@ -107,8 +107,7 @@ func TestS3Store_WriteRemoveMultiple(t *testing.T) {
 	require.Equal(t, int64(500), cache.Size())
 
 	require.Nil(t, cache.Remove("abcdefghijk1", "abcdefghijk3"))
-	// Size not recomputed by Remove
-	require.Equal(t, int64(500), cache.Size())
+	require.Equal(t, int64(300), cache.Size())
 }
 
 func TestS3Store_ReadNotFound(t *testing.T) {
