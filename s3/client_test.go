@@ -269,7 +269,7 @@ func (m *mockS3Server) objectCount() int {
 func newTestClient(server *httptest.Server, bucket, prefix string) *Client {
 	// httptest.NewTLSServer URL is like "https://127.0.0.1:PORT"
 	host := strings.TrimPrefix(server.URL, "https://")
-	return &Client{
+	return New(&Config{
 		AccessKey:  "AKID",
 		SecretKey:  "SECRET",
 		Region:     "us-east-1",
@@ -278,7 +278,7 @@ func newTestClient(server *httptest.Server, bucket, prefix string) *Client {
 		Prefix:     prefix,
 		PathStyle:  true,
 		HTTPClient: server.Client(),
-	}
+	})
 }
 
 // --- URL parsing tests ---
@@ -363,49 +363,49 @@ func TestParseURL_EmptyBucket(t *testing.T) {
 
 // --- Unit tests: URL construction ---
 
-func TestClient_BucketURL_PathStyle(t *testing.T) {
-	c := &Client{Endpoint: "s3.example.com", Bucket: "my-bucket", PathStyle: true}
-	require.Equal(t, "https://s3.example.com/my-bucket", c.bucketURL())
+func TestConfig_BucketURL_PathStyle(t *testing.T) {
+	c := &Config{Endpoint: "s3.example.com", Bucket: "my-bucket", PathStyle: true}
+	require.Equal(t, "https://s3.example.com/my-bucket", c.BucketURL())
 }
 
-func TestClient_BucketURL_VirtualHosted(t *testing.T) {
-	c := &Client{Endpoint: "s3.us-east-1.amazonaws.com", Bucket: "my-bucket", PathStyle: false}
-	require.Equal(t, "https://my-bucket.s3.us-east-1.amazonaws.com", c.bucketURL())
+func TestConfig_BucketURL_VirtualHosted(t *testing.T) {
+	c := &Config{Endpoint: "s3.us-east-1.amazonaws.com", Bucket: "my-bucket", PathStyle: false}
+	require.Equal(t, "https://my-bucket.s3.us-east-1.amazonaws.com", c.BucketURL())
 }
 
 func TestClient_ObjectURL_PathStyle(t *testing.T) {
-	c := &Client{Endpoint: "s3.example.com", Bucket: "my-bucket", PathStyle: true}
+	c := &Client{config: &Config{Endpoint: "s3.example.com", Bucket: "my-bucket", PathStyle: true}}
 	require.Equal(t, "https://s3.example.com/my-bucket/prefix/obj", c.objectURL("prefix/obj"))
 }
 
 func TestClient_ObjectURL_VirtualHosted(t *testing.T) {
-	c := &Client{Endpoint: "s3.us-east-1.amazonaws.com", Bucket: "my-bucket", PathStyle: false}
+	c := &Client{config: &Config{Endpoint: "s3.us-east-1.amazonaws.com", Bucket: "my-bucket", PathStyle: false}}
 	require.Equal(t, "https://my-bucket.s3.us-east-1.amazonaws.com/prefix/obj", c.objectURL("prefix/obj"))
 }
 
-func TestClient_HostHeader_PathStyle(t *testing.T) {
-	c := &Client{Endpoint: "s3.example.com", Bucket: "my-bucket", PathStyle: true}
-	require.Equal(t, "s3.example.com", c.hostHeader())
+func TestConfig_HostHeader_PathStyle(t *testing.T) {
+	c := &Config{Endpoint: "s3.example.com", Bucket: "my-bucket", PathStyle: true}
+	require.Equal(t, "s3.example.com", c.HostHeader())
 }
 
-func TestClient_HostHeader_VirtualHosted(t *testing.T) {
-	c := &Client{Endpoint: "s3.us-east-1.amazonaws.com", Bucket: "my-bucket", PathStyle: false}
-	require.Equal(t, "my-bucket.s3.us-east-1.amazonaws.com", c.hostHeader())
+func TestConfig_HostHeader_VirtualHosted(t *testing.T) {
+	c := &Config{Endpoint: "s3.us-east-1.amazonaws.com", Bucket: "my-bucket", PathStyle: false}
+	require.Equal(t, "my-bucket.s3.us-east-1.amazonaws.com", c.HostHeader())
 }
 
 func TestClient_ObjectKey(t *testing.T) {
-	c := &Client{Prefix: "attachments"}
+	c := &Client{config: &Config{Prefix: "attachments"}}
 	require.Equal(t, "attachments/file123", c.objectKey("file123"))
 
-	c2 := &Client{Prefix: ""}
+	c2 := &Client{config: &Config{Prefix: ""}}
 	require.Equal(t, "file123", c2.objectKey("file123"))
 }
 
 func TestClient_PrefixForList(t *testing.T) {
-	c := &Client{Prefix: "attachments"}
+	c := &Client{config: &Config{Prefix: "attachments"}}
 	require.Equal(t, "attachments/", c.prefixForList())
 
-	c2 := &Client{Prefix: ""}
+	c2 := &Client{config: &Config{Prefix: ""}}
 	require.Equal(t, "", c2.prefixForList())
 }
 
@@ -512,13 +512,13 @@ func TestClient_ListObjects(t *testing.T) {
 	require.Nil(t, err)
 
 	// List with prefix client: should only see 3
-	result, err := client.ListObjects(ctx, "", 0)
+	result, err := client.listObjects(ctx, "", 0)
 	require.Nil(t, err)
 	require.Len(t, result.Objects, 3)
 	require.False(t, result.IsTruncated)
 
 	// List with no-prefix client: should see all 4
-	result, err = clientNoPrefix.ListObjects(ctx, "", 0)
+	result, err = clientNoPrefix.listObjects(ctx, "", 0)
 	require.Nil(t, err)
 	require.Len(t, result.Objects, 4)
 }
@@ -537,20 +537,20 @@ func TestClient_ListObjects_Pagination(t *testing.T) {
 	}
 
 	// List with max-keys=2
-	result, err := client.ListObjects(ctx, "", 2)
+	result, err := client.listObjects(ctx, "", 2)
 	require.Nil(t, err)
 	require.Len(t, result.Objects, 2)
 	require.True(t, result.IsTruncated)
 	require.NotEmpty(t, result.NextContinuationToken)
 
 	// Get next page
-	result2, err := client.ListObjects(ctx, result.NextContinuationToken, 2)
+	result2, err := client.listObjects(ctx, result.NextContinuationToken, 2)
 	require.Nil(t, err)
 	require.Len(t, result2.Objects, 2)
 	require.True(t, result2.IsTruncated)
 
 	// Get last page
-	result3, err := client.ListObjects(ctx, result2.NextContinuationToken, 2)
+	result3, err := client.listObjects(ctx, result2.NextContinuationToken, 2)
 	require.Nil(t, err)
 	require.Len(t, result3.Objects, 1)
 	require.False(t, result3.IsTruncated)
@@ -744,7 +744,7 @@ func TestClient_RealBucket(t *testing.T) {
 		prefix = "ntfy-s3-test"
 	}
 
-	client := &Client{
+	client := New(&Config{
 		AccessKey: accessKey,
 		SecretKey: secretKey,
 		Region:    region,
@@ -752,7 +752,7 @@ func TestClient_RealBucket(t *testing.T) {
 		Bucket:    bucket,
 		Prefix:    prefix,
 		PathStyle: pathStyle,
-	}
+	})
 
 	ctx := context.Background()
 
@@ -762,8 +762,7 @@ func TestClient_RealBucket(t *testing.T) {
 	if len(existing) > 0 {
 		keys := make([]string, len(existing))
 		for i, obj := range existing {
-			// Strip the prefix since DeleteObjects will re-add it
-			keys[i] = strings.TrimPrefix(obj.Key, prefix+"/")
+			keys[i] = obj.Key
 		}
 		// Batch delete in groups of 1000
 		for i := 0; i < len(keys); i += 1000 {
@@ -807,7 +806,7 @@ func TestClient_RealBucket(t *testing.T) {
 
 	t.Run("ListObjects", func(t *testing.T) {
 		// Use a sub-prefix client for isolation
-		listClient := &Client{
+		listClient := New(&Config{
 			AccessKey: accessKey,
 			SecretKey: secretKey,
 			Region:    region,
@@ -815,7 +814,7 @@ func TestClient_RealBucket(t *testing.T) {
 			Bucket:    bucket,
 			Prefix:    prefix + "/list-test",
 			PathStyle: pathStyle,
-		}
+		})
 
 		// Put 10 objects
 		for i := 0; i < 10; i++ {

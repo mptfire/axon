@@ -3,7 +3,6 @@ package attachment
 import (
 	"context"
 	"io"
-	"strings"
 	"time"
 
 	"heckel.io/ntfy/v2/log"
@@ -38,15 +37,10 @@ func (b *s3Backend) List() ([]object, error) {
 	if err != nil {
 		return nil, err
 	}
-	prefix := b.client.Prefix
 	result := make([]object, 0, len(objects))
 	for _, obj := range objects {
-		id := obj.Key
-		if prefix != "" {
-			id = strings.TrimPrefix(id, prefix+"/")
-		}
 		result = append(result, object{
-			ID:           id,
+			ID:           obj.Key,
 			Size:         obj.Size,
 			LastModified: obj.LastModified,
 		})

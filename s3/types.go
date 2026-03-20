@@ -2,18 +2,36 @@ package s3
 
 import (
 	"fmt"
+	"net/http"
 	"time"
 )
 
 // Config holds the parsed fields from an S3 URL. Use ParseURL to create one from a URL string.
 type Config struct {
-	Endpoint  string // host[:port] only, e.g. "s3.us-east-1.amazonaws.com"
-	PathStyle bool
-	Bucket    string
-	Prefix    string
-	Region    string
-	AccessKey string
-	SecretKey string
+	Endpoint   string // host[:port] only, e.g. "s3.us-east-1.amazonaws.com"
+	PathStyle  bool
+	Bucket     string
+	Prefix     string
+	Region     string
+	AccessKey  string
+	SecretKey  string
+	HTTPClient *http.Client // if nil, http.DefaultClient is used
+}
+
+// bucketURL returns the base URL for bucket-level operations.
+func (c *Config) BucketURL() string {
+	if c.PathStyle {
+		return fmt.Sprintf("https://%s/%s", c.Endpoint, c.Bucket)
+	}
+	return fmt.Sprintf("https://%s.%s", c.Bucket, c.Endpoint)
+}
+
+// hostHeader returns the value for the Host header.
+func (c *Config) HostHeader() string {
+	if c.PathStyle {
+		return c.Endpoint
+	}
+	return c.Bucket + "." + c.Endpoint
 }
 
 // Object represents an S3 object returned by list operations.
@@ -23,8 +41,8 @@ type Object struct {
 	LastModified time.Time
 }
 
-// ListResult holds the response from a ListObjectsV2 call.
-type ListResult struct {
+// listResult holds the response from a single ListObjectsV2 page.
+type listResult struct {
 	Objects               []Object
 	IsTruncated           bool
 	NextContinuationToken string
@@ -78,10 +96,10 @@ type MultipartUpload struct {
 
 // listMultipartUploadsResult is the XML response from S3 ListMultipartUploads
 type listMultipartUploadsResult struct {
-	Uploads             []listUpload `xml:"Upload"`
-	IsTruncated         bool         `xml:"IsTruncated"`
-	NextKeyMarker       string       `xml:"NextKeyMarker"`
-	NextUploadIDMarker  string       `xml:"NextUploadIdMarker"`
+	Uploads            []listUpload `xml:"Upload"`
+	IsTruncated        bool         `xml:"IsTruncated"`
+	NextKeyMarker      string       `xml:"NextKeyMarker"`
+	NextUploadIDMarker string       `xml:"NextUploadIdMarker"`
 }
 
 type listUpload struct {

@@ -8,14 +8,12 @@ import (
 	"context"
 	"crypto/md5" //nolint:gosec // MD5 is required by the S3 protocol for Content-MD5 headers
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -33,26 +31,19 @@ const (
 //
 // Fields must not be modified after the Client is passed to any method or goroutine.
 type Client struct {
-	AccessKey  string       // AWS access key ID
-	SecretKey  string       // AWS secret access key
-	Region     string       // e.g. "us-east-1"
-	Endpoint   string       // host[:port] only, e.g. "s3.amazonaws.com" or "nyc3.digitaloceanspaces.com"
-	Bucket     string       // S3 bucket name
-	Prefix     string       // optional key prefix (e.g. "attachments"); prepended to all keys automatically
-	PathStyle  bool         // if true, use path-style addressing; otherwise virtual-hosted-style
-	HTTPClient *http.Client // if nil, http.DefaultClient is used
+	config *Config
+	http   *http.Client
 }
 
 // New creates a new S3 client from the given Config.
 func New(config *Config) *Client {
+	httpClient := config.HTTPClient
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
 	return &Client{
-		AccessKey: config.AccessKey,
-		SecretKey: config.SecretKey,
-		Region:    config.Region,
-		Endpoint:  config.Endpoint,
-		Bucket:    config.Bucket,
-		Prefix:    config.Prefix,
-		PathStyle: config.PathStyle,
+		config: config,
+		http:   httpClient,
 	}
 }
 
@@ -87,7 +78,7 @@ func (c *Client) GetObject(ctx context.Context, key string) (io.ReadCloser, int6
 		return nil, 0, fmt.Errorf("s3: GetObject request: %w", err)
 	}
 	c.signV4(req, emptyPayloadHash)
-	resp, err := c.httpClient().Do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("s3: GetObject: %w", err)
 	}
@@ -116,35 +107,18 @@ func (c *Client) DeleteObjects(ctx context.Context, keys []string) error {
 	}
 	body.WriteString("</Delete>")
 	bodyBytes := body.Bytes()
-	payloadHash := sha256Hex(bodyBytes)
 
 	// Content-MD5 is required by the S3 protocol for DeleteObjects requests.
 	md5Sum := md5.Sum(bodyBytes) //nolint:gosec
 	contentMD5 := base64.StdEncoding.EncodeToString(md5Sum[:])
 
-	reqURL := c.bucketURL() + "?delete="
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewReader(bodyBytes))
+	respBody, err := c.doWithBodyAndHeaders(ctx, http.MethodPost, c.config.BucketURL()+"?delete=", bodyBytes,
+		map[string]string{"Content-MD5": contentMD5}, "DeleteObjects")
 	if err != nil {
-		return fmt.Errorf("s3: DeleteObjects request: %w", err)
-	}
-	req.ContentLength = int64(len(bodyBytes))
-	req.Header.Set("Content-Type", "application/xml")
-	req.Header.Set("Content-MD5", contentMD5)
-	c.signV4(req, payloadHash)
-	resp, err := c.httpClient().Do(req)
-	if err != nil {
-		return fmt.Errorf("s3: DeleteObjects: %w", err)
-	}
-	defer resp.Body.Close()
-	if !isHTTPSuccess(resp) {
-		return parseError(resp)
+		return err
 	}
 
 	// S3 may return HTTP 200 with per-key errors in the response body
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
-	if err != nil {
-		return fmt.Errorf("s3: DeleteObjects read response: %w", err)
-	}
 	var result deleteResult
 	if err := xml.Unmarshal(respBody, &result); err != nil {
 		return nil // If we can't parse, assume success (Quiet mode returns empty body on success)
@@ -159,9 +133,9 @@ func (c *Client) DeleteObjects(ctx context.Context, keys []string) error {
 	return nil
 }
 
-// ListObjects performs a single ListObjectsV2 request using the client's configured prefix.
+// listObjects performs a single ListObjectsV2 request using the client's configured prefix.
 // Use continuationToken for pagination. Set maxKeys to 0 for the server default (typically 1000).
-func (c *Client) ListObjects(ctx context.Context, continuationToken string, maxKeys int) (*ListResult, error) {
+func (c *Client) listObjects(ctx context.Context, continuationToken string, maxKeys int) (*listResult, error) {
 	log.Tag(tagS3Client).Debug("ListObjects continuation=%s maxKeys=%d", continuationToken, maxKeys)
 	query := url.Values{"list-type": {"2"}}
 	if prefix := c.prefixForList(); prefix != "" {
@@ -173,22 +147,9 @@ func (c *Client) ListObjects(ctx context.Context, continuationToken string, maxK
 	if maxKeys > 0 {
 		query.Set("max-keys", strconv.Itoa(maxKeys))
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.bucketURL()+"?"+query.Encode(), nil)
+	respBody, err := c.do(ctx, http.MethodGet, c.config.BucketURL()+"?"+query.Encode(), nil, "ListObjects")
 	if err != nil {
-		return nil, fmt.Errorf("s3: ListObjects request: %w", err)
-	}
-	c.signV4(req, emptyPayloadHash)
-	resp, err := c.httpClient().Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("s3: ListObjects: %w", err)
-	}
-	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
-	resp.Body.Close()
-	if err != nil {
-		return nil, fmt.Errorf("s3: ListObjects read: %w", err)
-	}
-	if !isHTTPSuccess(resp) {
-		return nil, parseErrorFromBytes(resp.StatusCode, respBody)
+		return nil, err
 	}
 	var result listObjectsV2Response
 	if err := xml.Unmarshal(respBody, &result); err != nil {
@@ -206,7 +167,7 @@ func (c *Client) ListObjects(ctx context.Context, continuationToken string, maxK
 			LastModified: lastModified,
 		}
 	}
-	return &ListResult{
+	return &listResult{
 		Objects:               objects,
 		IsTruncated:           result.IsTruncated,
 		NextContinuationToken: result.NextContinuationToken,
@@ -214,93 +175,27 @@ func (c *Client) ListObjects(ctx context.Context, continuationToken string, maxK
 }
 
 // ListAllObjects returns all objects under the client's configured prefix by paginating through
-// ListObjectsV2 results automatically. It stops after 10,000 pages as a safety valve.
+// ListObjectsV2 results automatically. Keys in the returned objects have the prefix stripped,
+// so they match the keys used with PutObject/GetObject/DeleteObjects. It stops after 10,000
+// pages as a safety valve.
 func (c *Client) ListAllObjects(ctx context.Context) ([]Object, error) {
 	var all []Object
 	var token string
 	for page := 0; page < maxPages; page++ {
-		result, err := c.ListObjects(ctx, token, 0)
+		result, err := c.listObjects(ctx, token, 0)
 		if err != nil {
 			return nil, err
 		}
-		all = append(all, result.Objects...)
+		for _, obj := range result.Objects {
+			obj.Key = c.stripPrefix(obj.Key)
+			all = append(all, obj)
+		}
 		if !result.IsTruncated {
 			return all, nil
 		}
 		token = result.NextContinuationToken
 	}
 	return nil, fmt.Errorf("s3: ListAllObjects exceeded %d pages", maxPages)
-}
-
-// ListMultipartUploads returns in-progress multipart uploads for the client's prefix.
-// It paginates automatically, stopping after 10,000 pages as a safety valve.
-func (c *Client) ListMultipartUploads(ctx context.Context) ([]MultipartUpload, error) {
-	var all []MultipartUpload
-	var keyMarker, uploadIDMarker string
-	for page := 0; page < maxPages; page++ {
-		query := url.Values{"uploads": {""}}
-		if prefix := c.prefixForList(); prefix != "" {
-			query.Set("prefix", prefix)
-		}
-		if keyMarker != "" {
-			query.Set("key-marker", keyMarker)
-			query.Set("upload-id-marker", uploadIDMarker)
-		}
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.bucketURL()+"?"+query.Encode(), nil)
-		if err != nil {
-			return nil, fmt.Errorf("s3: ListMultipartUploads request: %w", err)
-		}
-		c.signV4(req, emptyPayloadHash)
-		resp, err := c.httpClient().Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("s3: ListMultipartUploads: %w", err)
-		}
-		respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
-		resp.Body.Close()
-		if err != nil {
-			return nil, fmt.Errorf("s3: ListMultipartUploads read: %w", err)
-		}
-		if !isHTTPSuccess(resp) {
-			return nil, parseErrorFromBytes(resp.StatusCode, respBody)
-		}
-		var result listMultipartUploadsResult
-		if err := xml.Unmarshal(respBody, &result); err != nil {
-			return nil, fmt.Errorf("s3: ListMultipartUploads XML: %w", err)
-		}
-		for _, u := range result.Uploads {
-			var initiated time.Time
-			if u.Initiated != "" {
-				initiated, _ = time.Parse(time.RFC3339, u.Initiated)
-			}
-			all = append(all, MultipartUpload{
-				Key:       u.Key,
-				UploadID:  u.UploadID,
-				Initiated: initiated,
-			})
-		}
-		if !result.IsTruncated {
-			return all, nil
-		}
-		keyMarker = result.NextKeyMarker
-		uploadIDMarker = result.NextUploadIDMarker
-	}
-	return nil, fmt.Errorf("s3: ListMultipartUploads exceeded %d pages", maxPages)
-}
-
-// AbortIncompleteUploads lists all in-progress multipart uploads and aborts those initiated
-// before the given cutoff time. This cleans up orphaned upload parts from interrupted uploads.
-func (c *Client) AbortIncompleteUploads(ctx context.Context, cutoff time.Time) error {
-	uploads, err := c.ListMultipartUploads(ctx)
-	if err != nil {
-		return err
-	}
-	for _, u := range uploads {
-		if !u.Initiated.IsZero() && u.Initiated.Before(cutoff) {
-			log.Tag(tagS3Client).Debug("DeleteIncomplete key=%s uploadId=%s initiated=%s", u.Key, u.UploadID, u.Initiated)
-			c.abortMultipartUpload(ctx, u.Key, u.UploadID)
-		}
-	}
-	return nil
 }
 
 // putObject uploads a body with known size using a simple PUT with UNSIGNED-PAYLOAD.
@@ -312,235 +207,80 @@ func (c *Client) putObject(ctx context.Context, key string, body io.Reader, size
 	}
 	req.ContentLength = size
 	c.signV4(req, unsignedPayload)
-	resp, err := c.httpClient().Do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return fmt.Errorf("s3: PutObject: %w", err)
 	}
-	defer resp.Body.Close()
+	resp.Body.Close()
 	if !isHTTPSuccess(resp) {
 		return parseError(resp)
 	}
 	return nil
 }
 
-// putObjectMultipart uploads body using S3 multipart upload. It reads the body in partSize
-// chunks, uploading each as a separate part. This allows uploading without knowing the total
-// body size in advance.
-func (c *Client) putObjectMultipart(ctx context.Context, key string, body io.Reader) error {
-	fullKey := c.objectKey(key)
-
-	// Step 1: Initiate multipart upload
-	uploadID, err := c.initiateMultipartUpload(ctx, fullKey)
+// do creates a request, signs it with an empty payload, executes it, reads the response body,
+// and checks for errors. It is used for bodiless GET/POST requests.
+func (c *Client) do(ctx context.Context, method, reqURL string, body io.Reader, op string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, method, reqURL, body)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("s3: %s request: %w", op, err)
 	}
-
-	// Step 2: Upload parts
-	var parts []completedPart
-	buf := make([]byte, partSize)
-	partNumber := 1
-	for {
-		n, err := io.ReadFull(body, buf)
-		if n > 0 {
-			etag, uploadErr := c.uploadPart(ctx, fullKey, uploadID, partNumber, buf[:n])
-			if uploadErr != nil {
-				c.abortMultipartUpload(ctx, fullKey, uploadID)
-				return uploadErr
-			}
-			parts = append(parts, completedPart{PartNumber: partNumber, ETag: etag})
-			partNumber++
-		}
-		if err == io.EOF || errors.Is(err, io.ErrUnexpectedEOF) {
-			break
-		}
-		if err != nil {
-			c.abortMultipartUpload(ctx, fullKey, uploadID)
-			return fmt.Errorf("s3: PutObject read: %w", err)
-		}
+	if body == nil {
+		req.ContentLength = 0
 	}
-
-	// Step 3: Complete multipart upload
-	return c.completeMultipartUpload(ctx, fullKey, uploadID, parts)
-}
-
-// initiateMultipartUpload starts a new multipart upload and returns the upload ID.
-func (c *Client) initiateMultipartUpload(ctx context.Context, fullKey string) (string, error) {
-	reqURL := c.objectURL(fullKey) + "?uploads"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("s3: InitiateMultipartUpload request: %w", err)
-	}
-	req.ContentLength = 0
 	c.signV4(req, emptyPayloadHash)
-	resp, err := c.httpClient().Do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("s3: InitiateMultipartUpload: %w", err)
-	}
-	defer resp.Body.Close()
-	if !isHTTPSuccess(resp) {
-		return "", parseError(resp)
+		return nil, fmt.Errorf("s3: %s: %w", op, err)
 	}
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
+	resp.Body.Close()
 	if err != nil {
-		return "", fmt.Errorf("s3: InitiateMultipartUpload read: %w", err)
+		return nil, fmt.Errorf("s3: %s read: %w", op, err)
 	}
-	var result initiateMultipartUploadResult
-	if err := xml.Unmarshal(respBody, &result); err != nil {
-		return "", fmt.Errorf("s3: InitiateMultipartUpload XML: %w", err)
-	}
-	log.Tag(tagS3Client).Debug("InitiateMultipartUpload key=%s uploadId=%s", fullKey, result.UploadID)
-	return result.UploadID, nil
-}
-
-// uploadPart uploads a single part of a multipart upload and returns the ETag.
-func (c *Client) uploadPart(ctx context.Context, fullKey, uploadID string, partNumber int, data []byte) (string, error) {
-	log.Tag(tagS3Client).Debug("UploadPart key=%s part=%d size=%d", fullKey, partNumber, len(data))
-	reqURL := fmt.Sprintf("%s?partNumber=%d&uploadId=%s", c.objectURL(fullKey), partNumber, url.QueryEscape(uploadID))
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, reqURL, bytes.NewReader(data))
-	if err != nil {
-		return "", fmt.Errorf("s3: UploadPart request: %w", err)
-	}
-	req.ContentLength = int64(len(data))
-	c.signV4(req, unsignedPayload)
-	resp, err := c.httpClient().Do(req)
-	if err != nil {
-		return "", fmt.Errorf("s3: UploadPart: %w", err)
-	}
-	defer resp.Body.Close()
 	if !isHTTPSuccess(resp) {
-		return "", parseError(resp)
+		return nil, parseErrorFromBytes(resp.StatusCode, respBody)
 	}
-	etag := resp.Header.Get("ETag")
-	return etag, nil
+	return respBody, nil
 }
 
-// completeMultipartUpload finalizes a multipart upload with the given parts.
-func (c *Client) completeMultipartUpload(ctx context.Context, fullKey, uploadID string, parts []completedPart) error {
-	log.Tag(tagS3Client).Debug("CompleteMultipartUpload key=%s uploadId=%s parts=%d", fullKey, uploadID, len(parts))
-	var body bytes.Buffer
-	body.WriteString("<CompleteMultipartUpload>")
-	for _, p := range parts {
-		fmt.Fprintf(&body, "<Part><PartNumber>%d</PartNumber><ETag>%s</ETag></Part>", p.PartNumber, p.ETag)
-	}
-	body.WriteString("</CompleteMultipartUpload>")
-	bodyBytes := body.Bytes()
-	payloadHash := sha256Hex(bodyBytes)
+// doWithBody is like do, but sends a body with a computed SHA-256 payload hash and Content-Type: application/xml.
+func (c *Client) doWithBody(ctx context.Context, method, reqURL string, bodyBytes []byte, op string) ([]byte, error) {
+	return c.doWithBodyAndHeaders(ctx, method, reqURL, bodyBytes, nil, op)
+}
 
-	reqURL := fmt.Sprintf("%s?uploadId=%s", c.objectURL(fullKey), url.QueryEscape(uploadID))
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewReader(bodyBytes))
+// doWithBodyAndHeaders is like doWithBody, but allows setting additional headers (e.g. Content-MD5).
+func (c *Client) doWithBodyAndHeaders(ctx context.Context, method, reqURL string, bodyBytes []byte, headers map[string]string, op string) ([]byte, error) {
+	payloadHash := sha256Hex(bodyBytes)
+	req, err := http.NewRequestWithContext(ctx, method, reqURL, bytes.NewReader(bodyBytes))
 	if err != nil {
-		return fmt.Errorf("s3: CompleteMultipartUpload request: %w", err)
+		return nil, fmt.Errorf("s3: %s request: %w", op, err)
 	}
 	req.ContentLength = int64(len(bodyBytes))
 	req.Header.Set("Content-Type", "application/xml")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
 	c.signV4(req, payloadHash)
-	resp, err := c.httpClient().Do(req)
+	resp, err := c.http.Do(req)
 	if err != nil {
-		return fmt.Errorf("s3: CompleteMultipartUpload: %w", err)
+		return nil, fmt.Errorf("s3: %s: %w", op, err)
 	}
-	defer resp.Body.Close()
-	if !isHTTPSuccess(resp) {
-		return parseError(resp)
-	}
-	// Read response body to check for errors (S3 can return 200 with an error body)
 	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
-	if err != nil {
-		return fmt.Errorf("s3: CompleteMultipartUpload read: %w", err)
-	}
-	// Check if the response contains an error
-	var errResp ErrorResponse
-	if xml.Unmarshal(respBody, &errResp) == nil && errResp.Code != "" {
-		errResp.StatusCode = resp.StatusCode
-		return &errResp
-	}
-	return nil
-}
-
-// abortMultipartUpload cancels an in-progress multipart upload. Called on error to clean up.
-func (c *Client) abortMultipartUpload(ctx context.Context, fullKey, uploadID string) {
-	log.Tag(tagS3Client).Debug("AbortMultipartUpload key=%s uploadId=%s", fullKey, uploadID)
-	reqURL := fmt.Sprintf("%s?uploadId=%s", c.objectURL(fullKey), url.QueryEscape(uploadID))
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, reqURL, nil)
-	if err != nil {
-		return
-	}
-	c.signV4(req, emptyPayloadHash)
-	resp, err := c.httpClient().Do(req)
-	if err != nil {
-		return
-	}
 	resp.Body.Close()
-}
-
-// signV4 signs req in place using AWS Signature V4. payloadHash is the hex-encoded SHA-256
-// of the request body, or the literal string "UNSIGNED-PAYLOAD" for streaming uploads.
-func (c *Client) signV4(req *http.Request, payloadHash string) {
-	now := time.Now().UTC()
-	datestamp := now.Format("20060102")
-	amzDate := now.Format("20060102T150405Z")
-
-	// Required headers
-	req.Header.Set("Host", c.hostHeader())
-	req.Header.Set("X-Amz-Date", amzDate)
-	req.Header.Set("X-Amz-Content-Sha256", payloadHash)
-
-	// Canonical headers (all headers we set, sorted by lowercase key)
-	signedKeys := make([]string, 0, len(req.Header))
-	canonHeaders := make(map[string]string, len(req.Header))
-	for k := range req.Header {
-		lk := strings.ToLower(k)
-		signedKeys = append(signedKeys, lk)
-		canonHeaders[lk] = strings.TrimSpace(req.Header.Get(k))
+	if err != nil {
+		return nil, fmt.Errorf("s3: %s read: %w", op, err)
 	}
-	sort.Strings(signedKeys)
-	signedHeadersStr := strings.Join(signedKeys, ";")
-	var chBuf strings.Builder
-	for _, k := range signedKeys {
-		chBuf.WriteString(k)
-		chBuf.WriteByte(':')
-		chBuf.WriteString(canonHeaders[k])
-		chBuf.WriteByte('\n')
+	if !isHTTPSuccess(resp) {
+		return nil, parseErrorFromBytes(resp.StatusCode, respBody)
 	}
-
-	// Canonical request
-	canonicalRequest := strings.Join([]string{
-		req.Method,
-		canonicalURI(req.URL),
-		canonicalQueryString(req.URL.Query()),
-		chBuf.String(),
-		signedHeadersStr,
-		payloadHash,
-	}, "\n")
-
-	// String to sign
-	credentialScope := datestamp + "/" + c.Region + "/s3/aws4_request"
-	stringToSign := "AWS4-HMAC-SHA256\n" + amzDate + "\n" + credentialScope + "\n" + sha256Hex([]byte(canonicalRequest))
-
-	// Signing key
-	signingKey := hmacSHA256(hmacSHA256(hmacSHA256(hmacSHA256(
-		[]byte("AWS4"+c.SecretKey), []byte(datestamp)),
-		[]byte(c.Region)),
-		[]byte("s3")),
-		[]byte("aws4_request"))
-
-	signature := hex.EncodeToString(hmacSHA256(signingKey, []byte(stringToSign)))
-	req.Header.Set("Authorization", fmt.Sprintf(
-		"AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s",
-		c.AccessKey, credentialScope, signedHeadersStr, signature,
-	))
-}
-
-func (c *Client) httpClient() *http.Client {
-	if c.HTTPClient != nil {
-		return c.HTTPClient
-	}
-	return http.DefaultClient
+	return respBody, nil
 }
 
 // objectKey prepends the configured prefix to the given key.
 func (c *Client) objectKey(key string) string {
-	if c.Prefix != "" {
-		return c.Prefix + "/" + key
+	if c.config.Prefix != "" {
+		return c.config.Prefix + "/" + key
 	}
 	return key
 }
@@ -548,18 +288,19 @@ func (c *Client) objectKey(key string) string {
 // prefixForList returns the prefix to use in ListObjectsV2 requests,
 // with a trailing slash so that only objects under the prefix directory are returned.
 func (c *Client) prefixForList() string {
-	if c.Prefix != "" {
-		return c.Prefix + "/"
+	if c.config.Prefix != "" {
+		return c.config.Prefix + "/"
 	}
 	return ""
 }
 
-// bucketURL returns the base URL for bucket-level operations.
-func (c *Client) bucketURL() string {
-	if c.PathStyle {
-		return fmt.Sprintf("https://%s/%s", c.Endpoint, c.Bucket)
+// stripPrefix removes the configured prefix from a key returned by ListObjectsV2,
+// so keys match what was passed to PutObject/GetObject/DeleteObjects.
+func (c *Client) stripPrefix(key string) string {
+	if c.config.Prefix != "" {
+		return strings.TrimPrefix(key, c.config.Prefix+"/")
 	}
-	return fmt.Sprintf("https://%s.%s", c.Bucket, c.Endpoint)
+	return key
 }
 
 // objectURL returns the full URL for an object (key should already include the prefix).
@@ -569,13 +310,5 @@ func (c *Client) objectURL(key string) string {
 	for i, seg := range segments {
 		segments[i] = uriEncode(seg)
 	}
-	return c.bucketURL() + "/" + strings.Join(segments, "/")
-}
-
-// hostHeader returns the value for the Host header.
-func (c *Client) hostHeader() string {
-	if c.PathStyle {
-		return c.Endpoint
-	}
-	return c.Bucket + "." + c.Endpoint
+	return c.config.BucketURL() + "/" + strings.Join(segments, "/")
 }

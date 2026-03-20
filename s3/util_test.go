@@ -105,13 +105,13 @@ func TestHmacSHA256(t *testing.T) {
 }
 
 func TestSignV4_SetsRequiredHeaders(t *testing.T) {
-	c := &Client{
+	c := &Client{config: &Config{
 		AccessKey: "AKID",
 		SecretKey: "SECRET",
 		Region:    "us-east-1",
 		Endpoint:  "s3.us-east-1.amazonaws.com",
 		Bucket:    "my-bucket",
-	}
+	}}
 
 	req, _ := http.NewRequest(http.MethodGet, "https://my-bucket.s3.us-east-1.amazonaws.com/test-key", nil)
 	c.signV4(req, emptyPayloadHash)
@@ -131,13 +131,13 @@ func TestSignV4_SetsRequiredHeaders(t *testing.T) {
 }
 
 func TestSignV4_UnsignedPayload(t *testing.T) {
-	c := &Client{
+	c := &Client{config: &Config{
 		AccessKey: "AKID",
 		SecretKey: "SECRET",
 		Region:    "us-east-1",
 		Endpoint:  "s3.us-east-1.amazonaws.com",
 		Bucket:    "my-bucket",
-	}
+	}}
 
 	req, _ := http.NewRequest(http.MethodPut, "https://my-bucket.s3.us-east-1.amazonaws.com/test-key", nil)
 	c.signV4(req, unsignedPayload)
@@ -146,8 +146,8 @@ func TestSignV4_UnsignedPayload(t *testing.T) {
 }
 
 func TestSignV4_DifferentRegions(t *testing.T) {
-	c1 := &Client{AccessKey: "AKID", SecretKey: "SECRET", Region: "us-east-1", Endpoint: "s3.us-east-1.amazonaws.com", Bucket: "b"}
-	c2 := &Client{AccessKey: "AKID", SecretKey: "SECRET", Region: "eu-west-1", Endpoint: "s3.eu-west-1.amazonaws.com", Bucket: "b"}
+	c1 := &Client{config: &Config{AccessKey: "AKID", SecretKey: "SECRET", Region: "us-east-1", Endpoint: "s3.us-east-1.amazonaws.com", Bucket: "b"}}
+	c2 := &Client{config: &Config{AccessKey: "AKID", SecretKey: "SECRET", Region: "eu-west-1", Endpoint: "s3.eu-west-1.amazonaws.com", Bucket: "b"}}
 
 	req1, _ := http.NewRequest(http.MethodGet, "https://b.s3.us-east-1.amazonaws.com/key", nil)
 	c1.signV4(req1, emptyPayloadHash)

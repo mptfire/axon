@@ -197,7 +197,7 @@ func TestS3Store_Sync_SkipsRecentFiles(t *testing.T) {
 func newTestS3Store(t *testing.T, server *httptest.Server, bucket, prefix string, totalSizeLimit int64) *Store {
 	t.Helper()
 	host := strings.TrimPrefix(server.URL, "https://")
-	backend := newS3Backend(&s3.Client{
+	backend := newS3Backend(s3.New(&s3.Config{
 		AccessKey:  "AKID",
 		SecretKey:  "SECRET",
 		Region:     "us-east-1",
@@ -206,7 +206,7 @@ func newTestS3Store(t *testing.T, server *httptest.Server, bucket, prefix string
 		Prefix:     prefix,
 		PathStyle:  true,
 		HTTPClient: server.Client(),
-	})
+	}))
 	cache, err := newStore(backend, totalSizeLimit, nil)
 	require.Nil(t, err)
 	t.Cleanup(func() { cache.Close() })
