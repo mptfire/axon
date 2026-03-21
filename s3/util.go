@@ -20,8 +20,8 @@ const (
 	// Sent as the payload hash for streaming uploads where the body is not buffered in memory
 	unsignedPayload = "UNSIGNED-PAYLOAD"
 
-	// maxResponseBytes caps the size of S3 response bodies we read into memory (10 MB)
-	maxResponseBytes = 10 * 1024 * 1024
+	// maxResponseBytes caps the size of S3 response bodies we read into memory
+	maxResponseBytes = 2 * 1024 * 1024
 
 	// partSize is the size of each part for multipart uploads (5 MB). This is also the threshold
 	// above which PutObject switches from a simple PUT to multipart upload. S3 requires a minimum
@@ -29,7 +29,7 @@ const (
 	partSize = 5 * 1024 * 1024
 
 	// maxPages is the max number of pages to iterate through when listing objects
-	maxPages = 10000
+	maxPages = 500
 )
 
 // ParseURL parses an S3 URL of the form:
@@ -88,7 +88,7 @@ func ParseURL(s3URL string) (*Config, error) {
 func parseError(resp *http.Response) error {
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {
-		return fmt.Errorf("s3: reading error response: %w", err)
+		return fmt.Errorf("error reading S3 error response: %w", err)
 	}
 	return parseErrorFromBytes(resp.StatusCode, body)
 }

@@ -105,7 +105,7 @@ func cmdRm(ctx context.Context, client *s3.Client) {
 }
 
 func cmdLs(ctx context.Context, client *s3.Client) {
-	objects, err := client.ListAllObjects(ctx)
+	objects, err := client.ListObjectsV2(ctx)
 	if err != nil {
 		fail("ls: %s", err)
 	}

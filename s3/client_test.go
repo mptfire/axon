@@ -373,14 +373,14 @@ func TestConfig_BucketURL_VirtualHosted(t *testing.T) {
 	require.Equal(t, "https://my-bucket.s3.us-east-1.amazonaws.com", c.BucketURL())
 }
 
-func TestClient_ObjectURL_PathStyle(t *testing.T) {
-	c := &Client{config: &Config{Endpoint: "s3.example.com", Bucket: "my-bucket", Prefix: "prefix", PathStyle: true}}
-	require.Equal(t, "https://s3.example.com/my-bucket/prefix/obj", c.objectURL("obj"))
+func TestConfig_ObjectURL_PathStyle(t *testing.T) {
+	c := &Config{Endpoint: "s3.example.com", Bucket: "my-bucket", Prefix: "prefix", PathStyle: true}
+	require.Equal(t, "https://s3.example.com/my-bucket/prefix/obj", c.ObjectURL("obj"))
 }
 
-func TestClient_ObjectURL_VirtualHosted(t *testing.T) {
-	c := &Client{config: &Config{Endpoint: "s3.us-east-1.amazonaws.com", Bucket: "my-bucket", Prefix: "prefix", PathStyle: false}}
-	require.Equal(t, "https://my-bucket.s3.us-east-1.amazonaws.com/prefix/obj", c.objectURL("obj"))
+func TestConfig_ObjectURL_VirtualHosted(t *testing.T) {
+	c := &Config{Endpoint: "s3.us-east-1.amazonaws.com", Bucket: "my-bucket", Prefix: "prefix", PathStyle: false}
+	require.Equal(t, "https://my-bucket.s3.us-east-1.amazonaws.com/prefix/obj", c.ObjectURL("obj"))
 }
 
 func TestConfig_HostHeader_PathStyle(t *testing.T) {
@@ -393,20 +393,20 @@ func TestConfig_HostHeader_VirtualHosted(t *testing.T) {
 	require.Equal(t, "my-bucket.s3.us-east-1.amazonaws.com", c.HostHeader())
 }
 
-func TestClient_ObjectKey(t *testing.T) {
-	c := &Client{config: &Config{Prefix: "attachments"}}
-	require.Equal(t, "attachments/file123", c.objectKey("file123"))
+func TestConfig_ObjectKey(t *testing.T) {
+	c := &Config{Prefix: "attachments"}
+	require.Equal(t, "attachments/file123", c.ObjectKey("file123"))
 
-	c2 := &Client{config: &Config{Prefix: ""}}
-	require.Equal(t, "file123", c2.objectKey("file123"))
+	c2 := &Config{Prefix: ""}
+	require.Equal(t, "file123", c2.ObjectKey("file123"))
 }
 
-func TestClient_PrefixForList(t *testing.T) {
-	c := &Client{config: &Config{Prefix: "attachments"}}
-	require.Equal(t, "attachments/", c.prefixForList())
+func TestConfig_ListPrefix(t *testing.T) {
+	c := &Config{Prefix: "attachments"}
+	require.Equal(t, "attachments/", c.ListPrefix())
 
-	c2 := &Client{config: &Config{Prefix: ""}}
-	require.Equal(t, "", c2.prefixForList())
+	c2 := &Config{Prefix: ""}
+	require.Equal(t, "", c2.ListPrefix())
 }
 
 // --- Integration tests using mock S3 server ---
@@ -512,13 +512,13 @@ func TestClient_ListObjects(t *testing.T) {
 	require.Nil(t, err)
 
 	// List with prefix client: should only see 3
-	result, err := client.listObjects(ctx, "", 0)
+	result, err := client.listObjectsV2(ctx, "", 0)
 	require.Nil(t, err)
 	require.Len(t, result.Objects, 3)
 	require.False(t, result.IsTruncated)
 
 	// List with no-prefix client: should see all 4
-	result, err = clientNoPrefix.listObjects(ctx, "", 0)
+	result, err = clientNoPrefix.listObjectsV2(ctx, "", 0)
 	require.Nil(t, err)
 	require.Len(t, result.Objects, 4)
 }
@@ -537,20 +537,20 @@ func TestClient_ListObjects_Pagination(t *testing.T) {
 	}
 
 	// List with max-keys=2
-	result, err := client.listObjects(ctx, "", 2)
+	result, err := client.listObjectsV2(ctx, "", 2)
 	require.Nil(t, err)
 	require.Len(t, result.Objects, 2)
 	require.True(t, result.IsTruncated)
 	require.NotEmpty(t, result.NextContinuationToken)
 
 	// Get next page
-	result2, err := client.listObjects(ctx, result.NextContinuationToken, 2)
+	result2, err := client.listObjectsV2(ctx, result.NextContinuationToken, 2)
 	require.Nil(t, err)
 	require.Len(t, result2.Objects, 2)
 	require.True(t, result2.IsTruncated)
 
 	// Get last page
-	result3, err := client.listObjects(ctx, result2.NextContinuationToken, 2)
+	result3, err := client.listObjectsV2(ctx, result2.NextContinuationToken, 2)
 	require.Nil(t, err)
 	require.Len(t, result3.Objects, 1)
 	require.False(t, result3.IsTruncated)
@@ -568,7 +568,7 @@ func TestClient_ListAllObjects(t *testing.T) {
 		require.Nil(t, err)
 	}
 
-	objects, err := client.ListAllObjects(ctx)
+	objects, err := client.ListObjectsV2(ctx)
 	require.Nil(t, err)
 	require.Len(t, objects, 10)
 }
@@ -688,7 +688,7 @@ func TestClient_ListAllObjects_20k(t *testing.T) {
 	}
 
 	// List all 20k objects with pagination
-	objects, err := client.ListAllObjects(ctx)
+	objects, err := client.ListObjectsV2(ctx)
 	require.Nil(t, err)
 	require.Len(t, objects, numObjects)
 
@@ -708,7 +708,7 @@ func TestClient_ListAllObjects_20k(t *testing.T) {
 	require.Nil(t, err)
 
 	// List again: should have 19000
-	objects, err = client.ListAllObjects(ctx)
+	objects, err = client.ListObjectsV2(ctx)
 	require.Nil(t, err)
 	require.Len(t, objects, numObjects-1000)
 }
@@ -757,7 +757,7 @@ func TestClient_RealBucket(t *testing.T) {
 	ctx := context.Background()
 
 	// Clean up any leftover objects from previous runs
-	existing, err := client.ListAllObjects(ctx)
+	existing, err := client.ListObjectsV2(ctx)
 	require.Nil(t, err)
 	if len(existing) > 0 {
 		keys := make([]string, len(existing))
@@ -823,7 +823,7 @@ func TestClient_RealBucket(t *testing.T) {
 		}
 
 		// List
-		objects, err := listClient.ListAllObjects(ctx)
+		objects, err := listClient.ListObjectsV2(ctx)
 		require.Nil(t, err)
 		require.Len(t, objects, 10)
 

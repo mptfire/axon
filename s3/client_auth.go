@@ -11,6 +11,8 @@ import (
 
 // signV4 signs req in place using AWS Signature V4. payloadHash is the hex-encoded SHA-256
 // of the request body, or the literal string "UNSIGNED-PAYLOAD" for streaming uploads.
+//
+// See https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html
 func (c *Client) signV4(req *http.Request, hash string) {
 	now := time.Now().UTC()
 	datestamp := now.Format("20060102")

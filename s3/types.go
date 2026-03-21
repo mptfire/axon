@@ -4,6 +4,8 @@ import (
 	"encoding/xml"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -19,7 +21,7 @@ type Config struct {
 	HTTPClient *http.Client // if nil, http.DefaultClient is used
 }
 
-// bucketURL returns the base URL for bucket-level operations.
+// BucketURL returns the base URL for bucket-level operations.
 func (c *Config) BucketURL() string {
 	if c.PathStyle {
 		return fmt.Sprintf("https://%s/%s", c.Endpoint, c.Bucket)
@@ -27,7 +29,7 @@ func (c *Config) BucketURL() string {
 	return fmt.Sprintf("https://%s.%s", c.Bucket, c.Endpoint)
 }
 
-// hostHeader returns the value for the Host header.
+// HostHeader returns the value for the Host header.
 func (c *Config) HostHeader() string {
 	if c.PathStyle {
 		return c.Endpoint
@@ -35,18 +37,43 @@ func (c *Config) HostHeader() string {
 	return c.Bucket + "." + c.Endpoint
 }
 
+// ListPrefix returns the prefix to use in ListObjectsV2 requests,
+// with a trailing slash so that only objects under the prefix directory are returned.
+func (c *Config) ListPrefix() string {
+	if c.Prefix != "" {
+		return c.Prefix + "/"
+	}
+	return ""
+}
+
+// StripPrefix removes the configured prefix from a key returned by ListObjectsV2,
+// so keys match what was passed to PutObject/GetObject/DeleteObjects.
+func (c *Config) StripPrefix(key string) string {
+	if c.Prefix != "" {
+		return strings.TrimPrefix(key, c.Prefix+"/")
+	}
+	return key
+}
+
+// ObjectKey prepends the configured prefix to the given key.
+func (c *Config) ObjectKey(key string) string {
+	if c.Prefix != "" {
+		return c.Prefix + "/" + key
+	}
+	return key
+}
+
+// ObjectURL returns the full URL for an object, automatically prepending the configured prefix.
+func (c *Config) ObjectURL(key string) string {
+	u, _ := url.JoinPath(c.BucketURL(), c.ObjectKey(key))
+	return u
+}
+
 // Object represents an S3 object returned by list operations.
 type Object struct {
 	Key          string
 	Size         int64
 	LastModified time.Time
-}
-
-// listResult holds the response from a single ListObjectsV2 page.
-type listResult struct {
-	Objects               []Object
-	IsTruncated           bool
-	NextContinuationToken string
 }
 
 // ErrorResponse is returned when S3 responds with a non-2xx status code.
@@ -66,9 +93,16 @@ func (e *ErrorResponse) Error() string {
 
 // listObjectsV2Response is the XML response from S3 ListObjectsV2
 type listObjectsV2Response struct {
-	Contents              []listObject `xml:"Contents"`
-	IsTruncated           bool         `xml:"IsTruncated"`
-	NextContinuationToken string       `xml:"NextContinuationToken"`
+	Contents              []*listObject `xml:"Contents"`
+	IsTruncated           bool          `xml:"IsTruncated"`
+	NextContinuationToken string        `xml:"NextContinuationToken"`
+}
+
+// listObjectsV2Result holds the response from a single ListObjectsV2 page.
+type listObjectsV2Result struct {
+	Objects               []*Object
+	IsTruncated           bool
+	NextContinuationToken string
 }
 
 type listObject struct {
@@ -77,8 +111,8 @@ type listObject struct {
 	LastModified string `xml:"LastModified"`
 }
 
-// deleteRequest is the XML request body for S3 DeleteObjects
-type deleteRequest struct {
+// deleteObjectsRequest is the XML request body for S3 DeleteObjects
+type deleteObjectsRequest struct {
 	XMLName xml.Name        `xml:"Delete"`
 	Quiet   bool            `xml:"Quiet"`
 	Objects []*deleteObject `xml:"Object"`
@@ -88,8 +122,8 @@ type deleteObject struct {
 	Key string `xml:"Key"`
 }
 
-// deleteResult is the XML response from S3 DeleteObjects
-type deleteResult struct {
+// deleteObjectsResult is the XML response from S3 DeleteObjects
+type deleteObjectsResult struct {
 	Errors []deleteError `xml:"Error"`
 }
 
@@ -99,8 +133,8 @@ type deleteError struct {
 	Message string `xml:"Message"`
 }
 
-// MultipartUpload represents an in-progress multipart upload returned by listMultipartUploads.
-type MultipartUpload struct {
+// multipartUpload represents an in-progress multipart upload returned by listMultipartUploads.
+type multipartUpload struct {
 	Key       string
 	UploadID  string
 	Initiated time.Time
@@ -108,10 +142,10 @@ type MultipartUpload struct {
 
 // listMultipartUploadsResult is the XML response from S3 listMultipartUploads
 type listMultipartUploadsResult struct {
-	Uploads            []listUpload `xml:"Upload"`
-	IsTruncated        bool         `xml:"IsTruncated"`
-	NextKeyMarker      string       `xml:"NextKeyMarker"`
-	NextUploadIDMarker string       `xml:"NextUploadIdMarker"`
+	Uploads            []*listUpload `xml:"Upload"`
+	IsTruncated        bool          `xml:"IsTruncated"`
+	NextKeyMarker      string        `xml:"NextKeyMarker"`
+	NextUploadIDMarker string        `xml:"NextUploadIdMarker"`
 }
 
 type listUpload struct {

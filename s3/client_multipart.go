@@ -16,6 +16,9 @@ import (
 
 // AbortIncompleteUploads lists all in-progress multipart uploads and aborts those initiated
 // before the given cutoff time. This cleans up orphaned upload parts from interrupted uploads.
+//
+// See https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html
+// and https://docs.aws.amazon.com/AmazonS3/latest/API/API_AbortMultipartUpload.html
 func (c *Client) AbortIncompleteUploads(ctx context.Context, cutoff time.Time) error {
 	uploads, err := c.listMultipartUploads(ctx)
 	if err != nil {
@@ -32,19 +35,19 @@ func (c *Client) AbortIncompleteUploads(ctx context.Context, cutoff time.Time) e
 
 // listMultipartUploads returns in-progress multipart uploads for the client's prefix.
 // It paginates automatically, stopping after 10,000 pages as a safety valve.
-func (c *Client) listMultipartUploads(ctx context.Context) ([]MultipartUpload, error) {
-	var all []MultipartUpload
+func (c *Client) listMultipartUploads(ctx context.Context) ([]*multipartUpload, error) {
+	var all []*multipartUpload
 	var keyMarker, uploadIDMarker string
 	for page := 0; page < maxPages; page++ {
 		query := url.Values{"uploads": {""}}
-		if prefix := c.prefixForList(); prefix != "" {
+		if prefix := c.config.ListPrefix(); prefix != "" {
 			query.Set("prefix", prefix)
 		}
 		if keyMarker != "" {
 			query.Set("key-marker", keyMarker)
 			query.Set("upload-id-marker", uploadIDMarker)
 		}
-		respBody, err := c.do(ctx, http.MethodGet, c.config.BucketURL()+"?"+query.Encode(), nil, nil, "listMultipartUploads")
+		respBody, err := c.do(ctx, "listMultipartUploads", http.MethodGet, c.config.BucketURL()+"?"+query.Encode(), nil, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -57,7 +60,7 @@ func (c *Client) listMultipartUploads(ctx context.Context) ([]MultipartUpload, e
 			if u.Initiated != "" {
 				initiated, _ = time.Parse(time.RFC3339, u.Initiated)
 			}
-			all = append(all, MultipartUpload{
+			all = append(all, &multipartUpload{
 				Key:       u.Key,
 				UploadID:  u.UploadID,
 				Initiated: initiated,
@@ -114,7 +117,7 @@ func (c *Client) putObjectMultipart(ctx context.Context, key string, body io.Rea
 
 // initiateMultipartUpload starts a new multipart upload and returns the upload ID.
 func (c *Client) initiateMultipartUpload(ctx context.Context, key string) (string, error) {
-	respBody, err := c.do(ctx, http.MethodPost, c.objectURL(key)+"?uploads", nil, nil, "InitiateMultipartUpload")
+	respBody, err := c.do(ctx, "InitiateMultipartUpload", http.MethodPost, c.config.ObjectURL(key)+"?uploads", nil, nil)
 	if err != nil {
 		return "", err
 	}
@@ -129,7 +132,7 @@ func (c *Client) initiateMultipartUpload(ctx context.Context, key string) (strin
 // uploadPart uploads a single part of a multipart upload and returns the ETag.
 func (c *Client) uploadPart(ctx context.Context, key, uploadID string, partNumber int, data []byte) (string, error) {
 	log.Tag(tagS3Client).Debug("UploadPart key=%s part=%d size=%d", key, partNumber, len(data))
-	reqURL := fmt.Sprintf("%s?partNumber=%d&uploadId=%s", c.objectURL(key), partNumber, url.QueryEscape(uploadID))
+	reqURL := fmt.Sprintf("%s?partNumber=%d&uploadId=%s", c.config.ObjectURL(key), partNumber, url.QueryEscape(uploadID))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, reqURL, bytes.NewReader(data))
 	if err != nil {
 		return "", fmt.Errorf("s3: UploadPart request: %w", err)
@@ -155,9 +158,8 @@ func (c *Client) completeMultipartUpload(ctx context.Context, key, uploadID stri
 	if err != nil {
 		return fmt.Errorf("s3: CompleteMultipartUpload marshal: %w", err)
 	}
-	respBody, err := c.do(ctx, http.MethodPost,
-		fmt.Sprintf("%s?uploadId=%s", c.objectURL(key), url.QueryEscape(uploadID)),
-		bodyBytes, nil, "CompleteMultipartUpload")
+	reqURL := fmt.Sprintf("%s?uploadId=%s", c.config.ObjectURL(key), url.QueryEscape(uploadID))
+	respBody, err := c.do(ctx, "CompleteMultipartUpload", http.MethodPost, reqURL, bodyBytes, nil)
 	if err != nil {
 		return err
 	}
@@ -172,7 +174,7 @@ func (c *Client) completeMultipartUpload(ctx context.Context, key, uploadID stri
 // abortMultipartUpload cancels an in-progress multipart upload. Called on error to clean up.
 func (c *Client) abortMultipartUpload(ctx context.Context, key, uploadID string) {
 	log.Tag(tagS3Client).Debug("AbortMultipartUpload key=%s uploadId=%s", key, uploadID)
-	reqURL := fmt.Sprintf("%s?uploadId=%s", c.objectURL(key), url.QueryEscape(uploadID))
+	reqURL := fmt.Sprintf("%s?uploadId=%s", c.config.ObjectURL(key), url.QueryEscape(uploadID))
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, reqURL, nil)
 	if err != nil {
 		return

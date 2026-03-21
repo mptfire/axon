@@ -47,9 +47,10 @@ func New(config *Config) *Client {
 // PutObject uploads body to the given key. The key is automatically prefixed with the client's
 // configured prefix. The body size does not need to be known in advance.
 //
-// If the entire body fits in a single part (5 MB), it is uploaded with a simple PUT request.
-// Otherwise, the body is uploaded using S3 multipart upload, reading one part at a time
-// into memory.
+// If the entire body fits in a single part (5 MB), it is uploaded with a simple PUT request
+// (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html). Otherwise, the body
+// is uploaded using S3 multipart upload, reading one part at a time into memory
+// (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html).
 func (c *Client) PutObject(ctx context.Context, key string, body io.Reader) error {
 	first := make([]byte, partSize)
 	n, err := io.ReadFull(body, first)
@@ -61,11 +62,33 @@ func (c *Client) PutObject(ctx context.Context, key string, body io.Reader) erro
 	return c.putObjectMultipart(ctx, key, io.MultiReader(bytes.NewReader(first), body))
 }
 
+// putObjectSimple uploads a body with known size using a simple PUT with UNSIGNED-PAYLOAD.
+func (c *Client) putObjectSimple(ctx context.Context, key string, body io.Reader, size int64) error {
+	log.Tag(tagS3Client).Debug("Uploading object %s (%d bytes)", key, size)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.config.ObjectURL(key), body)
+	if err != nil {
+		return fmt.Errorf("creating upload request object %s failed: %w", key, err)
+	}
+	req.ContentLength = size
+	c.signV4(req, unsignedPayload)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return fmt.Errorf("uploading object %s failed: %w", key, err)
+	}
+	resp.Body.Close()
+	if !isHTTPSuccess(resp) {
+		return parseError(resp)
+	}
+	return nil
+}
+
 // GetObject downloads an object. The key is automatically prefixed with the client's configured
 // prefix. The caller must close the returned ReadCloser.
+//
+// See https://docs.aws.amazon.com/AmazonS3/latest/API/API_GetObject.html
 func (c *Client) GetObject(ctx context.Context, key string) (io.ReadCloser, int64, error) {
-	log.Tag(tagS3Client).Debug("Fetching object %s from backend", key)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.objectURL(key), nil)
+	log.Tag(tagS3Client).Debug("Fetching object %s", key)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.config.ObjectURL(key), nil)
 	if err != nil {
 		return nil, 0, fmt.Errorf("error creating HTTP GET request for %s: %w", key, err)
 	}
@@ -81,19 +104,88 @@ func (c *Client) GetObject(ctx context.Context, key string) (io.ReadCloser, int6
 	return resp.Body, resp.ContentLength, nil
 }
 
+// ListObjectsV2 returns all objects under the client's configured prefix by paginating through
+// ListObjectsV2 results automatically. Keys in the returned objects have the prefix stripped,
+// so they match the keys used with PutObject/GetObject/DeleteObjects. It stops after 10,000
+// pages as a safety valve.
+//
+// See https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html
+func (c *Client) ListObjectsV2(ctx context.Context) ([]*Object, error) {
+	var all []*Object
+	var token string
+	for page := 0; page < maxPages; page++ {
+		result, err := c.listObjectsV2(ctx, token, 0)
+		if err != nil {
+			return nil, err
+		}
+		for _, obj := range result.Objects {
+			obj.Key = c.config.StripPrefix(obj.Key)
+			all = append(all, obj)
+		}
+		if !result.IsTruncated {
+			return all, nil
+		}
+		token = result.NextContinuationToken
+	}
+	return nil, fmt.Errorf("listing objects exceeded %d pages", maxPages)
+}
+
+// listObjectsV2 performs a single ListObjectsV2 request using the client's configured prefix.
+// Use continuationToken for pagination. Set maxKeys to 0 for the server default (typically 1000).
+func (c *Client) listObjectsV2(ctx context.Context, continuationToken string, maxKeys int) (*listObjectsV2Result, error) {
+	log.Tag(tagS3Client).Debug("Listing remote objects with continuation token '%s'", continuationToken)
+	query := url.Values{"list-type": {"2"}}
+	if prefix := c.config.ListPrefix(); prefix != "" {
+		query.Set("prefix", prefix)
+	}
+	if continuationToken != "" {
+		query.Set("continuation-token", continuationToken)
+	}
+	if maxKeys > 0 {
+		query.Set("max-keys", strconv.Itoa(maxKeys))
+	}
+	respBody, err := c.do(ctx, "ListObjects", http.MethodGet, c.config.BucketURL()+"?"+query.Encode(), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	var result listObjectsV2Response
+	if err := xml.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal list object response: %w", err)
+	}
+	objects := make([]*Object, len(result.Contents))
+	for i, obj := range result.Contents {
+		var lastModified time.Time
+		if obj.LastModified != "" {
+			lastModified, _ = time.Parse(time.RFC3339, obj.LastModified)
+		}
+		objects[i] = &Object{
+			Key:          obj.Key,
+			Size:         obj.Size,
+			LastModified: lastModified,
+		}
+	}
+	return &listObjectsV2Result{
+		Objects:               objects,
+		IsTruncated:           result.IsTruncated,
+		NextContinuationToken: result.NextContinuationToken,
+	}, nil
+}
+
 // DeleteObjects removes multiple objects in a single batch request. Keys are automatically
 // prefixed with the client's configured prefix. S3 supports up to 1000 keys per call; the
 // caller is responsible for batching if needed.
 //
 // Even when S3 returns HTTP 200, individual keys may fail. If any per-key errors are present
 // in the response, they are returned as a combined error.
+//
+// See https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html
 func (c *Client) DeleteObjects(ctx context.Context, keys []string) error {
 	log.Tag(tagS3Client).Debug("Deleting %d object(s)", len(keys))
-	req := &deleteRequest{
+	req := &deleteObjectsRequest{
 		Quiet: true,
 	}
 	for _, key := range keys {
-		req.Objects = append(req.Objects, &deleteObject{Key: c.objectKey(key)})
+		req.Objects = append(req.Objects, &deleteObject{Key: c.config.ObjectKey(key)})
 	}
 	body, err := xml.Marshal(req)
 	if err != nil {
@@ -105,14 +197,14 @@ func (c *Client) DeleteObjects(ctx context.Context, keys []string) error {
 	headers := map[string]string{
 		"Content-MD5": base64.StdEncoding.EncodeToString(md5Sum[:]),
 	}
-	reqURL := c.config.BucketURL() + "?delete="
-	respBody, err := c.do(ctx, http.MethodPost, reqURL, body, headers, "DeleteObjects")
+	reqURL := c.config.BucketURL() + "?delete"
+	respBody, err := c.do(ctx, "DeleteObjects", http.MethodPost, reqURL, body, headers)
 	if err != nil {
 		return fmt.Errorf("error deleting objects: %w", err)
 	}
 
 	// S3 may return HTTP 200 with per-key errors in the response body
-	var result deleteResult
+	var result deleteObjectsResult
 	if err := xml.Unmarshal(respBody, &result); err != nil {
 		return nil // If we can't parse, assume success (Quiet mode returns empty body on success)
 	}
@@ -126,95 +218,10 @@ func (c *Client) DeleteObjects(ctx context.Context, keys []string) error {
 	return nil
 }
 
-// listObjects performs a single ListObjectsV2 request using the client's configured prefix.
-// Use continuationToken for pagination. Set maxKeys to 0 for the server default (typically 1000).
-func (c *Client) listObjects(ctx context.Context, continuationToken string, maxKeys int) (*listResult, error) {
-	log.Tag(tagS3Client).Debug("ListObjects continuation=%s maxKeys=%d", continuationToken, maxKeys)
-	query := url.Values{"list-type": {"2"}}
-	if prefix := c.prefixForList(); prefix != "" {
-		query.Set("prefix", prefix)
-	}
-	if continuationToken != "" {
-		query.Set("continuation-token", continuationToken)
-	}
-	if maxKeys > 0 {
-		query.Set("max-keys", strconv.Itoa(maxKeys))
-	}
-	respBody, err := c.do(ctx, http.MethodGet, c.config.BucketURL()+"?"+query.Encode(), nil, nil, "ListObjects")
-	if err != nil {
-		return nil, err
-	}
-	var result listObjectsV2Response
-	if err := xml.Unmarshal(respBody, &result); err != nil {
-		return nil, fmt.Errorf("s3: ListObjects XML: %w", err)
-	}
-	objects := make([]Object, len(result.Contents))
-	for i, obj := range result.Contents {
-		var lastModified time.Time
-		if obj.LastModified != "" {
-			lastModified, _ = time.Parse(time.RFC3339, obj.LastModified)
-		}
-		objects[i] = Object{
-			Key:          obj.Key,
-			Size:         obj.Size,
-			LastModified: lastModified,
-		}
-	}
-	return &listResult{
-		Objects:               objects,
-		IsTruncated:           result.IsTruncated,
-		NextContinuationToken: result.NextContinuationToken,
-	}, nil
-}
-
-// ListAllObjects returns all objects under the client's configured prefix by paginating through
-// ListObjectsV2 results automatically. Keys in the returned objects have the prefix stripped,
-// so they match the keys used with PutObject/GetObject/DeleteObjects. It stops after 10,000
-// pages as a safety valve.
-func (c *Client) ListAllObjects(ctx context.Context) ([]Object, error) {
-	var all []Object
-	var token string
-	for page := 0; page < maxPages; page++ {
-		result, err := c.listObjects(ctx, token, 0)
-		if err != nil {
-			return nil, err
-		}
-		for _, obj := range result.Objects {
-			obj.Key = c.stripPrefix(obj.Key)
-			all = append(all, obj)
-		}
-		if !result.IsTruncated {
-			return all, nil
-		}
-		token = result.NextContinuationToken
-	}
-	return nil, fmt.Errorf("s3: ListAllObjects exceeded %d pages", maxPages)
-}
-
-// putObjectSimple uploads a body with known size using a simple PUT with UNSIGNED-PAYLOAD.
-func (c *Client) putObjectSimple(ctx context.Context, key string, body io.Reader, size int64) error {
-	log.Tag(tagS3Client).Debug("Uploading object %s (%d bytes)", key, size)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.objectURL(key), body)
-	if err != nil {
-		return fmt.Errorf("uploading object %s failed: %w", key, err)
-	}
-	req.ContentLength = size
-	c.signV4(req, unsignedPayload)
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return fmt.Errorf("s3: PutObject: %w", err)
-	}
-	resp.Body.Close()
-	if !isHTTPSuccess(resp) {
-		return parseError(resp)
-	}
-	return nil
-}
-
 // do creates a signed request, executes it, reads the response body, and checks for errors.
 // If body is nil, the request is sent with an empty payload. If body is non-nil, it is sent
 // with a computed SHA-256 payload hash and Content-Type: application/xml.
-func (c *Client) do(ctx context.Context, method, reqURL string, body []byte, headers map[string]string, op string) ([]byte, error) {
+func (c *Client) do(ctx context.Context, op, method, reqURL string, body []byte, headers map[string]string) ([]byte, error) {
 	var reader io.Reader
 	var hash string
 	if body != nil {
@@ -250,36 +257,4 @@ func (c *Client) do(ctx context.Context, method, reqURL string, body []byte, hea
 		return nil, parseErrorFromBytes(resp.StatusCode, respBody)
 	}
 	return respBody, nil
-}
-
-// prefixForList returns the prefix to use in ListObjectsV2 requests,
-// with a trailing slash so that only objects under the prefix directory are returned.
-func (c *Client) prefixForList() string {
-	if c.config.Prefix != "" {
-		return c.config.Prefix + "/"
-	}
-	return ""
-}
-
-// stripPrefix removes the configured prefix from a key returned by ListObjectsV2,
-// so keys match what was passed to PutObject/GetObject/DeleteObjects.
-func (c *Client) stripPrefix(key string) string {
-	if c.config.Prefix != "" {
-		return strings.TrimPrefix(key, c.config.Prefix+"/")
-	}
-	return key
-}
-
-// objectKey prepends the configured prefix to the given key.
-func (c *Client) objectKey(key string) string {
-	if c.config.Prefix != "" {
-		return c.config.Prefix + "/" + key
-	}
-	return key
-}
-
-// objectURL returns the full URL for an object, automatically prepending the configured prefix.
-func (c *Client) objectURL(key string) string {
-	u, _ := url.JoinPath(c.config.BucketURL(), c.objectKey(key))
-	return u
 }

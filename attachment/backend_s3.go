@@ -33,7 +33,7 @@ func (b *s3Backend) Get(id string) (io.ReadCloser, int64, error) {
 }
 
 func (b *s3Backend) List() ([]object, error) {
-	objects, err := b.client.ListAllObjects(context.Background())
+	objects, err := b.client.ListObjectsV2(context.Background())
 	if err != nil {
 		return nil, err
 	}
