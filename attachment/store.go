@@ -110,9 +110,11 @@ func (c *Store) Remove(ids ...string) error {
 			return errInvalidFileID
 		}
 	}
+	// Remove from backend
 	if err := c.backend.Delete(ids...); err != nil {
 		return err
 	}
+	// Update total cache size
 	c.mu.Lock()
 	for _, id := range ids {
 		if size, ok := c.sizes[id]; ok {

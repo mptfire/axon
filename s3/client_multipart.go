@@ -71,7 +71,7 @@ func (c *Client) listMultipartUploads(ctx context.Context) ([]*multipartUpload, 
 		keyMarker = result.NextKeyMarker
 		uploadIDMarker = result.NextUploadIDMarker
 	}
-	return nil, fmt.Errorf("s3: listMultipartUploads exceeded %d pages", maxPages)
+	return nil, fmt.Errorf("error listing multipart uploads, exceeded %d pages", maxPages)
 }
 
 // abortMultipartUpload cancels an in-progress multipart upload. Called on error to clean up.
@@ -122,10 +122,9 @@ func (c *Client) putObjectMultipart(ctx context.Context, key string, body io.Rea
 		}
 		if err == io.EOF || errors.Is(err, io.ErrUnexpectedEOF) {
 			break
-		}
-		if err != nil {
+		} else if err != nil {
 			c.abortMultipartUpload(ctx, key, uploadID)
-			return fmt.Errorf("s3: PutObject read: %w", err)
+			return fmt.Errorf("error uploading object %s, reading from client failed: %w", key, err)
 		}
 	}
 
@@ -172,7 +171,7 @@ func (c *Client) completeMultipartUpload(ctx context.Context, key, uploadID stri
 	log.Tag(tagS3Client).Debug("Completing multipart upload for object %s, %d parts", key, len(parts))
 	bodyBytes, err := xml.Marshal(&completeMultipartUploadRequest{Parts: parts})
 	if err != nil {
-		return fmt.Errorf("s3: CompleteMultipartUpload marshal: %w", err)
+		return fmt.Errorf("error marshalling complete multipart upload request: %w", err)
 	}
 	reqURL := fmt.Sprintf("%s?uploadId=%s", c.config.ObjectURL(key), url.QueryEscape(uploadID))
 	respBody, err := c.do(ctx, "CompleteMultipartUpload", http.MethodPost, reqURL, bodyBytes, nil)
@@ -180,7 +179,7 @@ func (c *Client) completeMultipartUpload(ctx context.Context, key, uploadID stri
 		return err
 	}
 	// Check if the response contains an error (S3 can return 200 with an error body)
-	var errResp ErrorResponse
+	var errResp errorResponse
 	if xml.Unmarshal(respBody, &errResp) == nil && errResp.Code != "" {
 		return &errResp
 	}

@@ -163,7 +163,7 @@ func TestParseError_XMLResponse(t *testing.T) {
 	xmlBody := []byte(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>`)
 	err := parseErrorFromBytes(404, xmlBody)
 
-	var errResp *ErrorResponse
+	var errResp *errorResponse
 	require.ErrorAs(t, err, &errResp)
 	require.Equal(t, 404, errResp.StatusCode)
 	require.Equal(t, "NoSuchKey", errResp.Code)
@@ -173,7 +173,7 @@ func TestParseError_XMLResponse(t *testing.T) {
 func TestParseError_NonXMLResponse(t *testing.T) {
 	err := parseErrorFromBytes(500, []byte("internal server error"))
 
-	var errResp *ErrorResponse
+	var errResp *errorResponse
 	require.ErrorAs(t, err, &errResp)
 	require.Equal(t, 500, errResp.StatusCode)
 	require.Equal(t, "", errResp.Code) // XML parsing failed, no code

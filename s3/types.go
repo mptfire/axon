@@ -76,15 +76,15 @@ type Object struct {
 	LastModified time.Time
 }
 
-// ErrorResponse is returned when S3 responds with a non-2xx status code.
-type ErrorResponse struct {
+// errorResponse is returned when S3 responds with a non-2xx status code.
+type errorResponse struct {
 	StatusCode int
 	Code       string `xml:"Code"`
 	Message    string `xml:"Message"`
 	Body       string `xml:"-"` // raw response body
 }
 
-func (e *ErrorResponse) Error() string {
+func (e *errorResponse) Error() string {
 	if e.Code != "" {
 		return fmt.Sprintf("s3: %s (HTTP %d): %s", e.Code, e.StatusCode, e.Message)
 	}

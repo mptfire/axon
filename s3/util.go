@@ -84,7 +84,7 @@ func ParseURL(s3URL string) (*Config, error) {
 	}, nil
 }
 
-// parseError reads an S3 error response and returns an *ErrorResponse.
+// parseError reads an S3 error response and returns an *errorResponse.
 func parseError(resp *http.Response) error {
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {
@@ -94,7 +94,7 @@ func parseError(resp *http.Response) error {
 }
 
 func parseErrorFromBytes(statusCode int, body []byte) error {
-	errResp := &ErrorResponse{
+	errResp := &errorResponse{
 		StatusCode: statusCode,
 		Body:       string(body),
 	}

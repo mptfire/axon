@@ -456,7 +456,7 @@ func TestClient_GetObject_NotFound(t *testing.T) {
 
 	_, _, err := client.GetObject(context.Background(), "nonexistent")
 	require.Error(t, err)
-	var errResp *ErrorResponse
+	var errResp *errorResponse
 	require.ErrorAs(t, err, &errResp)
 	require.Equal(t, 404, errResp.StatusCode)
 	require.Equal(t, "NoSuchKey", errResp.Code)
@@ -799,7 +799,7 @@ func TestClient_RealBucket(t *testing.T) {
 		// Get after delete should fail
 		_, _, err = client.GetObject(ctx, key)
 		require.Error(t, err)
-		var errResp *ErrorResponse
+		var errResp *errorResponse
 		require.ErrorAs(t, err, &errResp)
 		require.Equal(t, 404, errResp.StatusCode)
 	})
