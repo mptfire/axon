@@ -71,7 +71,8 @@ The web app is a static website without a backend (other than the ntfy API). All
 cache and local storage. That means it does not need to be protected with a login screen, and it poses no additional 
 security risk. So technically, it does not need to be disabled.
 
-However, if you still want to disable it, you can do so with the `web-root: disable` option in the `server.yml` file. 
+However, if you still want, you can require login with the `require-login: true` option,
+or disable it with the `web-root: disable` option in the `server.yml` file. 
 
 Think of the ntfy web app like an Android/iOS app. It is freely available and accessible to anyone, yet useless without
 a proper backend. So as long as you secure your backend with ACLs, exposing the ntfy web app to the Internet is harmless.
