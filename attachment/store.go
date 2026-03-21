@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	tagStore          = "attachment_cache"
+	tagStore          = "attachment_store"
 	syncInterval      = 15 * time.Minute // How often to run the background sync loop
 	orphanGracePeriod = time.Hour        // Don't delete orphaned objects younger than this to avoid races with in-flight uploads
 )

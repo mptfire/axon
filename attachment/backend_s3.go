@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	tagS3Backend    = "s3_backend"
+	tagS3Backend    = "attachment_s3"
 	deleteBatchSize = 1000
 )
 

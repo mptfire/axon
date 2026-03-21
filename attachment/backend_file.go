@@ -9,7 +9,7 @@ import (
 	"heckel.io/ntfy/v2/log"
 )
 
-const tagFileBackend = "file_backend"
+const tagFileBackend = "attachment_file"
 
 type fileBackend struct {
 	dir string
