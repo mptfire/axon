@@ -26,7 +26,6 @@ func (c *Client) AbortIncompleteUploads(ctx context.Context, cutoff time.Time) e
 	}
 	for _, u := range uploads {
 		if !u.Initiated.IsZero() && u.Initiated.Before(cutoff) {
-			log.Tag(tagS3Client).Debug("DeleteIncomplete key=%s uploadId=%s initiated=%s", u.Key, u.UploadID, u.Initiated)
 			c.abortMultipartUpload(ctx, u.Key, u.UploadID)
 		}
 	}
@@ -47,13 +46,13 @@ func (c *Client) listMultipartUploads(ctx context.Context) ([]*multipartUpload, 
 			query.Set("key-marker", keyMarker)
 			query.Set("upload-id-marker", uploadIDMarker)
 		}
-		respBody, err := c.do(ctx, "listMultipartUploads", http.MethodGet, c.config.BucketURL()+"?"+query.Encode(), nil, nil)
+		respBody, err := c.do(ctx, "ListMultipartUploads", http.MethodGet, c.config.BucketURL()+"?"+query.Encode(), nil, nil)
 		if err != nil {
 			return nil, err
 		}
 		var result listMultipartUploadsResult
 		if err := xml.Unmarshal(respBody, &result); err != nil {
-			return nil, fmt.Errorf("s3: listMultipartUploads XML: %w", err)
+			return nil, fmt.Errorf("error unmarshalling multipart upload result: %w", err)
 		}
 		for _, u := range result.Uploads {
 			var initiated time.Time
@@ -75,6 +74,22 @@ func (c *Client) listMultipartUploads(ctx context.Context) ([]*multipartUpload, 
 	return nil, fmt.Errorf("s3: listMultipartUploads exceeded %d pages", maxPages)
 }
 
+// abortMultipartUpload cancels an in-progress multipart upload. Called on error to clean up.
+func (c *Client) abortMultipartUpload(ctx context.Context, key, uploadID string) {
+	log.Tag(tagS3Client).Info("Aborting multipart upload for object %s", key)
+	reqURL := fmt.Sprintf("%s?uploadId=%s", c.config.ObjectURL(key), url.QueryEscape(uploadID))
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, reqURL, nil)
+	if err != nil {
+		return
+	}
+	c.signV4(req, emptyPayloadHash)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return
+	}
+	resp.Body.Close()
+}
+
 // putObjectMultipart uploads body using S3 multipart upload. It reads the body in partSize
 // chunks, uploading each as a separate part. This allows uploading without knowing the total
 // body size in advance.
@@ -88,9 +103,9 @@ func (c *Client) putObjectMultipart(ctx context.Context, key string, body io.Rea
 	}
 
 	// Step 2: Upload parts
-	var parts []completedPart
-	buf := make([]byte, partSize)
 	partNumber := 1
+	buf := make([]byte, partSize)
+	var parts []*completedPart
 	for {
 		n, err := io.ReadFull(body, buf)
 		if n > 0 {
@@ -99,7 +114,10 @@ func (c *Client) putObjectMultipart(ctx context.Context, key string, body io.Rea
 				c.abortMultipartUpload(ctx, key, uploadID)
 				return uploadErr
 			}
-			parts = append(parts, completedPart{PartNumber: partNumber, ETag: etag})
+			parts = append(parts, &completedPart{
+				PartNumber: partNumber,
+				ETag:       etag,
+			})
 			partNumber++
 		}
 		if err == io.EOF || errors.Is(err, io.ErrUnexpectedEOF) {
@@ -123,38 +141,36 @@ func (c *Client) initiateMultipartUpload(ctx context.Context, key string) (strin
 	}
 	var result initiateMultipartUploadResult
 	if err := xml.Unmarshal(respBody, &result); err != nil {
-		return "", fmt.Errorf("s3: InitiateMultipartUpload XML: %w", err)
+		return "", fmt.Errorf("error unmarshalling initiate multipart upload response: %w", err)
 	}
-	log.Tag(tagS3Client).Debug("InitiateMultipartUpload key=%s uploadId=%s", key, result.UploadID)
 	return result.UploadID, nil
 }
 
 // uploadPart uploads a single part of a multipart upload and returns the ETag.
 func (c *Client) uploadPart(ctx context.Context, key, uploadID string, partNumber int, data []byte) (string, error) {
-	log.Tag(tagS3Client).Debug("UploadPart key=%s part=%d size=%d", key, partNumber, len(data))
+	log.Tag(tagS3Client).Debug("Uploading multipart part for object %s, part %d, size %d", key, partNumber, len(data))
 	reqURL := fmt.Sprintf("%s?partNumber=%d&uploadId=%s", c.config.ObjectURL(key), partNumber, url.QueryEscape(uploadID))
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, reqURL, bytes.NewReader(data))
 	if err != nil {
-		return "", fmt.Errorf("s3: UploadPart request: %w", err)
+		return "", fmt.Errorf("error creating multipart upload part request for object %s: %w", key, err)
 	}
 	req.ContentLength = int64(len(data))
 	c.signV4(req, unsignedPayload)
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("s3: UploadPart: %w", err)
+		return "", fmt.Errorf("error uploading multipart part for object %s: %w", key, err)
 	}
 	defer resp.Body.Close()
 	if !isHTTPSuccess(resp) {
 		return "", parseError(resp)
 	}
-	etag := resp.Header.Get("ETag")
-	return etag, nil
+	return resp.Header.Get("ETag"), nil
 }
 
 // completeMultipartUpload finalizes a multipart upload with the given parts.
-func (c *Client) completeMultipartUpload(ctx context.Context, key, uploadID string, parts []completedPart) error {
-	log.Tag(tagS3Client).Debug("CompleteMultipartUpload key=%s uploadId=%s parts=%d", key, uploadID, len(parts))
-	bodyBytes, err := xml.Marshal(completeMultipartUploadRequest{Parts: parts})
+func (c *Client) completeMultipartUpload(ctx context.Context, key, uploadID string, parts []*completedPart) error {
+	log.Tag(tagS3Client).Debug("Completing multipart upload for object %s, %d parts", key, len(parts))
+	bodyBytes, err := xml.Marshal(&completeMultipartUploadRequest{Parts: parts})
 	if err != nil {
 		return fmt.Errorf("s3: CompleteMultipartUpload marshal: %w", err)
 	}
@@ -169,20 +185,4 @@ func (c *Client) completeMultipartUpload(ctx context.Context, key, uploadID stri
 		return &errResp
 	}
 	return nil
-}
-
-// abortMultipartUpload cancels an in-progress multipart upload. Called on error to clean up.
-func (c *Client) abortMultipartUpload(ctx context.Context, key, uploadID string) {
-	log.Tag(tagS3Client).Debug("AbortMultipartUpload key=%s uploadId=%s", key, uploadID)
-	reqURL := fmt.Sprintf("%s?uploadId=%s", c.config.ObjectURL(key), url.QueryEscape(uploadID))
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, reqURL, nil)
-	if err != nil {
-		return
-	}
-	c.signV4(req, emptyPayloadHash)
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return
-	}
-	resp.Body.Close()
 }

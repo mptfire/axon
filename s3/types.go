@@ -91,18 +91,11 @@ func (e *ErrorResponse) Error() string {
 	return fmt.Sprintf("s3: HTTP %d: %s", e.StatusCode, e.Body)
 }
 
-// listObjectsV2Response is the XML response from S3 ListObjectsV2
-type listObjectsV2Response struct {
+// listObjectsV2Result is the XML response from S3 ListObjectsV2
+type listObjectsV2Result struct {
 	Contents              []*listObject `xml:"Contents"`
 	IsTruncated           bool          `xml:"IsTruncated"`
 	NextContinuationToken string        `xml:"NextContinuationToken"`
-}
-
-// listObjectsV2Result holds the response from a single ListObjectsV2 page.
-type listObjectsV2Result struct {
-	Objects               []*Object
-	IsTruncated           bool
-	NextContinuationToken string
 }
 
 type listObject struct {
@@ -124,20 +117,13 @@ type deleteObject struct {
 
 // deleteObjectsResult is the XML response from S3 DeleteObjects
 type deleteObjectsResult struct {
-	Errors []deleteError `xml:"Error"`
+	Errors []*deleteError `xml:"Error"`
 }
 
 type deleteError struct {
 	Key     string `xml:"Key"`
 	Code    string `xml:"Code"`
 	Message string `xml:"Message"`
-}
-
-// multipartUpload represents an in-progress multipart upload returned by listMultipartUploads.
-type multipartUpload struct {
-	Key       string
-	UploadID  string
-	Initiated time.Time
 }
 
 // listMultipartUploadsResult is the XML response from S3 listMultipartUploads
@@ -154,6 +140,13 @@ type listUpload struct {
 	Initiated string `xml:"Initiated"`
 }
 
+// multipartUpload represents an in-progress multipart upload returned by listMultipartUploads.
+type multipartUpload struct {
+	Key       string
+	UploadID  string
+	Initiated time.Time
+}
+
 // initiateMultipartUploadResult is the XML response from S3 InitiateMultipartUpload
 type initiateMultipartUploadResult struct {
 	UploadID string `xml:"UploadId"`
@@ -161,8 +154,8 @@ type initiateMultipartUploadResult struct {
 
 // completeMultipartUploadRequest is the XML request body for S3 CompleteMultipartUpload
 type completeMultipartUploadRequest struct {
-	XMLName xml.Name        `xml:"CompleteMultipartUpload"`
-	Parts   []completedPart `xml:"Part"`
+	XMLName xml.Name         `xml:"CompleteMultipartUpload"`
+	Parts   []*completedPart `xml:"Part"`
 }
 
 // completedPart represents a successfully uploaded part for CompleteMultipartUpload

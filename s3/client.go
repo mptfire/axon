@@ -118,9 +118,16 @@ func (c *Client) ListObjectsV2(ctx context.Context) ([]*Object, error) {
 		if err != nil {
 			return nil, err
 		}
-		for _, obj := range result.Objects {
-			obj.Key = c.config.StripPrefix(obj.Key)
-			all = append(all, obj)
+		for _, obj := range result.Contents {
+			var lastModified time.Time
+			if obj.LastModified != "" {
+				lastModified, _ = time.Parse(time.RFC3339, obj.LastModified)
+			}
+			all = append(all, &Object{
+				Key:          c.config.StripPrefix(obj.Key),
+				Size:         obj.Size,
+				LastModified: lastModified,
+			})
 		}
 		if !result.IsTruncated {
 			return all, nil
@@ -148,27 +155,11 @@ func (c *Client) listObjectsV2(ctx context.Context, continuationToken string, ma
 	if err != nil {
 		return nil, err
 	}
-	var result listObjectsV2Response
+	var result listObjectsV2Result
 	if err := xml.Unmarshal(respBody, &result); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal list object response: %w", err)
 	}
-	objects := make([]*Object, len(result.Contents))
-	for i, obj := range result.Contents {
-		var lastModified time.Time
-		if obj.LastModified != "" {
-			lastModified, _ = time.Parse(time.RFC3339, obj.LastModified)
-		}
-		objects[i] = &Object{
-			Key:          obj.Key,
-			Size:         obj.Size,
-			LastModified: lastModified,
-		}
-	}
-	return &listObjectsV2Result{
-		Objects:               objects,
-		IsTruncated:           result.IsTruncated,
-		NextContinuationToken: result.NextContinuationToken,
-	}, nil
+	return &result, nil
 }
 
 // DeleteObjects removes multiple objects in a single batch request. Keys are automatically
@@ -222,6 +213,7 @@ func (c *Client) DeleteObjects(ctx context.Context, keys []string) error {
 // If body is nil, the request is sent with an empty payload. If body is non-nil, it is sent
 // with a computed SHA-256 payload hash and Content-Type: application/xml.
 func (c *Client) do(ctx context.Context, op, method, reqURL string, body []byte, headers map[string]string) ([]byte, error) {
+	log.Tag(tagS3Client).Trace("Performing request %s %s %s (body: %d bytes)", op, method, reqURL, len(body))
 	var reader io.Reader
 	var hash string
 	if body != nil {
