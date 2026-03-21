@@ -547,6 +547,11 @@ When `endpoint` is specified, path-style addressing is enabled automatically (us
     attachment-cache-dir: "s3://AKID:SECRET@my-bucket/attachments?region=us-east-1&endpoint=https://s3.example.com"
     ```
 
+**Cleanup behavior:** A background sync runs every 15 minutes to reconcile the S3 bucket (or configured prefix) with
+the server's message database. Objects whose keys match attachment file IDs that are no longer referenced in the database
+(and are older than 1 hour) are automatically deleted. This also cleans up incomplete S3 multipart uploads that were
+abandoned due to interrupted or failed attachment uploads.
+
 Please also refer to the [rate limiting](#rate-limiting) settings below, specifically `visitor-attachment-total-size-limit`
 and `visitor-attachment-daily-bandwidth-limit`. Setting these conservatively is necessary to avoid abuse.
 

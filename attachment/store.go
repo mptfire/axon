@@ -162,7 +162,7 @@ func (c *Store) sync() error {
 			sizes[obj.ID] = obj.Size
 		}
 	}
-	log.Tag(tagStore).Debug("Attachment cache size updated to %s", util.FormatSizeHuman(size))
+	log.Tag(tagStore).Debug("Attachment store updated: %d attachment(s), %s", len(localIDs), util.FormatSizeHuman(size))
 	c.mu.Lock()
 	c.size = size
 	c.sizes = sizes
