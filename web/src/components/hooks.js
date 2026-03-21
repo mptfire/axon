@@ -284,6 +284,49 @@ export const useStandaloneWebPushAutoSubscribe = () => {
 };
 
 /**
+ * Registers a periodicsync listener for `extend-token` (see sw.js).
+ * This extends the token regardless of whether the browser is open.
+ *
+ * CAVEATS:
+ * - Chromium-only
+ * - Only when the PWA is _installed_ (not just running in a browser tab)
+ * - Only when notifications are granted
+ */
+const usePeriodicTokenExtend = () => {
+  const isLaunchedPWA = useIsLaunchedPWA();
+  const pushPossible = useNotificationPermissionListener(() => notifier.pushPossible());
+
+  useEffect(() => {
+    (async () => {
+      if (!isLaunchedPWA) {
+        console.debug("[usePeriodicTokenExtend] Skipping: Not running as PWA");
+        return;
+      }
+
+      if (!pushPossible) {
+        console.debug("[usePeriodicTokenExtend] Skipping: Web push not possible or granted");
+        return;
+      }
+
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        if (!registration.periodicSync) {
+          console.debug("[usePeriodicTokenExtend] Skipping: Periodic Sync not supported");
+          return;
+        }
+
+        console.log(`[usePeriodicTokenExtend] Turning on periodicsync "extend-token"`);
+        await registration.periodicSync.register("extend-token", {
+          minInterval: 24 * 60 * 60 * 1000, // 24 hours
+        });
+      } catch (error) {
+        console.log("[usePeriodicTokenExtend] Periodic Sync could not be registered", error);
+      }
+    })();
+  }, [isLaunchedPWA, pushPossible]);
+};
+
+/**
  * Start the poller and the pruner. This is done in a side effect as opposed to just in Pruner.js
  * and Poller.js, because side effect imports are not a thing in JS, and "Optimize imports" cleans
  * up "unused" imports. See https://github.com/binwiederhier/ntfy/issues/186.
@@ -305,6 +348,7 @@ const stopWorkers = () => {
 
 export const useBackgroundProcesses = () => {
   useStandaloneWebPushAutoSubscribe();
+  usePeriodicTokenExtend();
 
   useEffect(() => {
     console.log("[useBackgroundProcesses] mounting");

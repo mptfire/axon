@@ -153,6 +153,7 @@ class AccountApi {
       method: "PATCH",
       headers: withBearerAuth({}, session.token()),
     });
+    await session.setLastExtendedAtAsync();
   }
 
   async deleteToken(token) {
