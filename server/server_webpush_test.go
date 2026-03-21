@@ -235,13 +235,12 @@ func TestServer_WebPush_Publish_RemoveOnError(t *testing.T) {
 
 		request(t, s, "POST", "/test-topic", "web push test", nil)
 
-		waitFor(t, func() bool {
-			return received.Load()
-		})
-
 		// Receiving the 410 should've caused the publisher to expire all subscriptions on the endpoint
-
-		requireSubscriptionCount(t, s, "test-topic", 0)
+		waitFor(t, func() bool {
+			subs, err := s.webPush.SubscriptionsForTopic("test-topic")
+			require.Nil(t, err)
+			return len(subs) == 0
+		})
 		requireSubscriptionCount(t, s, "test-topic-abc", 0)
 	})
 }
