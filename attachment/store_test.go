@@ -103,6 +103,76 @@ func TestStore_WriteWithLimiter(t *testing.T) {
 	})
 }
 
+func TestStore_WriteOverwriteSameID(t *testing.T) {
+	forEachBackend(t, testSizeLimit, func(t *testing.T, s *Store, _ func(string)) {
+		// Write 100 bytes
+		_, err := s.Write("abcdefghijkl", bytes.NewReader(make([]byte, 100)), 0)
+		require.Nil(t, err)
+		require.Equal(t, int64(100), s.Size())
+
+		// Overwrite with 50 bytes
+		_, err = s.Write("abcdefghijkl", bytes.NewReader(make([]byte, 50)), 0)
+		require.Nil(t, err)
+		require.Equal(t, int64(150), s.Size()) // Store tracks both writes
+
+		// Read back should return the latest content
+		reader, readSize, err := s.Read("abcdefghijkl")
+		require.Nil(t, err)
+		require.Equal(t, int64(50), readSize)
+		reader.Close()
+	})
+}
+
+func TestStore_WriteAfterFailure(t *testing.T) {
+	forEachBackend(t, testSizeLimit, func(t *testing.T, s *Store, _ func(string)) {
+		// Failed write: limiter rejects it
+		_, err := s.Write("abcdefghijkl", bytes.NewReader(make([]byte, 200)), 0, util.NewFixedLimiter(100))
+		require.ErrorIs(t, err, util.ErrLimitReached)
+		require.Equal(t, int64(0), s.Size())
+
+		// Subsequent write with a different ID should succeed
+		size, err := s.Write("abcdefghijk2", strings.NewReader("hello"), 0)
+		require.Nil(t, err)
+		require.Equal(t, int64(5), size)
+		require.Equal(t, int64(5), s.Size())
+
+		// The failed ID should not be readable
+		_, _, err = s.Read("abcdefghijkl")
+		require.Error(t, err)
+
+		// The successful ID should be readable
+		reader, _, err := s.Read("abcdefghijk2")
+		require.Nil(t, err)
+		reader.Close()
+	})
+}
+
+func TestStore_SyncRecomputesSize(t *testing.T) {
+	forEachBackend(t, testSizeLimit, func(t *testing.T, s *Store, makeOld func(string)) {
+		// Write two files
+		_, err := s.Write("abcdefghijk0", bytes.NewReader(make([]byte, 100)), 0)
+		require.Nil(t, err)
+		_, err = s.Write("abcdefghijk1", bytes.NewReader(make([]byte, 200)), 0)
+		require.Nil(t, err)
+		require.Equal(t, int64(300), s.Size())
+
+		// Corrupt the in-memory size tracking
+		s.mu.Lock()
+		s.size = 999
+		s.mu.Unlock()
+		require.Equal(t, int64(999), s.Size())
+
+		// Set localIDs to include both files so nothing gets deleted
+		s.localIDs = func() ([]string, error) {
+			return []string{"abcdefghijk0", "abcdefghijk1"}, nil
+		}
+
+		// Sync should recompute size from the backend
+		require.Nil(t, s.sync())
+		require.Equal(t, int64(300), s.Size())
+	})
+}
+
 func TestStore_ReadNotFound(t *testing.T) {
 	forEachBackend(t, testSizeLimit, func(t *testing.T, s *Store, _ func(string)) {
 		_, _, err := s.Read("abcdefghijkl")
