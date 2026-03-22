@@ -1802,7 +1802,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 **Features:**
 
-* Add S3-compatible object storage as an alternative attachment backend via `attachment-cache-dir` config option
+* Add S3-compatible object storage as an alternative [attachment](config.md#attachments) backend via `attachment-cache-dir` config option
 
 **Bug fixes + maintenance:**
 
