@@ -86,7 +86,7 @@ func (c *Client) putObject(ctx context.Context, key string, body io.Reader, size
 	if err != nil {
 		return fmt.Errorf("uploading object %s failed: %w", key, err)
 	}
-	resp.Body.Close()
+	defer resp.Body.Close()
 	if !isHTTPSuccess(resp) {
 		return parseError(resp)
 	}

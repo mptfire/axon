@@ -229,8 +229,9 @@ func TestStore_Sync_SkipsRecentFiles(t *testing.T) {
 
 // forEachBackend runs f against both the file and S3 backends. It also provides a makeOld
 // callback that makes a specific object's timestamp old enough for orphan cleanup (> 1 hour).
-// For the file backend, this uses os.Chtimes; for the S3 backend, it sets the object's
-// LastModified time in the mock server. Objects start with recent timestamps by default.
+// For the file backend, this uses os.Chtimes; for the S3 backend, it overrides the object's
+// LastModified time via a modTimeOverrideBackend wrapper. Objects start with recent timestamps
+// by default. The S3 subtest is skipped if NTFY_TEST_ATTACHMENT_S3_URL is not set.
 func forEachBackend(t *testing.T, totalSizeLimit int64, f func(t *testing.T, s *Store, makeOld func(string))) {
 	t.Run("file", func(t *testing.T) {
 		dir, s := newTestFileStore(t, totalSizeLimit)
@@ -241,11 +242,9 @@ func forEachBackend(t *testing.T, totalSizeLimit int64, f func(t *testing.T, s *
 		f(t, s, makeOld)
 	})
 	t.Run("s3", func(t *testing.T) {
-		server, mock := newMockS3Server()
-		defer server.Close()
-		s := newTestS3Store(t, server, "my-bucket", "pfx", totalSizeLimit)
+		s, wrapper := newTestRealS3Store(t, totalSizeLimit)
 		makeOld := func(id string) {
-			mock.setModTime("my-bucket/pfx/"+id, time.Unix(1, 0))
+			wrapper.setModTime(id, time.Unix(1, 0))
 		}
 		f(t, s, makeOld)
 	})
