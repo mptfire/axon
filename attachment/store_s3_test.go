@@ -1,7 +1,6 @@
 package attachment
 
 import (
-	"bytes"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -14,43 +13,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"heckel.io/ntfy/v2/s3"
-	"heckel.io/ntfy/v2/util"
 )
 
-// --- Integration tests using a mock S3 server ---
-
-func TestS3Store_WriteReadRemove(t *testing.T) {
-	server := newMockS3Server()
-	defer server.Close()
-
-	cache := newTestS3Store(t, server, "my-bucket", "pfx", 10*1024)
-
-	// Write
-	size, err := cache.Write("abcdefghijkl", strings.NewReader("hello world"), 0)
-	require.Nil(t, err)
-	require.Equal(t, int64(11), size)
-	require.Equal(t, int64(11), cache.Size())
-
-	// Read back
-	reader, readSize, err := cache.Read("abcdefghijkl")
-	require.Nil(t, err)
-	require.Equal(t, int64(11), readSize)
-	data, err := io.ReadAll(reader)
-	reader.Close()
-	require.Nil(t, err)
-	require.Equal(t, "hello world", string(data))
-
-	// Remove
-	require.Nil(t, cache.Remove("abcdefghijkl"))
-	require.Equal(t, int64(0), cache.Size())
-
-	// Read after remove should fail
-	_, _, err = cache.Read("abcdefghijkl")
-	require.Error(t, err)
-}
+// --- S3-specific tests ---
 
 func TestS3Store_WriteNoPrefix(t *testing.T) {
-	server := newMockS3Server()
+	server, _ := newMockS3Server()
 	defer server.Close()
 
 	cache := newTestS3Store(t, server, "my-bucket", "", 10*1024)
@@ -65,131 +33,6 @@ func TestS3Store_WriteNoPrefix(t *testing.T) {
 	reader.Close()
 	require.Nil(t, err)
 	require.Equal(t, "test", string(data))
-}
-
-func TestS3Store_WriteTotalSizeLimit(t *testing.T) {
-	server := newMockS3Server()
-	defer server.Close()
-
-	cache := newTestS3Store(t, server, "my-bucket", "pfx", 100)
-
-	// First write fits
-	_, err := cache.Write("abcdefghijk0", bytes.NewReader(make([]byte, 80)), 0)
-	require.Nil(t, err)
-	require.Equal(t, int64(80), cache.Size())
-	require.Equal(t, int64(20), cache.Remaining())
-
-	// Second write exceeds total limit
-	_, err = cache.Write("abcdefghijk1", bytes.NewReader(make([]byte, 50)), 0)
-	require.ErrorIs(t, err, util.ErrLimitReached)
-}
-
-func TestS3Store_WriteFileSizeLimit(t *testing.T) {
-	server := newMockS3Server()
-	defer server.Close()
-
-	cache := newTestS3Store(t, server, "my-bucket", "pfx", 10*1024)
-
-	_, err := cache.Write("abcdefghijkl", bytes.NewReader(make([]byte, 200)), 0, util.NewFixedLimiter(100))
-	require.ErrorIs(t, err, util.ErrLimitReached)
-}
-
-func TestS3Store_WriteRemoveMultiple(t *testing.T) {
-	server := newMockS3Server()
-	defer server.Close()
-
-	cache := newTestS3Store(t, server, "my-bucket", "pfx", 10*1024)
-
-	for i := 0; i < 5; i++ {
-		_, err := cache.Write(fmt.Sprintf("abcdefghijk%d", i), bytes.NewReader(make([]byte, 100)), 0)
-		require.Nil(t, err)
-	}
-	require.Equal(t, int64(500), cache.Size())
-
-	require.Nil(t, cache.Remove("abcdefghijk1", "abcdefghijk3"))
-	require.Equal(t, int64(300), cache.Size())
-}
-
-func TestS3Store_ReadNotFound(t *testing.T) {
-	server := newMockS3Server()
-	defer server.Close()
-
-	cache := newTestS3Store(t, server, "my-bucket", "pfx", 10*1024)
-
-	_, _, err := cache.Read("abcdefghijkl")
-	require.Error(t, err)
-}
-
-func TestS3Store_InvalidID(t *testing.T) {
-	server := newMockS3Server()
-	defer server.Close()
-
-	cache := newTestS3Store(t, server, "my-bucket", "pfx", 10*1024)
-
-	_, err := cache.Write("bad", strings.NewReader("x"), 0)
-	require.Equal(t, errInvalidFileID, err)
-
-	_, _, err = cache.Read("bad")
-	require.Equal(t, errInvalidFileID, err)
-
-	err = cache.Remove("bad")
-	require.Equal(t, errInvalidFileID, err)
-}
-
-func TestS3Store_Sync(t *testing.T) {
-	server := newMockS3Server()
-	defer server.Close()
-
-	cache := newTestS3Store(t, server, "my-bucket", "pfx", 10*1024)
-
-	// Write some files
-	_, err := cache.Write("abcdefghijk0", strings.NewReader("file0"), 0)
-	require.Nil(t, err)
-	_, err = cache.Write("abcdefghijk1", strings.NewReader("file1"), 0)
-	require.Nil(t, err)
-	_, err = cache.Write("abcdefghijk2", strings.NewReader("file2"), 0)
-	require.Nil(t, err)
-
-	require.Equal(t, int64(15), cache.Size())
-
-	// Set the ID provider to only know about file 0 and 2
-	// All mock objects have LastModified set to 2 hours ago, so orphans are eligible for deletion
-	cache.localIDs = func() ([]string, error) {
-		return []string{"abcdefghijk0", "abcdefghijk2"}, nil
-	}
-
-	// Run sync
-	require.Nil(t, cache.sync())
-
-	// File 1 should be deleted (orphan)
-	_, _, err = cache.Read("abcdefghijk1")
-	require.Error(t, err)
-
-	// Size should be updated
-	require.Equal(t, int64(10), cache.Size())
-}
-
-func TestS3Store_Sync_SkipsRecentFiles(t *testing.T) {
-	mockServer := newMockS3ServerWithModTime(time.Now())
-	defer mockServer.Close()
-
-	cache := newTestS3Store(t, mockServer, "my-bucket", "pfx", 10*1024)
-
-	_, err := cache.Write("abcdefghijk0", strings.NewReader("file0"), 0)
-	require.Nil(t, err)
-
-	// Set the ID provider to return empty (no valid IDs)
-	cache.localIDs = func() ([]string, error) {
-		return []string{}, nil
-	}
-
-	// File was "just created" (mock returns recent time), so it should NOT be deleted
-	require.Nil(t, cache.sync())
-
-	// File should still exist
-	reader, _, err := cache.Read("abcdefghijk0")
-	require.Nil(t, err)
-	reader.Close()
 }
 
 // --- Helpers ---
@@ -219,24 +62,26 @@ func newTestS3Store(t *testing.T, server *httptest.Server, bucket, prefix string
 // ListObjectsV2. Uses path-style addressing: /{bucket}/{key}. Objects are stored in memory.
 
 type mockS3Server struct {
-	objects     map[string][]byte         // full key (bucket/key) -> body
-	uploads     map[string]map[int][]byte // uploadID -> partNumber -> data
-	nextID      int                       // counter for generating upload IDs
-	lastModTime time.Time                 // time to return for LastModified in list responses
-	mu          sync.RWMutex
+	objects  map[string][]byte         // full key (bucket/key) -> body
+	modTimes map[string]time.Time      // full key (bucket/key) -> last modified time
+	uploads  map[string]map[int][]byte // uploadID -> partNumber -> data
+	nextID   int                       // counter for generating upload IDs
+	mu       sync.RWMutex
 }
 
-func newMockS3Server() *httptest.Server {
-	return newMockS3ServerWithModTime(time.Now().Add(-2 * time.Hour))
-}
-
-func newMockS3ServerWithModTime(modTime time.Time) *httptest.Server {
+func newMockS3Server() (*httptest.Server, *mockS3Server) {
 	m := &mockS3Server{
-		objects:     make(map[string][]byte),
-		uploads:     make(map[string]map[int][]byte),
-		lastModTime: modTime,
+		objects:  make(map[string][]byte),
+		modTimes: make(map[string]time.Time),
+		uploads:  make(map[string]map[int][]byte),
 	}
-	return httptest.NewTLSServer(m)
+	return httptest.NewTLSServer(m), m
+}
+
+func (m *mockS3Server) setModTime(path string, t time.Time) {
+	m.mu.Lock()
+	m.modTimes[path] = t
+	m.mu.Unlock()
 }
 
 func (m *mockS3Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -274,6 +119,7 @@ func (m *mockS3Server) handlePut(w http.ResponseWriter, r *http.Request, path st
 	}
 	m.mu.Lock()
 	m.objects[path] = body
+	m.modTimes[path] = time.Now()
 	m.mu.Unlock()
 	w.WriteHeader(http.StatusOK)
 }
@@ -333,6 +179,7 @@ func (m *mockS3Server) handleCompleteMultipart(w http.ResponseWriter, r *http.Re
 		assembled = append(assembled, parts[i]...)
 	}
 	m.objects[path] = assembled
+	m.modTimes[path] = time.Now()
 	delete(m.uploads, uploadID)
 	m.mu.Unlock()
 
@@ -402,7 +249,7 @@ func (m *mockS3Server) handleList(w http.ResponseWriter, r *http.Request, bucket
 			contents = append(contents, s3ListObject{
 				Key:          objKey,
 				Size:         int64(len(body)),
-				LastModified: m.lastModTime.Format(time.RFC3339),
+				LastModified: m.modTimes[key].Format(time.RFC3339),
 			})
 		}
 	}
