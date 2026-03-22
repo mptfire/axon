@@ -24,8 +24,8 @@ func newS3Backend(client *s3.Client) *s3Backend {
 	return &s3Backend{client: client}
 }
 
-func (b *s3Backend) Put(id string, in io.Reader) error {
-	return b.client.PutObject(context.Background(), id, in)
+func (b *s3Backend) Put(id string, reader io.Reader, untrustedLength int64) error {
+	return b.client.PutObject(context.Background(), id, reader, untrustedLength)
 }
 
 func (b *s3Backend) Get(id string) (io.ReadCloser, int64, error) {

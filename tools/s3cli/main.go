@@ -58,6 +58,7 @@ func cmdPut(ctx context.Context, client *s3.Client) {
 	path := os.Args[3]
 
 	var r io.Reader
+	var size int64
 	if path == "-" {
 		r = os.Stdin
 	} else {
@@ -66,10 +67,15 @@ func cmdPut(ctx context.Context, client *s3.Client) {
 			fail("open %s: %s", path, err)
 		}
 		defer f.Close()
+		stat, err := f.Stat()
+		if err != nil {
+			fail("stat %s: %s", path, err)
+		}
 		r = f
+		size = stat.Size()
 	}
 
-	if err := client.PutObject(ctx, key, r); err != nil {
+	if err := client.PutObject(ctx, key, r, size); err != nil {
 		fail("put: %s", err)
 	}
 	fmt.Fprintf(os.Stderr, "uploaded %s\n", key)

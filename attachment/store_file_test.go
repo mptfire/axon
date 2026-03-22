@@ -19,7 +19,7 @@ var (
 
 func TestFileStore_Write_Success(t *testing.T) {
 	dir, c := newTestFileStore(t)
-	size, err := c.Write("abcdefghijkl", strings.NewReader("normal file"), util.NewFixedLimiter(999))
+	size, err := c.Write("abcdefghijkl", strings.NewReader("normal file"), 0, util.NewFixedLimiter(999))
 	require.Nil(t, err)
 	require.Equal(t, int64(11), size)
 	require.Equal(t, "normal file", readFile(t, dir+"/abcdefghijkl"))
@@ -29,7 +29,7 @@ func TestFileStore_Write_Success(t *testing.T) {
 
 func TestFileStore_Write_Read_Success(t *testing.T) {
 	_, c := newTestFileStore(t)
-	size, err := c.Write("abcdefghijkl", strings.NewReader("hello world"))
+	size, err := c.Write("abcdefghijkl", strings.NewReader("hello world"), 0)
 	require.Nil(t, err)
 	require.Equal(t, int64(11), size)
 
@@ -45,7 +45,7 @@ func TestFileStore_Write_Read_Success(t *testing.T) {
 func TestFileStore_Write_Remove_Success(t *testing.T) {
 	dir, c := newTestFileStore(t) // max = 10k (10240), each = 1k (1024)
 	for i := 0; i < 10; i++ {     // 10x999 = 9990
-		size, err := c.Write(fmt.Sprintf("abcdefghijk%d", i), bytes.NewReader(make([]byte, 999)))
+		size, err := c.Write(fmt.Sprintf("abcdefghijk%d", i), bytes.NewReader(make([]byte, 999)), 0)
 		require.Nil(t, err)
 		require.Equal(t, int64(999), size)
 	}
@@ -64,19 +64,45 @@ func TestFileStore_Write_Remove_Success(t *testing.T) {
 func TestFileStore_Write_FailedTotalSizeLimit(t *testing.T) {
 	dir, c := newTestFileStore(t)
 	for i := 0; i < 10; i++ {
-		size, err := c.Write(fmt.Sprintf("abcdefghijk%d", i), bytes.NewReader(oneKilobyteArray))
+		size, err := c.Write(fmt.Sprintf("abcdefghijk%d", i), bytes.NewReader(oneKilobyteArray), 0)
 		require.Nil(t, err)
 		require.Equal(t, int64(1024), size)
 	}
-	_, err := c.Write("abcdefghijkX", bytes.NewReader(oneKilobyteArray))
+	_, err := c.Write("abcdefghijkX", bytes.NewReader(oneKilobyteArray), 0)
 	require.Equal(t, util.ErrLimitReached, err)
 	require.NoFileExists(t, dir+"/abcdefghijkX")
 }
 
 func TestFileStore_Write_FailedAdditionalLimiter(t *testing.T) {
 	dir, c := newTestFileStore(t)
-	_, err := c.Write("abcdefghijkl", bytes.NewReader(make([]byte, 1001)), util.NewFixedLimiter(1000))
+	_, err := c.Write("abcdefghijkl", bytes.NewReader(make([]byte, 1001)), 0, util.NewFixedLimiter(1000))
 	require.Equal(t, util.ErrLimitReached, err)
+	require.NoFileExists(t, dir+"/abcdefghijkl")
+}
+
+func TestFileStore_Write_UntrustedContentLengthExact(t *testing.T) {
+	dir, c := newTestFileStore(t)
+	size, err := c.Write("abcdefghijkl", strings.NewReader("hello world"), 11)
+	require.Nil(t, err)
+	require.Equal(t, int64(11), size)
+	require.Equal(t, "hello world", readFile(t, dir+"/abcdefghijkl"))
+}
+
+func TestFileStore_Write_UntrustedContentLengthBodyLonger(t *testing.T) {
+	dir, c := newTestFileStore(t)
+	// Body has 11 bytes, but we claim 5 — only first 5 bytes should be stored
+	size, err := c.Write("abcdefghijkl", strings.NewReader("hello world"), 5)
+	require.Nil(t, err)
+	require.Equal(t, int64(5), size)
+	require.Equal(t, "hello", readFile(t, dir+"/abcdefghijkl"))
+}
+
+func TestFileStore_Write_UntrustedContentLengthBodyShorter(t *testing.T) {
+	dir, c := newTestFileStore(t)
+	// Body has 5 bytes, but we claim 100 — should fail with content length mismatch
+	_, err := c.Write("abcdefghijkl", strings.NewReader("hello"), 100)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "content length mismatch")
 	require.NoFileExists(t, dir+"/abcdefghijkl")
 }
 
@@ -90,11 +116,11 @@ func TestFileStore_Sync(t *testing.T) {
 	dir, c := newTestFileStore(t)
 
 	// Write some files
-	_, err := c.Write("abcdefghijk0", strings.NewReader("file0"))
+	_, err := c.Write("abcdefghijk0", strings.NewReader("file0"), 0)
 	require.Nil(t, err)
-	_, err = c.Write("abcdefghijk1", strings.NewReader("file1"))
+	_, err = c.Write("abcdefghijk1", strings.NewReader("file1"), 0)
 	require.Nil(t, err)
-	_, err = c.Write("abcdefghijk2", strings.NewReader("file2"))
+	_, err = c.Write("abcdefghijk2", strings.NewReader("file2"), 0)
 	require.Nil(t, err)
 
 	require.Equal(t, int64(15), c.Size())
@@ -124,7 +150,7 @@ func TestFileStore_Sync_SkipsRecentFiles(t *testing.T) {
 	dir, c := newTestFileStore(t)
 
 	// Write a file
-	_, err := c.Write("abcdefghijk0", strings.NewReader("file0"))
+	_, err := c.Write("abcdefghijk0", strings.NewReader("file0"), 0)
 	require.Nil(t, err)
 
 	// Set the ID provider to return empty (no valid IDs)

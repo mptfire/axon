@@ -1432,16 +1432,13 @@ func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *model.Me
 	if m.Time > attachmentExpiry {
 		return errHTTPBadRequestAttachmentsExpiryBeforeDelivery.With(m)
 	}
-	contentLengthStr := r.Header.Get("Content-Length")
-	if contentLengthStr != "" { // Early "do-not-trust" check, hard limit see below
-		contentLength, err := strconv.ParseInt(contentLengthStr, 10, 64)
-		if err == nil && (contentLength > vinfo.Stats.AttachmentTotalSizeRemaining || contentLength > vinfo.Limits.AttachmentFileSizeLimit) {
-			return errHTTPEntityTooLargeAttachment.With(m).Fields(log.Context{
-				"message_content_length":          contentLength,
-				"attachment_total_size_remaining": vinfo.Stats.AttachmentTotalSizeRemaining,
-				"attachment_file_size_limit":      vinfo.Limits.AttachmentFileSizeLimit,
-			})
-		}
+	// Early "do-not-trust" check, hard limit see below
+	if r.ContentLength > 0 && (r.ContentLength > vinfo.Stats.AttachmentTotalSizeRemaining || r.ContentLength > vinfo.Limits.AttachmentFileSizeLimit) {
+		return errHTTPEntityTooLargeAttachment.With(m).Fields(log.Context{
+			"message_content_length":          r.ContentLength,
+			"attachment_total_size_remaining": vinfo.Stats.AttachmentTotalSizeRemaining,
+			"attachment_file_size_limit":      vinfo.Limits.AttachmentFileSizeLimit,
+		})
 	}
 	if m.Attachment == nil {
 		m.Attachment = &model.Attachment{}
@@ -1461,7 +1458,7 @@ func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *model.Me
 		util.NewFixedLimiter(vinfo.Limits.AttachmentFileSizeLimit),
 		util.NewFixedLimiter(vinfo.Stats.AttachmentTotalSizeRemaining),
 	}
-	m.Attachment.Size, err = s.fileCache.Write(m.ID, body, limiters...)
+	m.Attachment.Size, err = s.fileCache.Write(m.ID, body, r.ContentLength, limiters...)
 	if errors.Is(err, util.ErrLimitReached) {
 		return errHTTPEntityTooLargeAttachment.With(m)
 	} else if err != nil {

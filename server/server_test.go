@@ -2218,8 +2218,8 @@ func TestServer_PublishAttachmentTooLargeContentLength(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		content := util.RandomString(5000) // > 4096
 		s := newTestServer(t, newTestConfig(t, databaseURL))
-		response := request(t, s, "PUT", "/mytopic", content, map[string]string{
-			"Content-Length": "20000000",
+		response := request(t, s, "PUT", "/mytopic", content, nil, func(r *http.Request) {
+			r.ContentLength = 20000000
 		})
 		err := toHTTPError(t, response.Body.String())
 		require.Equal(t, 413, response.Code)

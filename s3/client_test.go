@@ -419,7 +419,7 @@ func TestClient_PutGetObject(t *testing.T) {
 	ctx := context.Background()
 
 	// Put
-	err := client.PutObject(ctx, "test-key", strings.NewReader("hello world"))
+	err := client.PutObject(ctx, "test-key", strings.NewReader("hello world"), 0)
 	require.Nil(t, err)
 
 	// Get
@@ -439,7 +439,7 @@ func TestClient_PutGetObject_WithPrefix(t *testing.T) {
 
 	ctx := context.Background()
 
-	err := client.PutObject(ctx, "test-key", strings.NewReader("hello"))
+	err := client.PutObject(ctx, "test-key", strings.NewReader("hello"), 0)
 	require.Nil(t, err)
 
 	reader, _, err := client.GetObject(ctx, "test-key")
@@ -471,7 +471,7 @@ func TestClient_DeleteObjects(t *testing.T) {
 
 	// Put several objects
 	for i := 0; i < 5; i++ {
-		err := client.PutObject(ctx, fmt.Sprintf("key-%d", i), bytes.NewReader([]byte("data")))
+		err := client.PutObject(ctx, fmt.Sprintf("key-%d", i), bytes.NewReader([]byte("data")), 0)
 		require.Nil(t, err)
 	}
 	require.Equal(t, 5, mock.objectCount())
@@ -502,13 +502,13 @@ func TestClient_ListObjects(t *testing.T) {
 	// Client with prefix "pfx": list should only return objects under pfx/
 	client := newTestClient(server, "my-bucket", "pfx")
 	for i := 0; i < 3; i++ {
-		err := client.PutObject(ctx, fmt.Sprintf("%d", i), bytes.NewReader([]byte("x")))
+		err := client.PutObject(ctx, fmt.Sprintf("%d", i), bytes.NewReader([]byte("x")), 0)
 		require.Nil(t, err)
 	}
 
 	// Also put an object outside the prefix using a no-prefix client
 	clientNoPrefix := newTestClient(server, "my-bucket", "")
-	err := clientNoPrefix.PutObject(ctx, "other", bytes.NewReader([]byte("y")))
+	err := clientNoPrefix.PutObject(ctx, "other", bytes.NewReader([]byte("y")), 0)
 	require.Nil(t, err)
 
 	// List with prefix client: should only see 3
@@ -532,7 +532,7 @@ func TestClient_ListObjects_Pagination(t *testing.T) {
 
 	// Put 5 objects
 	for i := 0; i < 5; i++ {
-		err := client.PutObject(ctx, fmt.Sprintf("key-%02d", i), bytes.NewReader([]byte("x")))
+		err := client.PutObject(ctx, fmt.Sprintf("key-%02d", i), bytes.NewReader([]byte("x")), 0)
 		require.Nil(t, err)
 	}
 
@@ -564,7 +564,7 @@ func TestClient_ListAllObjects(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < 10; i++ {
-		err := client.PutObject(ctx, fmt.Sprintf("key-%02d", i), bytes.NewReader([]byte("x")))
+		err := client.PutObject(ctx, fmt.Sprintf("key-%02d", i), bytes.NewReader([]byte("x")), 0)
 		require.Nil(t, err)
 	}
 
@@ -585,7 +585,7 @@ func TestClient_PutObject_LargeBody(t *testing.T) {
 	for i := range data {
 		data[i] = byte(i % 256)
 	}
-	err := client.PutObject(ctx, "large", bytes.NewReader(data))
+	err := client.PutObject(ctx, "large", bytes.NewReader(data), 0)
 	require.Nil(t, err)
 
 	reader, size, err := client.GetObject(ctx, "large")
@@ -609,7 +609,7 @@ func TestClient_PutObject_ChunkedUpload(t *testing.T) {
 	for i := range data {
 		data[i] = byte(i % 256)
 	}
-	err := client.PutObject(ctx, "multipart", bytes.NewReader(data))
+	err := client.PutObject(ctx, "multipart", bytes.NewReader(data), 0)
 	require.Nil(t, err)
 
 	reader, size, err := client.GetObject(ctx, "multipart")
@@ -633,7 +633,7 @@ func TestClient_PutObject_ExactPartSize(t *testing.T) {
 	for i := range data {
 		data[i] = byte(i % 256)
 	}
-	err := client.PutObject(ctx, "exact", bytes.NewReader(data))
+	err := client.PutObject(ctx, "exact", bytes.NewReader(data), 0)
 	require.Nil(t, err)
 
 	reader, size, err := client.GetObject(ctx, "exact")
@@ -645,6 +645,63 @@ func TestClient_PutObject_ExactPartSize(t *testing.T) {
 	require.Equal(t, data, got)
 }
 
+func TestClient_PutObject_StreamingExactLength(t *testing.T) {
+	server, _ := newMockS3Server()
+	defer server.Close()
+	client := newTestClient(server, "my-bucket", "pfx")
+
+	ctx := context.Background()
+
+	// untrustedLength matches body exactly — streams directly via putObject
+	err := client.PutObject(ctx, "stream-exact", strings.NewReader("hello world"), 11)
+	require.Nil(t, err)
+
+	reader, size, err := client.GetObject(ctx, "stream-exact")
+	require.Nil(t, err)
+	require.Equal(t, int64(11), size)
+	got, err := io.ReadAll(reader)
+	reader.Close()
+	require.Nil(t, err)
+	require.Equal(t, "hello world", string(got))
+}
+
+func TestClient_PutObject_StreamingBodyLongerThanClaimed(t *testing.T) {
+	server, _ := newMockS3Server()
+	defer server.Close()
+	client := newTestClient(server, "my-bucket", "pfx")
+
+	ctx := context.Background()
+
+	// Body has 11 bytes, but we claim 5 — only first 5 bytes should be stored
+	err := client.PutObject(ctx, "stream-long", strings.NewReader("hello world"), 5)
+	require.Nil(t, err)
+
+	reader, size, err := client.GetObject(ctx, "stream-long")
+	require.Nil(t, err)
+	require.Equal(t, int64(5), size)
+	got, err := io.ReadAll(reader)
+	reader.Close()
+	require.Nil(t, err)
+	require.Equal(t, "hello", string(got))
+}
+
+func TestClient_PutObject_StreamingBodyShorterThanClaimed(t *testing.T) {
+	server, _ := newMockS3Server()
+	defer server.Close()
+	client := newTestClient(server, "my-bucket", "pfx")
+
+	ctx := context.Background()
+
+	// Body has 5 bytes, but we claim 100 — should fail
+	err := client.PutObject(ctx, "stream-short", strings.NewReader("hello"), 100)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "ContentLength")
+
+	// Object should not exist
+	_, _, err = client.GetObject(ctx, "stream-short")
+	require.Error(t, err)
+}
+
 func TestClient_PutObject_NestedKey(t *testing.T) {
 	server, _ := newMockS3Server()
 	defer server.Close()
@@ -652,7 +709,7 @@ func TestClient_PutObject_NestedKey(t *testing.T) {
 
 	ctx := context.Background()
 
-	err := client.PutObject(ctx, "deep/nested/prefix/file.txt", strings.NewReader("nested"))
+	err := client.PutObject(ctx, "deep/nested/prefix/file.txt", strings.NewReader("nested"), 0)
 	require.Nil(t, err)
 
 	reader, _, err := client.GetObject(ctx, "deep/nested/prefix/file.txt")
@@ -682,7 +739,7 @@ func TestClient_ListAllObjects_20k(t *testing.T) {
 		for i := 0; i < batchSize; i++ {
 			idx := batch*batchSize + i
 			key := fmt.Sprintf("%08d", idx)
-			err := client.PutObject(ctx, key, bytes.NewReader([]byte("x")))
+			err := client.PutObject(ctx, key, bytes.NewReader([]byte("x")), 0)
 			require.Nil(t, err)
 		}
 	}
@@ -780,7 +837,7 @@ func TestClient_RealBucket(t *testing.T) {
 		content := "hello from ntfy s3 test"
 
 		// Put
-		err := client.PutObject(ctx, key, strings.NewReader(content))
+		err := client.PutObject(ctx, key, strings.NewReader(content), 0)
 		require.Nil(t, err)
 
 		// Get
@@ -818,7 +875,7 @@ func TestClient_RealBucket(t *testing.T) {
 
 		// Put 10 objects
 		for i := 0; i < 10; i++ {
-			err := listClient.PutObject(ctx, fmt.Sprintf("%d", i), strings.NewReader("x"))
+			err := listClient.PutObject(ctx, fmt.Sprintf("%d", i), strings.NewReader("x"), 0)
 			require.Nil(t, err)
 		}
 
@@ -843,7 +900,7 @@ func TestClient_RealBucket(t *testing.T) {
 			data[i] = byte(i % 256)
 		}
 
-		err := client.PutObject(ctx, key, bytes.NewReader(data))
+		err := client.PutObject(ctx, key, bytes.NewReader(data), 0)
 		require.Nil(t, err)
 
 		reader, size, err := client.GetObject(ctx, key)

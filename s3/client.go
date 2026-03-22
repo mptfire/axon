@@ -45,25 +45,36 @@ func New(config *Config) *Client {
 }
 
 // PutObject uploads body to the given key. The key is automatically prefixed with the client's
-// configured prefix. The body size does not need to be known in advance.
+// configured prefix.
 //
-// If the entire body fits in a single part (5 MB), it is uploaded with a simple PUT request
-// (https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html). Otherwise, the body
-// is uploaded using S3 multipart upload, reading one part at a time into memory
-// (https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html).
-func (c *Client) PutObject(ctx context.Context, key string, body io.Reader) error {
+// If untrustedLength is between 1 and 5 GB, the body is streamed directly to S3 via a
+// single PUT request without buffering. The read is limited to untrustedLength bytes;
+// any extra data in the body is ignored. If the body is shorter than claimed, the upload fails.
+//
+// Otherwise (untrustedLength <= 0 or > 5 GB), the first 5 MB are buffered to decide
+// between a simple PUT and multipart upload.
+//
+// See https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html
+// and https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
+func (c *Client) PutObject(ctx context.Context, key string, body io.Reader, untrustedLength int64) error {
+	if untrustedLength > 0 && untrustedLength <= maxSinglePutSize {
+		// Stream directly: Content-Length is known (but untrusted). LimitReader ensures we send at most
+		// untrustedLength bytes, and any extra data in body is ignored.
+		return c.putObject(ctx, key, io.LimitReader(body, untrustedLength), untrustedLength)
+	}
+	// Buffered path: read first 5 MB to decide simple vs multipart
 	first := make([]byte, partSize)
 	n, err := io.ReadFull(body, first)
 	if errors.Is(err, io.ErrUnexpectedEOF) || err == io.EOF {
-		return c.putObjectSimple(ctx, key, bytes.NewReader(first[:n]), int64(n))
+		return c.putObject(ctx, key, bytes.NewReader(first[:n]), int64(n))
 	} else if err != nil {
 		return fmt.Errorf("error reading object %s from client: %w", key, err)
 	}
 	return c.putObjectMultipart(ctx, key, io.MultiReader(bytes.NewReader(first), body))
 }
 
-// putObjectSimple uploads a body with known size using a simple PUT with UNSIGNED-PAYLOAD.
-func (c *Client) putObjectSimple(ctx context.Context, key string, body io.Reader, size int64) error {
+// putObject uploads a body with known size using a simple PUT with UNSIGNED-PAYLOAD.
+func (c *Client) putObject(ctx context.Context, key string, body io.Reader, size int64) error {
 	log.Tag(tagS3Client).Debug("Uploading object %s (%d bytes)", key, size)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.config.ObjectURL(key), body)
 	if err != nil {

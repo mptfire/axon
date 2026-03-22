@@ -28,6 +28,10 @@ const (
 	// part size of 5 MB for all parts except the last.
 	partSize = 5 * 1024 * 1024
 
+	// maxSinglePutSize is the maximum size for a single PUT upload (5 GB).
+	// Objects larger than this must use multipart upload.
+	maxSinglePutSize = 5 * 1024 * 1024 * 1024
+
 	// maxPages is the max number of pages to iterate through when listing objects
 	maxPages = 500
 )

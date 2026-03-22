@@ -72,20 +72,22 @@ func newStore(backend backend, totalSizeLimit int64, localIDs func() ([]string, 
 }
 
 // Write stores an attachment file. The id is validated, and the write is subject to
-// the total size limit and any additional limiters.
-func (c *Store) Write(id string, in io.Reader, limiters ...util.Limiter) (int64, error) {
+// the total size limit and any additional limiters. The untrustedLength is a hint
+// from the client's Content-Length header; backends may use it to optimize uploads (e.g.
+// streaming directly to S3 without buffering).
+func (c *Store) Write(id string, reader io.Reader, untrustedLength int64, limiters ...util.Limiter) (int64, error) {
 	if !fileIDRegex.MatchString(id) {
 		return 0, errInvalidFileID
 	}
 	log.Tag(tagStore).Field("message_id", id).Debug("Writing attachment")
 	limiters = append(limiters, util.NewFixedLimiter(c.Remaining()))
-	cr := util.NewCountingReader(in)
-	lr := util.NewLimitReader(cr, limiters...)
-	if err := c.backend.Put(id, lr); err != nil {
+	countingReader := util.NewCountingReader(reader)
+	limitReader := util.NewLimitReader(countingReader, limiters...)
+	if err := c.backend.Put(id, limitReader, untrustedLength); err != nil {
 		c.backend.Delete(id) //nolint:errcheck
 		return 0, err
 	}
-	size := cr.Total()
+	size := countingReader.Total()
 	c.mu.Lock()
 	c.size += size
 	c.sizes[id] = size

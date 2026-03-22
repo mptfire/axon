@@ -15,7 +15,7 @@ type object struct {
 // backend is a minimal I/O interface for storing and retrieving attachment files.
 // It has no knowledge of size tracking, limiting, or ID validation.
 type backend interface {
-	Put(id string, in io.Reader) error
+	Put(id string, reader io.Reader, untrustedLength int64) error
 	Get(id string) (io.ReadCloser, int64, error)
 	List() ([]object, error)
 	Delete(ids ...string) error

@@ -1,6 +1,7 @@
 package attachment
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -24,16 +25,23 @@ func newFileBackend(dir string) (*fileBackend, error) {
 	return &fileBackend{dir: dir}, nil
 }
 
-func (b *fileBackend) Put(id string, in io.Reader) error {
+func (b *fileBackend) Put(id string, reader io.Reader, untrustedLength int64) error {
+	if untrustedLength > 0 {
+		reader = io.LimitReader(reader, untrustedLength)
+	}
 	file := filepath.Join(b.dir, id)
 	f, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	if _, err := io.Copy(f, in); err != nil {
+	n, err := io.Copy(f, reader)
+	if err != nil {
 		os.Remove(file)
 		return err
+	} else if untrustedLength > 0 && n != untrustedLength {
+		os.Remove(file)
+		return fmt.Errorf("content length mismatch: claimed %d, got %d", untrustedLength, n)
 	}
 	if err := f.Close(); err != nil {
 		os.Remove(file)

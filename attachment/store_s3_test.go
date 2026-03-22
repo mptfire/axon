@@ -26,7 +26,7 @@ func TestS3Store_WriteReadRemove(t *testing.T) {
 	cache := newTestS3Store(t, server, "my-bucket", "pfx", 10*1024)
 
 	// Write
-	size, err := cache.Write("abcdefghijkl", strings.NewReader("hello world"))
+	size, err := cache.Write("abcdefghijkl", strings.NewReader("hello world"), 0)
 	require.Nil(t, err)
 	require.Equal(t, int64(11), size)
 	require.Equal(t, int64(11), cache.Size())
@@ -55,7 +55,7 @@ func TestS3Store_WriteNoPrefix(t *testing.T) {
 
 	cache := newTestS3Store(t, server, "my-bucket", "", 10*1024)
 
-	size, err := cache.Write("abcdefghijkl", strings.NewReader("test"))
+	size, err := cache.Write("abcdefghijkl", strings.NewReader("test"), 0)
 	require.Nil(t, err)
 	require.Equal(t, int64(4), size)
 
@@ -74,13 +74,13 @@ func TestS3Store_WriteTotalSizeLimit(t *testing.T) {
 	cache := newTestS3Store(t, server, "my-bucket", "pfx", 100)
 
 	// First write fits
-	_, err := cache.Write("abcdefghijk0", bytes.NewReader(make([]byte, 80)))
+	_, err := cache.Write("abcdefghijk0", bytes.NewReader(make([]byte, 80)), 0)
 	require.Nil(t, err)
 	require.Equal(t, int64(80), cache.Size())
 	require.Equal(t, int64(20), cache.Remaining())
 
 	// Second write exceeds total limit
-	_, err = cache.Write("abcdefghijk1", bytes.NewReader(make([]byte, 50)))
+	_, err = cache.Write("abcdefghijk1", bytes.NewReader(make([]byte, 50)), 0)
 	require.ErrorIs(t, err, util.ErrLimitReached)
 }
 
@@ -90,7 +90,7 @@ func TestS3Store_WriteFileSizeLimit(t *testing.T) {
 
 	cache := newTestS3Store(t, server, "my-bucket", "pfx", 10*1024)
 
-	_, err := cache.Write("abcdefghijkl", bytes.NewReader(make([]byte, 200)), util.NewFixedLimiter(100))
+	_, err := cache.Write("abcdefghijkl", bytes.NewReader(make([]byte, 200)), 0, util.NewFixedLimiter(100))
 	require.ErrorIs(t, err, util.ErrLimitReached)
 }
 
@@ -101,7 +101,7 @@ func TestS3Store_WriteRemoveMultiple(t *testing.T) {
 	cache := newTestS3Store(t, server, "my-bucket", "pfx", 10*1024)
 
 	for i := 0; i < 5; i++ {
-		_, err := cache.Write(fmt.Sprintf("abcdefghijk%d", i), bytes.NewReader(make([]byte, 100)))
+		_, err := cache.Write(fmt.Sprintf("abcdefghijk%d", i), bytes.NewReader(make([]byte, 100)), 0)
 		require.Nil(t, err)
 	}
 	require.Equal(t, int64(500), cache.Size())
@@ -126,7 +126,7 @@ func TestS3Store_InvalidID(t *testing.T) {
 
 	cache := newTestS3Store(t, server, "my-bucket", "pfx", 10*1024)
 
-	_, err := cache.Write("bad", strings.NewReader("x"))
+	_, err := cache.Write("bad", strings.NewReader("x"), 0)
 	require.Equal(t, errInvalidFileID, err)
 
 	_, _, err = cache.Read("bad")
@@ -143,11 +143,11 @@ func TestS3Store_Sync(t *testing.T) {
 	cache := newTestS3Store(t, server, "my-bucket", "pfx", 10*1024)
 
 	// Write some files
-	_, err := cache.Write("abcdefghijk0", strings.NewReader("file0"))
+	_, err := cache.Write("abcdefghijk0", strings.NewReader("file0"), 0)
 	require.Nil(t, err)
-	_, err = cache.Write("abcdefghijk1", strings.NewReader("file1"))
+	_, err = cache.Write("abcdefghijk1", strings.NewReader("file1"), 0)
 	require.Nil(t, err)
-	_, err = cache.Write("abcdefghijk2", strings.NewReader("file2"))
+	_, err = cache.Write("abcdefghijk2", strings.NewReader("file2"), 0)
 	require.Nil(t, err)
 
 	require.Equal(t, int64(15), cache.Size())
@@ -175,7 +175,7 @@ func TestS3Store_Sync_SkipsRecentFiles(t *testing.T) {
 
 	cache := newTestS3Store(t, mockServer, "my-bucket", "pfx", 10*1024)
 
-	_, err := cache.Write("abcdefghijk0", strings.NewReader("file0"))
+	_, err := cache.Write("abcdefghijk0", strings.NewReader("file0"), 0)
 	require.Nil(t, err)
 
 	// Set the ID provider to return empty (no valid IDs)
