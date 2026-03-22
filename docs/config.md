@@ -525,7 +525,7 @@ Here's an example config using the local filesystem for attachment storage:
 
 ### S3 storage
 As an alternative to the local filesystem, you can store attachments in an S3-compatible object store (e.g. AWS S3,
-MinIO, DigitalOcean Spaces). This is useful for HA/cloud deployments where you don't want to rely on local disk storage.
+DigitalOcean Spaces). This is useful for HA/cloud deployments where you don't want to rely on local disk storage.
 
 To use S3, set `attachment-cache-dir` to an S3 URL with the following format:
 
@@ -533,7 +533,7 @@ To use S3, set `attachment-cache-dir` to an S3 URL with the following format:
 s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT]
 ```
 
-When `endpoint` is specified, path-style addressing is enabled automatically (useful for MinIO and other S3-compatible stores).
+When `endpoint` is specified, path-style addressing is enabled automatically (useful for S3-compatible stores like DigitalOcean Spaces).
 
 === "/etc/ntfy/server.yml (AWS S3)"
     ``` yaml
@@ -541,7 +541,7 @@ When `endpoint` is specified, path-style addressing is enabled automatically (us
     attachment-cache-dir: "s3://AKID:SECRET@my-bucket/attachments?region=us-east-1"
     ```
 
-=== "/etc/ntfy/server.yml (MinIO/custom endpoint)"
+=== "/etc/ntfy/server.yml (custom endpoint)"
     ``` yaml
     base-url: "https://ntfy.sh"
     attachment-cache-dir: "s3://AKID:SECRET@my-bucket/attachments?region=us-east-1&endpoint=https://s3.example.com"
