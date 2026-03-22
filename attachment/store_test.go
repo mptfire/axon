@@ -332,7 +332,7 @@ func TestStore_Sync_SkipsRecentFiles(t *testing.T) {
 // callback that makes a specific object's timestamp old enough for orphan cleanup (> 1 hour).
 // For the file backend, this uses os.Chtimes; for the S3 backend, it overrides the object's
 // LastModified time via a modTimeOverrideBackend wrapper. Objects start with recent timestamps
-// by default. The S3 subtest is skipped if NTFY_TEST_ATTACHMENT_S3_URL is not set.
+// by default. The S3 subtest is skipped if NTFY_TEST_S3_URL is not set.
 func forEachBackend(t *testing.T, totalSizeLimit int64, f func(t *testing.T, s *Store, makeOld func(string))) {
 	t.Run("file", func(t *testing.T) {
 		dir, s := newTestFileStore(t, totalSizeLimit)

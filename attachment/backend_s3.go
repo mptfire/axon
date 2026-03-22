@@ -8,8 +8,6 @@ import (
 	"heckel.io/ntfy/v2/s3"
 )
 
-const deleteBatchSize = 1000
-
 type s3Backend struct {
 	client *s3.Client
 }
@@ -45,17 +43,7 @@ func (b *s3Backend) List() ([]object, error) {
 }
 
 func (b *s3Backend) Delete(ids ...string) error {
-	// S3 DeleteObjects supports up to 1000 keys per call
-	for i := 0; i < len(ids); i += deleteBatchSize {
-		end := i + deleteBatchSize
-		if end > len(ids) {
-			end = len(ids)
-		}
-		if err := b.client.DeleteObjects(context.Background(), ids[i:end]); err != nil {
-			return err
-		}
-	}
-	return nil
+	return b.client.DeleteObjects(context.Background(), ids)
 }
 
 func (b *s3Backend) DeleteIncomplete(cutoff time.Time) error {

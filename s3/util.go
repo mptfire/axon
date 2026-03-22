@@ -34,6 +34,9 @@ const (
 
 	// maxPages is the max number of pages to iterate through when listing objects
 	maxPages = 500
+
+	// maxDeleteBatchSize is the maximum number of keys per S3 DeleteObjects call
+	maxDeleteBatchSize = 1000
 )
 
 // ParseURL parses an S3 URL of the form:

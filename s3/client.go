@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 
@@ -125,7 +124,7 @@ func (c *Client) ListObjectsV2(ctx context.Context) ([]*Object, error) {
 	var all []*Object
 	var token string
 	for page := 0; page < maxPages; page++ {
-		result, err := c.listObjectsV2(ctx, token, 0)
+		result, err := c.listObjectsV2(ctx, token)
 		if err != nil {
 			return nil, err
 		}
@@ -149,8 +148,7 @@ func (c *Client) ListObjectsV2(ctx context.Context) ([]*Object, error) {
 }
 
 // listObjectsV2 performs a single ListObjectsV2 request using the client's configured prefix.
-// Use continuationToken for pagination. Set maxKeys to 0 for the server default (typically 1000).
-func (c *Client) listObjectsV2(ctx context.Context, continuationToken string, maxKeys int) (*listObjectsV2Result, error) {
+func (c *Client) listObjectsV2(ctx context.Context, continuationToken string) (*listObjectsV2Result, error) {
 	log.Tag(tagS3Client).Debug("Listing remote objects with continuation token '%s'", continuationToken)
 	query := url.Values{"list-type": {"2"}}
 	if prefix := c.config.ListPrefix(); prefix != "" {
@@ -158,9 +156,6 @@ func (c *Client) listObjectsV2(ctx context.Context, continuationToken string, ma
 	}
 	if continuationToken != "" {
 		query.Set("continuation-token", continuationToken)
-	}
-	if maxKeys > 0 {
-		query.Set("max-keys", strconv.Itoa(maxKeys))
 	}
 	respBody, err := c.do(ctx, "ListObjects", http.MethodGet, c.config.BucketURL()+"?"+query.Encode(), nil, nil)
 	if err != nil {
@@ -182,6 +177,20 @@ func (c *Client) listObjectsV2(ctx context.Context, continuationToken string, ma
 //
 // See https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html
 func (c *Client) DeleteObjects(ctx context.Context, keys []string) error {
+	// S3 DeleteObjects supports up to 1000 keys per call
+	for i := 0; i < len(keys); i += maxDeleteBatchSize {
+		end := i + maxDeleteBatchSize
+		if end > len(keys) {
+			end = len(keys)
+		}
+		if err := c.deleteObjects(ctx, keys[i:end]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *Client) deleteObjects(ctx context.Context, keys []string) error {
 	log.Tag(tagS3Client).Debug("Deleting %d object(s)", len(keys))
 	req := &deleteObjectsRequest{
 		Quiet: true,

@@ -14,20 +14,20 @@ import (
 )
 
 func TestS3Store_WriteWithPrefix(t *testing.T) {
-	s3URL := os.Getenv("NTFY_TEST_ATTACHMENT_S3_URL")
+	s3URL := os.Getenv("NTFY_TEST_S3_URL")
 	if s3URL == "" {
-		t.Skip("NTFY_TEST_ATTACHMENT_S3_URL not set")
+		t.Skip("NTFY_TEST_S3_URL not set")
 	}
 	cfg, err := s3.ParseURL(s3URL)
 	require.Nil(t, err)
 	cfg.Prefix = "test-prefix"
 	client := s3.New(cfg)
-	deleteAllObjects(client)
+	deleteAllObjects(t, client)
 	backend := newS3Backend(client)
 	cache, err := newStore(backend, 10*1024, nil)
 	require.Nil(t, err)
 	t.Cleanup(func() {
-		deleteAllObjects(client)
+		deleteAllObjects(t, client)
 		cache.Close()
 	})
 
@@ -47,34 +47,46 @@ func TestS3Store_WriteWithPrefix(t *testing.T) {
 
 func newTestRealS3Store(t *testing.T, totalSizeLimit int64) (*Store, *modTimeOverrideBackend) {
 	t.Helper()
-	s3URL := os.Getenv("NTFY_TEST_ATTACHMENT_S3_URL")
+	s3URL := os.Getenv("NTFY_TEST_S3_URL")
 	if s3URL == "" {
-		t.Skip("NTFY_TEST_ATTACHMENT_S3_URL not set")
+		t.Skip("NTFY_TEST_S3_URL not set")
 	}
 	cfg, err := s3.ParseURL(s3URL)
 	require.Nil(t, err)
+	if cfg.Prefix != "" {
+		cfg.Prefix = cfg.Prefix + "/testpkg-attachment"
+	} else {
+		cfg.Prefix = "testpkg-attachment"
+	}
 	client := s3.New(cfg)
 	inner := newS3Backend(client)
 	wrapper := &modTimeOverrideBackend{backend: inner, modTimes: make(map[string]time.Time)}
-	deleteAllObjects(client)
+	deleteAllObjects(t, client)
 	store, err := newStore(wrapper, totalSizeLimit, nil)
 	require.Nil(t, err)
 	t.Cleanup(func() {
-		deleteAllObjects(client)
+		deleteAllObjects(t, client)
 		store.Close()
 	})
 	return store, wrapper
 }
 
-func deleteAllObjects(client *s3.Client) {
-	objects, _ := client.ListObjectsV2(context.Background())
-	keys := make([]string, 0, len(objects))
-	for _, obj := range objects {
-		keys = append(keys, obj.Key)
+func deleteAllObjects(t *testing.T, client *s3.Client) {
+	t.Helper()
+	for i := 0; i < 20; i++ {
+		objects, err := client.ListObjectsV2(context.Background())
+		require.Nil(t, err)
+		if len(objects) == 0 {
+			return
+		}
+		keys := make([]string, len(objects))
+		for j, obj := range objects {
+			keys[j] = obj.Key
+		}
+		require.Nil(t, client.DeleteObjects(context.Background(), keys))
+		time.Sleep(200 * time.Millisecond)
 	}
-	if len(keys) > 0 {
-		client.DeleteObjects(context.Background(), keys) //nolint:errcheck
-	}
+	t.Fatal("timed out waiting for bucket to be empty")
 }
 
 // modTimeOverrideBackend wraps a backend and allows overriding LastModified times returned by List().
