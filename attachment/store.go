@@ -138,6 +138,9 @@ func (c *Store) Remove(ids ...string) error {
 // deletes orphans (not in the valid ID set and older than 1 hour), and recomputes
 // the total size from the remaining objects.
 func (c *Store) sync() error {
+	if c.localIDs == nil {
+		return nil
+	}
 	localIDs, err := c.localIDs()
 	if err != nil {
 		return fmt.Errorf("attachment sync: failed to get valid IDs: %w", err)
