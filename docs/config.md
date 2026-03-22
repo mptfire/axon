@@ -517,13 +517,13 @@ Here's an example config using the local filesystem for attachment storage:
 
 === "/etc/ntfy/server.yml (minimal)"
     ``` yaml
-    base-url: "https://ntfy.sh"
+    base-url: "https://ntfy.example.com"
     attachment-cache-dir: "/var/cache/ntfy/attachments"
     ```
 
 === "/etc/ntfy/server.yml (all options)"
     ``` yaml
-    base-url: "https://ntfy.sh"
+    base-url: "https://ntfy.example.com"
     attachment-cache-dir: "/var/cache/ntfy/attachments"
     attachment-total-size-limit: "5G"
     attachment-file-size-limit: "15M"
@@ -546,19 +546,19 @@ When `endpoint` is specified, path-style addressing is enabled automatically (us
 
 === "/etc/ntfy/server.yml (AWS S3)"
     ``` yaml
-    base-url: "https://ntfy.sh"
+    base-url: "https://ntfy.example.com"
     attachment-cache-dir: "s3://ACCESS_KEY:SECRET_KEY@my-bucket/attachments?region=us-east-1"
     ```
 
 === "/etc/ntfy/server.yml (DigitalOcean Spaces)"
     ``` yaml
-    base-url: "https://ntfy.sh"
+    base-url: "https://ntfy.example.com"
     attachment-cache-dir: "s3://ACCESS_KEY:SECRET_KEY@my-bucket/attachments?region=nyc3&endpoint=https://nyc3.digitaloceanspaces.com"
     ```
 
 === "/etc/ntfy/server.yml (custom endpoint)"
     ``` yaml
-    base-url: "https://ntfy.sh"
+    base-url: "https://ntfy.example.com"
     attachment-cache-dir: "s3://ACCESS_KEY:SECRET_KEY@my-bucket/attachments?region=us-east-1&endpoint=https://s3.example.com"
     ```
 
