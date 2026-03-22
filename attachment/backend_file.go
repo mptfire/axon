@@ -6,11 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"heckel.io/ntfy/v2/log"
 )
-
-const tagFileBackend = "attachment_file"
 
 type fileBackend struct {
 	dir string
@@ -86,8 +82,8 @@ func (b *fileBackend) Get(id string) (io.ReadCloser, int64, error) {
 func (b *fileBackend) Delete(ids ...string) error {
 	for _, id := range ids {
 		file := filepath.Join(b.dir, id)
-		if err := os.Remove(file); err != nil {
-			log.Tag(tagFileBackend).Field("message_id", id).Err(err).Debug("Error deleting attachment")
+		if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
+			return err
 		}
 	}
 	return nil

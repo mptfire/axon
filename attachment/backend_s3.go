@@ -5,14 +5,10 @@ import (
 	"io"
 	"time"
 
-	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/s3"
 )
 
-const (
-	tagS3Backend    = "attachment_s3"
-	deleteBatchSize = 1000
-)
+const deleteBatchSize = 1000
 
 type s3Backend struct {
 	client *s3.Client
@@ -55,11 +51,7 @@ func (b *s3Backend) Delete(ids ...string) error {
 		if end > len(ids) {
 			end = len(ids)
 		}
-		batch := ids[i:end]
-		for _, id := range batch {
-			log.Tag(tagS3Backend).Field("message_id", id).Debug("Deleting attachment from S3")
-		}
-		if err := b.client.DeleteObjects(context.Background(), batch); err != nil {
+		if err := b.client.DeleteObjects(context.Background(), ids[i:end]); err != nil {
 			return err
 		}
 	}

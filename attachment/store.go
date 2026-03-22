@@ -113,6 +113,9 @@ func (c *Store) Remove(ids ...string) error {
 		}
 	}
 	// Remove from backend
+	for _, id := range ids {
+		log.Tag(tagStore).Field("message_id", id).Debug("Removing attachment")
+	}
 	if err := c.backend.Delete(ids...); err != nil {
 		return err
 	}

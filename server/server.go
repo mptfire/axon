@@ -65,7 +65,7 @@ type Server struct {
 	userManager       *user.Manager                       // Might be nil!
 	messageCache      *message.Cache                      // Database that stores the messages
 	webPush           *webpush.Store                      // Database that stores web push subscriptions
-	fileCache         *attachment.Store                   // Attachment store (file system or S3)
+	attachment        *attachment.Store                   // Attachment store (file system or S3)
 	stripe            stripeAPI                           // Stripe API, can be replaced with a mock
 	priceCache        *util.LookupCache[map[string]int64] // Stripe price ID -> price as cents (USD implied!)
 	metricsHandler    http.Handler                        // Handles /metrics if enable-metrics set, and listen-metrics-http not set
@@ -229,7 +229,7 @@ func New(conf *Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	fileCache, err := createAttachmentStore(conf, messageCache)
+	attachmentStore, err := createAttachmentStore(conf, messageCache)
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +275,7 @@ func New(conf *Config) (*Server, error) {
 		db:              pool,
 		messageCache:    messageCache,
 		webPush:         wp,
-		fileCache:       fileCache,
+		attachment:      attachmentStore,
 		firebaseClient:  firebaseClient,
 		smtpSender:      mailer,
 		topics:          topics,
@@ -432,8 +432,8 @@ func (s *Server) Stop() {
 	if s.smtpServer != nil {
 		s.smtpServer.Close()
 	}
-	if s.fileCache != nil {
-		s.fileCache.Close()
+	if s.attachment != nil {
+		s.attachment.Close()
 	}
 	s.closeDatabases()
 	close(s.closeChan)
@@ -609,7 +609,7 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureWebEnabled(s.handleStatic)(w, r, v)
 	} else if r.Method == http.MethodGet && docsRegex.MatchString(r.URL.Path) {
 		return s.ensureWebEnabled(s.handleDocs)(w, r, v)
-	} else if (r.Method == http.MethodGet || r.Method == http.MethodHead) && fileRegex.MatchString(r.URL.Path) && s.fileCache != nil {
+	} else if (r.Method == http.MethodGet || r.Method == http.MethodHead) && fileRegex.MatchString(r.URL.Path) && s.attachment != nil {
 		return s.limitRequests(s.handleFile)(w, r, v)
 	} else if r.Method == http.MethodOptions {
 		return s.limitRequests(s.handleOptions)(w, r, v) // Should work even if the web app is not enabled, see #598
@@ -766,7 +766,7 @@ func (s *Server) handleStats(w http.ResponseWriter, _ *http.Request, _ *visitor)
 // Before streaming the file to a client, it locates uploader (m.Sender or m.User) in the message cache, so it
 // can associate the download bandwidth with the uploader.
 func (s *Server) handleFile(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	if s.fileCache == nil {
+	if s.attachment == nil {
 		return errHTTPInternalError
 	}
 	matches := fileRegex.FindStringSubmatch(r.URL.Path)
@@ -774,7 +774,7 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request, v *visitor) 
 		return errHTTPInternalErrorInvalidPath
 	}
 	messageID := matches[1]
-	reader, size, err := s.fileCache.Read(messageID)
+	reader, size, err := s.attachment.Read(messageID)
 	if err != nil {
 		return errHTTPNotFound.Fields(log.Context{
 			"message_id":    messageID,
@@ -935,8 +935,8 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 			return nil, err
 		}
 		// Delete attachment files for deleted scheduled messages
-		if s.fileCache != nil && len(deletedIDs) > 0 {
-			if err := s.fileCache.Remove(deletedIDs...); err != nil {
+		if s.attachment != nil && len(deletedIDs) > 0 {
+			if err := s.attachment.Remove(deletedIDs...); err != nil {
 				logvrm(v, r, m).Tag(tagPublish).Err(err).Warn("Error removing attachments for deleted scheduled messages")
 			}
 		}
@@ -1042,8 +1042,8 @@ func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *
 			return err
 		}
 		// Delete attachment files for deleted scheduled messages
-		if s.fileCache != nil && len(deletedIDs) > 0 {
-			if err := s.fileCache.Remove(deletedIDs...); err != nil {
+		if s.attachment != nil && len(deletedIDs) > 0 {
+			if err := s.attachment.Remove(deletedIDs...); err != nil {
 				logvrm(v, r, m).Tag(tagPublish).Err(err).Warn("Error removing attachments for deleted scheduled messages")
 			}
 		}
@@ -1421,7 +1421,7 @@ func (s *Server) renderTemplate(name, tpl, source string) (string, error) {
 }
 
 func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *model.Message, body *util.PeekedReadCloser) error {
-	if s.fileCache == nil || s.config.BaseURL == "" {
+	if s.attachment == nil || s.config.BaseURL == "" {
 		return errHTTPBadRequestAttachmentsDisallowed.With(m)
 	}
 	vinfo, err := v.Info()
@@ -1458,7 +1458,7 @@ func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *model.Me
 		util.NewFixedLimiter(vinfo.Limits.AttachmentFileSizeLimit),
 		util.NewFixedLimiter(vinfo.Stats.AttachmentTotalSizeRemaining),
 	}
-	m.Attachment.Size, err = s.fileCache.Write(m.ID, body, r.ContentLength, limiters...)
+	m.Attachment.Size, err = s.attachment.Write(m.ID, body, r.ContentLength, limiters...)
 	if errors.Is(err, util.ErrLimitReached) {
 		return errHTTPEntityTooLargeAttachment.With(m)
 	} else if err != nil {
