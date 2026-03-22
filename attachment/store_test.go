@@ -123,6 +123,37 @@ func TestStore_InvalidID(t *testing.T) {
 	})
 }
 
+func TestStore_WriteLargeObjects(t *testing.T) {
+	sizes := map[string]int64{
+		"100B": 100,
+		"6MB":  6 * 1024 * 1024,
+		"12MB": 12 * 1024 * 1024,
+	}
+	for name, sz := range sizes {
+		t.Run(name, func(t *testing.T) {
+			forEachBackend(t, sz+1024, func(t *testing.T, s *Store, _ func(string)) {
+				data := make([]byte, sz)
+				for i := range data {
+					data[i] = byte(i % 251)
+				}
+
+				size, err := s.Write("abcdefghijkl", bytes.NewReader(data), 0)
+				require.Nil(t, err)
+				require.Equal(t, sz, size)
+				require.Equal(t, sz, s.Size())
+
+				reader, readSize, err := s.Read("abcdefghijkl")
+				require.Nil(t, err)
+				require.Equal(t, sz, readSize)
+				got, err := io.ReadAll(reader)
+				reader.Close()
+				require.Nil(t, err)
+				require.Equal(t, data, got)
+			})
+		})
+	}
+}
+
 func TestStore_WriteUntrustedLengthExact(t *testing.T) {
 	forEachBackend(t, testSizeLimit, func(t *testing.T, s *Store, _ func(string)) {
 		size, err := s.Write("abcdefghijkl", strings.NewReader("hello world"), 11)
