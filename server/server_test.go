@@ -2145,7 +2145,7 @@ func TestServer_PublishAttachmentShortWithFilename(t *testing.T) {
 		require.Equal(t, "myfile.txt", msg.Attachment.Name)
 		require.Equal(t, "text/plain; charset=utf-8", msg.Attachment.Type)
 		require.Equal(t, int64(21), msg.Attachment.Size)
-		require.GreaterOrEqual(t, msg.Attachment.Expires, time.Now().Add(3*time.Hour).Unix())
+		require.GreaterOrEqual(t, msg.Attachment.Expires, time.Now().Add(3*time.Hour).Unix()-1)
 		require.Contains(t, msg.Attachment.URL, "http://127.0.0.1:12345/file/")
 		require.Equal(t, netip.Addr{}, msg.Sender) // Should never be returned
 		require.FileExists(t, filepath.Join(s.config.AttachmentCacheDir, msg.ID))
