@@ -34,7 +34,7 @@ type Store struct {
 	sizes     map[string]int64         // File ID -> size, for subtracting on Remove
 	localIDs  func() ([]string, error) // Returns file IDs that should exist locally, used for sync()
 	closeChan chan struct{}
-	mu        sync.Mutex // Protects size and sizes
+	mu        sync.RWMutex // Protects size and sizes
 }
 
 // NewFileStore creates a new file-system backed attachment cache
@@ -191,15 +191,15 @@ func (c *Store) sync() error {
 
 // Size returns the current total size of all attachments
 func (c *Store) Size() int64 {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.size
 }
 
 // Remaining returns the remaining capacity for attachments
 func (c *Store) Remaining() int64 {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	remaining := c.limit - c.size
 	if remaining < 0 {
 		return 0
