@@ -383,7 +383,7 @@ func newTestClient(t *testing.T) *Client {
 
 func deleteAllObjects(t *testing.T, client *Client) {
 	t.Helper()
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 60; i++ {
 		objects, err := client.ListObjectsV2(context.Background())
 		require.Nil(t, err)
 		if len(objects) == 0 {
@@ -394,20 +394,20 @@ func deleteAllObjects(t *testing.T, client *Client) {
 			keys[j] = obj.Key
 		}
 		require.Nil(t, client.DeleteObjects(context.Background(), keys))
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 	t.Fatal("timed out waiting for bucket to be empty")
 }
 
 func waitForCount(t *testing.T, client *Client, expected int) {
 	t.Helper()
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 60; i++ {
 		objects, err := client.ListObjectsV2(context.Background())
 		require.Nil(t, err)
 		if len(objects) == expected {
 			return
 		}
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 	objects, _ := client.ListObjectsV2(context.Background())
 	t.Fatalf("timed out waiting for %d objects, got %d", expected, len(objects))
