@@ -12,7 +12,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
 
-### ntfy server v2.19.2
+## ntfy server v2.19.2
 Released March 16, 2026
 
 This is another small bugfix release for PostgreSQL, avoiding races between primary and read replica, as well as to
@@ -1799,6 +1799,19 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 ## Not released yet
 
 ### ntfy server v2.20.x (UNRELEASED)
+
+This release is another step towards making it possible to help scale ntfy up and out 🔥! With this release, you can store
+attachments in an S3-compatible object store as an alterative to the directory. See [attachment store](config.md#attachments)
+for details.
+
+!!! warning
+    With this release, ntfy will take full control over the attachment directory or S3 bucket. Files/objects in the configured `attachment-cache-dir`
+    that match the message ID format (12 chars, matching `^[A-Za-z0-9]{12}$`), and have no entries in the message database will be deleted.
+    **Do not use a directory or S3 bucket as `attachment-cache-dir` that is also used for something else.**
+    
+    This is a small behavioral change that was necessary because the old logic often left attachments behind and would not clean them
+    up. Unless you have re-used the attachment directory for anything else (which is hopefully never done), this should not affect
+    you at all.
 
 **Features:**
 
