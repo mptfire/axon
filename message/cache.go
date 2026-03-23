@@ -43,10 +43,10 @@ type queries struct {
 	selectAttachmentsExpired         string
 	selectAttachmentsSizeBySender    string
 	selectAttachmentsSizeByUserID    string
+	selectAttachmentsWithSizes       string
 	selectStats                      string
 	updateStats                      string
 	updateMessageTime                string
-	selectAttachmentIDs              string
 }
 
 // Cache stores published messages
@@ -363,16 +363,6 @@ func (c *Cache) ExpireMessages(topics ...string) error {
 	})
 }
 
-// AttachmentIDs returns message IDs with active (non-expired, non-deleted) attachments
-func (c *Cache) AttachmentIDs() ([]string, error) {
-	rows, err := c.db.ReadOnly().Query(c.queries.selectAttachmentIDs, time.Now().Unix())
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return readStrings(rows)
-}
-
 // AttachmentsExpired returns message IDs with expired attachments that have not been deleted
 func (c *Cache) AttachmentsExpired() ([]string, error) {
 	rows, err := c.db.Query(c.queries.selectAttachmentsExpired, time.Now().Unix())
@@ -413,6 +403,30 @@ func (c *Cache) AttachmentBytesUsedByUser(userID string) (int64, error) {
 		return 0, err
 	}
 	return c.readAttachmentBytesUsed(rows)
+}
+
+// AttachmentsWithSizes returns a map of message ID to attachment size for all active
+// (non-expired, non-deleted) attachments. This is used to hydrate the attachment store's
+// size tracking on startup and during periodic sync.
+func (c *Cache) AttachmentsWithSizes() (map[string]int64, error) {
+	rows, err := c.db.ReadOnly().Query(c.queries.selectAttachmentsWithSizes, time.Now().Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	attachments := make(map[string]int64)
+	for rows.Next() {
+		var id string
+		var size int64
+		if err := rows.Scan(&id, &size); err != nil {
+			return nil, err
+		}
+		attachments[id] = size
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return attachments, nil
 }
 
 func (c *Cache) readAttachmentBytesUsed(rows *sql.Rows) (int64, error) {

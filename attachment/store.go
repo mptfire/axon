@@ -28,44 +28,54 @@ var (
 // Store manages attachment storage with shared logic for size tracking, limiting,
 // ID validation, and background sync to reconcile storage with the database.
 type Store struct {
-	backend   backend
-	limit     int64                    // Defined limit of the store in bytes
-	size      int64                    // Current size of the store in bytes
-	sizes     map[string]int64         // File ID -> size, for subtracting on Remove
-	localIDs  func() ([]string, error) // Returns file IDs that should exist locally, used for sync()
-	closeChan chan struct{}
-	mu        sync.RWMutex // Protects size and sizes
+	backend              backend
+	limit                int64                            // Defined limit of the store in bytes
+	size                 int64                            // Current size of the store in bytes
+	sizes                map[string]int64                 // File ID -> size, for subtracting on Remove
+	attachmentsWithSizes func() (map[string]int64, error) // Returns file ID -> size for active attachments
+	closeChan            chan struct{}
+	mu                   sync.RWMutex // Protects size and sizes
 }
 
 // NewFileStore creates a new file-system backed attachment cache
-func NewFileStore(dir string, totalSizeLimit int64, localIDsFn func() ([]string, error)) (*Store, error) {
+func NewFileStore(dir string, totalSizeLimit int64, attachmentsWithSizes func() (map[string]int64, error)) (*Store, error) {
 	b, err := newFileBackend(dir)
 	if err != nil {
 		return nil, err
 	}
-	return newStore(b, totalSizeLimit, localIDsFn)
+	return newStore(b, totalSizeLimit, attachmentsWithSizes)
 }
 
 // NewS3Store creates a new S3-backed attachment cache. The s3URL must be in the format:
 //
 //	s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT]
-func NewS3Store(s3URL string, totalSizeLimit int64, localIDs func() ([]string, error)) (*Store, error) {
+func NewS3Store(s3URL string, totalSizeLimit int64, attachmentsWithSizes func() (map[string]int64, error)) (*Store, error) {
 	config, err := s3.ParseURL(s3URL)
 	if err != nil {
 		return nil, err
 	}
-	return newStore(newS3Backend(s3.New(config)), totalSizeLimit, localIDs)
+	return newStore(newS3Backend(s3.New(config)), totalSizeLimit, attachmentsWithSizes)
 }
 
-func newStore(backend backend, totalSizeLimit int64, localIDs func() ([]string, error)) (*Store, error) {
+func newStore(backend backend, totalSizeLimit int64, attachmentsWithSizes func() (map[string]int64, error)) (*Store, error) {
 	c := &Store{
-		backend:   backend,
-		limit:     totalSizeLimit,
-		sizes:     make(map[string]int64),
-		localIDs:  localIDs,
-		closeChan: make(chan struct{}),
+		backend:              backend,
+		limit:                totalSizeLimit,
+		sizes:                make(map[string]int64),
+		attachmentsWithSizes: attachmentsWithSizes,
+		closeChan:            make(chan struct{}),
 	}
-	if localIDs != nil {
+	// Hydrate sizes from the database immediately so that Size()/Remaining()/Remove()
+	// are accurate from the start, without waiting for the first sync() call.
+	if attachmentsWithSizes != nil {
+		attachments, err := attachmentsWithSizes()
+		if err != nil {
+			return nil, fmt.Errorf("attachment store: failed to load existing attachments: %w", err)
+		}
+		for id, size := range attachments {
+			c.sizes[id] = size
+			c.size += size
+		}
 		go c.syncLoop()
 	}
 	return c, nil
@@ -136,18 +146,14 @@ func (c *Store) Remove(ids ...string) error {
 
 // sync reconciles the backend storage with the database. It lists all objects,
 // deletes orphans (not in the valid ID set and older than 1 hour), and recomputes
-// the total size from the remaining objects.
+// the total size from the existing attachments in the database.
 func (c *Store) sync() error {
-	if c.localIDs == nil {
+	if c.attachmentsWithSizes == nil {
 		return nil
 	}
-	localIDs, err := c.localIDs()
+	attachmentsWithSizes, err := c.attachmentsWithSizes()
 	if err != nil {
-		return fmt.Errorf("attachment sync: failed to get valid IDs: %w", err)
-	}
-	localIDMap := make(map[string]struct{}, len(localIDs))
-	for _, id := range localIDs {
-		localIDMap[id] = struct{}{}
+		return fmt.Errorf("attachment sync: failed to get existing attachments: %w", err)
 	}
 	remoteObjects, err := c.backend.List()
 	if err != nil {
@@ -157,23 +163,23 @@ func (c *Store) sync() error {
 	// than the grace period to account for races, and skipping objects with invalid IDs.
 	cutoff := time.Now().Add(-orphanGracePeriod)
 	var orphanIDs []string
-	var count, size int64
+	var count, totalSize int64
 	sizes := make(map[string]int64, len(remoteObjects))
 	for _, obj := range remoteObjects {
 		if !fileIDRegex.MatchString(obj.ID) {
 			continue
 		}
-		if _, ok := localIDMap[obj.ID]; !ok && obj.LastModified.Before(cutoff) {
+		if _, ok := attachmentsWithSizes[obj.ID]; !ok && obj.LastModified.Before(cutoff) {
 			orphanIDs = append(orphanIDs, obj.ID)
 		} else {
 			count++
-			size += obj.Size
-			sizes[obj.ID] = obj.Size
+			totalSize += attachmentsWithSizes[obj.ID]
+			sizes[obj.ID] = attachmentsWithSizes[obj.ID]
 		}
 	}
-	log.Tag(tagStore).Debug("Attachment store updated: %d attachment(s), %s", count, util.FormatSizeHuman(size))
+	log.Tag(tagStore).Debug("Attachment store updated: %d attachment(s), %s", count, util.FormatSizeHuman(totalSize))
 	c.mu.Lock()
-	c.size = size
+	c.size = totalSize
 	c.sizes = sizes
 	c.mu.Unlock()
 	// Delete orphaned attachments

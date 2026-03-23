@@ -162,9 +162,9 @@ func TestStore_SyncRecomputesSize(t *testing.T) {
 		s.mu.Unlock()
 		require.Equal(t, int64(999), s.Size())
 
-		// Set localIDs to include both files so nothing gets deleted
-		s.localIDs = func() ([]string, error) {
-			return []string{"abcdefghijk0", "abcdefghijk1"}, nil
+		// Set attachmentsWithSizes to include both files so nothing gets deleted
+		s.attachmentsWithSizes = func() (map[string]int64, error) {
+			return map[string]int64{"abcdefghijk0": 100, "abcdefghijk1": 200}, nil
 		}
 
 		// Sync should recompute size from the backend
@@ -280,8 +280,8 @@ func TestStore_Sync(t *testing.T) {
 		require.Equal(t, int64(15), s.Size())
 
 		// Set the ID provider to only know about file 0 and 2
-		s.localIDs = func() ([]string, error) {
-			return []string{"abcdefghijk0", "abcdefghijk2"}, nil
+		s.attachmentsWithSizes = func() (map[string]int64, error) {
+			return map[string]int64{"abcdefghijk0": 5, "abcdefghijk2": 5}, nil
 		}
 
 		// Make file 1 old enough to be cleaned up
@@ -314,8 +314,8 @@ func TestStore_Sync_SkipsRecentFiles(t *testing.T) {
 		require.Nil(t, err)
 
 		// Set the ID provider to return empty (no valid IDs)
-		s.localIDs = func() ([]string, error) {
-			return []string{}, nil
+		s.attachmentsWithSizes = func() (map[string]int64, error) {
+			return map[string]int64{}, nil
 		}
 
 		// File was just created, so it should NOT be deleted (< 1 hour old)

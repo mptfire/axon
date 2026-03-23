@@ -73,12 +73,11 @@ const (
 	sqliteSelectAttachmentsExpiredQuery      = `SELECT mid FROM messages WHERE attachment_expires > 0 AND attachment_expires <= ? AND attachment_deleted = 0`
 	sqliteSelectAttachmentsSizeBySenderQuery = `SELECT IFNULL(SUM(attachment_size), 0) FROM messages WHERE user = '' AND sender = ? AND attachment_expires >= ?`
 	sqliteSelectAttachmentsSizeByUserIDQuery = `SELECT IFNULL(SUM(attachment_size), 0) FROM messages WHERE user = ? AND attachment_expires >= ?`
+	sqliteSelectAttachmentsWithSizesQuery    = `SELECT mid, attachment_size FROM messages WHERE attachment_expires > ? AND attachment_deleted = 0`
 
 	sqliteSelectStatsQuery       = `SELECT value FROM stats WHERE key = 'messages'`
 	sqliteUpdateStatsQuery       = `UPDATE stats SET value = ? WHERE key = 'messages'`
 	sqliteUpdateMessageTimeQuery = `UPDATE messages SET time = ? WHERE mid = ?`
-
-	sqliteSelectAttachmentIDsQuery = `SELECT mid FROM messages WHERE attachment_expires > ? AND attachment_deleted = 0`
 )
 
 var sqliteQueries = queries{
@@ -102,10 +101,10 @@ var sqliteQueries = queries{
 	selectAttachmentsExpired:         sqliteSelectAttachmentsExpiredQuery,
 	selectAttachmentsSizeBySender:    sqliteSelectAttachmentsSizeBySenderQuery,
 	selectAttachmentsSizeByUserID:    sqliteSelectAttachmentsSizeByUserIDQuery,
+	selectAttachmentsWithSizes:       sqliteSelectAttachmentsWithSizesQuery,
 	selectStats:                      sqliteSelectStatsQuery,
 	updateStats:                      sqliteUpdateStatsQuery,
 	updateMessageTime:                sqliteUpdateMessageTimeQuery,
-	selectAttachmentIDs:              sqliteSelectAttachmentIDsQuery,
 }
 
 // NewSQLiteStore creates a SQLite file-backed cache
