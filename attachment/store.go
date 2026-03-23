@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"regexp"
 	"sync"
 	"time"
 
@@ -20,10 +19,7 @@ const (
 	orphanGracePeriod = time.Hour        // Don't delete orphaned objects younger than this to avoid races with in-flight uploads
 )
 
-var (
-	fileIDRegex      = regexp.MustCompile(fmt.Sprintf(`^[-_A-Za-z0-9]{%d}$`, model.MessageIDLength))
-	errInvalidFileID = errors.New("invalid file ID")
-)
+var errInvalidFileID = errors.New("invalid file ID")
 
 // Store manages attachment storage with shared logic for size tracking, limiting,
 // ID validation, and background sync to reconcile storage with the database.
@@ -86,7 +82,7 @@ func newStore(backend backend, totalSizeLimit int64, attachmentsWithSizes func()
 // from the client's Content-Length header; backends may use it to optimize uploads (e.g.
 // streaming directly to S3 without buffering).
 func (c *Store) Write(id string, reader io.Reader, untrustedLength int64, limiters ...util.Limiter) (int64, error) {
-	if !fileIDRegex.MatchString(id) {
+	if !model.ValidMessageID(id) {
 		return 0, errInvalidFileID
 	}
 	log.Tag(tagStore).Field("message_id", id).Debug("Writing attachment")
@@ -107,7 +103,7 @@ func (c *Store) Write(id string, reader io.Reader, untrustedLength int64, limite
 
 // Read retrieves an attachment file by ID
 func (c *Store) Read(id string) (io.ReadCloser, int64, error) {
-	if !fileIDRegex.MatchString(id) {
+	if !model.ValidMessageID(id) {
 		return nil, 0, errInvalidFileID
 	}
 	return c.backend.Get(id)
@@ -118,7 +114,7 @@ func (c *Store) Read(id string) (io.ReadCloser, int64, error) {
 // started and before the first sync) are corrected by the next sync() call.
 func (c *Store) Remove(ids ...string) error {
 	for _, id := range ids {
-		if !fileIDRegex.MatchString(id) {
+		if !model.ValidMessageID(id) {
 			return errInvalidFileID
 		}
 	}
@@ -166,7 +162,7 @@ func (c *Store) sync() error {
 	var count, totalSize int64
 	sizes := make(map[string]int64, len(remoteObjects))
 	for _, obj := range remoteObjects {
-		if !fileIDRegex.MatchString(obj.ID) {
+		if !model.ValidMessageID(obj.ID) {
 			continue
 		}
 		if _, ok := attachmentsWithSizes[obj.ID]; !ok && obj.LastModified.Before(cutoff) {
