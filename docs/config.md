@@ -565,6 +565,34 @@ When `endpoint` is specified, path-style addressing is enabled automatically (us
 Note that the access key and secret key may have to be URL encoded. For instance, a secret key `YmxhY+mxhYmxhC` (note the `+`) should
 be encoded as `YmxhY%2BmxhYmxhC` (note the `%2B`), so the URL would be `s3://ACCESS_KEY:YmxhY%2BmxhYmxhC@my-bucket/attachments...`.
 
+For **AWS S3**, the IAM user needs the following permissions on the bucket:
+
+``` json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucket",
+                "s3:ListBucketMultipartUploads"
+            ],
+            "Resource": "arn:aws:s3:::BUCKET_NAME"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject",
+                "s3:AbortMultipartUpload"
+            ],
+            "Resource": "arn:aws:s3:::BUCKET_NAME/*"
+        }
+    ]
+}
+```
+
 ## Access control
 By default, the ntfy server is open for everyone, meaning **everyone can read and write to any topic** (this is how
 ntfy.sh is configured). To restrict access to your own server, you can optionally configure authentication and authorization. 

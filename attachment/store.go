@@ -157,7 +157,7 @@ func (c *Store) sync() error {
 	// than the grace period to account for races, and skipping objects with invalid IDs.
 	cutoff := time.Now().Add(-orphanGracePeriod)
 	var orphanIDs []string
-	var size int64
+	var count, size int64
 	sizes := make(map[string]int64, len(remoteObjects))
 	for _, obj := range remoteObjects {
 		if !fileIDRegex.MatchString(obj.ID) {
@@ -166,11 +166,12 @@ func (c *Store) sync() error {
 		if _, ok := localIDMap[obj.ID]; !ok && obj.LastModified.Before(cutoff) {
 			orphanIDs = append(orphanIDs, obj.ID)
 		} else {
+			count++
 			size += obj.Size
 			sizes[obj.ID] = obj.Size
 		}
 	}
-	log.Tag(tagStore).Debug("Attachment store updated: %d attachment(s), %s", len(localIDs), util.FormatSizeHuman(size))
+	log.Tag(tagStore).Debug("Attachment store updated: %d attachment(s), %s", count, util.FormatSizeHuman(size))
 	c.mu.Lock()
 	c.size = size
 	c.sizes = sizes

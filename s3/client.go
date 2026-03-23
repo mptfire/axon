@@ -25,6 +25,32 @@ const (
 // and ListObjectsV2 operations using AWS Signature V4 signing. The bucket and optional key prefix
 // are fixed at construction time. All operations target the same bucket and prefix.
 //
+// The following IAM policy is required for AWS S3:
+//
+//	{
+//	    "Version": "2012-10-17",
+//	    "Statement": [
+//	        {
+//	            "Effect": "Allow",
+//	            "Action": [
+//	                "s3:ListBucket",
+//	                "s3:ListBucketMultipartUploads"
+//	            ],
+//	            "Resource": "arn:aws:s3:::BUCKET_NAME"
+//	        },
+//	        {
+//	            "Effect": "Allow",
+//	            "Action": [
+//	                "s3:GetObject",
+//	                "s3:PutObject",
+//	                "s3:DeleteObject",
+//	                "s3:AbortMultipartUpload"
+//	            ],
+//	            "Resource": "arn:aws:s3:::BUCKET_NAME/*"
+//	        }
+//	    ]
+//	}
+//
 // Fields must not be modified after the Client is passed to any method or goroutine.
 type Client struct {
 	config *Config
@@ -149,7 +175,11 @@ func (c *Client) ListObjectsV2(ctx context.Context) ([]*Object, error) {
 
 // listObjectsV2 performs a single ListObjectsV2 request using the client's configured prefix.
 func (c *Client) listObjectsV2(ctx context.Context, continuationToken string) (*listObjectsV2Result, error) {
-	log.Tag(tagS3Client).Debug("Listing remote objects with continuation token '%s'", continuationToken)
+	if continuationToken == "" {
+		log.Tag(tagS3Client).Debug("Listing remote objects")
+	} else {
+		log.Tag(tagS3Client).Debug("Listing remote objects, continuing with token '%s'", continuationToken)
+	}
 	query := url.Values{"list-type": {"2"}}
 	if prefix := c.config.ListPrefix(); prefix != "" {
 		query.Set("prefix", prefix)
