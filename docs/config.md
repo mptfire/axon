@@ -533,27 +533,26 @@ Here's an example config using the local filesystem for attachment storage:
     ```
 
 ### S3 storage
-As an alternative to the local filesystem, you can store attachments in an S3-compatible object store (e.g. AWS S3,
-DigitalOcean Spaces). This is useful for HA/cloud deployments where you don't want to rely on local disk storage.
-
-To use S3, set `attachment-cache-dir` to an S3 URL with the following format:
+As an alternative to the local filesystem, you can store attachments in an S3-compatible object store (e.g. [AWS S3](https://aws.amazon.com/s3/),
+[DigitalOcean Spaces](https://www.digitalocean.com/products/spaces)). This is useful for HA/cloud deployments where you don't want to rely on local disk storage. 
+To use an S3-compatible storage for attachments, set `attachment-cache-dir` to an S3 URL with the following format:
 
 ```
 s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT]
 ```
 
-When `endpoint` is specified, path-style addressing is enabled automatically (useful for S3-compatible stores like DigitalOcean Spaces).
-
-=== "/etc/ntfy/server.yml (AWS S3)"
-    ``` yaml
-    base-url: "https://ntfy.example.com"
-    attachment-cache-dir: "s3://ACCESS_KEY:SECRET_KEY@my-bucket/attachments?region=us-east-1"
-    ```
+Here are a few examples:
 
 === "/etc/ntfy/server.yml (DigitalOcean Spaces)"
     ``` yaml
     base-url: "https://ntfy.example.com"
     attachment-cache-dir: "s3://ACCESS_KEY:SECRET_KEY@my-bucket/attachments?region=nyc3&endpoint=https://nyc3.digitaloceanspaces.com"
+    ```
+
+=== "/etc/ntfy/server.yml (AWS S3)"
+    ``` yaml
+    base-url: "https://ntfy.example.com"
+    attachment-cache-dir: "s3://ACCESS_KEY:SECRET_KEY@my-bucket/attachments?region=us-east-1"
     ```
 
 === "/etc/ntfy/server.yml (custom endpoint)"
@@ -565,7 +564,12 @@ When `endpoint` is specified, path-style addressing is enabled automatically (us
 Note that the access key and secret key may have to be URL encoded. For instance, a secret key `YmxhY+mxhYmxhC` (note the `+`) should
 be encoded as `YmxhY%2BmxhYmxhC` (note the `%2B`), so the URL would be `s3://ACCESS_KEY:YmxhY%2BmxhYmxhC@my-bucket/attachments...`.
 
-For **AWS S3**, the IAM user needs the following permissions on the bucket:
+!!! info
+    ntfy.sh is hosted and sponsored by DigitalOcean. I can highly recommend their public cloud offering. It's been rock solid
+    for 4 years. They offer an S3-compatible storage for $5/month and 250 GB of storage, with 1 TiB of bandwidth. 
+    Also, if you **use [this referral link](https://m.do.co/c/442b929528db), you can get $200 credit**.
+
+For AWS S3, the IAM user needs the following permissions on the bucket:
 
 ``` json
 {
