@@ -1800,6 +1800,10 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ### ntfy server v2.20.x (UNRELEASED)
 
+**Features:**
+
+* Add S3-compatible object storage as an alternative [attachment store](config.md#attachments) via `attachment-cache-dir` config option
+
 **Bug fixes + maintenance:**
 
 * Reject invalid e-mail addresses (e.g. multiple comma-separated recipients) with HTTP 400

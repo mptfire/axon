@@ -77,6 +77,8 @@ const (
 	sqliteSelectStatsQuery       = `SELECT value FROM stats WHERE key = 'messages'`
 	sqliteUpdateStatsQuery       = `UPDATE stats SET value = ? WHERE key = 'messages'`
 	sqliteUpdateMessageTimeQuery = `UPDATE messages SET time = ? WHERE mid = ?`
+
+	sqliteSelectAttachmentIDsQuery = `SELECT mid FROM messages WHERE attachment_expires > ? AND attachment_deleted = 0`
 )
 
 var sqliteQueries = queries{
@@ -103,6 +105,7 @@ var sqliteQueries = queries{
 	selectStats:                      sqliteSelectStatsQuery,
 	updateStats:                      sqliteUpdateStatsQuery,
 	updateMessageTime:                sqliteUpdateMessageTimeQuery,
+	selectAttachmentIDs:              sqliteSelectAttachmentIDsQuery,
 }
 
 // NewSQLiteStore creates a SQLite file-backed cache

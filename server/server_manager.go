@@ -99,6 +99,9 @@ func (s *Server) execManager() {
 	mset(metricUsers, usersCount)
 	mset(metricSubscribers, subscribers)
 	mset(metricTopics, topicsCount)
+	if s.attachment != nil {
+		mset(metricAttachmentsTotalSize, s.attachment.Size())
+	}
 }
 
 func (s *Server) pruneVisitors() {
@@ -137,7 +140,7 @@ func (s *Server) pruneTokens() {
 }
 
 func (s *Server) pruneAttachments() {
-	if s.fileCache == nil {
+	if s.attachment == nil {
 		return
 	}
 	log.
@@ -150,7 +153,7 @@ func (s *Server) pruneAttachments() {
 				if log.Tag(tagManager).IsDebug() {
 					log.Tag(tagManager).Debug("Deleting attachments %s", strings.Join(ids, ", "))
 				}
-				if err := s.fileCache.Remove(ids...); err != nil {
+				if err := s.attachment.Remove(ids...); err != nil {
 					log.Tag(tagManager).Err(err).Warn("Error deleting attachments")
 				}
 				if err := s.messageCache.MarkAttachmentsDeleted(ids...); err != nil {
@@ -171,8 +174,8 @@ func (s *Server) pruneMessages() {
 			if err != nil {
 				log.Tag(tagManager).Err(err).Warn("Error retrieving expired messages")
 			} else if len(expiredMessageIDs) > 0 {
-				if s.fileCache != nil {
-					if err := s.fileCache.Remove(expiredMessageIDs...); err != nil {
+				if s.attachment != nil {
+					if err := s.attachment.Remove(expiredMessageIDs...); err != nil {
 						log.Tag(tagManager).Err(err).Warn("Error deleting attachments for expired messages")
 					}
 				}
