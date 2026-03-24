@@ -29,6 +29,7 @@ Please check out the [releases page](https://github.com/binwiederhier/ntfy/relea
 deb/rpm packages.
 
 ### Just download and run
+Following those steps allow you to download ntfy server and run it in a pinch. But it won't be enough to install it permanently as a service starting at boot time.
 
 === "x86_64/amd64"
     ```bash
@@ -66,50 +67,95 @@ deb/rpm packages.
     sudo ntfy serve
     ```
 
-### Install permanently and start at boot
-The above allows you to quickly run ntfy. If you want to install it permanently and your OS/distribution of choice doesn't offer a package, there are a few more steps to follow.
+### Install as a service starting at boot time
+If you want to install ntfy server permanently as a service, and your OS/distribution of choice doesn't offer a package, there are a few more steps to follow.
 
-Create the ntfy user and group
-```useradd --system --home-dir /var/lib/ntfy --shell /bin/false --comment "User for the simple HTTP-based pub-sub notification service" ntfy```
+Create the ntfy user and group:
+```bash
+useradd --system --home-dir /var/lib/ntfy --shell /bin/false --comment "User for the simple HTTP-based pub-sub notification service" ntfy
+```
 
 Depending on your init system, the following steps will diverge.
 
 #### On systemd systems
 
-Install the ntfy server unit file
-```bash
-sudo mv package/server/ntfy.service /etc/systemd/system/
-sudo chmod 644 /etc/systemd/system/ntfy.service
-```
+Install the ntfy server unit file (which contains parameters to start the service at boot time):
 
-Notify systemd the new service exist
+=== "x86_64/amd64"
+    ```bash
+    sudo mv ntfy_2.19.2_linux_amd64/server/ntfy.service /etc/systemd/system/
+    sudo chmod 644 /etc/systemd/system/ntfy.service
+    ```
+
+=== "armv6"
+    ```bash
+    sudo mv ntfy_2.19.2_linux_armv6/server/ntfy.service /etc/systemd/system/
+    sudo chmod 644 /etc/systemd/system/ntfy.service
+    ```
+
+=== "armv7/armhf"
+    ```bash
+    sudo mv ntfy_2.19.2_linux_armv7/server/ntfy.service /etc/systemd/system/
+    sudo chmod 644 /etc/systemd/system/ntfy.service
+    ```
+
+=== "arm64"
+    ```bash
+    sudo mv ntfy_2.19.2_linux_arm64/server/ntfy.service /etc/systemd/system/
+    sudo chmod 644 /etc/systemd/system/ntfy.service
+    ```
+
+Notify systemd we have added a new service:
+
 ```bash
 sudo systemctl daemon-reload
 ```
 
-Launch the service on systemd
+Start the service:
+
 ```bash
 sudo systemctl ntfy start
 ```
 
 #### On OpenRC systems
 
-Install the ntfy server service script 
-```bash
-sudo mv origin/path/ntfy.openrc /etc/init.d/ntfy
-sudo chmod 755 /etc/init.d/ntfy
-```
+Install the ntfy server service script:
 
-Launch the ntfy server service
+=== "x86_64/amd64"
+    ```bash
+    sudo mv ntfy_2.19.2_linux_amd64/server/ntfy.openrc /etc/init.d/ntfy
+    sudo chmod 755 /etc/init.d/ntfy
+    ```
+
+=== "armv6"
+    ```bash
+    sudo mv ntfy_2.19.2_linux_armv6/server/ntfy.openrc /etc/init.d/ntfy
+    sudo chmod 755 /etc/init.d/ntfy
+    ```
+
+=== "armv7/armhf"
+    ```bash
+    sudo mv ntfy_2.19.2_linux_armv7/server/ntfy.openrc /etc/init.d/ntfy
+    sudo chmod 755 /etc/init.d/ntfy
+    ```
+
+=== "arm64"
+    ```bash
+    sudo mv ntfy_2.19.2_linux_arm64/server/ntfy.openrc /etc/init.d/ntfy
+    sudo chmod 755 /etc/init.d/ntfy
+    ```
+
+Start the ntfy server service:
+
 ```bash
 sudo rc-service ntfy start
 ```
 
-Add ntfy server service to the default runlevel (so that it runs at startup)
+Add the ntfy server service to the default runlevel (so that it starts at boot time):
+
 ```bash
 sudo rc-update add ntfy default
 ```
-
 
 ## Debian/Ubuntu repository
 
