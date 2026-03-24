@@ -43,6 +43,7 @@ type queries struct {
 	selectAttachmentsExpired         string
 	selectAttachmentsSizeBySender    string
 	selectAttachmentsSizeByUserID    string
+	selectAttachmentsWithSizes       string
 	selectStats                      string
 	updateStats                      string
 	updateMessageTime                string
@@ -252,18 +253,7 @@ func (c *Cache) MessagesExpired() ([]string, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	ids := make([]string, 0)
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return ids, nil
+	return readStrings(rows)
 }
 
 // Message returns the message with the given ID, or ErrMessageNotFound if not found
@@ -319,18 +309,7 @@ func (c *Cache) Topics() ([]string, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	topics := make([]string, 0)
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		topics = append(topics, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return topics, nil
+	return readStrings(rows)
 }
 
 // DeleteMessages deletes the messages with the given IDs
@@ -358,15 +337,8 @@ func (c *Cache) DeleteScheduledBySequenceID(topic, sequenceID string) ([]string,
 			return nil, err
 		}
 		defer rows.Close()
-		ids := make([]string, 0)
-		for rows.Next() {
-			var id string
-			if err := rows.Scan(&id); err != nil {
-				return nil, err
-			}
-			ids = append(ids, id)
-		}
-		if err := rows.Err(); err != nil {
+		ids, err := readStrings(rows)
+		if err != nil {
 			return nil, err
 		}
 		rows.Close() // Close rows before executing delete in same transaction
@@ -398,18 +370,7 @@ func (c *Cache) AttachmentsExpired() ([]string, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	ids := make([]string, 0)
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return ids, nil
+	return readStrings(rows)
 }
 
 // MarkAttachmentsDeleted marks the attachments for the given message IDs as deleted
@@ -442,6 +403,30 @@ func (c *Cache) AttachmentBytesUsedByUser(userID string) (int64, error) {
 		return 0, err
 	}
 	return c.readAttachmentBytesUsed(rows)
+}
+
+// AttachmentsWithSizes returns a map of message ID to attachment size for all active
+// (non-expired, non-deleted) attachments. This is used to hydrate the attachment store's
+// size tracking on startup and during periodic sync.
+func (c *Cache) AttachmentsWithSizes() (map[string]int64, error) {
+	rows, err := c.db.ReadOnly().Query(c.queries.selectAttachmentsWithSizes, time.Now().Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	attachments := make(map[string]int64)
+	for rows.Next() {
+		var id string
+		var size int64
+		if err := rows.Scan(&id, &size); err != nil {
+			return nil, err
+		}
+		attachments[id] = size
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return attachments, nil
 }
 
 func (c *Cache) readAttachmentBytesUsed(rows *sql.Rows) (int64, error) {
@@ -589,4 +574,19 @@ func readMessage(rows *sql.Rows) (*model.Message, error) {
 		ContentType: contentType,
 		Encoding:    encoding,
 	}, nil
+}
+
+func readStrings(rows *sql.Rows) ([]string, error) {
+	strs := make([]string, 0)
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return nil, err
+		}
+		strs = append(strs, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return strs, nil
 }

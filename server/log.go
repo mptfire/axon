@@ -24,7 +24,6 @@ const (
 	tagSMTP         = "smtp"  // Receive email
 	tagEmail        = "email" // Send email
 	tagTwilio       = "twilio"
-	tagFileCache    = "file_cache"
 	tagMessageCache = "message_cache"
 	tagStripe       = "stripe"
 	tagAccount      = "account"
@@ -36,7 +35,7 @@ const (
 )
 
 var (
-	normalErrorCodes       = []int{http.StatusNotFound, http.StatusBadRequest, http.StatusTooManyRequests, http.StatusUnauthorized, http.StatusForbidden, http.StatusInsufficientStorage}
+	normalErrorCodes       = []int{http.StatusNotFound, http.StatusBadRequest, http.StatusTooManyRequests, http.StatusUnauthorized, http.StatusForbidden, http.StatusInsufficientStorage, http.StatusRequestEntityTooLarge}
 	rateLimitingErrorCodes = []int{http.StatusTooManyRequests, http.StatusRequestEntityTooLarge}
 )
 

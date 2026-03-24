@@ -503,7 +503,7 @@ func TestAccount_Reservation_AddAdminSuccess(t *testing.T) {
 		}))
 		require.Nil(t, s.userManager.AddUser("noadmin1", "pass", user.RoleUser, false))
 		require.Nil(t, s.userManager.ChangeTier("noadmin1", "pro"))
-		require.Nil(t, s.userManager.AddReservation("noadmin1", "mytopic", user.PermissionDenyAll))
+		require.Nil(t, s.userManager.AddReservation("noadmin1", "mytopic", user.PermissionDenyAll, 0))
 
 		require.Nil(t, s.userManager.AddUser("noadmin2", "pass", user.RoleUser, false))
 		require.Nil(t, s.userManager.ChangeTier("noadmin2", "pro"))

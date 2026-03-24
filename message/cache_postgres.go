@@ -70,6 +70,7 @@ const (
 	postgresSelectAttachmentsExpiredQuery      = `SELECT mid FROM message WHERE attachment_expires > 0 AND attachment_expires <= $1 AND attachment_deleted = FALSE`
 	postgresSelectAttachmentsSizeBySenderQuery = `SELECT COALESCE(SUM(attachment_size), 0) FROM message WHERE user_id = '' AND sender = $1 AND attachment_expires >= $2`
 	postgresSelectAttachmentsSizeByUserIDQuery = `SELECT COALESCE(SUM(attachment_size), 0) FROM message WHERE user_id = $1 AND attachment_expires >= $2`
+	postgresSelectAttachmentsWithSizesQuery    = `SELECT mid, attachment_size FROM message WHERE attachment_expires > $1 AND attachment_deleted = FALSE`
 
 	postgresSelectStatsQuery       = `SELECT value FROM message_stats WHERE key = 'messages'`
 	postgresUpdateStatsQuery       = `UPDATE message_stats SET value = $1 WHERE key = 'messages'`
@@ -97,6 +98,7 @@ var postgresQueries = queries{
 	selectAttachmentsExpired:         postgresSelectAttachmentsExpiredQuery,
 	selectAttachmentsSizeBySender:    postgresSelectAttachmentsSizeBySenderQuery,
 	selectAttachmentsSizeByUserID:    postgresSelectAttachmentsSizeByUserIDQuery,
+	selectAttachmentsWithSizes:       postgresSelectAttachmentsWithSizesQuery,
 	selectStats:                      postgresSelectStatsQuery,
 	updateStats:                      postgresUpdateStatsQuery,
 	updateMessageTime:                postgresUpdateMessageTimeQuery,

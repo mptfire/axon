@@ -9,6 +9,7 @@ server/site/
 tools/fbsend/fbsend
 tools/pgimport/pgimport
 tools/loadtest/loadtest
+tools/s3cli/s3cli
 playground/
 secrets/
 *.iml
