@@ -1426,6 +1426,9 @@ func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *model.Me
 		return err
 	}
 	attachmentExpiry := time.Now().Add(vinfo.Limits.AttachmentExpiryDuration).Unix()
+	if m.Expires > 0 && attachmentExpiry > m.Expires {
+		attachmentExpiry = m.Expires // Attachment must never outlive the message
+	}
 	if m.Time > attachmentExpiry {
 		return errHTTPBadRequestAttachmentsExpiryBeforeDelivery.With(m)
 	}

@@ -57,7 +57,7 @@ const (
 
 // Schema version management for SQLite
 const (
-	sqliteCurrentSchemaVersion          = 14
+	sqliteCurrentSchemaVersion          = 15
 	sqliteCreateSchemaVersionTableQuery = `
 		CREATE TABLE IF NOT EXISTS schemaVersion (
 			id INT PRIMARY KEY,
@@ -208,6 +208,7 @@ var (
 		11: sqliteMigrateFrom11,
 		12: sqliteMigrateFrom12,
 		13: sqliteMigrateFrom13,
+		14: sqliteMigrateFrom14,
 	}
 )
 
@@ -446,6 +447,18 @@ func sqliteMigrateFrom13(sqlDB *sql.DB, _ time.Duration) error {
 			return err
 		}
 		if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 14); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// sqliteMigrateFrom14 is a no-op; the corresponding Postgres migration adds
+// idx_message_attachment_expires, which SQLite already has from the initial schema.
+func sqliteMigrateFrom14(sqlDB *sql.DB, _ time.Duration) error {
+	log.Tag(tagMessageCache).Info("Migrating cache database schema: from 14 to 15")
+	return db.ExecTx(sqlDB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 15); err != nil {
 			return err
 		}
 		return nil

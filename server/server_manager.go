@@ -3,7 +3,6 @@ package server
 import (
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/util"
-	"strings"
 )
 
 func (s *Server) execManager() {
@@ -151,11 +150,11 @@ func (s *Server) pruneAttachments() {
 				log.Tag(tagManager).Err(err).Warn("Error retrieving expired attachments")
 			} else if len(ids) > 0 {
 				if log.Tag(tagManager).IsDebug() {
-					log.Tag(tagManager).Debug("Deleting attachments %s", strings.Join(ids, ", "))
+					log.Tag(tagManager).Debug("Marking %d expired attachment(s) as deleted", len(ids))
 				}
-				if err := s.attachment.Remove(ids...); err != nil {
-					log.Tag(tagManager).Err(err).Warn("Error deleting attachments")
-				}
+				// Only mark as deleted in DB. The actual storage files are cleaned up
+				// by the attachment store's sync() loop, which periodically reconciles
+				// storage with the database and removes orphaned files.
 				if err := s.messageCache.MarkAttachmentsDeleted(ids...); err != nil {
 					log.Tag(tagManager).Err(err).Warn("Error marking attachments deleted")
 				}
@@ -174,13 +173,11 @@ func (s *Server) pruneMessages() {
 			if err != nil {
 				log.Tag(tagManager).Err(err).Warn("Error retrieving expired messages")
 			} else if len(expiredMessageIDs) > 0 {
-				if s.attachment != nil {
-					if err := s.attachment.Remove(expiredMessageIDs...); err != nil {
-						log.Tag(tagManager).Err(err).Warn("Error deleting attachments for expired messages")
-					}
-				}
+				// Only delete DB rows. Attachment storage files are cleaned up by the
+				// attachment store's sync() loop, which periodically reconciles storage
+				// with the database and removes orphaned files.
 				if err := s.messageCache.DeleteMessages(expiredMessageIDs...); err != nil {
-					log.Tag(tagManager).Err(err).Warn("Error marking attachments deleted")
+					log.Tag(tagManager).Err(err).Warn("Error deleting expired messages")
 				}
 			} else {
 				log.Tag(tagManager).Debug("No expired messages to delete")

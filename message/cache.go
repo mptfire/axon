@@ -246,7 +246,7 @@ func (c *Cache) MessagesDue() ([]*model.Message, error) {
 	return readMessages(rows)
 }
 
-// MessagesExpired returns a list of IDs for messages that have expired (should be deleted)
+// MessagesExpired returns a list of message IDs that have expired and should be deleted
 func (c *Cache) MessagesExpired() ([]string, error) {
 	rows, err := c.db.Query(c.queries.selectMessagesExpired, time.Now().Unix())
 	if err != nil {
@@ -262,10 +262,10 @@ func (c *Cache) Message(id string) (*model.Message, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	if !rows.Next() {
 		return nil, model.ErrMessageNotFound
 	}
-	defer rows.Close()
 	return readMessage(rows)
 }
 
