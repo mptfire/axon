@@ -119,7 +119,7 @@ func (s *Server) pruneVisitors() {
 			}
 		}).
 		Field("stale_visitors", staleVisitors).
-		Debug("Deleted %d stale visitor(s)", staleVisitors)
+		Debug("Finished deleting stale visitors")
 }
 
 func (s *Server) pruneTokens() {
@@ -134,7 +134,7 @@ func (s *Server) pruneTokens() {
 					log.Tag(tagManager).Err(err).Warn("Error deleting soft-deleted users")
 				}
 			}).
-			Debug("Removed expired tokens and users")
+			Debug("Finished deleting expired tokens and users")
 	}
 }
 
@@ -157,7 +157,7 @@ func (s *Server) pruneAttachments() {
 				log.Tag(tagManager).Debug("No expired attachments to delete")
 			}
 		}).
-		Debug("Deleted expired attachments")
+		Debug("Finished marking expired attachments as deleted")
 }
 
 func (s *Server) pruneMessages() {
@@ -176,5 +176,5 @@ func (s *Server) pruneMessages() {
 				log.Tag(tagManager).Debug("No expired messages to delete")
 			}
 		}).
-		Debug("Pruned messages")
+		Debug("Finished deleting expired messages")
 }
