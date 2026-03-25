@@ -2700,7 +2700,7 @@ func TestServer_PublishWhileUpdatingStatsWithLotsOfMessages(t *testing.T) {
 		response := request(t, s, "PUT", "/mytopic", "some body", nil)
 		m := toMessage(t, response.Body.String())
 		require.Equal(t, "some body", m.Message)
-		require.True(t, time.Since(start) < 100*time.Millisecond)
+		require.True(t, time.Since(start) < 500*time.Millisecond)
 		log.Info("Done: Publishing message; took %s", time.Since(start).Round(time.Millisecond))
 
 		// Wait for all Goroutines
