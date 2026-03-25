@@ -2285,6 +2285,7 @@ func TestServer_PublishAttachmentAndExpire(t *testing.T) {
 
 		c := newTestConfig(t, databaseURL)
 		c.AttachmentExpiryDuration = time.Millisecond // Hack
+		c.AttachmentOrphanGracePeriod = 0             // For testing: delete orphans immediately
 		s := newTestServer(t, c)
 
 		// Publish and make sure we can retrieve it
@@ -2301,7 +2302,8 @@ func TestServer_PublishAttachmentAndExpire(t *testing.T) {
 
 		// Prune and makes sure it's gone
 		waitFor(t, func() bool {
-			s.execManager() // May run many times
+			s.execManager()
+			s.attachment.Sync() // File cleanup is done by sync, not by the manager
 			return !util.FileExists(file)
 		})
 		response = request(t, s, "GET", path, "", nil)

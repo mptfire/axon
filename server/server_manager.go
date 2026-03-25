@@ -142,22 +142,17 @@ func (s *Server) pruneAttachments() {
 	if s.attachment == nil {
 		return
 	}
+	// Only mark as deleted in DB. The actual storage files are cleaned up
+	// by the attachment store's sync() loop, which periodically reconciles
+	// storage with the database and removes orphaned files.
 	log.
 		Tag(tagManager).
 		Timing(func() {
-			ids, err := s.messageCache.AttachmentsExpired()
+			count, err := s.messageCache.MarkExpiredAttachmentsDeleted(s.config.ManagerBatchSize)
 			if err != nil {
-				log.Tag(tagManager).Err(err).Warn("Error retrieving expired attachments")
-			} else if len(ids) > 0 {
-				if log.Tag(tagManager).IsDebug() {
-					log.Tag(tagManager).Debug("Marking %d expired attachment(s) as deleted", len(ids))
-				}
-				// Only mark as deleted in DB. The actual storage files are cleaned up
-				// by the attachment store's sync() loop, which periodically reconciles
-				// storage with the database and removes orphaned files.
-				if err := s.messageCache.MarkAttachmentsDeleted(ids...); err != nil {
-					log.Tag(tagManager).Err(err).Warn("Error marking attachments deleted")
-				}
+				log.Tag(tagManager).Err(err).Warn("Error marking expired attachments as deleted")
+			} else if count > 0 {
+				log.Tag(tagManager).Debug("Marked %d expired attachment(s) as deleted", count)
 			} else {
 				log.Tag(tagManager).Debug("No expired attachments to delete")
 			}
@@ -166,19 +161,17 @@ func (s *Server) pruneAttachments() {
 }
 
 func (s *Server) pruneMessages() {
+	// Only delete DB rows. Attachment storage files are cleaned up by the
+	// attachment store's sync() loop, which periodically reconciles storage
+	// with the database and removes orphaned files.
 	log.
 		Tag(tagManager).
 		Timing(func() {
-			expiredMessageIDs, err := s.messageCache.MessagesExpired()
+			count, err := s.messageCache.DeleteExpiredMessages(s.config.ManagerBatchSize)
 			if err != nil {
-				log.Tag(tagManager).Err(err).Warn("Error retrieving expired messages")
-			} else if len(expiredMessageIDs) > 0 {
-				// Only delete DB rows. Attachment storage files are cleaned up by the
-				// attachment store's sync() loop, which periodically reconciles storage
-				// with the database and removes orphaned files.
-				if err := s.messageCache.DeleteMessages(expiredMessageIDs...); err != nil {
-					log.Tag(tagManager).Err(err).Warn("Error deleting expired messages")
-				}
+				log.Tag(tagManager).Err(err).Warn("Error deleting expired messages")
+			} else if count > 0 {
+				log.Tag(tagManager).Debug("Deleted %d expired message(s)", count)
 			} else {
 				log.Tag(tagManager).Debug("No expired messages to delete")
 			}

@@ -73,14 +73,14 @@ const (
 	`
 )
 
-var postgresMigrations = map[int]func(db *sql.DB) error{
+var postgresMigrations = map[int]func(d *sql.DB) error{
 	14: postgresMigrateFrom14,
 }
 
-func setupPostgres(sqlDB *sql.DB) error {
+func setupPostgres(d *sql.DB) error {
 	var schemaVersion int
-	if err := sqlDB.QueryRow(postgresSelectSchemaVersionQuery).Scan(&schemaVersion); err != nil {
-		return setupNewPostgresDB(sqlDB)
+	if err := d.QueryRow(postgresSelectSchemaVersionQuery).Scan(&schemaVersion); err != nil {
+		return setupNewPostgresDB(d)
 	} else if schemaVersion == postgresCurrentSchemaVersion {
 		return nil
 	} else if schemaVersion > postgresCurrentSchemaVersion {
@@ -90,16 +90,16 @@ func setupPostgres(sqlDB *sql.DB) error {
 		fn, ok := postgresMigrations[i]
 		if !ok {
 			return fmt.Errorf("cannot find migration step from schema version %d to %d", i, i+1)
-		} else if err := fn(sqlDB); err != nil {
+		} else if err := fn(d); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func postgresMigrateFrom14(sqlDB *sql.DB) error {
+func postgresMigrateFrom14(d *sql.DB) error {
 	log.Tag(tagMessageCache).Info("Migrating message cache database schema: from 14 to 15")
-	return db.ExecTx(sqlDB, func(tx *sql.Tx) error {
+	return db.ExecTx(d, func(tx *sql.Tx) error {
 		if _, err := tx.Exec(postgresMigrate14To15CreateIndexQuery); err != nil {
 			return err
 		}

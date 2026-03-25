@@ -24,7 +24,6 @@ var errNoRows = errors.New("no rows found")
 // queries holds the database-specific SQL queries
 type queries struct {
 	insertMessage                    string
-	deleteMessage                    string
 	selectScheduledMessageIDsBySeqID string
 	deleteScheduledBySequenceID      string
 	updateMessagesForTopicExpiry     string
@@ -35,12 +34,11 @@ type queries struct {
 	selectMessagesSinceIDScheduled   string
 	selectMessagesLatest             string
 	selectMessagesDue                string
-	selectMessagesExpired            string
+	deleteExpiredMessages            string
 	updateMessagePublished           string
 	selectMessagesCount              string
 	selectTopics                     string
-	updateAttachmentDeleted          string
-	selectAttachmentsExpired         string
+	markExpiredAttachmentsDeleted    string
 	selectAttachmentsSizeBySender    string
 	selectAttachmentsSizeByUserID    string
 	selectAttachmentsWithSizes       string
@@ -246,14 +244,16 @@ func (c *Cache) MessagesDue() ([]*model.Message, error) {
 	return readMessages(rows)
 }
 
-// MessagesExpired returns a list of message IDs that have expired and should be deleted
-func (c *Cache) MessagesExpired() ([]string, error) {
-	rows, err := c.db.Query(c.queries.selectMessagesExpired, time.Now().Unix())
+// DeleteExpiredMessages deletes up to `limit` expired messages in a single query
+// and returns the number of deleted rows.
+func (c *Cache) DeleteExpiredMessages(limit int) (int64, error) {
+	c.maybeLock()
+	defer c.maybeUnlock()
+	result, err := c.db.Exec(c.queries.deleteExpiredMessages, time.Now().Unix(), limit)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	defer rows.Close()
-	return readStrings(rows)
+	return result.RowsAffected()
 }
 
 // Message returns the message with the given ID, or ErrMessageNotFound if not found
@@ -312,20 +312,6 @@ func (c *Cache) Topics() ([]string, error) {
 	return readStrings(rows)
 }
 
-// DeleteMessages deletes the messages with the given IDs
-func (c *Cache) DeleteMessages(ids ...string) error {
-	c.maybeLock()
-	defer c.maybeUnlock()
-	return db.ExecTx(c.db, func(tx *sql.Tx) error {
-		for _, id := range ids {
-			if _, err := tx.Exec(c.queries.deleteMessage, id); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
 // DeleteScheduledBySequenceID deletes unpublished (scheduled) messages with the given topic and sequence ID.
 // It returns the message IDs of the deleted messages, which can be used to clean up attachment files.
 func (c *Cache) DeleteScheduledBySequenceID(topic, sequenceID string) ([]string, error) {
@@ -363,28 +349,16 @@ func (c *Cache) ExpireMessages(topics ...string) error {
 	})
 }
 
-// AttachmentsExpired returns message IDs with expired attachments that have not been deleted
-func (c *Cache) AttachmentsExpired() ([]string, error) {
-	rows, err := c.db.Query(c.queries.selectAttachmentsExpired, time.Now().Unix())
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	return readStrings(rows)
-}
-
-// MarkAttachmentsDeleted marks the attachments for the given message IDs as deleted
-func (c *Cache) MarkAttachmentsDeleted(ids ...string) error {
+// MarkExpiredAttachmentsDeleted marks up to `limit` expired attachments as deleted in a single
+// query and returns the number of updated rows.
+func (c *Cache) MarkExpiredAttachmentsDeleted(limit int) (int64, error) {
 	c.maybeLock()
 	defer c.maybeUnlock()
-	return db.ExecTx(c.db, func(tx *sql.Tx) error {
-		for _, id := range ids {
-			if _, err := tx.Exec(c.queries.updateAttachmentDeleted, id); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	result, err := c.db.Exec(c.queries.markExpiredAttachmentsDeleted, time.Now().Unix(), limit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 // AttachmentBytesUsedBySender returns the total size of active attachments sent by the given sender

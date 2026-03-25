@@ -3,7 +3,6 @@ package message_test
 import (
 	"net/netip"
 	"path/filepath"
-	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -274,9 +273,9 @@ func TestStore_Prune(t *testing.T) {
 		require.Nil(t, err)
 		require.Equal(t, 3, count)
 
-		expiredMessageIDs, err := s.MessagesExpired()
+		deleted, err := s.DeleteExpiredMessages(10)
 		require.Nil(t, err)
-		require.Nil(t, s.DeleteMessages(expiredMessageIDs...))
+		require.Equal(t, int64(2), deleted)
 
 		count, err = s.MessagesCount()
 		require.Nil(t, err)
@@ -414,10 +413,9 @@ func TestStore_AttachmentsExpired(t *testing.T) {
 		}
 		require.Nil(t, s.AddMessage(m))
 
-		ids, err := s.AttachmentsExpired()
+		count, err := s.MarkExpiredAttachmentsDeleted(10)
 		require.Nil(t, err)
-		require.Equal(t, 1, len(ids))
-		require.Equal(t, "m4", ids[0])
+		require.Equal(t, int64(1), count)
 	})
 }
 
@@ -583,13 +581,9 @@ func TestStore_ExpireMessages(t *testing.T) {
 		require.Nil(t, s.ExpireMessages("topic1"))
 
 		// topic1 messages should now be expired (expires set to past)
-		expiredIDs, err := s.MessagesExpired()
+		deleted, err := s.DeleteExpiredMessages(100)
 		require.Nil(t, err)
-		require.Equal(t, 2, len(expiredIDs))
-		sort.Strings(expiredIDs)
-		expectedIDs := []string{m1.ID, m2.ID}
-		sort.Strings(expectedIDs)
-		require.Equal(t, expectedIDs, expiredIDs)
+		require.Equal(t, int64(2), deleted)
 
 		// topic2 should be unaffected
 		messages, err = s.Messages("topic2", model.SinceAllMessages, false)
@@ -629,27 +623,15 @@ func TestStore_MarkAttachmentsDeleted(t *testing.T) {
 		}
 		require.Nil(t, s.AddMessage(m2))
 
-		// Both should show as expired attachments needing cleanup
-		ids, err := s.AttachmentsExpired()
+		// Both should be marked as deleted in one batch
+		count, err := s.MarkExpiredAttachmentsDeleted(10)
 		require.Nil(t, err)
-		require.Equal(t, 2, len(ids))
-
-		// Mark msg1's attachment as deleted (file cleaned up)
-		require.Nil(t, s.MarkAttachmentsDeleted("msg1"))
-
-		// Now only msg2 should show as needing cleanup
-		ids, err = s.AttachmentsExpired()
-		require.Nil(t, err)
-		require.Equal(t, 1, len(ids))
-		require.Equal(t, "msg2", ids[0])
-
-		// Mark msg2 too
-		require.Nil(t, s.MarkAttachmentsDeleted("msg2"))
+		require.Equal(t, int64(2), count)
 
 		// No more expired attachments to clean up
-		ids, err = s.AttachmentsExpired()
+		count, err = s.MarkExpiredAttachmentsDeleted(10)
 		require.Nil(t, err)
-		require.Equal(t, 0, len(ids))
+		require.Equal(t, int64(0), count)
 
 		// Messages themselves still exist
 		messages, err := s.Messages("mytopic", model.SinceAllMessages, false)
