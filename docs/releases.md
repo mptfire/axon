@@ -1820,3 +1820,4 @@ for details.
 **Bug fixes + maintenance:**
 
 * Reject invalid e-mail addresses (e.g. multiple comma-separated recipients) with HTTP 400
+* Add OpenRC init service file ([#1650](https://github.com/binwiederhier/ntfy/pull/1650), thanks to [@ageru](https://github.com/ageru) for the contribution)

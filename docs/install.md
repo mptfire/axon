@@ -28,8 +28,9 @@ resources to get started. _I am not affiliated with Kris or Alex, I just liked t
 Please check out the [releases page](https://github.com/binwiederhier/ntfy/releases) for binaries and
 deb/rpm packages.
 
-### Just download and run
-Following those steps allow you to download ntfy server and run it in a pinch. But it won't be enough to install it permanently as a service starting at boot time.
+### Download and run
+The steps below allow you to download ntfy server and run it in a pinch. But it won't be enough to install it permanently
+as a service starting at boot time.
 
 === "x86_64/amd64"
     ```bash
@@ -67,8 +68,9 @@ Following those steps allow you to download ntfy server and run it in a pinch. B
     sudo ntfy serve
     ```
 
-### Install as a service starting at boot time
-If you want to install ntfy server permanently as a service, and your OS/distribution of choice doesn't offer a package, there are a few more steps to follow.
+### Install as a service
+If you want to install ntfy server permanently as a service, and your OS/distribution of choice doesn't offer a package,
+there are a few more steps to follow.
 
 Create the ntfy user and group:
 ```bash
@@ -78,7 +80,6 @@ useradd --system --home-dir /var/lib/ntfy --shell /bin/false --comment "User for
 Depending on your init system, the following steps will diverge.
 
 #### On systemd systems
-
 Install the ntfy server unit file (which contains parameters to start the service at boot time):
 
 === "x86_64/amd64"
@@ -105,20 +106,14 @@ Install the ntfy server unit file (which contains parameters to start the servic
     sudo chmod 644 /etc/systemd/system/ntfy.service
     ```
 
-Notify systemd we have added a new service:
+Then notify systemd we have added a new service and start the service:
 
 ```bash
 sudo systemctl daemon-reload
-```
-
-Start the service:
-
-```bash
-sudo systemctl ntfy start
+sudo systemctl start ntfy
 ```
 
 #### On OpenRC systems
-
 Install the ntfy server service script:
 
 === "x86_64/amd64"
