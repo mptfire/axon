@@ -18,7 +18,6 @@ const (
 		INSERT INTO messages (mid, sequence_id, time, event, expires, topic, message, title, priority, tags, click, icon, actions, attachment_name, attachment_type, attachment_size, attachment_expires, attachment_url, attachment_deleted, sender, user, content_type, encoding, published)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
-	sqliteDeleteMessageQuery                    = `DELETE FROM messages WHERE mid = ?`
 	sqliteSelectScheduledMessageIDsBySeqIDQuery = `SELECT mid FROM messages WHERE topic = ? AND sequence_id = ? AND published = 0`
 	sqliteDeleteScheduledBySequenceIDQuery      = `DELETE FROM messages WHERE topic = ? AND sequence_id = ? AND published = 0`
 	sqliteUpdateMessagesForTopicExpiryQuery     = `UPDATE messages SET expires = ? WHERE topic = ?`
@@ -64,13 +63,12 @@ const (
 		WHERE time <= ? AND published = 0
 		ORDER BY time, id
 	`
-	sqliteSelectMessagesExpiredQuery  = `SELECT mid FROM messages WHERE expires <= ? AND published = 1`
 	sqliteUpdateMessagePublishedQuery = `UPDATE messages SET published = 1 WHERE mid = ?`
 	sqliteSelectMessagesCountQuery    = `SELECT COUNT(*) FROM messages`
 	sqliteSelectTopicsQuery           = `SELECT topic FROM messages GROUP BY topic`
 
-	sqliteUpdateAttachmentDeletedQuery       = `UPDATE messages SET attachment_deleted = 1 WHERE mid = ?`
-	sqliteSelectAttachmentsExpiredQuery      = `SELECT mid FROM messages WHERE attachment_expires > 0 AND attachment_expires <= ? AND attachment_deleted = 0`
+	sqliteDeleteExpiredMessagesQuery         = `DELETE FROM messages WHERE mid IN (SELECT mid FROM messages WHERE expires <= ? AND published = 1 LIMIT ?)`
+	sqliteMarkExpiredAttachmentsDeletedQuery = `UPDATE messages SET attachment_deleted = 1 WHERE mid IN (SELECT mid FROM messages WHERE attachment_expires > 0 AND attachment_expires <= ? AND attachment_deleted = 0 LIMIT ?)`
 	sqliteSelectAttachmentsSizeBySenderQuery = `SELECT IFNULL(SUM(attachment_size), 0) FROM messages WHERE user = '' AND sender = ? AND attachment_expires >= ?`
 	sqliteSelectAttachmentsSizeByUserIDQuery = `SELECT IFNULL(SUM(attachment_size), 0) FROM messages WHERE user = ? AND attachment_expires >= ?`
 	sqliteSelectAttachmentsWithSizesQuery    = `SELECT mid, attachment_size FROM messages WHERE attachment_expires > ? AND attachment_deleted = 0`
@@ -82,7 +80,6 @@ const (
 
 var sqliteQueries = queries{
 	insertMessage:                    sqliteInsertMessageQuery,
-	deleteMessage:                    sqliteDeleteMessageQuery,
 	selectScheduledMessageIDsBySeqID: sqliteSelectScheduledMessageIDsBySeqIDQuery,
 	deleteScheduledBySequenceID:      sqliteDeleteScheduledBySequenceIDQuery,
 	updateMessagesForTopicExpiry:     sqliteUpdateMessagesForTopicExpiryQuery,
@@ -93,12 +90,11 @@ var sqliteQueries = queries{
 	selectMessagesSinceIDScheduled:   sqliteSelectMessagesSinceIDIncludeScheduledQuery,
 	selectMessagesLatest:             sqliteSelectMessagesLatestQuery,
 	selectMessagesDue:                sqliteSelectMessagesDueQuery,
-	selectMessagesExpired:            sqliteSelectMessagesExpiredQuery,
+	deleteExpiredMessages:            sqliteDeleteExpiredMessagesQuery,
 	updateMessagePublished:           sqliteUpdateMessagePublishedQuery,
 	selectMessagesCount:              sqliteSelectMessagesCountQuery,
 	selectTopics:                     sqliteSelectTopicsQuery,
-	updateAttachmentDeleted:          sqliteUpdateAttachmentDeletedQuery,
-	selectAttachmentsExpired:         sqliteSelectAttachmentsExpiredQuery,
+	markExpiredAttachmentsDeleted:    sqliteMarkExpiredAttachmentsDeletedQuery,
 	selectAttachmentsSizeBySender:    sqliteSelectAttachmentsSizeBySenderQuery,
 	selectAttachmentsSizeByUserID:    sqliteSelectAttachmentsSizeByUserIDQuery,
 	selectAttachmentsWithSizes:       sqliteSelectAttachmentsWithSizesQuery,

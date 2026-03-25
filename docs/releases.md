@@ -1815,7 +1815,7 @@ for details.
 
 **Features:**
 
-* Add S3-compatible object storage as an alternative [attachment store](config.md#attachments) via `attachment-cache-dir` config option
+* Add S3-compatible object storage as an alternative [attachment store](config.md#attachments) via `attachment-cache-dir` config option ([#1656](https://github.com/binwiederhier/ntfy/pull/1656)/[#1672](https://github.com/binwiederhier/ntfy/pull/1672))
 
 **Bug fixes + maintenance:**
 
