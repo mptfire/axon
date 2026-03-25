@@ -24,7 +24,7 @@ func TestS3Store_WriteWithPrefix(t *testing.T) {
 	client := s3.New(cfg)
 	deleteAllObjects(t, client)
 	backend := newS3Backend(client)
-	cache, err := newStore(backend, 10*1024, nil)
+	cache, err := newStore(backend, 10*1024, time.Hour, nil)
 	require.Nil(t, err)
 	t.Cleanup(func() {
 		deleteAllObjects(t, client)
@@ -62,7 +62,7 @@ func newTestRealS3Store(t *testing.T, totalSizeLimit int64) (*Store, *modTimeOve
 	inner := newS3Backend(client)
 	wrapper := &modTimeOverrideBackend{backend: inner, modTimes: make(map[string]time.Time)}
 	deleteAllObjects(t, client)
-	store, err := newStore(wrapper, totalSizeLimit, nil)
+	store, err := newStore(wrapper, totalSizeLimit, time.Hour, nil)
 	require.Nil(t, err)
 	t.Cleanup(func() {
 		deleteAllObjects(t, client)

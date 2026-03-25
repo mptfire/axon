@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	tagStore          = "attachment_store"
-	syncInterval      = 15 * time.Minute // How often to run the background sync loop
-	orphanGracePeriod = time.Hour        // Don't delete orphaned objects younger than this to avoid races with in-flight uploads
+	tagStore     = "attachment_store"
+	syncInterval = 15 * time.Minute // How often to run the background sync loop
 )
 
 var errInvalidFileID = errors.New("invalid file ID")
@@ -29,36 +28,38 @@ type Store struct {
 	size                 int64                            // Current size of the store in bytes
 	sizes                map[string]int64                 // File ID -> size, for subtracting on Remove
 	attachmentsWithSizes func() (map[string]int64, error) // Returns file ID -> size for active attachments
+	orphanGracePeriod    time.Duration                    // Don't delete orphaned objects younger than this
 	closeChan            chan struct{}
 	mu                   sync.RWMutex // Protects size and sizes
 }
 
 // NewFileStore creates a new file-system backed attachment cache
-func NewFileStore(dir string, totalSizeLimit int64, attachmentsWithSizes func() (map[string]int64, error)) (*Store, error) {
+func NewFileStore(dir string, totalSizeLimit int64, orphanGracePeriod time.Duration, attachmentsWithSizes func() (map[string]int64, error)) (*Store, error) {
 	b, err := newFileBackend(dir)
 	if err != nil {
 		return nil, err
 	}
-	return newStore(b, totalSizeLimit, attachmentsWithSizes)
+	return newStore(b, totalSizeLimit, orphanGracePeriod, attachmentsWithSizes)
 }
 
 // NewS3Store creates a new S3-backed attachment cache. The s3URL must be in the format:
 //
 //	s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT]
-func NewS3Store(s3URL string, totalSizeLimit int64, attachmentsWithSizes func() (map[string]int64, error)) (*Store, error) {
+func NewS3Store(s3URL string, totalSizeLimit int64, orphanGracePeriod time.Duration, attachmentsWithSizes func() (map[string]int64, error)) (*Store, error) {
 	config, err := s3.ParseURL(s3URL)
 	if err != nil {
 		return nil, err
 	}
-	return newStore(newS3Backend(s3.New(config)), totalSizeLimit, attachmentsWithSizes)
+	return newStore(newS3Backend(s3.New(config)), totalSizeLimit, orphanGracePeriod, attachmentsWithSizes)
 }
 
-func newStore(backend backend, totalSizeLimit int64, attachmentsWithSizes func() (map[string]int64, error)) (*Store, error) {
+func newStore(backend backend, totalSizeLimit int64, orphanGracePeriod time.Duration, attachmentsWithSizes func() (map[string]int64, error)) (*Store, error) {
 	c := &Store{
 		backend:              backend,
 		limit:                totalSizeLimit,
 		sizes:                make(map[string]int64),
 		attachmentsWithSizes: attachmentsWithSizes,
+		orphanGracePeriod:    orphanGracePeriod,
 		closeChan:            make(chan struct{}),
 	}
 	// Hydrate sizes from the database immediately so that Size()/Remaining()/Remove()
@@ -140,9 +141,14 @@ func (c *Store) Remove(ids ...string) error {
 	return nil
 }
 
+// Sync triggers an immediate reconciliation of storage with the database.
+func (c *Store) Sync() error {
+	return c.sync()
+}
+
 // sync reconciles the backend storage with the database. It lists all objects,
-// deletes orphans (not in the valid ID set and older than 1 hour), and recomputes
-// the total size from the existing attachments in the database.
+// deletes orphans (not in the valid ID set and older than the grace period), and
+// recomputes the total size from the existing attachments in the database.
 func (c *Store) sync() error {
 	if c.attachmentsWithSizes == nil {
 		return nil
@@ -157,7 +163,7 @@ func (c *Store) sync() error {
 	}
 	// Calculate total cache size and collect orphaned attachments, excluding objects younger
 	// than the grace period to account for races, and skipping objects with invalid IDs.
-	cutoff := time.Now().Add(-orphanGracePeriod)
+	cutoff := time.Now().Add(-c.orphanGracePeriod)
 	var orphanIDs []string
 	var count, totalSize int64
 	sizes := make(map[string]int64, len(remoteObjects))

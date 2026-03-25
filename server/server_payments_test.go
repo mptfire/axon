@@ -443,6 +443,7 @@ func TestPayments_Webhook_Subscription_Updated_Downgrade_From_PastDue_To_Active(
 		c := newTestConfigWithAuthFile(t, databaseURL)
 		c.StripeSecretKey = "secret key"
 		c.StripeWebhookKey = "webhook key"
+		c.AttachmentOrphanGracePeriod = 0 // For testing: delete orphans immediately
 		s := newTestServer(t, c)
 		s.stripe = stripeMock
 
@@ -546,6 +547,7 @@ func TestPayments_Webhook_Subscription_Updated_Downgrade_From_PastDue_To_Active(
 		// Verify that messages and attachments were deleted
 		time.Sleep(time.Second)
 		s.execManager()
+		s.attachment.Sync() // File cleanup is done by sync, not by the manager
 
 		ms, err := s.messageCache.Messages("atopic", model.SinceAllMessages, false)
 		require.Nil(t, err)

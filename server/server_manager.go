@@ -3,7 +3,6 @@ package server
 import (
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/util"
-	"strings"
 )
 
 func (s *Server) execManager() {
@@ -120,7 +119,7 @@ func (s *Server) pruneVisitors() {
 			}
 		}).
 		Field("stale_visitors", staleVisitors).
-		Debug("Deleted %d stale visitor(s)", staleVisitors)
+		Debug("Finished deleting stale visitors")
 }
 
 func (s *Server) pruneTokens() {
@@ -135,7 +134,7 @@ func (s *Server) pruneTokens() {
 					log.Tag(tagManager).Err(err).Warn("Error deleting soft-deleted users")
 				}
 			}).
-			Debug("Removed expired tokens and users")
+			Debug("Finished deleting expired tokens and users")
 	}
 }
 
@@ -143,48 +142,39 @@ func (s *Server) pruneAttachments() {
 	if s.attachment == nil {
 		return
 	}
+	// Only mark as deleted in DB. The actual storage files are cleaned up
+	// by the attachment store's sync() loop, which periodically reconciles
+	// storage with the database and removes orphaned files.
 	log.
 		Tag(tagManager).
 		Timing(func() {
-			ids, err := s.messageCache.AttachmentsExpired()
+			count, err := s.messageCache.MarkExpiredAttachmentsDeleted(s.config.ManagerBatchSize)
 			if err != nil {
-				log.Tag(tagManager).Err(err).Warn("Error retrieving expired attachments")
-			} else if len(ids) > 0 {
-				if log.Tag(tagManager).IsDebug() {
-					log.Tag(tagManager).Debug("Deleting attachments %s", strings.Join(ids, ", "))
-				}
-				if err := s.attachment.Remove(ids...); err != nil {
-					log.Tag(tagManager).Err(err).Warn("Error deleting attachments")
-				}
-				if err := s.messageCache.MarkAttachmentsDeleted(ids...); err != nil {
-					log.Tag(tagManager).Err(err).Warn("Error marking attachments deleted")
-				}
+				log.Tag(tagManager).Err(err).Warn("Error marking expired attachments as deleted")
+			} else if count > 0 {
+				log.Tag(tagManager).Debug("Marked %d expired attachment(s) as deleted", count)
 			} else {
 				log.Tag(tagManager).Debug("No expired attachments to delete")
 			}
 		}).
-		Debug("Deleted expired attachments")
+		Debug("Finished marking expired attachments as deleted")
 }
 
 func (s *Server) pruneMessages() {
+	// Only delete DB rows. Attachment storage files are cleaned up by the
+	// attachment store's sync() loop, which periodically reconciles storage
+	// with the database and removes orphaned files.
 	log.
 		Tag(tagManager).
 		Timing(func() {
-			expiredMessageIDs, err := s.messageCache.MessagesExpired()
+			count, err := s.messageCache.DeleteExpiredMessages(s.config.ManagerBatchSize)
 			if err != nil {
-				log.Tag(tagManager).Err(err).Warn("Error retrieving expired messages")
-			} else if len(expiredMessageIDs) > 0 {
-				if s.attachment != nil {
-					if err := s.attachment.Remove(expiredMessageIDs...); err != nil {
-						log.Tag(tagManager).Err(err).Warn("Error deleting attachments for expired messages")
-					}
-				}
-				if err := s.messageCache.DeleteMessages(expiredMessageIDs...); err != nil {
-					log.Tag(tagManager).Err(err).Warn("Error marking attachments deleted")
-				}
+				log.Tag(tagManager).Err(err).Warn("Error deleting expired messages")
+			} else if count > 0 {
+				log.Tag(tagManager).Debug("Deleted %d expired message(s)", count)
 			} else {
 				log.Tag(tagManager).Debug("No expired messages to delete")
 			}
 		}).
-		Debug("Pruned messages")
+		Debug("Finished deleting expired messages")
 }
