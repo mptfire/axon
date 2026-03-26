@@ -2414,6 +2414,7 @@ func TestServer_PublishAttachmentWithTierBasedLimits(t *testing.T) {
 		require.Nil(t, s.userManager.AddTier(&user.Tier{
 			Code:                     "test",
 			MessageLimit:             100,
+			MessageExpiryDuration:    time.Hour,
 			AttachmentFileSizeLimit:  50_000,
 			AttachmentTotalSizeLimit: 200_000,
 			AttachmentExpiryDuration: 30 * time.Second,
