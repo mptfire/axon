@@ -433,14 +433,18 @@ func (s *Server) Stop() {
 		s.attachment.Close()
 	}
 	s.closeDatabases()
-	close(s.closeChan)
+	if s.closeChan != nil {
+		close(s.closeChan)
+	}
 }
 
 func (s *Server) closeDatabases() {
 	if s.userManager != nil {
 		s.userManager.Close()
 	}
-	s.messageCache.Close()
+	if s.messageCache != nil {
+		s.messageCache.Close()
+	}
 	if s.webPush != nil {
 		s.webPush.Close()
 	}

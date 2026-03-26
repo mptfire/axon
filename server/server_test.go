@@ -4195,7 +4195,7 @@ func newTestConfigWithAuthFile(t *testing.T, databaseURL string) *Config {
 func newTestServer(t *testing.T, config *Config) *Server {
 	server, err := New(config)
 	require.Nil(t, err)
-	t.Cleanup(server.closeDatabases)
+	t.Cleanup(server.Stop)
 	return server
 }
 
