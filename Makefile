@@ -146,7 +146,7 @@ web-build:
 			../server/site/config.js
 
 web-deps:
-	cd web && $(NPM) install
+	cd web && $(NPM) ci
 	# If this fails for .svg files, optimize them with svgo
 
 web-deps-update:
