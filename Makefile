@@ -147,6 +147,7 @@ web-build:
 
 web-deps:
 	cd web && $(NPM) ci
+	# Use "npm ci" so that we don't change the package lock file
 	# If this fails for .svg files, optimize them with svgo
 
 web-deps-update:
