@@ -9,6 +9,7 @@ import (
 	"heckel.io/ntfy/v2/util"
 	"io"
 	"net/netip"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -673,7 +674,6 @@ func TestAccount_Reservation_Delete_Messages_And_Attachments(t *testing.T) {
 		t.Parallel()
 		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.AuthDefault = user.PermissionReadWrite
-		conf.AttachmentOrphanGracePeriod = 0 // For testing: delete orphans immediately
 		s := newTestServer(t, conf)
 
 		// Create user with tier
@@ -741,7 +741,11 @@ func TestAccount_Reservation_Delete_Messages_And_Attachments(t *testing.T) {
 		require.Equal(t, 200, rr.Code)
 
 		// Verify that messages and attachments were deleted
-		// This does not explicitly call the manager!
+		// This does not explicitly call the manager! We backdate the files so sync's
+		// grace period doesn't protect them.
+		past := time.Now().Add(-2 * time.Hour)
+		os.Chtimes(filepath.Join(s.config.AttachmentCacheDir, m1.ID), past, past)
+		os.Chtimes(filepath.Join(s.config.AttachmentCacheDir, m2.ID), past, past)
 		waitFor(t, func() bool {
 			s.attachment.Sync() // File cleanup is done by sync, not by the manager
 			ms, err := s.messageCache.Messages("mytopic1", model.SinceAllMessages, false)

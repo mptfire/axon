@@ -2285,7 +2285,6 @@ func TestServer_PublishAttachmentAndExpire(t *testing.T) {
 
 		c := newTestConfig(t, databaseURL)
 		c.AttachmentExpiryDuration = time.Millisecond // Hack
-		c.AttachmentOrphanGracePeriod = 0             // For testing: delete orphans immediately
 		s := newTestServer(t, c)
 
 		// Publish and make sure we can retrieve it
@@ -2300,7 +2299,9 @@ func TestServer_PublishAttachmentAndExpire(t *testing.T) {
 		require.Equal(t, 200, response.Code)
 		require.Equal(t, content, response.Body.String())
 
-		// Prune and makes sure it's gone
+		// Prune and makes sure it's gone. We backdate the file so sync's grace
+		// period doesn't protect it, then run the manager + sync explicitly.
+		require.Nil(t, os.Chtimes(file, time.Now().Add(-2*time.Hour), time.Now().Add(-2*time.Hour)))
 		waitFor(t, func() bool {
 			s.execManager()
 			s.attachment.Sync() // File cleanup is done by sync, not by the manager
