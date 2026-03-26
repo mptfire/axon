@@ -19,9 +19,9 @@ attachments in an S3-compatible object store as an alterative to the directory. 
 for details.
 
 !!! warning
-With this release, ntfy will take full control over the attachment directory or S3 bucket. Files/objects in the configured `attachment-cache-dir`
-that match the message ID format (12 chars, matching `^[A-Za-z0-9]{12}$`), and have no entries in the message database will be deleted.
-**Do not use a directory or S3 bucket as `attachment-cache-dir` that is also used for something else.**
+    With this release, ntfy will take full control over the attachment directory or S3 bucket. Files/objects in the configured `attachment-cache-dir`
+    that match the message ID format (12 chars, matching `^[A-Za-z0-9]{12}$`), and have no entries in the message database will be deleted.
+    **Do not use a directory or S3 bucket as `attachment-cache-dir` that is also used for something else.**
 
     This is a small behavioral change that was necessary because the old logic often left attachments behind and would not clean them
     up. Unless you have re-used the attachment directory for anything else (which is hopefully never done), this should not affect
