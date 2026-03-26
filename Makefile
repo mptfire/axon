@@ -151,6 +151,7 @@ web-deps:
 
 web-deps-update:
 	cd web && $(NPM) update
+	cd web && $(NPM) install
 
 web-fmt:
 	cd web && $(NPM) run format
