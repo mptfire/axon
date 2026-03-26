@@ -30,6 +30,7 @@ type Store struct {
 	attachmentsWithSizes func() (map[string]int64, error) // Returns file ID -> size for active attachments
 	orphanGracePeriod    time.Duration                    // Don't delete orphaned objects younger than this
 	closeChan            chan struct{}
+	doneChan             chan struct{}
 	mu                   sync.RWMutex // Protects size and sizes
 }
 
@@ -61,6 +62,7 @@ func newStore(backend backend, totalSizeLimit int64, orphanGracePeriod time.Dura
 		attachmentsWithSizes: attachmentsWithSizes,
 		orphanGracePeriod:    orphanGracePeriod,
 		closeChan:            make(chan struct{}),
+		doneChan:             make(chan struct{}),
 	}
 	// Hydrate sizes from the database immediately so that Size()/Remaining()/Remove()
 	// are accurate from the start, without waiting for the first sync() call.
@@ -74,6 +76,8 @@ func newStore(backend backend, totalSizeLimit int64, orphanGracePeriod time.Dura
 			c.size += size
 		}
 		go c.syncLoop()
+	} else {
+		close(c.doneChan)
 	}
 	return c, nil
 }
@@ -216,12 +220,14 @@ func (c *Store) Remaining() int64 {
 	return remaining
 }
 
-// Close stops the background sync goroutine
+// Close stops the background sync goroutine and waits for it to finish
 func (c *Store) Close() {
 	close(c.closeChan)
+	<-c.doneChan
 }
 
 func (c *Store) syncLoop() {
+	defer close(c.doneChan)
 	if err := c.sync(); err != nil {
 		log.Tag(tagStore).Err(err).Warn("Attachment sync failed")
 	}
