@@ -11,14 +11,15 @@ import (
 
 // Config holds the parsed fields from an S3 URL. Use ParseURL to create one from a URL string.
 type Config struct {
-	Endpoint   string // host[:port] only, e.g. "s3.us-east-1.amazonaws.com"
-	PathStyle  bool
-	Bucket     string
-	Prefix     string
-	Region     string
-	AccessKey  string
-	SecretKey  string
-	HTTPClient *http.Client // if nil, http.DefaultClient is used
+	Endpoint     string // host[:port] only, e.g. "s3.us-east-1.amazonaws.com"
+	PathStyle    bool
+	Bucket       string
+	Prefix       string
+	Region       string
+	AccessKey    string
+	SecretKey    string
+	DisableHTTP2 bool         // Force HTTP/1.1 to work around HTTP/2 issues with some S3-compatible providers
+	HTTPClient   *http.Client // if nil, a default client is created (respecting DisableHTTP2)
 }
 
 // BucketURL returns the base URL for bucket-level operations.

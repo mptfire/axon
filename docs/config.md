@@ -538,7 +538,7 @@ As an alternative to the local filesystem, you can store attachments in an S3-co
 To use an S3-compatible storage for attachments, set `attachment-cache-dir` to an S3 URL with the following format:
 
 ```
-s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT]
+s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT][&disable_http2=true]
 ```
 
 Here are a few examples:
@@ -546,7 +546,7 @@ Here are a few examples:
 === "/etc/ntfy/server.yml (DigitalOcean Spaces)"
     ``` yaml
     base-url: "https://ntfy.example.com"
-    attachment-cache-dir: "s3://ACCESS_KEY:SECRET_KEY@my-bucket/attachments?region=nyc3&endpoint=https://nyc3.digitaloceanspaces.com"
+    attachment-cache-dir: "s3://ACCESS_KEY:SECRET_KEY@my-bucket/attachments?region=nyc3&endpoint=https://nyc3.digitaloceanspaces.com&disable_http2=true"
     ```
 
 === "/etc/ntfy/server.yml (AWS S3)"
@@ -563,6 +563,9 @@ Here are a few examples:
 
 Note that the access key and secret key may have to be URL encoded. For instance, a secret key `YmxhY+mxhYmxhC` (note the `+`) should
 be encoded as `YmxhY%2BmxhYmxhC` (note the `%2B`), so the URL would be `s3://ACCESS_KEY:YmxhY%2BmxhYmxhC@my-bucket/attachments...`.
+
+If you experience upload failures with HTTP/2 stream errors (common with DigitalOcean Spaces and some other S3-compatible providers),
+add `&disable_http2=true` to force HTTP/1.1 connections.
 
 !!! info
     ntfy.sh is hosted and sponsored by DigitalOcean. I can highly recommend their public cloud offering. It's been rock solid
@@ -2189,7 +2192,7 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `behind-proxy`                             | `NTFY_BEHIND_PROXY`                             | *bool*                                              | false             | If set, use forwarded header (e.g. X-Forwarded-For, X-Client-IP) to determine visitor IP address (for rate limiting)                                                                                                                    |
 | `proxy-forwarded-header`                   | `NTFY_PROXY_FORWARDED_HEADER`                   | *string*                                            | `X-Forwarded-For` | Use specified header to determine visitor IP address (for rate limiting)                                                                                                                                                                |
 | `proxy-trusted-hosts`                      | `NTFY_PROXY_TRUSTED_HOSTS`                      | *comma-separated host/IP/CIDR list*                 | -                 | Comma-separated list of trusted IP addresses, hosts, or CIDRs to remove from forwarded header                                                                                                                                           |
-| `attachment-cache-dir`                     | `NTFY_ATTACHMENT_CACHE_DIR`                     | *directory or S3 URL*                               | -                 | Cache directory for attached files, or S3 URL for object storage (format: `s3://KEY:SECRET@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT]`).                                                                                         |
+| `attachment-cache-dir`                     | `NTFY_ATTACHMENT_CACHE_DIR`                     | *directory or S3 URL*                               | -                 | Cache directory for attached files, or S3 URL for object storage (format: `s3://KEY:SECRET@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT][&disable_http2=true]`).                                                                    |
 | `attachment-total-size-limit`              | `NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT`              | *size*                                              | 5G                | Limit of the on-disk attachment cache directory. If the limits is exceeded, new attachments will be rejected.                                                                                                                           |
 | `attachment-file-size-limit`               | `NTFY_ATTACHMENT_FILE_SIZE_LIMIT`               | *size*                                              | 15M               | Per-file attachment size limit (e.g. 300k, 2M, 100M). Larger attachment will be rejected.                                                                                                                                               |
 | `attachment-expiry-duration`               | `NTFY_ATTACHMENT_EXPIRY_DURATION`               | *duration*                                          | 3h                | Duration after which uploaded attachments will be deleted (e.g. 3h, 20h). Strongly affects `visitor-attachment-total-size-limit`.                                                                                                       |
@@ -2291,7 +2294,7 @@ OPTIONS:
    --auth-file value, --auth_file value, -H value                                                                         auth database file used for access control [$NTFY_AUTH_FILE]
    --auth-startup-queries value, --auth_startup_queries value                                                             queries run when the auth database is initialized [$NTFY_AUTH_STARTUP_QUERIES]
    --auth-default-access value, --auth_default_access value, -p value                                                     default permissions if no matching entries in the auth database are found (default: "read-write") [$NTFY_AUTH_DEFAULT_ACCESS]
-   --attachment-cache-dir value, --attachment_cache_dir value                                                             cache directory for attached files, or S3 URL (s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT]) [$NTFY_ATTACHMENT_CACHE_DIR]
+   --attachment-cache-dir value, --attachment_cache_dir value                                                             cache directory for attached files, or S3 URL (s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT][&disable_http2=true]) [$NTFY_ATTACHMENT_CACHE_DIR]
    --attachment-total-size-limit value, --attachment_total_size_limit value, -A value                                     limit of the on-disk attachment cache (default: "5G") [$NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT]
    --attachment-file-size-limit value, --attachment_file_size_limit value, -Y value                                       per-file attachment size limit (e.g. 300k, 2M, 100M) (default: "15M") [$NTFY_ATTACHMENT_FILE_SIZE_LIMIT]
    --attachment-expiry-duration value, --attachment_expiry_duration value, -X value                                       duration after which uploaded attachments will be deleted (e.g. 3h, 20h) (default: "3h") [$NTFY_ATTACHMENT_EXPIRY_DURATION]

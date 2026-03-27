@@ -92,6 +92,18 @@ func TestParseURL_EmptyBucket(t *testing.T) {
 	require.Contains(t, err.Error(), "bucket")
 }
 
+func TestParseURL_DisableHTTP2(t *testing.T) {
+	cfg, err := ParseURL("s3://AKID:SECRET@my-bucket?region=us-east-1&disable_http2=true")
+	require.Nil(t, err)
+	require.True(t, cfg.DisableHTTP2)
+}
+
+func TestParseURL_DisableHTTP2_NotSet(t *testing.T) {
+	cfg, err := ParseURL("s3://AKID:SECRET@my-bucket?region=us-east-1")
+	require.Nil(t, err)
+	require.False(t, cfg.DisableHTTP2)
+}
+
 // --- Unit tests: URL construction ---
 
 func TestConfig_BucketURL_PathStyle(t *testing.T) {
