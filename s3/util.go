@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -41,9 +42,11 @@ const (
 
 // ParseURL parses an S3 URL of the form:
 //
-//	s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT]
+//	s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT][&disable_http2=true]
 //
 // When endpoint is specified, path-style addressing is enabled automatically.
+// When disable_http2=true is set, the client forces HTTP/1.1 to work around
+// HTTP/2 stream errors with some S3-compatible providers (e.g. DigitalOcean Spaces).
 func ParseURL(s3URL string) (*Config, error) {
 	u, err := url.Parse(s3URL)
 	if err != nil {
@@ -80,14 +83,16 @@ func ParseURL(s3URL string) (*Config, error) {
 		endpoint = fmt.Sprintf("s3.%s.amazonaws.com", region)
 		pathStyle = false
 	}
+	disableHTTP2, _ := strconv.ParseBool(u.Query().Get("disable_http2"))
 	return &Config{
-		Endpoint:  endpoint,
-		PathStyle: pathStyle,
-		Bucket:    bucket,
-		Prefix:    prefix,
-		Region:    region,
-		AccessKey: accessKey,
-		SecretKey: secretKey,
+		Endpoint:     endpoint,
+		PathStyle:    pathStyle,
+		Bucket:       bucket,
+		Prefix:       prefix,
+		Region:       region,
+		AccessKey:    accessKey,
+		SecretKey:    secretKey,
+		DisableHTTP2: disableHTTP2,
 	}, nil
 }
 

@@ -62,17 +62,10 @@ type Client struct {
 func New(config *Config) *Client {
 	httpClient := config.HTTPClient
 	if httpClient == nil {
-		// Force HTTP/1.1 to avoid HTTP/2 stream errors with S3-compatible providers
-		// (e.g. DigitalOcean Spaces). HTTP/2 can cause non-retryable failures on
-		// streaming uploads when the server resets the stream mid-transfer.
-		httpClient = &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					MinVersion: tls.VersionTLS12,
-				},
-				ForceAttemptHTTP2: false,
-				TLSNextProto:      make(map[string]func(string, *tls.Conn) http.RoundTripper),
-			},
+		if config.DisableHTTP2 {
+			httpClient = newHTTP1Client()
+		} else {
+			httpClient = http.DefaultClient
 		}
 	}
 	return &Client{
@@ -311,4 +304,21 @@ func (c *Client) do(ctx context.Context, op, method, reqURL string, body []byte,
 		return nil, parseErrorFromBytes(resp.StatusCode, respBody)
 	}
 	return respBody, nil
+}
+
+// newHTTP1Client creates an HTTP client that forces HTTP/1.1 by disabling HTTP/2
+// ALPN negotiation. This works around HTTP/2 stream errors with some S3-compatible
+// providers (e.g. DigitalOcean Spaces) that can cause non-retryable failures on
+// streaming uploads when the server resets the stream mid-transfer.
+// See https://github.com/rclone/rclone/issues/4673, https://github.com/golang/go/issues/42777
+func newHTTP1Client() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
+			ForceAttemptHTTP2: false,
+			TLSNextProto:      make(map[string]func(string, *tls.Conn) http.RoundTripper),
+		},
+	}
 }

@@ -45,7 +45,7 @@ func NewFileStore(dir string, totalSizeLimit int64, orphanGracePeriod time.Durat
 
 // NewS3Store creates a new S3-backed attachment cache. The s3URL must be in the format:
 //
-//	s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT]
+//	s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT][&disable_http2=true]
 func NewS3Store(s3URL string, totalSizeLimit int64, orphanGracePeriod time.Duration, attachmentsWithSizes func() (map[string]int64, error)) (*Store, error) {
 	config, err := s3.ParseURL(s3URL)
 	if err != nil {
