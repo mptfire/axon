@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/md5" //nolint:gosec // MD5 is required by the S3 protocol for Content-MD5 headers
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/xml"
 	"errors"
@@ -61,7 +62,18 @@ type Client struct {
 func New(config *Config) *Client {
 	httpClient := config.HTTPClient
 	if httpClient == nil {
-		httpClient = http.DefaultClient
+		// Force HTTP/1.1 to avoid HTTP/2 stream errors with S3-compatible providers
+		// (e.g. DigitalOcean Spaces). HTTP/2 can cause non-retryable failures on
+		// streaming uploads when the server resets the stream mid-transfer.
+		httpClient = &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{
+					MinVersion: tls.VersionTLS12,
+				},
+				ForceAttemptHTTP2: false,
+				TLSNextProto:      make(map[string]func(string, *tls.Conn) http.RoundTripper),
+			},
+		}
 	}
 	return &Client{
 		config: config,
