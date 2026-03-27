@@ -6,13 +6,23 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 | Component        | Version | Release date |
 |------------------|---------|--------------|
-| ntfy server      | v2.20.0 | Mar 26, 2026 |
+| ntfy server      | v2.20.1 | Mar 27, 2026 |
 | ntfy Android app | v1.24.0 | Mar 5, 2026  |
 | ntfy iOS app     | v1.3    | Nov 26, 2023 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
 
+### ntfy server v2.20.1
+Released March 27, 2026
+
+This is a small bugfix release that only affects high volume S3 backends that struggle with HTTP/2.
+
+**Bug fixes + maintenance:**
+
+* [Attachments](config.md#attachments): Add `disable_http2=true` S3 URL option to work around HTTP/2 stream errors with DigitalOcean Spaces and other S3-compatible providers ([#1678](https://github.com/binwiederhier/ntfy/issues/1678)/[#1679](https://github.com/binwiederhier/ntfy/pull/1679))
+
 ### ntfy server v2.20.0
+Released March 26, 2026
 
 This release is another step towards making it possible to help scale ntfy up and out 🔥! With this release, you can store
 attachments in an S3-compatible object store as an alterative to the directory. See [attachment store](config.md#attachments)
