@@ -6,11 +6,22 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 | Component        | Version | Release date |
 |------------------|---------|--------------|
-| ntfy server      | v2.20.1 | Mar 27, 2026 |
+| ntfy server      | v2.21.0 | Mar 30, 2026 |
 | ntfy Android app | v1.24.0 | Mar 5, 2026  |
 | ntfy iOS app     | v1.3    | Nov 26, 2023 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+### ntfy server v2.21.0
+Released March 30, 2026
+
+This is a change that is required because ntfy.sh was used to send unsolicited emails and the AWS SES account was
+suspended. Going forward, ntfy.sh won't be able to send emails unless the email address was verified ahead of time.
+
+**Features:**
+
+* Add verified email recipients feature with `smtp-sender-verify` config flag, allowing server admins to require email
+  address verification before sending email notifications
 
 ### ntfy server v2.20.1
 Released March 27, 2026
@@ -109,13 +120,6 @@ if things are working (or not working). There is a [one-off migration tool](http
 **Bug fixes + maintenance:**
 
 * Preserve `<br>` line breaks in HTML-only emails received via SMTP ([#690](https://github.com/binwiederhier/ntfy/issues/690), [#1620](https://github.com/binwiederhier/ntfy/pull/1620), thanks to [@uzkikh](https://github.com/uzkikh) for the fix and to [@teastrainer](https://github.com/teastrainer) for reporting)
-
-## ntfy Android v1.25.x (UNRELEASED)
-
-**Features:**
-
-* Add configurable "Alert when connection is lost" setting ([#1665](https://github.com/binwiederhier/ntfy/issues/1665), [#1662](https://github.com/binwiederhier/ntfy/issues/1662), [#1652](https://github.com/binwiederhier/ntfy/issues/1652), [#1655](https://github.com/binwiederhier/ntfy/issues/1655), thanks to [@tintamarre](https://github.com/tintamarre), [@sjozs](https://github.com/sjozs), [@TheRealOne78](https://github.com/TheRealOne78), and [@DAE51D](https://github.com/DAE51D) for reporting)
-* Suppress connection alerts and stop foreground service when there is no network ([ntfy-android#165](https://github.com/binwiederhier/ntfy-android/pull/165), thanks to [@tintamarre](https://github.com/tintamarre) for the contribution)
 
 ## ntfy Android v1.24.0
 Released March 5, 2026
@@ -1839,4 +1843,9 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-_Nothing._
+## ntfy Android v1.25.x (UNRELEASED)
+
+**Features:**
+
+* Add configurable "Alert when connection is lost" setting ([#1665](https://github.com/binwiederhier/ntfy/issues/1665), [#1662](https://github.com/binwiederhier/ntfy/issues/1662), [#1652](https://github.com/binwiederhier/ntfy/issues/1652), [#1655](https://github.com/binwiederhier/ntfy/issues/1655), thanks to [@tintamarre](https://github.com/tintamarre), [@sjozs](https://github.com/sjozs), [@TheRealOne78](https://github.com/TheRealOne78), and [@DAE51D](https://github.com/DAE51D) for reporting)
+* Suppress connection alerts and stop foreground service when there is no network ([ntfy-android#165](https://github.com/binwiederhier/ntfy-android/pull/165), thanks to [@tintamarre](https://github.com/tintamarre) for the contribution)
