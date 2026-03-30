@@ -1294,6 +1294,56 @@ func (a *Manager) readPhoneNumber(rows *sql.Rows) (string, error) {
 	return phoneNumber, nil
 }
 
+// Emails returns all verified email addresses for the user with the given user ID
+func (a *Manager) Emails(userID string) ([]string, error) {
+	rows, err := a.db.ReadOnly().Query(a.queries.selectEmails, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	emails := make([]string, 0)
+	for {
+		email, err := a.readEmail(rows)
+		if errors.Is(err, ErrEmailNotFound) {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+		emails = append(emails, email)
+	}
+	return emails, nil
+}
+
+// AddEmail adds a verified email address to the user with the given user ID
+func (a *Manager) AddEmail(userID, email string) error {
+	if _, err := a.db.Exec(a.queries.insertEmail, userID, email); err != nil {
+		if isUniqueConstraintError(err) {
+			return ErrEmailExists
+		}
+		return err
+	}
+	return nil
+}
+
+// RemoveEmail deletes a verified email address from the user with the given user ID
+func (a *Manager) RemoveEmail(userID, email string) error {
+	_, err := a.db.Exec(a.queries.deleteEmail, userID, email)
+	return err
+}
+
+func (a *Manager) readEmail(rows *sql.Rows) (string, error) {
+	var email string
+	if !rows.Next() {
+		return "", ErrEmailNotFound
+	}
+	if err := rows.Scan(&email); err != nil {
+		return "", err
+	} else if err := rows.Err(); err != nil {
+		return "", err
+	}
+	return email, nil
+}
+
 // ChangeBilling updates a user's billing fields
 func (a *Manager) ChangeBilling(username string, billing *Billing) error {
 	if _, err := a.db.Exec(a.queries.updateBilling, nullString(billing.StripeCustomerID), nullString(billing.StripeSubscriptionID), nullString(string(billing.StripeSubscriptionStatus)), nullString(string(billing.StripeSubscriptionInterval)), nullInt64(billing.StripeSubscriptionPaidUntil.Unix()), nullInt64(billing.StripeSubscriptionCancelAt.Unix()), username); err != nil {

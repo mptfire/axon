@@ -3213,11 +3213,17 @@ You can forward messages to e-mail by specifying an address in the header. This 
 you'd like to persist longer, or to blast-notify yourself on all possible channels. 
 
 Usage is easy: Simply pass the `X-Email` header (or any of its aliases: `X-E-mail`, `Email`, `E-mail`, `Mail`, or `e`).
-Only one e-mail address is supported.
+Only one e-mail address is supported. If the server has [`smtp-sender-verify`](config.md#e-mail-notifications) enabled (ntfy.sh has this enabled),
+you can also pass `yes`, `true`, or `1` to send to your first verified email address.
 
-Since ntfy does not provide auth (yet), the rate limiting is pretty strict (see [limitations](#limitations)). In the 
-default configuration, you get **16 e-mails per visitor** (IP address) and then after that one per hour. On top of 
+ntfy allows anonymous email sending (if enabled), so the rate limiting is pretty strict (see [limitations](#limitations)). In the
+default configuration, you get **16 e-mails per visitor** (IP address) and then after that one per hour. On top of
 that, your IP address appears in the e-mail body. This is to prevent abuse.
+
+!!! info
+    On ntfy.sh, anonymous email sending was disabled due to abuse. To use the email notification feature,
+    you must verify your email in the web app's [Account section](https://ntfy.sh/account). The daily limit for
+    free users is **5 emails per visitor per day**.
 
 === "Command line (curl)"
     ```
@@ -3658,7 +3664,7 @@ all the supported fields:
 | `icon`        | -        | *string*                         | `https://example.com/icon.png`            | URL to use as notification [icon](#icons)                                                 |
 | `filename`    | -        | *string*                         | `file.jpg`                                | File name of the attachment                                                               |
 | `delay`       | -        | *string*                         | `30min`, `9am`                            | Timestamp or duration for delayed delivery                                                |
-| `email`       | -        | *e-mail address*                 | `phil@example.com`                        | E-mail address for e-mail notifications                                                   |
+| `email`       | -        | *e-mail address or 'yes'*        | `phil@example.com` or `yes`               | E-mail address for e-mail notifications, or `yes` to use first verified address           |
 | `call`        | -        | *phone number or 'yes'*          | `+1222334444` or `yes`                    | Phone number to use for [voice call](#phone-calls)                                        |
 | `sequence_id` | -        | *string*                         | `my-sequence-123`                         | Sequence ID for [updating/deleting notifications](#updating-deleting-notifications)   |
 
@@ -4871,7 +4877,7 @@ table in their canonical form.
 | `X-Markdown`    | `Markdown`, `md`                           | Enable [Markdown formatting](#markdown-formatting) in the notification body                   |
 | `X-Icon`        | `Icon`                                     | URL to use as notification [icon](#icons)                                                     |
 | `X-Filename`    | `Filename`, `file`, `f`                    | Optional [attachment](#attachments) filename, as it appears in the client                     |
-| `X-Email`       | `X-E-Mail`, `Email`, `E-Mail`, `mail`, `e` | E-mail address for [e-mail notifications](#e-mail-notifications)                              |
+| `X-Email`       | `X-E-Mail`, `Email`, `E-Mail`, `mail`, `e` | E-mail address (or `yes`) for [e-mail notifications](#e-mail-notifications)                   |
 | `X-Call`        | `Call`                                     | Phone number for [phone calls](#phone-calls)                                                  |
 | `X-Cache`       | `Cache`                                    | Allows disabling [message caching](#message-caching)                                          |
 | `X-Firebase`    | `Firebase`                                 | Allows disabling [sending to Firebase](#disable-firebase)                                     |

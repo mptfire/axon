@@ -36,6 +36,7 @@ import (
 	"heckel.io/ntfy/v2/db"
 	"heckel.io/ntfy/v2/db/pg"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/mail"
 	"heckel.io/ntfy/v2/message"
 	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/payments"
@@ -57,6 +58,7 @@ type Server struct {
 	smtpServer        *smtp.Server
 	smtpServerBackend *smtpBackend
 	smtpSender        mailer
+	mailSender        *mail.Sender
 	topics            map[string]*topic
 	visitors          map[string]*visitor // ip:<ip> or user:<user>
 	firebaseClient    *firebaseClient
@@ -112,6 +114,8 @@ var (
 	apiAccountReservationPath                            = "/v1/account/reservation"
 	apiAccountPhonePath                                  = "/v1/account/phone"
 	apiAccountPhoneVerifyPath                            = "/v1/account/phone/verify"
+	apiAccountEmailPath                                  = "/v1/account/email"
+	apiAccountEmailVerifyPath                            = "/v1/account/email/verify"
 	apiAccountBillingPortalPath                          = "/v1/account/billing/portal"
 	apiAccountBillingWebhookPath                         = "/v1/account/billing/webhook"
 	apiAccountBillingSubscriptionPath                    = "/v1/account/billing/subscription"
@@ -173,8 +177,15 @@ const (
 // subscriber (if configured).
 func New(conf *Config) (*Server, error) {
 	var mailer mailer
+	var mailSender *mail.Sender
 	if conf.SMTPSenderAddr != "" {
-		mailer = &smtpSender{config: conf}
+		mailSender = mail.NewSender(&mail.Config{
+			SMTPAddr: conf.SMTPSenderAddr,
+			SMTPUser: conf.SMTPSenderUser,
+			SMTPPass: conf.SMTPSenderPass,
+			From:     conf.SMTPSenderFrom,
+		})
+		mailer = &smtpSender{config: conf, sender: mailSender}
 	}
 	var stripe stripeAPI
 	if payments.Available && conf.StripeSecretKey != "" {
@@ -278,6 +289,7 @@ func New(conf *Config) (*Server, error) {
 		attachment:      attachmentStore,
 		firebaseClient:  firebaseClient,
 		smtpSender:      mailer,
+		mailSender:      mailSender,
 		topics:          topics,
 		userManager:     userManager,
 		messages:        messages,
@@ -428,6 +440,9 @@ func (s *Server) Stop() {
 	}
 	if s.smtpServer != nil {
 		s.smtpServer.Close()
+	}
+	if s.mailSender != nil {
+		s.mailSender.Close()
 	}
 	if s.attachment != nil {
 		s.attachment.Close()
@@ -594,6 +609,12 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureUser(s.ensureCallsEnabled(s.withAccountSync(s.handleAccountPhoneNumberAdd)))(w, r, v)
 	} else if r.Method == http.MethodDelete && r.URL.Path == apiAccountPhonePath {
 		return s.ensureUser(s.ensureCallsEnabled(s.withAccountSync(s.handleAccountPhoneNumberDelete)))(w, r, v)
+	} else if r.Method == http.MethodPut && r.URL.Path == apiAccountEmailVerifyPath {
+		return s.ensureUser(s.ensureEmailsEnabled(s.withAccountSync(s.handleAccountEmailVerify)))(w, r, v)
+	} else if r.Method == http.MethodPut && r.URL.Path == apiAccountEmailPath {
+		return s.ensureUser(s.ensureEmailsEnabled(s.withAccountSync(s.handleAccountEmailAdd)))(w, r, v)
+	} else if r.Method == http.MethodDelete && r.URL.Path == apiAccountEmailPath {
+		return s.ensureUser(s.ensureEmailsEnabled(s.withAccountSync(s.handleAccountEmailDelete)))(w, r, v)
 	} else if r.Method == http.MethodPost && apiWebPushPath == r.URL.Path {
 		return s.ensureWebPushEnabled(s.limitRequests(s.handleWebPushUpdate))(w, r, v)
 	} else if r.Method == http.MethodDelete && apiWebPushPath == r.URL.Path {
@@ -700,6 +721,7 @@ func (s *Server) configResponse() *apiConfigResponse {
 		EnablePayments:     s.config.StripeSecretKey != "",
 		EnableCalls:        s.config.TwilioAccount != "",
 		EnableEmails:       s.config.SMTPSenderFrom != "",
+		EnableEmailVerify:  s.config.SMTPSenderVerify,
 		EnableReservations: s.config.EnableReservations,
 		EnableWebPush:      s.config.WebPushPublicKey != "",
 		BillingContact:     s.config.BillingContact,
@@ -865,9 +887,17 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 		return nil, errHTTPInsufficientStorageUnifiedPush.With(t)
 	} else if !util.ContainsIP(s.config.VisitorRequestExemptPrefixes, v.ip) && !vrate.MessageAllowed() {
 		return nil, errHTTPTooManyRequestsLimitMessages.With(t)
-	} else if email != "" && !vrate.EmailAllowed() {
-		return nil, errHTTPTooManyRequestsLimitEmails.With(t)
-	} else if call != "" {
+	}
+	if email != "" {
+		var httpErr *errHTTP
+		email, httpErr = s.convertEmailAddress(v.User(), email)
+		if httpErr != nil {
+			return nil, httpErr.With(t)
+		} else if !vrate.EmailAllowed() {
+			return nil, errHTTPTooManyRequestsLimitEmails.With(t)
+		}
+	}
+	if call != "" {
 		var httpErr *errHTTP
 		call, httpErr = s.convertPhoneNumber(v.User(), call)
 		if httpErr != nil {
@@ -1075,7 +1105,7 @@ func (s *Server) sendToFirebase(v *visitor, m *model.Message) {
 }
 
 func (s *Server) sendEmail(v *visitor, m *model.Message, email string) {
-	logvm(v, m).Tag(tagEmail).Field("email", email).Debug("Sending email to %s", email)
+	logvm(v, m).Tag(tagEmail).Field("email", email).Info("Sending email to %s", email)
 	if err := s.smtpSender.Send(v, m, email); err != nil {
 		logvm(v, m).Tag(tagEmail).Field("email", email).Err(err).Warn("Unable to send email to %s: %v", email, err.Error())
 		minc(metricEmailsPublishedFailure)
@@ -1173,7 +1203,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 		m.Icon = icon
 	}
 	email = readParam(r, "x-email", "x-e-mail", "email", "e-mail", "mail", "e")
-	if email != "" && !emailAddressRegex.MatchString(email) {
+	if email != "" && !emailAddressRegex.MatchString(email) && !toBool(email) {
 		return false, false, "", "", "", false, "", errHTTPBadRequestEmailAddressInvalid
 	}
 	if s.smtpSender == nil && email != "" {

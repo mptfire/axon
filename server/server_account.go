@@ -160,6 +160,15 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 				response.PhoneNumbers = phoneNumbers
 			}
 		}
+		if s.mailSender != nil {
+			emails, err := s.userManager.Emails(u.ID)
+			if err != nil {
+				return err
+			}
+			if len(emails) > 0 {
+				response.Emails = emails
+			}
+		}
 	} else {
 		response.Username = user.Everyone
 		response.Role = string(user.RoleAnonymous)
@@ -604,6 +613,103 @@ func (s *Server) handleAccountPhoneNumberDelete(w http.ResponseWriter, r *http.R
 		return err
 	}
 	return s.writeJSON(w, newSuccessResponse())
+}
+
+func (s *Server) handleAccountEmailVerify(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	u := v.User()
+	req, err := readJSONWithLimit[apiAccountEmailVerifyRequest](r.Body, jsonBodyBytesLimit, false)
+	if err != nil {
+		return err
+	} else if !emailAddressRegex.MatchString(req.Email) {
+		return errHTTPBadRequestEmailAddressInvalid
+	}
+	// Check user is allowed to add emails
+	if u == nil {
+		return errHTTPUnauthorized
+	} else if u.IsUser() && u.Tier != nil && u.Tier.EmailLimit == 0 {
+		return errHTTPUnauthorized
+	} else if u.IsUser() && u.Tier == nil && s.config.VisitorEmailLimitBurst == 0 {
+		return errHTTPUnauthorized
+	}
+	// Check if email already exists
+	emails, err := s.userManager.Emails(u.ID)
+	if err != nil {
+		return err
+	} else if util.Contains(emails, req.Email) {
+		return errHTTPConflictEmailExists
+	}
+	// Check email rate limit (counts against the user's email quota)
+	if !v.EmailAllowed() {
+		return errHTTPTooManyRequestsLimitEmails
+	}
+	// Send verification email
+	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Info("Sending email verification")
+	if err := s.mailSender.SendVerification(req.Email); err != nil {
+		return err
+	}
+	return s.writeJSON(w, newSuccessResponse())
+}
+
+func (s *Server) handleAccountEmailAdd(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	u := v.User()
+	req, err := readJSONWithLimit[apiAccountEmailAddRequest](r.Body, jsonBodyBytesLimit, false)
+	if err != nil {
+		return err
+	} else if !emailAddressRegex.MatchString(req.Email) {
+		return errHTTPBadRequestEmailAddressInvalid
+	} else if !s.mailSender.CheckVerification(req.Email, req.Code) {
+		return errHTTPBadRequestEmailVerificationCodeInvalid
+	}
+	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Info("Adding email as verified")
+	if err := s.userManager.AddEmail(u.ID, req.Email); err != nil {
+		return err
+	}
+	return s.writeJSON(w, newSuccessResponse())
+}
+
+func (s *Server) handleAccountEmailDelete(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	u := v.User()
+	req, err := readJSONWithLimit[apiAccountEmailVerifyRequest](r.Body, jsonBodyBytesLimit, false)
+	if err != nil {
+		return err
+	}
+	if !emailAddressRegex.MatchString(req.Email) {
+		return errHTTPBadRequestEmailAddressInvalid
+	}
+	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Debug("Deleting verified email")
+	if err := s.userManager.RemoveEmail(u.ID, req.Email); err != nil {
+		return err
+	}
+	return s.writeJSON(w, newSuccessResponse())
+}
+
+// convertEmailAddress checks the email address against the user's verified email list.
+// If smtp-sender-verify is false (default), the email is passed through as-is for
+// backwards compatibility. If true, the user must be authenticated and the email must be
+// in their verified list. "yes"/"true"/"1" resolves to the first verified email.
+func (s *Server) convertEmailAddress(u *user.User, email string) (string, *errHTTP) {
+	if !s.config.SMTPSenderVerify {
+		if toBool(email) {
+			return "", errHTTPBadRequestEmailAddressInvalid
+		}
+		return email, nil
+	} else if u == nil {
+		return "", errHTTPBadRequestAnonymousEmailNotAllowed
+	} else if s.userManager == nil {
+		return email, nil
+	}
+	emails, err := s.userManager.Emails(u.ID)
+	if err != nil {
+		return "", errHTTPInternalError
+	} else if len(emails) == 0 {
+		return "", errHTTPBadRequestEmailAddressNotVerified
+	}
+	if toBool(email) {
+		return emails[0], nil
+	} else if util.Contains(emails, email) {
+		return email, nil
+	}
+	return "", errHTTPBadRequestEmailAddressNotVerified
 }
 
 // publishSyncEventAsync kicks of a Go routine to publish a sync message to the user's sync topic
