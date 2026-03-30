@@ -226,7 +226,7 @@
   "account_basics_emails_dialog_verify_button": "Add email",
   "account_basics_emails_dialog_code_label": "Verification code",
   "account_basics_emails_dialog_code_placeholder": "e.g. 123456",
-  "account_basics_emails_dialog_code_invalid": "Verification code is invalid or expired, please try again",
+  "account_basics_emails_dialog_code_invalid": "Verification code is invalid or expired",
   "account_basics_emails_dialog_check_verification_button": "Confirm",
   "account_basics_cannot_edit_or_delete_provisioned_user": "A provisioned user cannot be edited or deleted",
   "account_usage_title": "Usage",
