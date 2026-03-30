@@ -84,6 +84,7 @@ const Basics = () => {
       <PrefGroup>
         <Username />
         <ChangePassword />
+        <VerifiedEmails />
         <PhoneNumbers />
         <AccountType />
       </PrefGroup>
@@ -351,6 +352,198 @@ const AccountType = () => {
         />
       </Portal>
     </Pref>
+  );
+};
+
+const VerifiedEmails = () => {
+  const { t } = useTranslation();
+  const { account } = useContext(AccountContext);
+  const [dialogKey, setDialogKey] = useState(0);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [snackOpen, setSnackOpen] = useState(false);
+  const labelId = "prefVerifiedEmails";
+
+  const handleDialogOpen = () => {
+    setDialogKey((prev) => prev + 1);
+    setDialogOpen(true);
+  };
+
+  const handleDialogClose = () => {
+    setDialogOpen(false);
+  };
+
+  const handleCopy = (email) => {
+    copyToClipboard(email);
+    setSnackOpen(true);
+  };
+
+  const handleDelete = async (email) => {
+    try {
+      await accountApi.deleteEmail(email);
+    } catch (e) {
+      console.log(`[Account] Error deleting email`, e);
+      if (e instanceof UnauthorizedError) {
+        await session.resetAndRedirect(routes.login);
+      }
+    }
+  };
+
+  if (!config.enable_emails) {
+    return null;
+  }
+
+  if (account?.limits.emails === 0) {
+    return (
+      <Pref
+        title={
+          <>
+            {t("account_basics_emails_title")}
+            {config.enable_payments && <ProChip />}
+          </>
+        }
+        description={t("account_basics_emails_description")}
+      >
+        <em>{t("account_usage_emails_none")}</em>
+      </Pref>
+    );
+  }
+
+  return (
+    <Pref labelId={labelId} title={t("account_basics_emails_title")} description={t("account_basics_emails_description")}>
+      <div aria-labelledby={labelId}>
+        {account?.emails?.map((email) => (
+          <Chip
+            key={email}
+            label={
+              <Tooltip title={t("common_copy_to_clipboard")}>
+                <span>{email}</span>
+              </Tooltip>
+            }
+            variant="outlined"
+            onClick={() => handleCopy(email)}
+            onDelete={() => handleDelete(email)}
+          />
+        ))}
+        {!account?.emails && <em>{t("account_basics_emails_no_emails_yet")}</em>}
+        <IconButton onClick={handleDialogOpen}>
+          <AddIcon />
+        </IconButton>
+      </div>
+      <AddEmailDialog key={`addEmailDialog${dialogKey}`} open={dialogOpen} onClose={handleDialogClose} />
+      <Portal>
+        <Snackbar
+          open={snackOpen}
+          autoHideDuration={3000}
+          onClose={() => setSnackOpen(false)}
+          message={t("account_basics_emails_copied_to_clipboard")}
+        />
+      </Portal>
+    </Pref>
+  );
+};
+
+const AddEmailDialog = (props) => {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const [error, setError] = useState("");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [sending, setSending] = useState(false);
+  const [verificationCodeSent, setVerificationCodeSent] = useState(false);
+  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
+
+  const verifyEmail = async () => {
+    try {
+      setSending(true);
+      await accountApi.verifyEmail(email);
+      setVerificationCodeSent(true);
+    } catch (e) {
+      console.log(`[Account] Error sending email verification`, e);
+      if (e instanceof UnauthorizedError) {
+        await session.resetAndRedirect(routes.login);
+      } else {
+        setError(e.message);
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const checkVerifyEmail = async () => {
+    try {
+      setSending(true);
+      await accountApi.addEmail(email, code);
+      props.onClose();
+    } catch (e) {
+      console.log(`[Account] Error confirming email verification`, e);
+      if (e instanceof UnauthorizedError) {
+        await session.resetAndRedirect(routes.login);
+      } else {
+        setError(e.message);
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleDialogSubmit = async () => {
+    if (!verificationCodeSent) {
+      await verifyEmail();
+    } else {
+      await checkVerifyEmail();
+    }
+  };
+
+  const handleCancel = () => {
+    if (verificationCodeSent) {
+      setVerificationCodeSent(false);
+      setCode("");
+    } else {
+      props.onClose();
+    }
+  };
+
+  return (
+    <Dialog open={props.open} onClose={props.onCancel} fullScreen={fullScreen}>
+      <DialogTitle>{t("account_basics_emails_dialog_title")}</DialogTitle>
+      <DialogContent>
+        <DialogContentText>{t("account_basics_emails_dialog_description")}</DialogContentText>
+        {!verificationCodeSent && (
+          <TextField
+            margin="dense"
+            label={t("account_basics_emails_dialog_email_label")}
+            aria-label={t("account_basics_emails_dialog_email_label")}
+            placeholder={t("account_basics_emails_dialog_email_placeholder")}
+            type="email"
+            value={email}
+            onChange={(ev) => setEmail(ev.target.value)}
+            fullWidth
+            variant="standard"
+          />
+        )}
+        {verificationCodeSent && (
+          <TextField
+            margin="dense"
+            label={t("account_basics_emails_dialog_code_label")}
+            aria-label={t("account_basics_emails_dialog_code_label")}
+            placeholder={t("account_basics_emails_dialog_code_placeholder")}
+            type="text"
+            value={code}
+            onChange={(ev) => setCode(ev.target.value)}
+            fullWidth
+            inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
+            variant="standard"
+          />
+        )}
+      </DialogContent>
+      <DialogFooter status={error}>
+        <Button onClick={handleCancel}>{verificationCodeSent ? t("common_back") : t("common_cancel")}</Button>
+        <Button onClick={handleDialogSubmit} disabled={sending || !/^[^\s,;]+@[^\s,;]+$/.test(email)}>
+          {!verificationCodeSent && t("account_basics_emails_dialog_verify_button")}
+          {verificationCodeSent && t("account_basics_emails_dialog_check_verification_button")}
+        </Button>
+      </DialogFooter>
+    </Dialog>
   );
 };
 

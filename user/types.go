@@ -271,6 +271,8 @@ var (
 	ErrPhoneNumberNotFound    = errors.New("phone number not found")
 	ErrTooManyReservations    = errors.New("new tier has lower reservation limit")
 	ErrPhoneNumberExists      = errors.New("phone number already exists")
+	ErrEmailNotFound          = errors.New("email not found")
+	ErrEmailExists            = errors.New("email already exists")
 	ErrProvisionedUserChange  = errors.New("cannot change or delete provisioned user")
 	ErrProvisionedTokenChange = errors.New("cannot change or delete provisioned token")
 )
@@ -342,6 +344,11 @@ type queries struct {
 	selectPhoneNumbers string
 	insertPhoneNumber  string
 	deletePhoneNumber  string
+
+	// Email queries
+	selectEmails string
+	insertEmail  string
+	deleteEmail  string
 
 	// Billing queries
 	updateBilling string

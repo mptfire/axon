@@ -226,6 +226,15 @@ type apiAccountPhoneNumberAddRequest struct {
 	Code   string `json:"code"` // Only set when adding a phone number
 }
 
+type apiAccountEmailVerifyRequest struct {
+	Email string `json:"email"`
+}
+
+type apiAccountEmailAddRequest struct {
+	Email string `json:"email"`
+	Code  string `json:"code"`
+}
+
 type apiAccountTier struct {
 	Code string `json:"code"`
 	Name string `json:"name"`
@@ -282,6 +291,7 @@ type apiAccountResponse struct {
 	Reservations  []*apiAccountReservation   `json:"reservations,omitempty"`
 	Tokens        []*apiAccountTokenResponse `json:"tokens,omitempty"`
 	PhoneNumbers  []string                   `json:"phone_numbers,omitempty"`
+	Emails        []string                   `json:"emails,omitempty"`
 	Tier          *apiAccountTier            `json:"tier,omitempty"`
 	Limits        *apiAccountLimits          `json:"limits,omitempty"`
 	Stats         *apiAccountStats           `json:"stats,omitempty"`

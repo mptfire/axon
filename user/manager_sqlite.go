@@ -207,6 +207,11 @@ const (
 	sqliteInsertPhoneNumberQuery  = `INSERT INTO user_phone (user_id, phone_number) VALUES (?, ?)`
 	sqliteDeletePhoneNumberQuery  = `DELETE FROM user_phone WHERE user_id = ? AND phone_number = ?`
 
+	// Email queries
+	sqliteSelectEmailsQuery = `SELECT email FROM user_email WHERE user_id = ?`
+	sqliteInsertEmailQuery  = `INSERT INTO user_email (user_id, email) VALUES (?, ?)`
+	sqliteDeleteEmailQuery  = `DELETE FROM user_email WHERE user_id = ? AND email = ?`
+
 	// Billing queries
 	sqliteUpdateBillingQuery = `
 		UPDATE user
@@ -272,6 +277,9 @@ var sqliteQueries = queries{
 	selectPhoneNumbers:           sqliteSelectPhoneNumbersQuery,
 	insertPhoneNumber:            sqliteInsertPhoneNumberQuery,
 	deletePhoneNumber:            sqliteDeletePhoneNumberQuery,
+	selectEmails:                 sqliteSelectEmailsQuery,
+	insertEmail:                  sqliteInsertEmailQuery,
+	deleteEmail:                  sqliteDeleteEmailQuery,
 	updateBilling:                sqliteUpdateBillingQuery,
 }
 

@@ -199,6 +199,13 @@
 # smtp-sender-user:
 # smtp-sender-pass:
 
+# If set to true, only verified email recipients will receive email notifications.
+# Anonymous users will not be able to send emails, and authenticated users must verify
+# their email addresses first. Users can use "yes"/"true"/"1" as the email value to
+# send to their first verified address.
+#
+# smtp-sender-email-verify: false
+
 # If enabled, ntfy will launch a lightweight SMTP server for incoming messages. Once configured, users can send
 # emails to a topic e-mail address to publish messages to a topic.
 #

@@ -71,6 +71,7 @@ var flagsServe = append(
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-user", Aliases: []string{"smtp_sender_user"}, EnvVars: []string{"NTFY_SMTP_SENDER_USER"}, Usage: "SMTP user (if e-mail sending is enabled)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-pass", Aliases: []string{"smtp_sender_pass"}, EnvVars: []string{"NTFY_SMTP_SENDER_PASS"}, Usage: "SMTP password (if e-mail sending is enabled)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-from", Aliases: []string{"smtp_sender_from"}, EnvVars: []string{"NTFY_SMTP_SENDER_FROM"}, Usage: "SMTP sender address (if e-mail sending is enabled)"}),
+	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "smtp-sender-email-verify", Aliases: []string{"smtp_sender_email_verify"}, EnvVars: []string{"NTFY_SMTP_SENDER_EMAIL_VERIFY"}, Value: false, Usage: "require verified email addresses for sending email notifications"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-server-listen", Aliases: []string{"smtp_server_listen"}, EnvVars: []string{"NTFY_SMTP_SERVER_LISTEN"}, Usage: "SMTP server address (ip:port) for incoming emails, e.g. :25"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-server-domain", Aliases: []string{"smtp_server_domain"}, EnvVars: []string{"NTFY_SMTP_SERVER_DOMAIN"}, Usage: "SMTP domain for incoming e-mail, e.g. ntfy.sh"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-server-addr-prefix", Aliases: []string{"smtp_server_addr_prefix"}, EnvVars: []string{"NTFY_SMTP_SERVER_ADDR_PREFIX"}, Usage: "SMTP email address prefix for topics to prevent spam (e.g. 'ntfy-')"}),
@@ -184,6 +185,7 @@ func execServe(c *cli.Context) error {
 	smtpSenderUser := c.String("smtp-sender-user")
 	smtpSenderPass := c.String("smtp-sender-pass")
 	smtpSenderFrom := c.String("smtp-sender-from")
+	smtpSenderEmailVerify := c.Bool("smtp-sender-email-verify")
 	smtpServerListen := c.String("smtp-server-listen")
 	smtpServerDomain := c.String("smtp-server-domain")
 	smtpServerAddrPrefix := c.String("smtp-server-addr-prefix")
@@ -310,6 +312,8 @@ func execServe(c *cli.Context) error {
 		return errors.New("if listen-https is set, both key-file and cert-file must be set")
 	} else if smtpSenderAddr != "" && (baseURL == "" || smtpSenderFrom == "") {
 		return errors.New("if smtp-sender-addr is set, base-url, and smtp-sender-from must also be set")
+	} else if smtpSenderEmailVerify && smtpSenderAddr == "" {
+		return errors.New("if smtp-sender-email-verify is set, smtp-sender-addr must also be set")
 	} else if smtpServerListen != "" && smtpServerDomain == "" {
 		return errors.New("if smtp-server-listen is set, smtp-server-domain must also be set")
 	} else if attachmentCacheDir != "" && baseURL == "" {
@@ -471,6 +475,7 @@ func execServe(c *cli.Context) error {
 	conf.SMTPSenderUser = smtpSenderUser
 	conf.SMTPSenderPass = smtpSenderPass
 	conf.SMTPSenderFrom = smtpSenderFrom
+	conf.SMTPSenderEmailVerify = smtpSenderEmailVerify
 	conf.SMTPServerListen = smtpServerListen
 	conf.SMTPServerDomain = smtpServerDomain
 	conf.SMTPServerAddrPrefix = smtpServerAddrPrefix
