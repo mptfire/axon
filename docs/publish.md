@@ -3220,8 +3220,10 @@ Since ntfy does not provide auth (yet), the rate limiting is pretty strict (see 
 default configuration, you get **16 e-mails per visitor** (IP address) and then after that one per hour. On top of
 that, your IP address appears in the e-mail body. This is to prevent abuse.
 
-On ntfy.sh, to verify your email address in the web app before you're allowed to send emails. The daily limit for
-free users is **5 emails per visitor per day**.
+!!! info
+    On ntfy.sh, anonymous email sending was disabled due to abuse. To use the email notification feature,
+    you must verify your email in the web app's [Account section](https://ntfy.sh/account). The daily limit for
+    free users is **5 emails per visitor per day**.
 
 === "Command line (curl)"
     ```
