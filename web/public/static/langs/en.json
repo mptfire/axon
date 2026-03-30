@@ -251,6 +251,7 @@
   "account_usage_messages_title": "Published messages",
   "account_usage_emails_title": "Emails sent",
   "account_usage_calls_title": "Phone calls made",
+  "account_usage_emails_none": "No email notifications can be sent with this account",
   "account_usage_calls_none": "No phone calls can be made with this account",
   "account_usage_reservations_title": "Reserved topics",
   "account_usage_reservations_none": "No reserved topics for this account",

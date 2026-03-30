@@ -624,9 +624,11 @@ func (s *Server) handleAccountEmailVerify(w http.ResponseWriter, r *http.Request
 		return errHTTPBadRequestEmailAddressInvalid
 	}
 	// Check user is allowed to add emails
-	if u == nil || (u.IsUser() && u.Tier == nil) {
+	if u == nil {
 		return errHTTPUnauthorized
-	} else if u.IsUser() && u.Tier.EmailLimit == 0 {
+	} else if u.IsUser() && u.Tier != nil && u.Tier.EmailLimit == 0 {
+		return errHTTPUnauthorized
+	} else if u.IsUser() && u.Tier == nil && s.config.VisitorEmailLimitBurst == 0 {
 		return errHTTPUnauthorized
 	}
 	// Check if email already exists
@@ -641,7 +643,7 @@ func (s *Server) handleAccountEmailVerify(w http.ResponseWriter, r *http.Request
 		return errHTTPTooManyRequestsLimitEmails
 	}
 	// Send verification email
-	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Debug("Sending email verification")
+	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Info("Sending email verification")
 	if err := s.mailSender.SendVerification(req.Email); err != nil {
 		return err
 	}
@@ -653,14 +655,12 @@ func (s *Server) handleAccountEmailAdd(w http.ResponseWriter, r *http.Request, v
 	req, err := readJSONWithLimit[apiAccountEmailAddRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
-	}
-	if !emailAddressRegex.MatchString(req.Email) {
+	} else if !emailAddressRegex.MatchString(req.Email) {
 		return errHTTPBadRequestEmailAddressInvalid
-	}
-	if !s.mailSender.CheckVerification(req.Email, req.Code) {
+	} else if !s.mailSender.CheckVerification(req.Email, req.Code) {
 		return errHTTPBadRequestEmailVerificationCodeInvalid
 	}
-	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Debug("Adding email as verified")
+	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Info("Adding email as verified")
 	if err := s.userManager.AddEmail(u.ID, req.Email); err != nil {
 		return err
 	}

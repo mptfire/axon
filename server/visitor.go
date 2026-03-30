@@ -440,13 +440,17 @@ func configBasedVisitorLimits(conf *Config) *visitorLimits {
 	if conf.VisitorMessageDailyLimit > 0 {
 		messagesLimit = int64(conf.VisitorMessageDailyLimit)
 	}
+	var emailLimit int64
+	if conf.VisitorEmailLimitBurst > 0 {
+		emailLimit = replenishDurationToDailyLimit(conf.VisitorEmailLimitReplenish) // Approximation!
+	}
 	return &visitorLimits{
 		Basis:                    visitorLimitBasisIP,
 		RequestLimitBurst:        conf.VisitorRequestLimitBurst,
 		RequestLimitReplenish:    rate.Every(conf.VisitorRequestLimitReplenish),
 		MessageLimit:             messagesLimit,
 		MessageExpiryDuration:    conf.CacheDuration,
-		EmailLimit:               replenishDurationToDailyLimit(conf.VisitorEmailLimitReplenish), // Approximation!
+		EmailLimit:               emailLimit,
 		EmailLimitBurst:          conf.VisitorEmailLimitBurst,
 		EmailLimitReplenish:      rate.Every(conf.VisitorEmailLimitReplenish),
 		CallLimit:                visitorDefaultCallsLimit,

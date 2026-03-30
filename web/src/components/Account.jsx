@@ -945,7 +945,9 @@ const Stats = () => {
         )}
       </PrefGroup>
       {account.role === Role.USER && account.limits.basis === LimitBasis.IP && (
-        <Typography variant="body1">{t("account_usage_basis_ip_description")}</Typography>
+        <Typography variant="body1" sx={{ pt: 3 }}>
+          {t("account_usage_basis_ip_description")}
+        </Typography>
       )}
     </Card>
   );
