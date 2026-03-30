@@ -3213,10 +3213,10 @@ You can forward messages to e-mail by specifying an address in the header. This 
 you'd like to persist longer, or to blast-notify yourself on all possible channels. 
 
 Usage is easy: Simply pass the `X-Email` header (or any of its aliases: `X-E-mail`, `Email`, `E-mail`, `Mail`, or `e`).
-Only one e-mail address is supported. If the server has [`smtp-sender-verify`](config.md#e-mail-notifications) enabled,
+Only one e-mail address is supported. If the server has [`smtp-sender-verify`](config.md#e-mail-notifications) enabled (ntfy.sh has this enabled),
 you can also pass `yes`, `true`, or `1` to send to your first verified email address.
 
-Since ntfy does not provide auth (yet), the rate limiting is pretty strict (see [limitations](#limitations)). In the
+ntfy allows anonymous email sending (if enabled), so the rate limiting is pretty strict (see [limitations](#limitations)). In the
 default configuration, you get **16 e-mails per visitor** (IP address) and then after that one per hour. On top of
 that, your IP address appears in the e-mail body. This is to prevent abuse.
 

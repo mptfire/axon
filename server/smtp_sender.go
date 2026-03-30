@@ -43,9 +43,8 @@ func (s *smtpSender) Send(v *visitor, m *model.Message, to string) error {
 			})
 		if ev.IsTrace() {
 			ev.Field("email_body", message).Trace("Sending email")
-		} else if ev.IsDebug() {
-			ev.Info("Sending email")
 		}
+		ev.Info("Sending email")
 		return s.sender.SendRaw(to, []byte(message))
 	})
 }

@@ -15,13 +15,14 @@ Please check out the release notes for [upcoming releases](#not-released-yet) be
 ### ntfy server v2.21.0
 Released March 30, 2026
 
-This is a change that is required because ntfy.sh was used to send unsolicited emails and the AWS SES account was
-suspended. Going forward, ntfy.sh won't be able to send emails unless the email address was verified ahead of time.
+This release add the ability to verify email addresses using the `smtp-sender-verify` flag. This is a change that is
+required because ntfy.sh was used to send unsolicited emails and the AWS SES account was suspended. Going forward,
+ntfy.sh won't be able to send emails unless the email address was verified ahead of time.
 
 **Features:**
 
 * Add verified email recipients feature with `smtp-sender-verify` config flag, allowing server admins to require email
-  address verification before sending email notifications
+  address verification before sending email notifications ([#1681](https://github.com/binwiederhier/ntfy/pull/1681))
 
 ### ntfy server v2.20.1
 Released March 27, 2026

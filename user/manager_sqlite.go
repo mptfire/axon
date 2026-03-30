@@ -208,7 +208,7 @@ const (
 	sqliteDeletePhoneNumberQuery  = `DELETE FROM user_phone WHERE user_id = ? AND phone_number = ?`
 
 	// Email queries
-	sqliteSelectEmailsQuery = `SELECT email FROM user_email WHERE user_id = ?`
+	sqliteSelectEmailsQuery = `SELECT email FROM user_email WHERE user_id = ? ORDER BY email`
 	sqliteInsertEmailQuery  = `INSERT INTO user_email (user_id, email) VALUES (?, ?)`
 	sqliteDeleteEmailQuery  = `DELETE FROM user_email WHERE user_id = ? AND email = ?`
 
