@@ -1,9 +1,7 @@
 package mail
 
 import (
-	"crypto/rand"
 	"fmt"
-	"math/big"
 	"mime"
 	"net"
 	"net/smtp"
@@ -12,6 +10,7 @@ import (
 	"time"
 
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/util"
 )
 
 const (
@@ -30,9 +29,10 @@ type Config struct {
 
 // Sender sends emails and manages email verification codes
 type Sender struct {
-	config      *Config
-	verifyCodes map[string]verifyCode // keyed by email
-	mu          sync.Mutex
+	config    *Config
+	codes     map[string]verifyCode // Verification codes, keyed by email
+	mu        sync.Mutex
+	closeChan chan struct{}
 }
 
 type verifyCode struct {
@@ -42,10 +42,18 @@ type verifyCode struct {
 
 // NewSender creates a new mail Sender with the given SMTP config
 func NewSender(config *Config) *Sender {
-	return &Sender{
-		config:      config,
-		verifyCodes: make(map[string]verifyCode),
+	s := &Sender{
+		config:    config,
+		codes:     make(map[string]verifyCode),
+		closeChan: make(chan struct{}),
 	}
+	go s.expireLoop()
+	return s
+}
+
+// Close stops the background expiry loop
+func (s *Sender) Close() {
+	close(s.closeChan)
 }
 
 // Send sends a plain text email via SMTP
@@ -76,14 +84,11 @@ Content-Type: text/plain; charset="utf-8"
 	return smtp.SendMail(s.config.SMTPAddr, auth, s.config.From, []string{to}, []byte(message))
 }
 
-// SendVerification generates a 6-digit code, stores it in-memory, and sends a verification email
+// SendVerification generates a random code, stores it in-memory, and sends a verification email
 func (s *Sender) SendVerification(to string) error {
-	code, err := generateCode()
-	if err != nil {
-		return err
-	}
+	code := util.RandomString(verifyCodeLength)
 	s.mu.Lock()
-	s.verifyCodes[to] = verifyCode{
+	s.codes[to] = verifyCode{
 		code:    code,
 		expires: time.Now().Add(verifyCodeExpiry),
 	}
@@ -96,31 +101,34 @@ func (s *Sender) SendVerification(to string) error {
 func (s *Sender) CheckVerification(email, code string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	vc, ok := s.verifyCodes[email]
+	vc, ok := s.codes[email]
 	if !ok || time.Now().After(vc.expires) || vc.code != code {
 		return false
 	}
-	delete(s.verifyCodes, email)
+	delete(s.codes, email)
 	return true
 }
 
-// ExpireVerificationCodes removes expired entries from the in-memory map
-func (s *Sender) ExpireVerificationCodes() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	now := time.Now()
-	for email, vc := range s.verifyCodes {
-		if now.After(vc.expires) {
-			delete(s.verifyCodes, email)
+func (s *Sender) expireLoop() {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			s.expireVerificationCodes()
+		case <-s.closeChan:
+			return
 		}
 	}
 }
 
-func generateCode() (string, error) {
-	max := big.NewInt(1000000) // 0-999999
-	n, err := rand.Int(rand.Reader, max)
-	if err != nil {
-		return "", err
+func (s *Sender) expireVerificationCodes() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	for email, vc := range s.codes {
+		if now.After(vc.expires) {
+			delete(s.codes, email)
+		}
 	}
-	return fmt.Sprintf("%06d", n.Int64()), nil
 }

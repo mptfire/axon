@@ -636,6 +636,10 @@ func (s *Server) handleAccountEmailVerify(w http.ResponseWriter, r *http.Request
 	} else if util.Contains(emails, req.Email) {
 		return errHTTPConflictEmailExists
 	}
+	// Check email rate limit (counts against the user's email quota)
+	if !v.EmailAllowed() {
+		return errHTTPTooManyRequestsLimitEmails
+	}
 	// Send verification email
 	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Debug("Sending email verification")
 	if err := s.mailSender.SendVerification(req.Email); err != nil {
@@ -680,24 +684,21 @@ func (s *Server) handleAccountEmailDelete(w http.ResponseWriter, r *http.Request
 }
 
 // convertEmailAddress checks the email address against the user's verified email list.
-// If smtp-sender-email-verify is false (default), the email is passed through as-is for
+// If smtp-sender-verify is false (default), the email is passed through as-is for
 // backwards compatibility. If true, the user must be authenticated and the email must be
 // in their verified list. "yes"/"true"/"1" resolves to the first verified email.
 func (s *Server) convertEmailAddress(u *user.User, email string) (string, *errHTTP) {
-	if !s.config.SMTPSenderEmailVerify {
+	if !s.config.SMTPSenderVerify {
 		return email, nil
-	}
-	if u == nil {
+	} else if u == nil {
 		return "", errHTTPBadRequestAnonymousEmailNotAllowed
-	}
-	if s.userManager == nil {
+	} else if s.userManager == nil {
 		return email, nil
 	}
 	emails, err := s.userManager.Emails(u.ID)
 	if err != nil {
 		return "", errHTTPInternalError
-	}
-	if len(emails) == 0 {
+	} else if len(emails) == 0 {
 		return "", errHTTPBadRequestEmailAddressNotVerified
 	}
 	if toBool(email) {

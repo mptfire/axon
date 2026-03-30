@@ -355,7 +355,7 @@ This generator helps you configure your self-hosted ntfy instance. It's not full
 </div>
 <div class="cg-field cg-inline-field">
 <label>Require email verification</label>
-<select data-key="smtp-sender-email-verify">
+<select data-key="smtp-sender-verify">
 <option value="">No (default)</option>
 <option value="true">Yes</option>
 </select>
@@ -1039,7 +1039,7 @@ configured for `ntfy.sh`):
     ```
 
 By default, any user (including anonymous users) can send email notifications to any address. To require email
-address verification, set `smtp-sender-email-verify` to `true`. When enabled, anonymous users cannot send emails,
+address verification, set `smtp-sender-verify` to `true`. When enabled, anonymous users cannot send emails,
 and authenticated users can only send to email addresses they have verified in their account settings. Users can
 also use `yes`/`true`/`1` as the `X-Email` value to send to their first verified address.
 
@@ -1049,7 +1049,7 @@ also use `yes`/`true`/`1` as the `X-Email` value to send to their first verified
     smtp-sender-user: "AKIDEADBEEFAFFE12345"
     smtp-sender-pass: "Abd13Kf+sfAk2DzifjafldkThisIsNotARealKeyOMG."
     smtp-sender-from: "ntfy@ntfy.sh"
-    smtp-sender-email-verify: true
+    smtp-sender-verify: true
     ```
 
 Please also refer to the [rate limiting](#rate-limiting) settings below, specifically `visitor-email-limit-burst`
@@ -2221,7 +2221,7 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `smtp-sender-user`                         | `NTFY_SMTP_SENDER_USER`                         | *string*                                            | -                 | SMTP user; only used if e-mail sending is enabled                                                                                                                                                                                       |
 | `smtp-sender-pass`                         | `NTFY_SMTP_SENDER_PASS`                         | *string*                                            | -                 | SMTP password; only used if e-mail sending is enabled                                                                                                                                                                                   |
 | `smtp-sender-from`                         | `NTFY_SMTP_SENDER_FROM`                         | *e-mail address*                                    | -                 | SMTP sender e-mail address; only used if e-mail sending is enabled                                                                                                                                                                      |
-| `smtp-sender-email-verify`                 | `NTFY_SMTP_SENDER_EMAIL_VERIFY`                 | *bool*                                              | `false`           | If true, require verified email addresses for email notifications; anonymous email sending is disabled                                                                                                                                   |
+| `smtp-sender-verify`                       | `NTFY_SMTP_SENDER_VERIFY`                       | *bool*                                              | `false`           | If true, require verified email addresses for email notifications; anonymous email sending is disabled                                                                                                                                   |
 | `smtp-server-listen`                       | `NTFY_SMTP_SERVER_LISTEN`                       | `[ip]:port`                                         | -                 | Defines the IP address and port the SMTP server will listen on, e.g. `:25` or `1.2.3.4:25`                                                                                                                                              |
 | `smtp-server-domain`                       | `NTFY_SMTP_SERVER_DOMAIN`                       | *domain name*                                       | -                 | SMTP server e-mail domain, e.g. `ntfy.sh`                                                                                                                                                                                               |
 | `smtp-server-addr-prefix`                  | `NTFY_SMTP_SERVER_ADDR_PREFIX`                  | *string*                                            | -                 | Optional prefix for the e-mail addresses to prevent spam, e.g. `ntfy-`                                                                                                                                                                  |

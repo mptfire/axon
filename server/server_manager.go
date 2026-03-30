@@ -15,9 +15,6 @@ func (s *Server) execManager() {
 	s.pruneAttachments()
 	s.pruneMessages()
 	s.pruneAndNotifyWebPushSubscriptions()
-	if s.mailSender != nil {
-		s.mailSender.ExpireVerificationCodes()
-	}
 
 	// Message count
 	messagesCached, err := s.messageCache.MessagesCount()

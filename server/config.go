@@ -135,7 +135,7 @@ type Config struct {
 	SMTPSenderUser                       string
 	SMTPSenderPass                       string
 	SMTPSenderFrom                       string
-	SMTPSenderEmailVerify                bool
+	SMTPSenderVerify                     bool
 	SMTPServerListen                     string
 	SMTPServerDomain                     string
 	SMTPServerAddrPrefix                 string
@@ -240,7 +240,7 @@ func NewConfig() *Config {
 		SMTPSenderUser:                       "",
 		SMTPSenderPass:                       "",
 		SMTPSenderFrom:                       "",
-		SMTPSenderEmailVerify:                false,
+		SMTPSenderVerify:                     false,
 		SMTPServerListen:                     "",
 		SMTPServerDomain:                     "",
 		SMTPServerAddrPrefix:                 "",

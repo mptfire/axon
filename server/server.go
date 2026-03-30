@@ -441,6 +441,9 @@ func (s *Server) Stop() {
 	if s.smtpServer != nil {
 		s.smtpServer.Close()
 	}
+	if s.mailSender != nil {
+		s.mailSender.Close()
+	}
 	if s.attachment != nil {
 		s.attachment.Close()
 	}
@@ -883,14 +886,14 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 		return nil, errHTTPInsufficientStorageUnifiedPush.With(t)
 	} else if !util.ContainsIP(s.config.VisitorRequestExemptPrefixes, v.ip) && !vrate.MessageAllowed() {
 		return nil, errHTTPTooManyRequestsLimitMessages.With(t)
-	} else if email != "" {
-		if !vrate.EmailAllowed() {
-			return nil, errHTTPTooManyRequestsLimitEmails.With(t)
-		}
+	}
+	if email != "" {
 		var httpErr *errHTTP
 		email, httpErr = s.convertEmailAddress(v.User(), email)
 		if httpErr != nil {
 			return nil, httpErr.With(t)
+		} else if !vrate.EmailAllowed() {
+			return nil, errHTTPTooManyRequestsLimitEmails.With(t)
 		}
 	}
 	if call != "" {

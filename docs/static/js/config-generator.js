@@ -125,7 +125,7 @@
     { key: "smtp-sender-from", env: "NTFY_SMTP_SENDER_FROM", section: "smtp-out" },
     { key: "smtp-sender-user", env: "NTFY_SMTP_SENDER_USER", section: "smtp-out" },
     { key: "smtp-sender-pass", env: "NTFY_SMTP_SENDER_PASS", section: "smtp-out" },
-    { key: "smtp-sender-email-verify", env: "NTFY_SMTP_SENDER_EMAIL_VERIFY", section: "smtp-out" },
+    { key: "smtp-sender-verify", env: "NTFY_SMTP_SENDER_VERIFY", section: "smtp-out" },
     { key: "smtp-server-listen", env: "NTFY_SMTP_SERVER_LISTEN", section: "smtp-in" },
     { key: "smtp-server-domain", env: "NTFY_SMTP_SERVER_DOMAIN", section: "smtp-in" },
     { key: "smtp-server-addr-prefix", env: "NTFY_SMTP_SERVER_ADDR_PREFIX", section: "smtp-in" },

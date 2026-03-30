@@ -53,7 +53,7 @@ import UpgradeDialog from "./UpgradeDialog";
 import { AccountContext } from "./App";
 import DialogFooter from "./DialogFooter";
 import { Paragraph } from "./styles";
-import { IncorrectPasswordError, UnauthorizedError } from "../app/errors";
+import { EmailVerificationCodeInvalidError, IncorrectPasswordError, UnauthorizedError } from "../app/errors";
 import { ProChip } from "./SubscriptionPopup";
 import session from "../app/Session";
 
@@ -478,6 +478,8 @@ const AddEmailDialog = (props) => {
       console.log(`[Account] Error confirming email verification`, e);
       if (e instanceof UnauthorizedError) {
         await session.resetAndRedirect(routes.login);
+      } else if (e instanceof EmailVerificationCodeInvalidError) {
+        setError(t("account_basics_emails_dialog_code_invalid"));
       } else {
         setError(e.message);
       }
