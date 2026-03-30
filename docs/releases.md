@@ -15,7 +15,7 @@ Please check out the release notes for [upcoming releases](#not-released-yet) be
 ### ntfy server v2.21.0
 Released March 30, 2026
 
-This release add the ability to verify email addresses using the `smtp-sender-verify` flag. This is a change that is
+This release adds the ability to verify email addresses using the `smtp-sender-verify` flag. This is a change that is
 required because ntfy.sh was used to send unsolicited emails and the AWS SES account was suspended. Going forward,
 ntfy.sh won't be able to send emails unless the email address was verified ahead of time.
 
