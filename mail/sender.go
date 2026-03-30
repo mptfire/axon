@@ -56,8 +56,23 @@ func (s *Sender) Close() {
 	close(s.closeChan)
 }
 
-// Send sends a plain text email via SMTP
-func (s *Sender) Send(to, subject, body string) error {
+// Addr returns the SMTP server address
+func (s *Sender) Addr() string {
+	return s.config.SMTPAddr
+}
+
+// User returns the SMTP username
+func (s *Sender) User() string {
+	return s.config.SMTPUser
+}
+
+// From returns the sender email address
+func (s *Sender) From() string {
+	return s.config.From
+}
+
+// SendRaw sends a raw email message via SMTP
+func (s *Sender) SendRaw(to string, message []byte) error {
 	host, _, err := net.SplitHostPort(s.config.SMTPAddr)
 	if err != nil {
 		return err
@@ -66,6 +81,11 @@ func (s *Sender) Send(to, subject, body string) error {
 	if s.config.SMTPUser != "" {
 		auth = smtp.PlainAuth("", s.config.SMTPUser, s.config.SMTPPass, host)
 	}
+	return smtp.SendMail(s.config.SMTPAddr, auth, s.config.From, []string{to}, message)
+}
+
+// Send sends a plain text email via SMTP
+func (s *Sender) Send(to, subject, body string) error {
 	date := time.Now().UTC().Format(time.RFC1123Z)
 	encodedSubject := mime.BEncoding.Encode("utf-8", subject)
 	message := `From: ntfy <{from}>
@@ -81,7 +101,7 @@ Content-Type: text/plain; charset="utf-8"
 	message = strings.ReplaceAll(message, "{subject}", encodedSubject)
 	message = strings.ReplaceAll(message, "{body}", body)
 	log.Tag("mail").Field("email_to", to).Debug("Sending email")
-	return smtp.SendMail(s.config.SMTPAddr, auth, s.config.From, []string{to}, []byte(message))
+	return s.SendRaw(to, []byte(message))
 }
 
 // SendVerification generates a random code, stores it in-memory, and sends a verification email

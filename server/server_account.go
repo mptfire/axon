@@ -689,6 +689,9 @@ func (s *Server) handleAccountEmailDelete(w http.ResponseWriter, r *http.Request
 // in their verified list. "yes"/"true"/"1" resolves to the first verified email.
 func (s *Server) convertEmailAddress(u *user.User, email string) (string, *errHTTP) {
 	if !s.config.SMTPSenderVerify {
+		if toBool(email) {
+			return "", errHTTPBadRequestEmailAddressInvalid
+		}
 		return email, nil
 	} else if u == nil {
 		return "", errHTTPBadRequestAnonymousEmailNotAllowed

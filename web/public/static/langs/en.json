@@ -215,7 +215,7 @@
   "account_basics_phone_numbers_dialog_check_verification_button": "Confirm code",
   "account_basics_phone_numbers_dialog_channel_sms": "SMS",
   "account_basics_phone_numbers_dialog_channel_call": "Call",
-  "account_basics_emails_title": "Verified email recipients",
+  "account_basics_emails_title": "Email addresses",
   "account_basics_emails_description": "For email notifications",
   "account_basics_emails_no_emails_yet": "No verified emails yet",
   "account_basics_emails_copied_to_clipboard": "Email address copied to clipboard",

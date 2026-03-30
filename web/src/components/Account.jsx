@@ -84,7 +84,7 @@ const Basics = () => {
       <PrefGroup>
         <Username />
         <ChangePassword />
-        <VerifiedEmails />
+        <Emails />
         <PhoneNumbers />
         <AccountType />
       </PrefGroup>
@@ -355,7 +355,7 @@ const AccountType = () => {
   );
 };
 
-const VerifiedEmails = () => {
+const Emails = () => {
   const { t } = useTranslation();
   const { account } = useContext(AccountContext);
   const [dialogKey, setDialogKey] = useState(0);
@@ -388,7 +388,7 @@ const VerifiedEmails = () => {
     }
   };
 
-  if (!config.enable_emails) {
+  if (!config.enable_email_verify) {
     return null;
   }
 

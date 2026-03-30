@@ -179,13 +179,13 @@ func New(conf *Config) (*Server, error) {
 	var mailer mailer
 	var mailSender *mail.Sender
 	if conf.SMTPSenderAddr != "" {
-		mailer = &smtpSender{config: conf}
 		mailSender = mail.NewSender(&mail.Config{
 			SMTPAddr: conf.SMTPSenderAddr,
 			SMTPUser: conf.SMTPSenderUser,
 			SMTPPass: conf.SMTPSenderPass,
 			From:     conf.SMTPSenderFrom,
 		})
+		mailer = &smtpSender{config: conf, sender: mailSender}
 	}
 	var stripe stripeAPI
 	if payments.Available && conf.StripeSecretKey != "" {
@@ -721,6 +721,7 @@ func (s *Server) configResponse() *apiConfigResponse {
 		EnablePayments:     s.config.StripeSecretKey != "",
 		EnableCalls:        s.config.TwilioAccount != "",
 		EnableEmails:       s.config.SMTPSenderFrom != "",
+		EnableEmailVerify:  s.config.SMTPSenderVerify,
 		EnableReservations: s.config.EnableReservations,
 		EnableWebPush:      s.config.WebPushPublicKey != "",
 		BillingContact:     s.config.BillingContact,
@@ -1202,7 +1203,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 		m.Icon = icon
 	}
 	email = readParam(r, "x-email", "x-e-mail", "email", "e-mail", "mail", "e")
-	if email != "" && !emailAddressRegex.MatchString(email) {
+	if email != "" && !emailAddressRegex.MatchString(email) && !toBool(email) {
 		return false, false, "", "", "", false, "", errHTTPBadRequestEmailAddressInvalid
 	}
 	if s.smtpSender == nil && email != "" {
