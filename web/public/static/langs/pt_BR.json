@@ -63,7 +63,7 @@
     "publish_dialog_message_label": "Mensagem",
     "publish_dialog_message_placeholder": "Digite uma mensagem aqui",
     "publish_dialog_tags_label": "Etiquetas",
-    "publish_dialog_tags_placeholder": "Lista de etiquetas, separadas por vírgula, ex.: srv1-backup",
+    "publish_dialog_tags_placeholder": "Lista de etiquetas, separadas por vírgula, ex.: aviso, srv1-backup",
     "publish_dialog_priority_label": "Prioridade",
     "publish_dialog_click_label": "Clique em URL",
     "publish_dialog_click_placeholder": "URL que é aberto quando a notificação é clicada",
