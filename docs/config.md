@@ -1405,7 +1405,7 @@ or the root domain:
     }
     ```
 
-=== "Apache2"
+=== "Apache >= 2.4.47"
     ```
     # /etc/apache2/sites-*/ntfy.conf
 
@@ -1413,6 +1413,7 @@ or the root domain:
         ServerName ntfy.sh
 
         # Proxy connections to ntfy (requires "a2enmod proxy proxy_http")
+        # Use mod_proxy_http for websocket upgrade ('upgrade=websocket'), which requires Apache (httpd) >= 2.4.47.
         ProxyPass / http://127.0.0.1:2586/ upgrade=websocket
         ProxyPassReverse / http://127.0.0.1:2586/
 
@@ -1439,8 +1440,71 @@ or the root domain:
         Include /etc/letsencrypt/options-ssl-apache.conf
 
         # Proxy connections to ntfy (requires "a2enmod proxy proxy_http")
+        # Use mod_proxy_http for websocket upgrade ('upgrade=websocket'), which requires Apache (httpd) >= 2.4.47.
         ProxyPass / http://127.0.0.1:2586/ upgrade=websocket
         ProxyPassReverse / http://127.0.0.1:2586/
+
+        SetEnv proxy-nokeepalive 1
+        SetEnv proxy-sendchunked 1
+
+        # Higher than the max message size of 4096 bytes 
+        LimitRequestBody 102400
+	
+    </VirtualHost>
+    ```
+
+=== "Apache < 2.4.47"
+    ```
+    # /etc/apache2/sites-*/ntfy.conf
+
+    <VirtualHost *:80>
+        ServerName ntfy.sh
+
+        # Proxy connections to ntfy (requires "a2enmod proxy")
+        ProxyPass / http://127.0.0.1:2586/
+        ProxyPassReverse / http://127.0.0.1:2586/
+
+        # Enable mod_rewrite (requires "a2enmod rewrite")
+        RewriteEngine on
+        # WebSockets support (requires "a2enmod proxy_wstunnel")
+        # mod_proxy_wstunnel is deprecated as of Apache (httpd) 2.4.47. It also uses more resources since it relies on mod_rewrite.
+        RewriteCond %{HTTP:Upgrade} websocket [NC]
+        RewriteCond %{HTTP:Connection} upgrade [NC]
+        RewriteRule ^/?(.*) "ws://127.0.0.1:2586/$1" [P,L]
+
+        SetEnv proxy-nokeepalive 1
+        SetEnv proxy-sendchunked 1
+
+        # Higher than the max message size of 4096 bytes
+        LimitRequestBody 102400
+        
+        # Redirect HTTP to HTTPS, but only for GET topic addresses, since we want 
+        # it to work with curl without the annoying https:// prefix (requires "a2enmod alias")
+        <If "%{REQUEST_METHOD} == 'GET'">
+            RedirectMatch permanent "^/([-_A-Za-z0-9]{0,64})$" "https://%{SERVER_NAME}/$1"
+        </If>
+
+    </VirtualHost>
+    
+    <VirtualHost *:443>
+        ServerName ntfy.sh
+        
+        SSLEngine on
+        SSLCertificateFile /etc/letsencrypt/live/ntfy.sh/fullchain.pem
+        SSLCertificateKeyFile /etc/letsencrypt/live/ntfy.sh/privkey.pem
+        Include /etc/letsencrypt/options-ssl-apache.conf
+
+        # Proxy connections to ntfy (requires "a2enmod proxy")
+        ProxyPass / http://127.0.0.1:2586/
+        ProxyPassReverse / http://127.0.0.1:2586/
+
+        # Enable mod_rewrite (requires "a2enmod rewrite")
+        RewriteEngine on
+        # WebSockets support (requires "a2enmod proxy_wstunnel")
+        # mod_proxy_wstunnel is deprecated as of Apache (httpd) 2.4.47. It also uses more resources since it relies on mod_rewrite.
+        RewriteCond %{HTTP:Upgrade} websocket [NC]
+        RewriteCond %{HTTP:Connection} upgrade [NC]
+        RewriteRule ^/?(.*) "ws://127.0.0.1:2586/$1" [P,L]
 
         SetEnv proxy-nokeepalive 1
         SetEnv proxy-sendchunked 1
