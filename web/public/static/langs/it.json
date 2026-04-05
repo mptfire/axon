@@ -403,5 +403,7 @@
     "web_push_subscription_expiring_body": "Apri ntfy per continuare a ricevere notifiche",
     "web_push_unknown_notification_title": "Notifica sconosciuta ricevuta dal server",
     "account_tokens_dialog_expires_x_hours": "Il token scade tra {{hours}} ore",
-    "prefs_reservations_table": "Tabella argomenti riservati"
+    "prefs_reservations_table": "Tabella argomenti riservati",
+    "account_basics_cannot_edit_or_delete_provisioned_user": "Un utente autorizzato non può essere modificato o eliminato",
+    "account_tokens_table_cannot_delete_or_edit_provisioned_token": "Impossibile modificare o eliminare il token fornito"
 }
