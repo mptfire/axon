@@ -70,11 +70,11 @@
     "publish_dialog_topic_label": "Nome do tópico",
     "publish_dialog_topic_placeholder": "Nome do tópico, por exemplo: \"avisos_do_filipe\"",
     "publish_dialog_topic_reset": "Limpar tópico",
-    "publish_dialog_title_placeholder": "Título da notificação, por exemplo: \"Alerta de espaço em disco\"",
+    "publish_dialog_title_placeholder": "Título da notificação, p.ex: \"Alerta de espaço em disco\"",
     "publish_dialog_message_label": "Mensagem",
     "publish_dialog_message_placeholder": "Escreva uma mensagem aqui",
     "publish_dialog_tags_label": "Etiquetas",
-    "publish_dialog_tags_placeholder": "Lista de etiquetas, separadas por vírgula, por exemplo: aviso, srv1-backup",
+    "publish_dialog_tags_placeholder": "Lista de etiquetas separadas por vírgula, p.ex.: aviso, srv1-backup",
     "publish_dialog_priority_label": "Prioridade",
     "publish_dialog_click_label": "URL de clique",
     "publish_dialog_click_placeholder": "URL que é aberto quando a notificação é clicada",
@@ -404,5 +404,7 @@
     "web_push_subscription_expiring_title": "As notificações serão pausadas",
     "web_push_subscription_expiring_body": "Abra o ntfy para continuar recebendo notificações",
     "web_push_unknown_notification_title": "Notificação desconhecida recebida do servidor",
-    "web_push_unknown_notification_body": "Talvez seja necessário atualizar o ntfy abrindo a aplicação da Web"
+    "web_push_unknown_notification_body": "Talvez seja necessário atualizar o ntfy abrindo a aplicação da Web",
+    "account_basics_cannot_edit_or_delete_provisioned_user": "Não se pode editar ou eliminar um usuário predefinido",
+    "account_tokens_table_cannot_delete_or_edit_provisioned_token": "Não se pode editar ou eliminar um token predefinido"
 }
