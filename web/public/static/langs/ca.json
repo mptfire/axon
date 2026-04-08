@@ -12,5 +12,13 @@
     "signup_form_username": "Nom d'usuari",
     "signup_form_password": "Contrasenya",
     "signup_form_confirm_password": "Confirma la contrasenya",
-    "signup_form_button_submit": "Dona't d'alta"
+    "signup_form_button_submit": "Dona't d'alta",
+    "signup_form_toggle_password_visibility": "Canvia la visibilitat de la contrasenya",
+    "signup_already_have_account": "Ja tens un compte? Inicia sessió!",
+    "signup_disabled": "Les inscripcions estan deshabilitades",
+    "signup_error_username_taken": "El nom d'usuari {{username}} ja està en ús",
+    "signup_error_creation_limit_reached": "Límit de creació de comptes assolit",
+    "login_title": "Inicia sessió al teu compte ntfy",
+    "login_form_button_submit": "Iniciar sessió",
+    "login_link_signup": "Crear compte"
 }
