@@ -207,7 +207,7 @@
     "action_bar_account": "Cuenta",
     "action_bar_change_display_name": "Cambiar nombre de usuario",
     "action_bar_reservation_add": "Reservar tema",
-    "action_bar_reservation_edit": "Modificar reserva",
+    "action_bar_reservation_edit": "Alterar la reserva",
     "action_bar_reservation_delete": "Quitar reserva",
     "action_bar_reservation_limit_reached": "Límite alcanzado",
     "action_bar_profile_logout": "Cerrar sesión",
