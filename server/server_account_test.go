@@ -361,6 +361,15 @@ func TestAccount_ExtendToken(t *testing.T) {
 		require.Nil(t, err)
 		require.Equal(t, "some label", token.Label)
 		require.Equal(t, expires.Unix(), token.Expires)
+
+		body = fmt.Sprintf(`{"token":"%s", "expires": 0}`, token.Token)
+		rr = request(t, s, "PATCH", "/v1/account/token", body, map[string]string{
+			"Authorization": util.BearerAuth(token.Token),
+		})
+		require.Equal(t, 200, rr.Code)
+		token, err = util.UnmarshalJSON[apiAccountTokenResponse](io.NopCloser(rr.Body))
+		require.Nil(t, err)
+		require.Equal(t, int64(0), token.Expires)
 	})
 }
 
