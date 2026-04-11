@@ -1846,6 +1846,18 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## ntfy Android v1.25.x (UNRELEASED)
 
+This release makes the "connection lost" alert configurable and turns it off by default. Folks did not like it and many reached out
+or even gave ntfy bad reviews. I heard you! You can re-enable the alert in the advanced settings.
+
+The release also tries to be smarter about not retrying the connection at all if the app is in flight mode, or has no network. If there
+is no network, ntfy will now stop the foreground service entirely.
+
+Another change related to the networking is that we now force-reconnect when the connection is changed, e.g. during transitions
+from Wi-Fi to cellular network, or vice versa. That should allow for faster transitions during hand-overs.
+
+We also increase the client-side WebSocket ping interval from 1 minute to 3 minutes, which should slightly improve battery life,
+especially when paired with increaseing the server-side `keepalive-interval` in your self-hosted server. 
+
 **Features:**
 
 * Add configurable "Alert when connection is lost" setting ([#1665](https://github.com/binwiederhier/ntfy/issues/1665), [#1662](https://github.com/binwiederhier/ntfy/issues/1662), [#1652](https://github.com/binwiederhier/ntfy/issues/1652), [#1655](https://github.com/binwiederhier/ntfy/issues/1655), thanks to [@tintamarre](https://github.com/tintamarre), [@sjozs](https://github.com/sjozs), [@TheRealOne78](https://github.com/TheRealOne78), and [@DAE51D](https://github.com/DAE51D) for reporting)
@@ -1858,3 +1870,12 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 * Undo automatic phone number linking for numbers in message body ([ntfy-android#170](https://github.com/binwiederhier/ntfy-android/pull/170), thanks to [@acortelyou](https://github.com/acortelyou) for the contribution)
 * Fix subscription icons disappearing after a few days due to Android clearing cache ([#1322](https://github.com/binwiederhier/ntfy/issues/1322), thanks to [@mcanning](https://github.com/mcanning) for reporting)
+
+## ntfy iOS app v1.4.1 (UNRELEASED)
+
+This is the first iOS release in 3 years, focusing on stability fixes as per the [iOS improvement plan](https://github.com/binwiederhier/ntfy/issues/1680).
+
+**Bug fixes + maintenance:**
+
+* Fix crash when deleting notifications ([ntfy-ios#33](https://github.com/binwiederhier/ntfy-ios/pull/33), [#1642](https://github.com/binwiederhier/ntfy/issues/1642), [#377](https://github.com/binwiederhier/ntfy/issues/377), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Fix topic normalization for base URLs and refresh list after sending test notification ([ntfy-ios#32](https://github.com/binwiederhier/ntfy-ios/pull/32), [#337](https://github.com/binwiederhier/ntfy/issues/337), thanks to [@am7590](https://github.com/am7590) for the contribution)
