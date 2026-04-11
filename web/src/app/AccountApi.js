@@ -137,8 +137,8 @@ class AccountApi {
       token,
       label,
     };
-    if (expires > 0) {
-      body.expires = Math.floor(Date.now() / 1000) + expires;
+    if (expires >= 0) {
+      body.expires = expires > 0 ? Math.floor(Date.now() / 1000) + expires : 0;
     }
     console.log(`[AccountApi] Creating user access token ${url}`);
     await fetchOrThrow(url, {
