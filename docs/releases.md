@@ -1879,3 +1879,9 @@ This is the first iOS release in 3 years, focusing on stability fixes as per the
 
 * Fix crash when deleting notifications ([ntfy-ios#33](https://github.com/binwiederhier/ntfy-ios/pull/33), [#1642](https://github.com/binwiederhier/ntfy/issues/1642), [#377](https://github.com/binwiederhier/ntfy/issues/377), thanks to [@am7590](https://github.com/am7590) for the contribution)
 * Fix topic normalization for base URLs and refresh list after sending test notification ([ntfy-ios#32](https://github.com/binwiederhier/ntfy-ios/pull/32), [#337](https://github.com/binwiederhier/ntfy/issues/337), thanks to [@am7590](https://github.com/am7590) for the contribution)
+
+## ntfy server v2.21.x (UNRELEASED)
+
+**Bug fixes + maintenance:**
+
+* Fix web app not allowing access tokens to be changed to never expire ([#1693](https://github.com/binwiederhier/ntfy/issues/1693)/[#1694](https://github.com/binwiederhier/ntfy/pull/1694), thanks to [@lastsamurai26](https://github.com/lastsamurai26) for reporting and to [@ShipItAndPray](https://github.com/ShipItAndPray) for fixing)
