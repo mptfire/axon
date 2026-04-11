@@ -1056,87 +1056,94 @@ const TokensTable = (props) => {
         </TableRow>
       </TableHead>
       <TableBody>
-        {tokens.map((token) => (
-          <TableRow key={token.token} sx={{ "&:last-child td, &:last-child th": { border: 0 } }}>
-            <TableCell
-              component="th"
-              scope="row"
-              sx={{ paddingLeft: 0, whiteSpace: "nowrap" }}
-              aria-label={t("account_tokens_table_token_header")}
-            >
-              <span>
-                <span style={{ fontFamily: "Monospace", fontSize: "0.9rem" }}>{token.token.slice(0, 12)}</span>
-                ...
-                <Tooltip title={t("common_copy_to_clipboard")} placement="right">
-                  <IconButton onClick={() => handleCopy(token.token)}>
-                    <ContentCopy />
-                  </IconButton>
-                </Tooltip>
-              </span>
-            </TableCell>
-            <TableCell aria-label={t("account_tokens_table_label_header")}>
-              {token.token === session.token() && <em>{t("account_tokens_table_current_session")}</em>}
-              {token.token !== session.token() && (token.label || "-")}
-            </TableCell>
-            <TableCell sx={{ whiteSpace: "nowrap" }} aria-label={t("account_tokens_table_expires_header")}>
-              {token.expires ? formatShortDateTime(token.expires, i18n.language) : <em>{t("account_tokens_table_never_expires")}</em>}
-            </TableCell>
-            <TableCell sx={{ whiteSpace: "nowrap" }} aria-label={t("account_tokens_table_last_access_header")}>
-              <div style={{ display: "flex", alignItems: "center" }}>
-                <span>{formatShortDateTime(token.last_access, i18n.language)}</span>
-                <Tooltip
-                  title={t("account_tokens_table_last_origin_tooltip", {
-                    ip: token.last_origin,
-                  })}
-                >
-                  <IconButton onClick={() => openUrl(`https://whatismyipaddress.com/ip/${token.last_origin}`)}>
-                    <Public />
-                  </IconButton>
-                </Tooltip>
-              </div>
-            </TableCell>
-            <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
-              {token.token !== session.token() && !token.provisioned && (
-                <>
-                  <Tooltip title={t("account_tokens_dialog_title_edit")}>
-                    <IconButton onClick={() => handleEditClick(token)} aria-label={t("account_tokens_dialog_title_edit")}>
-                      <EditIcon />
+        {tokens.map((token) => {
+          const hasLastAccess = Number.isFinite(token.last_access) && token.last_access > 0;
+          const hasLastOrigin = !!token.last_origin;
+
+          return (
+            <TableRow key={token.token} sx={{ "&:last-child td, &:last-child th": { border: 0 } }}>
+              <TableCell
+                component="th"
+                scope="row"
+                sx={{ paddingLeft: 0, whiteSpace: "nowrap" }}
+                aria-label={t("account_tokens_table_token_header")}
+              >
+                <span>
+                  <span style={{ fontFamily: "Monospace", fontSize: "0.9rem" }}>{token.token.slice(0, 12)}</span>
+                  ...
+                  <Tooltip title={t("common_copy_to_clipboard")} placement="right">
+                    <IconButton onClick={() => handleCopy(token.token)}>
+                      <ContentCopy />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title={t("account_tokens_dialog_title_delete")}>
-                    <IconButton onClick={() => handleDeleteClick(token)} aria-label={t("account_tokens_dialog_title_delete")}>
-                      <CloseIcon />
-                    </IconButton>
+                </span>
+              </TableCell>
+              <TableCell aria-label={t("account_tokens_table_label_header")}>
+                {token.token === session.token() && <em>{t("account_tokens_table_current_session")}</em>}
+                {token.token !== session.token() && (token.label || "-")}
+              </TableCell>
+              <TableCell sx={{ whiteSpace: "nowrap" }} aria-label={t("account_tokens_table_expires_header")}>
+                {token.expires ? formatShortDateTime(token.expires, i18n.language) : <em>{t("account_tokens_table_never_expires")}</em>}
+              </TableCell>
+              <TableCell sx={{ whiteSpace: "nowrap" }} aria-label={t("account_tokens_table_last_access_header")}>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  {hasLastAccess ? <span>{formatShortDateTime(token.last_access, i18n.language)}</span> : <em>-</em>}
+                  {hasLastOrigin && (
+                    <Tooltip
+                      title={t("account_tokens_table_last_origin_tooltip", {
+                        ip: token.last_origin,
+                      })}
+                    >
+                      <IconButton onClick={() => openUrl(`https://whatismyipaddress.com/ip/${token.last_origin}`)}>
+                        <Public />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                {token.token !== session.token() && !token.provisioned && (
+                  <>
+                    <Tooltip title={t("account_tokens_dialog_title_edit")}>
+                      <IconButton onClick={() => handleEditClick(token)} aria-label={t("account_tokens_dialog_title_edit")}>
+                        <EditIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={t("account_tokens_dialog_title_delete")}>
+                      <IconButton onClick={() => handleDeleteClick(token)} aria-label={t("account_tokens_dialog_title_delete")}>
+                        <CloseIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </>
+                )}
+                {token.token === session.token() && (
+                  <Tooltip title={t("account_tokens_table_cannot_delete_or_edit")}>
+                    <span>
+                      <IconButton disabled>
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton disabled>
+                        <CloseIcon />
+                      </IconButton>
+                    </span>
                   </Tooltip>
-                </>
-              )}
-              {token.token === session.token() && (
-                <Tooltip title={t("account_tokens_table_cannot_delete_or_edit")}>
-                  <span>
-                    <IconButton disabled>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton disabled>
-                      <CloseIcon />
-                    </IconButton>
-                  </span>
-                </Tooltip>
-              )}
-              {token.provisioned && (
-                <Tooltip title={t("account_tokens_table_cannot_delete_or_edit_provisioned_token")}>
-                  <span>
-                    <IconButton disabled>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton disabled>
-                      <CloseIcon />
-                    </IconButton>
-                  </span>
-                </Tooltip>
-              )}
-            </TableCell>
-          </TableRow>
-        ))}
+                )}
+                {token.provisioned && (
+                  <Tooltip title={t("account_tokens_table_cannot_delete_or_edit_provisioned_token")}>
+                    <span>
+                      <IconButton disabled>
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton disabled>
+                        <CloseIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                )}
+              </TableCell>
+            </TableRow>
+          );
+        })}
       </TableBody>
       <Portal>
         <Snackbar
