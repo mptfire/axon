@@ -1884,5 +1884,6 @@ This is the first iOS release in 3 years, focusing on stability fixes as per the
 
 **Bug fixes + maintenance:**
 
+* Tighten web push endpoint allow-list regex to prevent SSRF via unanchored pattern matching ([GHSA-w9hq-5jg7-q4j7](https://github.com/binwiederhier/ntfy/security/advisories/GHSA-w9hq-5jg7-q4j7), thanks to [@MightyNawaf](https://github.com/MightyNawaf) for reporting)
 * Fix web app not allowing access tokens to be changed to never expire ([#1693](https://github.com/binwiederhier/ntfy/issues/1693)/[#1694](https://github.com/binwiederhier/ntfy/pull/1694), thanks to [@lastsamurai26](https://github.com/lastsamurai26) for reporting and to [@ShipItAndPray](https://github.com/ShipItAndPray) for fixing)
 * Fix web app crashing on account page for tokens without a last access time ([#1651](https://github.com/binwiederhier/ntfy/issues/1651), [#1684](https://github.com/binwiederhier/ntfy/issues/1684), thanks to [@Pulsar7](https://github.com/Pulsar7) and [@rzhli](https://github.com/rzhli) for reporting)

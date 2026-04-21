@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"strings"
 
 	"github.com/SherClockHolmes/webpush-go"
 	"heckel.io/ntfy/v2/log"
@@ -24,32 +23,35 @@ const (
 	webPushTopicSubscribeLimit = 50
 )
 
-var (
-	webPushAllowedEndpointsPatterns = []string{
-		"https://*.google.com/",
-		"https://*.googleapis.com/",
-		"https://*.mozilla.com/",
-		"https://*.mozaws.net/",
-		"https://*.windows.com/",
-		"https://*.microsoft.com/",
-		"https://*.apple.com/",
-	}
-	webPushAllowedEndpointsRegex *regexp.Regexp
-)
+// webPushAllowedEndpointsRegexes is the host-level allow-list of web push services ntfy
+// will deliver to. Each regex anchors the scheme and matches the stable service host,
+// followed by the authority/path boundary "/". Instance-specific labels (e.g. the
+// "wns2-<region>" prefix on Windows Notification Service hosts) are wildcarded with
+// a single-label pattern ([^/]+) that cannot span into the path.
+// See GHSA-w9hq-5jg7-q4j7 for why wildcarding the entire host is insufficient.
+var webPushAllowedEndpointsRegexes = []*regexp.Regexp{
+	regexp.MustCompile(`^https://fcm\.googleapis\.com/`),
+	regexp.MustCompile(`^https://jmt17\.google\.com/`),
+	regexp.MustCompile(`^https://updates\.push\.services\.mozilla\.com/`),
+	regexp.MustCompile(`^https://[^/]+\.mozaws\.net/`),
+	regexp.MustCompile(`^https://web\.push\.apple\.com/`),
+	regexp.MustCompile(`^https://[^/]+\.notify\.windows\.com/`),
+}
 
-func init() {
-	for i, pattern := range webPushAllowedEndpointsPatterns {
-		webPushAllowedEndpointsPatterns[i] = strings.ReplaceAll(strings.ReplaceAll(pattern, ".", "\\."), "*", ".+")
+func webPushEndpointAllowed(endpoint string) bool {
+	for _, re := range webPushAllowedEndpointsRegexes {
+		if re.MatchString(endpoint) {
+			return true
+		}
 	}
-	allPatterns := fmt.Sprintf("^(%s)", strings.Join(webPushAllowedEndpointsPatterns, "|"))
-	webPushAllowedEndpointsRegex = regexp.MustCompile(allPatterns)
+	return false
 }
 
 func (s *Server) handleWebPushUpdate(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	req, err := readJSONWithLimit[apiWebPushUpdateSubscriptionRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil || req.Endpoint == "" || req.P256dh == "" || req.Auth == "" {
 		return errHTTPBadRequestWebPushSubscriptionInvalid
-	} else if !webPushAllowedEndpointsRegex.MatchString(req.Endpoint) {
+	} else if !webPushEndpointAllowed(req.Endpoint) {
 		return errHTTPBadRequestWebPushEndpointUnknown
 	} else if len(req.Topics) > webPushTopicSubscribeLimit {
 		return errHTTPBadRequestWebPushTopicCountTooHigh

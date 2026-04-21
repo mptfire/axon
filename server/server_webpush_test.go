@@ -87,6 +87,78 @@ func TestServer_WebPush_TopicAdd_InvalidEndpoint(t *testing.T) {
 	})
 }
 
+func TestServer_WebPush_EndpointRegex(t *testing.T) {
+	// Synthetic endpoint samples representing each supported push service host shape.
+	allowed := []string{
+		// Google FCM (legacy send, webpush, preprod webpush)
+		"https://fcm.googleapis.com/fcm/send/FAKETOKEN:APA91b-placeholder-not-a-real-token",
+		"https://fcm.googleapis.com/wp/FAKETOKEN:APA91b-placeholder-not-a-real-token",
+		"https://fcm.googleapis.com/preprod/wp/FAKETOKEN:APA91b-placeholder-not-a-real-token",
+		"https://jmt17.google.com/fcm/send/FAKETOKEN:APA91b-placeholder-not-a-real-token",
+		// Mozilla autopush (v1 legacy, v2 current, plus AWS-hosted infra)
+		"https://updates.push.services.mozilla.com/wpush/v1/placeholder-not-a-real-token",
+		"https://updates.push.services.mozilla.com/wpush/v2/placeholder-not-a-real-token",
+		"https://autopush.mozaws.net/wpush/v1/placeholder-not-a-real-token",
+		// Apple Web Push
+		"https://web.push.apple.com/placeholder-not-a-real-token",
+		// Microsoft WNS: instance-specific "wns2-<region>" prefix is wildcarded
+		"https://wns2-bn3p.notify.windows.com/w/?token=placeholder",
+		"https://wns2-ch1p.notify.windows.com/w/?token=placeholder",
+		"https://wns2-par02p.notify.windows.com/w/?token=placeholder",
+		"https://wns2-pn1p.notify.windows.com/w/?token=placeholder",
+		"https://wns2-am3p.notify.windows.com/w/?token=placeholder",
+	}
+	denied := []string{
+		// HTTP (not HTTPS)
+		"http://fcm.googleapis.com/fcm/send/abc",
+		// Unrelated host
+		"https://attacker.example.com/webpush",
+		// GHSA-w9hq-5jg7-q4j7 bypass: allowed host embedded in path
+		"https://attacker.com/x.google.com/push",
+		"https://attacker.example.com/fcm.googleapis.com/fcm/send/abc",
+		"https://evil.test/web.push.apple.com/3/device/abc",
+		"https://ntfytest.requestcatcher.com/path.google.com/push",
+		"https://ntfytest.requestcatcher.com/a.google.com/toto",
+		"https://ntfytest.requestcatcher.com/bypass.google.com/test",
+		"https://webhook.site/86e94e2e-2af4-4a31-a80b-e2f335cc6495/path.google.com/push",
+		"https://webhook.site/86e94e2e-2af4-4a31-a80b-e2f335cc6495/bypass.google.com/",
+		// Allowed host as a prefix of a different host (no separating slash)
+		"https://fcm.googleapis.com.attacker.com/fcm/send/abc",
+		"https://web.push.apple.com.evil.test/tok",
+		// Allowed host as a suffix of a different host (no separating dot)
+		"https://evilgoogle.com/",
+		"https://notapple.com/",
+		// Credentials/userinfo in the URL pointing at a different host
+		"https://fcm.googleapis.com@attacker.com/fcm/send/abc",
+		// Previously allowed by the wildcard allowlist but not actually used by Web Push
+		"https://api.push.apple.com/3/device/abc",
+		"https://android.googleapis.com/send/xyz",
+		"https://login.microsoft.com/anything",
+		// Bare notify.windows.com with no subdomain label
+		"https://notify.windows.com/w/?token=abc",
+	}
+	for _, endpoint := range allowed {
+		require.Truef(t, webPushEndpointAllowed(endpoint), "expected endpoint to be allowed: %s", endpoint)
+	}
+	for _, endpoint := range denied {
+		require.Falsef(t, webPushEndpointAllowed(endpoint), "expected endpoint to be denied: %s", endpoint)
+	}
+}
+
+func TestServer_WebPush_TopicAdd_BypassAttempt(t *testing.T) {
+	// Regression test for GHSA-w9hq-5jg7-q4j7: the allow-list regex previously had no
+	// end anchor, so a URL like https://attacker.example.com/x.google.com/... passed
+	// validation and caused the server to deliver push payloads to attacker-controlled
+	// endpoints (SSRF + message exfiltration via attacker-supplied p256dh key).
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfigWithWebPush(t, databaseURL))
+
+		response := request(t, s, "POST", "/v1/webpush", payloadForTopics(t, []string{"test-topic"}, "https://attacker.example.com/x.google.com/push"), nil)
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, `{"code":40039,"http":400,"error":"invalid request: web push endpoint unknown"}`+"\n", response.Body.String())
+	})
+}
+
 func TestServer_WebPush_TopicAdd_TooManyTopics(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		s := newTestServer(t, newTestConfigWithWebPush(t, databaseURL))
