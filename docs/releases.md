@@ -6,11 +6,20 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 | Component        | Version | Release date |
 |------------------|---------|--------------|
-| ntfy server      | v2.21.0 | Mar 30, 2026 |
+| ntfy server      | v2.22.0 | Apr 21, 2026 |
 | ntfy Android app | v1.24.0 | Mar 5, 2026  |
 | ntfy iOS app     | v1.3    | Nov 26, 2023 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+## ntfy server v2.22.0
+Released April 21, 2026
+
+**Bug fixes + maintenance:**
+
+* Tighten web push endpoint allow-list regex to prevent SSRF via unanchored pattern matching ([GHSA-w9hq-5jg7-q4j7](https://github.com/binwiederhier/ntfy/security/advisories/GHSA-w9hq-5jg7-q4j7), thanks to [@MightyNawaf](https://github.com/MightyNawaf) for reporting)
+* Fix web app not allowing access tokens to be changed to never expire ([#1693](https://github.com/binwiederhier/ntfy/issues/1693)/[#1694](https://github.com/binwiederhier/ntfy/pull/1694), thanks to [@lastsamurai26](https://github.com/lastsamurai26) for reporting and to [@ShipItAndPray](https://github.com/ShipItAndPray) for fixing)
+* Fix web app crashing on account page for tokens without a last access time ([#1651](https://github.com/binwiederhier/ntfy/issues/1651), [#1684](https://github.com/binwiederhier/ntfy/issues/1684), thanks to [@Pulsar7](https://github.com/Pulsar7) and [@rzhli](https://github.com/rzhli) for reporting)
 
 ### ntfy server v2.21.0
 Released March 30, 2026
@@ -1879,11 +1888,3 @@ This is the first iOS release in 3 years, focusing on stability fixes as per the
 
 * Fix crash when deleting notifications ([ntfy-ios#33](https://github.com/binwiederhier/ntfy-ios/pull/33), [#1642](https://github.com/binwiederhier/ntfy/issues/1642), [#377](https://github.com/binwiederhier/ntfy/issues/377), thanks to [@am7590](https://github.com/am7590) for the contribution)
 * Fix topic normalization for base URLs and refresh list after sending test notification ([ntfy-ios#32](https://github.com/binwiederhier/ntfy-ios/pull/32), [#337](https://github.com/binwiederhier/ntfy/issues/337), thanks to [@am7590](https://github.com/am7590) for the contribution)
-
-## ntfy server v2.21.x (UNRELEASED)
-
-**Bug fixes + maintenance:**
-
-* Tighten web push endpoint allow-list regex to prevent SSRF via unanchored pattern matching ([GHSA-w9hq-5jg7-q4j7](https://github.com/binwiederhier/ntfy/security/advisories/GHSA-w9hq-5jg7-q4j7), thanks to [@MightyNawaf](https://github.com/MightyNawaf) for reporting)
-* Fix web app not allowing access tokens to be changed to never expire ([#1693](https://github.com/binwiederhier/ntfy/issues/1693)/[#1694](https://github.com/binwiederhier/ntfy/pull/1694), thanks to [@lastsamurai26](https://github.com/lastsamurai26) for reporting and to [@ShipItAndPray](https://github.com/ShipItAndPray) for fixing)
-* Fix web app crashing on account page for tokens without a last access time ([#1651](https://github.com/binwiederhier/ntfy/issues/1651), [#1684](https://github.com/binwiederhier/ntfy/issues/1684), thanks to [@Pulsar7](https://github.com/Pulsar7) and [@rzhli](https://github.com/rzhli) for reporting)
