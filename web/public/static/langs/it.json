@@ -307,7 +307,7 @@
     "account_delete_dialog_label": "Password",
     "account_upgrade_dialog_tier_features_no_reservations": "Nessun argomento riservato",
     "account_upgrade_dialog_tier_features_messages_one": "{{messages}} messaggi giornalieri",
-    "account_upgrade_dialog_reservations_warning_one": "Il livello selezionato consente meno argomenti riservati rispetto al livello corrente. Prima di cambiare il livello, <strong> si prega di eliminare almeno una prenotazione</strong>. È possibile rimuovere le prenotazioni nel <Link>Impostazioni</Link>.",
+    "account_upgrade_dialog_reservations_warning_one": "Il livello selezionato consente meno argomenti riservati rispetto al livello corrente. Prima di cambiare il livello, <strong>si prega di eliminare almeno una prenotazione</strong>. È possibile rimuovere le prenotazioni nel <Link>Impostazioni</Link>.",
     "alert_notification_permission_denied_title": "Le notifiche sono bloccate",
     "alert_notification_permission_denied_description": "Per favore riabilitale nel tuo browser",
     "subscribe_dialog_subscribe_use_another_background_info": "Le notifiche dagli altri server non saranno ricevute quando la web app non è in esecuzione",
