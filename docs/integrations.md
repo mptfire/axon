@@ -107,6 +107,7 @@ I've added a ⭐ to projects or posts that have a significant following, or had 
 - [ntfy-long-zsh-command](https://github.com/robfox92/ntfy-long-zsh-command) - Notifies you once a long-running command completes (zsh)
 - [ntfy-shellscripts](https://github.com/nickexyz/ntfy-shellscripts) - A few scripts for the ntfy project (Shell)
 - [alertmanager-ntfy-relay](https://github.com/therobbielee/alertmanager-ntfy-relay) - ntfy.sh relay for Alertmanager (Go)
+- [oci-notifications-ntfy-relay](https://github.com/Ryan02I5/oci-notifications-ntfy-relay) - Minimal OCI Notifications / Oracle Functions relay to ntfy topics (Python)
 - [QuickStatus](https://github.com/corneliusroot/QuickStatus) - A shell script to alert to any immediate problems upon login (Shell)
 - [ntfy.el](https://github.com/shombando/ntfy) - Send notifications from Emacs (Emacs)
 - [backup-projects](https://gist.github.com/anthonyaxenov/826ba65abbabd5b00196bc3e6af76002) - Stupidly simple backup script for own projects (Shell)
