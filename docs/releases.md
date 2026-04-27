@@ -8,9 +8,28 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 |------------------|---------|--------------|
 | ntfy server      | v2.22.0 | Apr 21, 2026 |
 | ntfy Android app | v1.24.0 | Mar 5, 2026  |
-| ntfy iOS app     | v1.3    | Nov 26, 2023 |
+| ntfy iOS app     | v1.5.1  | Apr 27, 2026 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+## ntfy iOS app v1.5.1
+Released April 27, 2026
+
+This release continues the iOS stability push from v1.4.1, with improved background polling reliability, better error
+handling and logging, and a few small UI fixes. The minimum supported iOS version is now iOS 15.
+
+**Features:**
+
+* Bump minimum iOS version to iOS 15 ([ntfy-ios#36](https://github.com/binwiederhier/ntfy-ios/pull/36), thanks to [@am7590](https://github.com/am7590) for the contribution)
+
+**Bug fixes + maintenance:**
+
+* Improve background poll reliability by waiting for polls to finish before calling the fetch completion handler, and saving notifications on the Core Data context queue ([ntfy-ios#34](https://github.com/binwiederhier/ntfy-ios/pull/34), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Make `poll_request` parsing more tolerant and surface concrete poll errors instead of failing silently ([ntfy-ios#34](https://github.com/binwiederhier/ntfy-ios/pull/34), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Poll subscriptions when the subscribed topics list appears, for more reactive updates ([ntfy-ios#34](https://github.com/binwiederhier/ntfy-ios/pull/34), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Fix bug where tapping "Add user" a second time would briefly open and then dismiss the add user view ([ntfy-ios#35](https://github.com/binwiederhier/ntfy-ios/pull/35), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Split `SettingsView` into separate files to improve readability ([ntfy-ios#35](https://github.com/binwiederhier/ntfy-ios/pull/35), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Add Firebase subscribe/unsubscribe logging to aid debugging ([ntfy-ios#34](https://github.com/binwiederhier/ntfy-ios/pull/34), thanks to [@am7590](https://github.com/am7590) for the contribution)
 
 ## ntfy server v2.22.0
 Released April 21, 2026
@@ -20,6 +39,16 @@ Released April 21, 2026
 * Tighten web push endpoint allow-list regex to prevent SSRF via unanchored pattern matching ([GHSA-w9hq-5jg7-q4j7](https://github.com/binwiederhier/ntfy/security/advisories/GHSA-w9hq-5jg7-q4j7), thanks to [@MightyNawaf](https://github.com/MightyNawaf) for reporting)
 * Fix web app not allowing access tokens to be changed to never expire ([#1693](https://github.com/binwiederhier/ntfy/issues/1693)/[#1694](https://github.com/binwiederhier/ntfy/pull/1694), thanks to [@lastsamurai26](https://github.com/lastsamurai26) for reporting and to [@ShipItAndPray](https://github.com/ShipItAndPray) for fixing)
 * Fix web app crashing on account page for tokens without a last access time ([#1651](https://github.com/binwiederhier/ntfy/issues/1651), [#1684](https://github.com/binwiederhier/ntfy/issues/1684), thanks to [@Pulsar7](https://github.com/Pulsar7) and [@rzhli](https://github.com/rzhli) for reporting)
+
+## ntfy iOS app v1.4.1
+Released April 14, 2026
+
+This is the first iOS release in 3 years, focusing on stability fixes as per the [iOS improvement plan](https://github.com/binwiederhier/ntfy/issues/1680).
+
+**Bug fixes + maintenance:**
+
+* Fix crash when deleting notifications ([ntfy-ios#33](https://github.com/binwiederhier/ntfy-ios/pull/33), [#1642](https://github.com/binwiederhier/ntfy/issues/1642), [#377](https://github.com/binwiederhier/ntfy/issues/377), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Fix topic normalization for base URLs and refresh list after sending test notification ([ntfy-ios#32](https://github.com/binwiederhier/ntfy-ios/pull/32), [#337](https://github.com/binwiederhier/ntfy/issues/337), thanks to [@am7590](https://github.com/am7590) for the contribution)
 
 ### ntfy server v2.21.0
 Released March 30, 2026
@@ -1879,12 +1908,3 @@ especially when paired with increaseing the server-side `keepalive-interval` in 
 
 * Undo automatic phone number linking for numbers in message body ([ntfy-android#170](https://github.com/binwiederhier/ntfy-android/pull/170), thanks to [@acortelyou](https://github.com/acortelyou) for the contribution)
 * Fix subscription icons disappearing after a few days due to Android clearing cache ([#1322](https://github.com/binwiederhier/ntfy/issues/1322), thanks to [@mcanning](https://github.com/mcanning) for reporting)
-
-## ntfy iOS app v1.4.1 (UNRELEASED)
-
-This is the first iOS release in 3 years, focusing on stability fixes as per the [iOS improvement plan](https://github.com/binwiederhier/ntfy/issues/1680).
-
-**Bug fixes + maintenance:**
-
-* Fix crash when deleting notifications ([ntfy-ios#33](https://github.com/binwiederhier/ntfy-ios/pull/33), [#1642](https://github.com/binwiederhier/ntfy/issues/1642), [#377](https://github.com/binwiederhier/ntfy/issues/377), thanks to [@am7590](https://github.com/am7590) for the contribution)
-* Fix topic normalization for base URLs and refresh list after sending test notification ([ntfy-ios#32](https://github.com/binwiederhier/ntfy-ios/pull/32), [#337](https://github.com/binwiederhier/ntfy/issues/337), thanks to [@am7590](https://github.com/am7590) for the contribution)
