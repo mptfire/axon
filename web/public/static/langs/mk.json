@@ -92,5 +92,9 @@
     "notifications_click_open_button": "Отвори линк",
     "notifications_actions_open_url_title": "Оди на {{url}}",
     "notifications_actions_not_supported": "Дејството не е поддржано во веб-апликацијата",
-    "notifications_actions_http_request_title": "Испрати HTTP {{method}} на {{url}}"
+    "notifications_actions_http_request_title": "Испрати HTTP {{method}} на {{url}}",
+    "notifications_none_for_any_title": "Не сте добиле никакви известувања.",
+    "notifications_actions_failed_notification": "Неуспешно дејство",
+    "notifications_none_for_topic_title": "Сè уште не сте добиле никакви известувања за оваа тема.",
+    "publish_dialog_filename_label": "Име на фајл"
 }
