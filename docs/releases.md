@@ -8,9 +8,20 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 |------------------|---------|--------------|
 | ntfy server      | v2.22.0 | Apr 21, 2026 |
 | ntfy Android app | v1.24.0 | Mar 5, 2026  |
-| ntfy iOS app     | v1.5.1  | Apr 27, 2026 |
+| ntfy iOS app     | v1.6.0  | May 12, 2026 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+## ntfy iOS app v1.6.0
+Released May 12, 2026
+
+**Bug fixes + maintenance:**
+
+* Fix crash in iOS v1.5.1 ([#1736](https://github.com/binwiederhier/ntfy/issues/1736), thanks to [@russ-who](https://github.com/russ-who) for reporting and [@am7590](https://github.com/am7590) for fixing)
+
+**Features:**
+
+* Tap a notification to open its click URL, or copy the message text if no click URL is set; inline URLs in message text are now tappable as well ([ntfy-ios#37](https://github.com/binwiederhier/ntfy-ios/pull/37), thanks to [@am7590](https://github.com/am7590) for the contribution)
 
 ## ntfy iOS app v1.5.1
 Released April 27, 2026
@@ -50,7 +61,7 @@ This is the first iOS release in 3 years, focusing on stability fixes as per the
 * Fix crash when deleting notifications ([ntfy-ios#33](https://github.com/binwiederhier/ntfy-ios/pull/33), [#1642](https://github.com/binwiederhier/ntfy/issues/1642), [#377](https://github.com/binwiederhier/ntfy/issues/377), thanks to [@am7590](https://github.com/am7590) for the contribution)
 * Fix topic normalization for base URLs and refresh list after sending test notification ([ntfy-ios#32](https://github.com/binwiederhier/ntfy-ios/pull/32), [#337](https://github.com/binwiederhier/ntfy/issues/337), thanks to [@am7590](https://github.com/am7590) for the contribution)
 
-### ntfy server v2.21.0
+## ntfy server v2.21.0
 Released March 30, 2026
 
 This release adds the ability to verify email addresses using the `smtp-sender-verify` flag. This is a change that is
@@ -62,7 +73,7 @@ ntfy.sh won't be able to send emails unless the email address was verified ahead
 * Add verified email recipients feature with `smtp-sender-verify` config flag, allowing server admins to require email
   address verification before sending email notifications ([#1681](https://github.com/binwiederhier/ntfy/pull/1681))
 
-### ntfy server v2.20.1
+## ntfy server v2.20.1
 Released March 27, 2026
 
 This is a small bugfix release that only affects high volume S3 backends that struggle with HTTP/2.
@@ -71,7 +82,7 @@ This is a small bugfix release that only affects high volume S3 backends that st
 
 * [Attachments](config.md#attachments): Add `disable_http2=true` S3 URL option to work around HTTP/2 stream errors with DigitalOcean Spaces and other S3-compatible providers ([#1678](https://github.com/binwiederhier/ntfy/issues/1678)/[#1679](https://github.com/binwiederhier/ntfy/pull/1679))
 
-### ntfy server v2.20.0
+## ntfy server v2.20.0
 Released March 26, 2026
 
 This release is another step towards making it possible to help scale ntfy up and out 🔥! With this release, you can store
