@@ -145,8 +145,7 @@ export const hashCode = (s) => {
  * which is expected by `<html lang>` and `Intl.DateTimeFormat`. Falls back to "en"
  * if the input is missing or not a string.
  */
-export const getKebabCaseLangStr = (language) =>
-  typeof language === "string" && language.length > 0 ? language.replace(/_/g, "-") : "en";
+export const getKebabCaseLangStr = (language) => (typeof language === "string" && language.length > 0 ? language.replace(/_/g, "-") : "en");
 
 export const formatShortDateTime = (timestamp, language) =>
   new Intl.DateTimeFormat(getKebabCaseLangStr(language), {

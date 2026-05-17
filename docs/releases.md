@@ -1898,6 +1898,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 **Bug fixes + maintenance:**
 
 * Remove `stacktrace-js`, `stacktrace-gps`, `humanize-duration`, and `js-base64` from the web app to reduce dependency and security footprint
+* Restrict the publish dialog's local file preview to safe image types (png/jpg/gif/webp) to prevent same-origin script execution from blob URLs when previewing a crafted SVG ([GHSA-j8hr-p342-xrmh](https://github.com/binwiederhier/ntfy/security/advisories/GHSA-j8hr-p342-xrmh), thanks to [@Venukamatchi](https://github.com/Venukamatchi) for reporting)
 
 ## ntfy Android v1.25.x (UNRELEASED)
 
