@@ -1893,6 +1893,12 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
+## ntfy server v2.23.x (UNRELEASED)
+
+**Bug fixes + maintenance:**
+
+* Remove `stacktrace-js`, `stacktrace-gps`, `humanize-duration`, and `js-base64` from the web app to reduce dependency and security footprint
+
 ## ntfy Android v1.25.x (UNRELEASED)
 
 This release makes the "connection lost" alert configurable and turns it off by default. Folks did not like it and many reached out
