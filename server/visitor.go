@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"math"
 	"net/netip"
 	"sync"
 	"time"
@@ -154,14 +155,13 @@ func (v *visitor) Context() log.Context {
 func (v *visitor) contextNoLock() log.Context {
 	info := v.infoLightNoLock()
 	fields := log.Context{
-		"visitor_id":                     visitorID(v.ip, v.user, v.config),
-		"visitor_ip":                     v.ip.String(),
-		"visitor_seen":                   util.FormatTime(v.seen),
-		"visitor_messages":               info.Stats.Messages,
-		"visitor_messages_limit":         info.Limits.MessageLimit,
-		"visitor_messages_remaining":     info.Stats.MessagesRemaining,
-		"visitor_request_limiter_limit":  v.requestLimiter.Limit(),
-		"visitor_request_limiter_tokens": v.requestLimiter.Tokens(),
+		"visitor_id":                 visitorID(v.ip, v.user, v.config),
+		"visitor_ip":                 v.ip.String(),
+		"visitor_seen":               util.FormatTime(v.seen),
+		"visitor_messages":           info.Stats.Messages,
+		"visitor_messages_limit":     info.Limits.MessageLimit,
+		"visitor_messages_remaining": info.Stats.MessagesRemaining,
+		"visitor_requests_remaining": int64(math.Floor(v.requestLimiter.Tokens())),
 	}
 	if v.config.SMTPSenderFrom != "" {
 		fields["visitor_emails"] = info.Stats.Emails
@@ -174,12 +174,10 @@ func (v *visitor) contextNoLock() log.Context {
 		fields["visitor_calls_remaining"] = info.Stats.CallsRemaining
 	}
 	if v.authLimiter != nil {
-		fields["visitor_auth_limiter_limit"] = v.authLimiter.Limit()
-		fields["visitor_auth_limiter_tokens"] = v.authLimiter.Tokens()
+		fields["visitor_auth_attempts_remaining"] = int64(math.Floor(v.authLimiter.Tokens()))
 	}
 	if v.topicCreationLimiter != nil {
-		fields["visitor_topic_creation_limiter_limit"] = v.topicCreationLimiter.Limit()
-		fields["visitor_topic_creation_limiter_tokens"] = v.topicCreationLimiter.Tokens()
+		fields["visitor_topic_creations_remaining"] = int64(math.Floor(v.topicCreationLimiter.Tokens()))
 	}
 	if v.user != nil {
 		fields["user_id"] = v.user.ID
