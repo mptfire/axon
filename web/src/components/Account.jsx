@@ -39,13 +39,12 @@ import EditIcon from "@mui/icons-material/Edit";
 import { Trans, useTranslation } from "react-i18next";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import humanizeDuration from "humanize-duration";
 import CelebrationIcon from "@mui/icons-material/Celebration";
 import CloseIcon from "@mui/icons-material/Close";
 import { ContentCopy, Public } from "@mui/icons-material";
 import AddIcon from "@mui/icons-material/Add";
 import routes from "./routes";
-import { copyToClipboard, formatBytes, formatShortDate, formatShortDateTime, openUrl } from "../app/utils";
+import { copyToClipboard, formatBytes, formatShortDate, formatShortDateTime, formatShortDuration, openUrl } from "../app/utils";
 import accountApi, { LimitBasis, Role, SubscriptionInterval, SubscriptionStatus } from "../app/AccountApi";
 import { Pref, PrefGroup } from "./Pref";
 import db from "../app/db";
@@ -896,10 +895,7 @@ const Stats = () => {
           title={t("account_usage_attachment_storage_title")}
           description={t("account_usage_attachment_storage_description", {
             filesize: formatBytes(account.limits.attachment_file_size),
-            expiry: humanizeDuration(account.limits.attachment_expiry_duration * 1000, {
-              language: i18n.resolvedLanguage,
-              fallbacks: ["en"],
-            }),
+            expiry: formatShortDuration(account.limits.attachment_expiry_duration * 1000, i18n.resolvedLanguage),
           })}
         >
           <div>

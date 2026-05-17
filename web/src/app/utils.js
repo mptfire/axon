@@ -1,4 +1,3 @@
-import { Base64 } from "js-base64";
 import beep from "../sounds/beep.mp3";
 import juntos from "../sounds/juntos.mp3";
 import pristine from "../sounds/pristine.mp3";
@@ -63,9 +62,14 @@ export const unmatchedTags = (tags) => {
   return tags.filter((tag) => !(tag in emojisMapped));
 };
 
-export const encodeBase64 = (s) => Base64.encode(s);
+export const encodeBase64 = (s) => {
+  const bytes = new TextEncoder().encode(s);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+};
 
-export const encodeBase64Url = (s) => Base64.encodeURI(s);
+export const encodeBase64Url = (s) => encodeBase64(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 export const bearerAuth = (token) => `Bearer ${token}`;
 
@@ -150,6 +154,26 @@ export const formatShortDateTime = (timestamp, language) =>
 
 export const formatShortDate = (timestamp, language) =>
   new Intl.DateTimeFormat(getKebabCaseLangStr(language), { dateStyle: "short" }).format(new Date(timestamp * 1000));
+
+export const formatShortDuration = (ms, language) => {
+  const seconds = Math.round(ms / 1000);
+  const units = [
+    { unit: "year", s: 31536000 },
+    { unit: "month", s: 2592000 },
+    { unit: "week", s: 604800 },
+    { unit: "day", s: 86400 },
+    { unit: "hour", s: 3600 },
+    { unit: "minute", s: 60 },
+    { unit: "second", s: 1 },
+  ];
+  const match = units.find((u) => seconds >= u.s) ?? units[units.length - 1];
+  const value = Math.round(seconds / match.s);
+  return new Intl.NumberFormat(getKebabCaseLangStr(language), {
+    style: "unit",
+    unit: match.unit,
+    unitDisplay: "long",
+  }).format(value);
+};
 
 export const formatBytes = (bytes, decimals = 2) => {
   if (bytes === 0) return "0 bytes";
