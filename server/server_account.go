@@ -485,7 +485,7 @@ func (s *Server) handleAccountReservationAdd(w http.ResponseWriter, r *http.Requ
 		return err
 	}
 	// Kill existing subscribers
-	t, err := s.topicFromID(req.Topic)
+	t, err := s.topicFromID(v, req.Topic)
 	if err != nil {
 		return err
 	}
@@ -728,7 +728,7 @@ func (s *Server) publishSyncEvent(v *visitor) error {
 		return nil
 	}
 	logv(v).Field("sync_topic", u.SyncTopic).Trace("Publishing sync event to user's sync topic")
-	syncTopic, err := s.topicFromID(u.SyncTopic)
+	syncTopic, err := s.topicFromID(nil, u.SyncTopic) // internal: no rate limit
 	if err != nil {
 		return err
 	}

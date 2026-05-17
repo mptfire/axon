@@ -2849,7 +2849,7 @@ func TestServer_PublishWhileUpdatingStatsWithLotsOfMessages(t *testing.T) {
 		messages := make([]*model.Message, 0)
 		for i := 0; i < count; i++ {
 			topicID := fmt.Sprintf("topic%d", i)
-			_, err := s.topicsFromIDs(topicID) // Add topic to internal s.topics array
+			_, err := s.topicsFromIDs(nil, topicID) // Add topic to internal s.topics array
 			require.Nil(t, err)
 			messages = append(messages, model.NewDefaultMessage(topicID, "some message"))
 		}
@@ -3145,6 +3145,67 @@ func TestServer_SubscriberRateLimiting_ProtectedTopics_WithDefaultReadWrite(t *t
 		require.Equal(t, 200, rr.Code)
 		require.Equal(t, "1.2.3.4", s.topics["up123456789012"].rateVisitor.ip.String())
 		require.Nil(t, s.topics["announcements"].rateVisitor)
+	})
+}
+
+func TestServer_VisitorTopicCreationLimit(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
+		c.VisitorTopicCreationLimitBurst = 5
+		c.VisitorTopicCreationLimitReplenish = time.Hour // Effectively no refill during the test
+		s := newTestServer(t, c)
+
+		// First 5 brand-new topics succeed
+		for i := 0; i < 5; i++ {
+			rr := request(t, s, "PUT", fmt.Sprintf("/fresh-topic-%d", i), "hi", nil)
+			require.Equal(t, 200, rr.Code)
+		}
+		// 6th brand-new topic is throttled (42911)
+		rr := request(t, s, "PUT", "/fresh-topic-6", "hi", nil)
+		require.Equal(t, 429, rr.Code)
+		require.Contains(t, rr.Body.String(), `"code":42911`)
+
+		// Republishing to an existing topic doesn't consume a token
+		for i := 0; i < 3; i++ {
+			rr := request(t, s, "PUT", "/fresh-topic-0", "again", nil)
+			require.Equal(t, 200, rr.Code)
+		}
+	})
+}
+
+func TestServer_VisitorTopicCreationLimit_Refill(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		c := newTestConfig(t, databaseURL)
+		c.VisitorTopicCreationLimitBurst = 2
+		c.VisitorTopicCreationLimitReplenish = 300 * time.Millisecond
+		s := newTestServer(t, c)
+
+		// Burn the burst
+		for i := 0; i < 2; i++ {
+			rr := request(t, s, "PUT", fmt.Sprintf("/refill-topic-%d", i), "hi", nil)
+			require.Equal(t, 200, rr.Code)
+		}
+		rr := request(t, s, "PUT", "/refill-topic-blocked", "hi", nil)
+		require.Equal(t, 429, rr.Code)
+
+		// Wait for a token to be replenished
+		time.Sleep(400 * time.Millisecond)
+
+		rr = request(t, s, "PUT", "/refill-topic-after", "hi", nil)
+		require.Equal(t, 200, rr.Code)
+	})
+}
+
+func TestServer_VisitorTopicCreationLimit_Disabled(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
+		c.VisitorTopicCreationLimitBurst = 0 // 0 disables the limit
+		s := newTestServer(t, c)
+		for i := 0; i < 25; i++ {
+			rr := request(t, s, "PUT", fmt.Sprintf("/nolimit-topic-%d", i), "hi", nil)
+			require.Equal(t, 200, rr.Code)
+		}
 	})
 }
 

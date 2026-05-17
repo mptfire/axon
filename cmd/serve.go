@@ -93,6 +93,8 @@ var flagsServe = append(
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-message-daily-limit", Aliases: []string{"visitor_message_daily_limit"}, EnvVars: []string{"NTFY_VISITOR_MESSAGE_DAILY_LIMIT"}, Value: server.DefaultVisitorMessageDailyLimit, Usage: "max messages per visitor per day, derived from request limit if unset"}),
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-email-limit-burst", Aliases: []string{"visitor_email_limit_burst"}, EnvVars: []string{"NTFY_VISITOR_EMAIL_LIMIT_BURST"}, Value: server.DefaultVisitorEmailLimitBurst, Usage: "initial limit of e-mails per visitor"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "visitor-email-limit-replenish", Aliases: []string{"visitor_email_limit_replenish"}, EnvVars: []string{"NTFY_VISITOR_EMAIL_LIMIT_REPLENISH"}, Value: util.FormatDuration(server.DefaultVisitorEmailLimitReplenish), Usage: "interval at which burst limit is replenished (one per x)"}),
+	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-topic-creation-limit-burst", Aliases: []string{"visitor_topic_creation_limit_burst"}, EnvVars: []string{"NTFY_VISITOR_TOPIC_CREATION_LIMIT_BURST"}, Value: server.DefaultVisitorTopicCreationLimitBurst, Usage: "burst of new topic creations per visitor (0 = disabled)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "visitor-topic-creation-limit-replenish", Aliases: []string{"visitor_topic_creation_limit_replenish"}, EnvVars: []string{"NTFY_VISITOR_TOPIC_CREATION_LIMIT_REPLENISH"}, Value: util.FormatDuration(server.DefaultVisitorTopicCreationLimitReplenish), Usage: "interval at which topic-creation tokens are refilled (one per x)"}),
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-prefix-bits-ipv4", Aliases: []string{"visitor_prefix_bits_ipv4"}, EnvVars: []string{"NTFY_VISITOR_PREFIX_BITS_IPV4"}, Value: server.DefaultVisitorPrefixBitsIPv4, Usage: "number of bits of the IPv4 address to use for rate limiting (default: 32, full address)"}),
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-prefix-bits-ipv6", Aliases: []string{"visitor_prefix_bits_ipv6"}, EnvVars: []string{"NTFY_VISITOR_PREFIX_BITS_IPV6"}, Value: server.DefaultVisitorPrefixBitsIPv6, Usage: "number of bits of the IPv6 address to use for rate limiting (default: 64, /64 subnet)"}),
 	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "behind-proxy", Aliases: []string{"behind_proxy", "P"}, EnvVars: []string{"NTFY_BEHIND_PROXY"}, Value: false, Usage: "if set, use forwarded header (e.g. X-Forwarded-For, X-Client-IP) to determine visitor IP address (for rate limiting)"}),
@@ -207,6 +209,8 @@ func execServe(c *cli.Context) error {
 	visitorMessageDailyLimit := c.Int("visitor-message-daily-limit")
 	visitorEmailLimitBurst := c.Int("visitor-email-limit-burst")
 	visitorEmailLimitReplenishStr := c.String("visitor-email-limit-replenish")
+	visitorTopicCreationLimitBurst := c.Int("visitor-topic-creation-limit-burst")
+	visitorTopicCreationLimitReplenishStr := c.String("visitor-topic-creation-limit-replenish")
 	visitorPrefixBitsIPv4 := c.Int("visitor-prefix-bits-ipv4")
 	visitorPrefixBitsIPv6 := c.Int("visitor-prefix-bits-ipv6")
 	behindProxy := c.Bool("behind-proxy")
@@ -251,6 +255,10 @@ func execServe(c *cli.Context) error {
 	visitorEmailLimitReplenish, err := util.ParseDuration(visitorEmailLimitReplenishStr)
 	if err != nil {
 		return fmt.Errorf("invalid visitor email limit replenish: %s", visitorEmailLimitReplenishStr)
+	}
+	visitorTopicCreationLimitReplenish, err := util.ParseDuration(visitorTopicCreationLimitReplenishStr)
+	if err != nil {
+		return fmt.Errorf("invalid visitor topic creation limit replenish: %s", visitorTopicCreationLimitReplenishStr)
 	}
 	webPushExpiryDuration, err := util.ParseDuration(webPushExpiryDurationStr)
 	if err != nil {
@@ -497,6 +505,8 @@ func execServe(c *cli.Context) error {
 	conf.VisitorMessageDailyLimit = visitorMessageDailyLimit
 	conf.VisitorEmailLimitBurst = visitorEmailLimitBurst
 	conf.VisitorEmailLimitReplenish = visitorEmailLimitReplenish
+	conf.VisitorTopicCreationLimitBurst = visitorTopicCreationLimitBurst
+	conf.VisitorTopicCreationLimitReplenish = visitorTopicCreationLimitReplenish
 	conf.VisitorPrefixBitsIPv4 = visitorPrefixBitsIPv4
 	conf.VisitorPrefixBitsIPv6 = visitorPrefixBitsIPv6
 	conf.BehindProxy = behindProxy

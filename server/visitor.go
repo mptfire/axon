@@ -53,22 +53,23 @@ const (
 
 // visitor represents an API user, and its associated rate.Limiter used for rate limiting
 type visitor struct {
-	config              *Config
-	messageCache        *message.Cache
-	userManager         *user.Manager      // May be nil
-	ip                  netip.Addr         // Visitor IP address
-	user                *user.User         // Only set if authenticated user, otherwise nil
-	requestLimiter      *rate.Limiter      // Rate limiter for (almost) all requests (including messages)
-	messagesLimiter     *util.FixedLimiter // Rate limiter for messages
-	emailsLimiter       *util.RateLimiter  // Rate limiter for emails
-	callsLimiter        *util.FixedLimiter // Rate limiter for calls
-	subscriptionLimiter *util.FixedLimiter // Fixed limiter for active subscriptions (ongoing connections)
-	bandwidthLimiter    *util.RateLimiter  // Limiter for attachment bandwidth downloads
-	accountLimiter      *rate.Limiter      // Rate limiter for account creation, may be nil
-	authLimiter         *rate.Limiter      // Limiter for incorrect login attempts, may be nil
-	firebase            time.Time          // Next allowed Firebase message
-	seen                time.Time          // Last seen time of this visitor (needed for removal of stale visitors)
-	mu                  sync.RWMutex
+	config               *Config
+	messageCache         *message.Cache
+	userManager          *user.Manager      // May be nil
+	ip                   netip.Addr         // Visitor IP address
+	user                 *user.User         // Only set if authenticated user, otherwise nil
+	requestLimiter       *rate.Limiter      // Rate limiter for (almost) all requests (including messages)
+	messagesLimiter      *util.FixedLimiter // Rate limiter for messages
+	emailsLimiter        *util.RateLimiter  // Rate limiter for emails
+	callsLimiter         *util.FixedLimiter // Rate limiter for calls
+	subscriptionLimiter  *util.FixedLimiter // Fixed limiter for active subscriptions (ongoing connections)
+	topicCreationLimiter *rate.Limiter      // Rate limiter for inserting new topics into the in-memory topic map
+	bandwidthLimiter     *util.RateLimiter  // Limiter for attachment bandwidth downloads
+	accountLimiter       *rate.Limiter      // Rate limiter for account creation, may be nil
+	authLimiter          *rate.Limiter      // Limiter for incorrect login attempts, may be nil
+	firebase             time.Time          // Next allowed Firebase message
+	seen                 time.Time          // Last seen time of this visitor (needed for removal of stale visitors)
+	mu                   sync.RWMutex
 }
 
 type visitorInfo struct {
@@ -123,21 +124,22 @@ func newVisitor(conf *Config, messageCache *message.Cache, userManager *user.Man
 		calls = user.Stats.Calls
 	}
 	v := &visitor{
-		config:              conf,
-		messageCache:        messageCache,
-		userManager:         userManager, // May be nil
-		ip:                  ip,
-		user:                user,
-		firebase:            time.Unix(0, 0),
-		seen:                time.Now(),
-		subscriptionLimiter: util.NewFixedLimiter(int64(conf.VisitorSubscriptionLimit)),
-		requestLimiter:      nil, // Set in resetLimiters
-		messagesLimiter:     nil, // Set in resetLimiters, may be nil
-		emailsLimiter:       nil, // Set in resetLimiters
-		callsLimiter:        nil, // Set in resetLimiters, may be nil
-		bandwidthLimiter:    nil, // Set in resetLimiters
-		accountLimiter:      nil, // Set in resetLimiters, may be nil
-		authLimiter:         nil, // Set in resetLimiters, may be nil
+		config:               conf,
+		messageCache:         messageCache,
+		userManager:          userManager, // May be nil
+		ip:                   ip,
+		user:                 user,
+		firebase:             time.Unix(0, 0),
+		seen:                 time.Now(),
+		subscriptionLimiter:  util.NewFixedLimiter(int64(conf.VisitorSubscriptionLimit)),
+		requestLimiter:       nil, // Set in resetLimiters
+		messagesLimiter:      nil, // Set in resetLimiters, may be nil
+		emailsLimiter:        nil, // Set in resetLimiters
+		callsLimiter:         nil, // Set in resetLimiters, may be nil
+		topicCreationLimiter: nil, // Set in resetLimiters
+		bandwidthLimiter:     nil, // Set in resetLimiters
+		accountLimiter:       nil, // Set in resetLimiters, may be nil
+		authLimiter:          nil, // Set in resetLimiters, may be nil
 	}
 	v.resetLimitersNoLock(messages, emails, calls, false)
 	return v
@@ -174,6 +176,10 @@ func (v *visitor) contextNoLock() log.Context {
 	if v.authLimiter != nil {
 		fields["visitor_auth_limiter_limit"] = v.authLimiter.Limit()
 		fields["visitor_auth_limiter_tokens"] = v.authLimiter.Tokens()
+	}
+	if v.topicCreationLimiter != nil {
+		fields["visitor_topic_creation_limiter_limit"] = v.topicCreationLimiter.Limit()
+		fields["visitor_topic_creation_limiter_tokens"] = v.topicCreationLimiter.Tokens()
 	}
 	if v.user != nil {
 		fields["user_id"] = v.user.ID
@@ -244,6 +250,17 @@ func (v *visitor) SubscriptionAllowed() bool {
 	v.mu.RLock() // limiters could be replaced!
 	defer v.mu.RUnlock()
 	return v.subscriptionLimiter.Allow()
+}
+
+// TopicCreationAllowed returns true if the visitor is allowed to cause a new topic to be
+// inserted into the server's in-memory topic map. Returns true if no limiter is configured.
+func (v *visitor) TopicCreationAllowed() bool {
+	v.mu.RLock() // limiters could be replaced!
+	defer v.mu.RUnlock()
+	if v.topicCreationLimiter == nil {
+		return true
+	}
+	return v.topicCreationLimiter.Allow()
 }
 
 // AuthAllowed returns true if an auth request can be attempted (> 1 token available)
@@ -385,6 +402,11 @@ func (v *visitor) resetLimitersNoLock(messages, emails, calls int64, enqueueUpda
 	v.messagesLimiter = util.NewFixedLimiterWithValue(limits.MessageLimit, messages)
 	v.emailsLimiter = util.NewRateLimiterWithValue(limits.EmailLimitReplenish, limits.EmailLimitBurst, emails)
 	v.callsLimiter = util.NewFixedLimiterWithValue(limits.CallLimit, calls)
+	if v.config.VisitorTopicCreationLimitBurst > 0 && v.config.VisitorTopicCreationLimitReplenish > 0 {
+		v.topicCreationLimiter = rate.NewLimiter(rate.Every(v.config.VisitorTopicCreationLimitReplenish), v.config.VisitorTopicCreationLimitBurst)
+	} else {
+		v.topicCreationLimiter = nil // Disabled
+	}
 	v.bandwidthLimiter = util.NewBytesLimiter(int(limits.AttachmentBandwidthLimit), oneDay)
 	if v.user == nil {
 		v.accountLimiter = rate.NewLimiter(rate.Every(v.config.VisitorAccountCreationLimitReplenish), v.config.VisitorAccountCreationLimitBurst)

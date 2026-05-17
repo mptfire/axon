@@ -1919,6 +1919,17 @@ are enabled):
 * `visitor-email-limit-burst` is the initial bucket of emails each visitor has. This defaults to 16.
 * `visitor-email-limit-replenish` is the rate at which the bucket is refilled (one email per x). Defaults to 1h.
 
+### Topic creation limits
+To mitigate topic-enumeration / squatting attacks (where a single source pokes thousands of guessable
+topic names to inflate the server's in-memory topic map), there is a per-visitor limit on how many *new*
+topics each visitor can cause to be created. Touching topics that already exist in memory does not consume
+a token; only first-time insertions do.
+
+* `visitor-topic-creation-limit-burst` is the initial bucket of new-topic tokens. Set to 0 to disable
+  the limit entirely. Defaults to 100.
+* `visitor-topic-creation-limit-replenish` is the rate at which the bucket is refilled (one new topic per x).
+  Defaults to 1m.
+
 ### Firebase limits
 If [Firebase is configured](#firebase-fcm), all messages are also published to a Firebase topic (unless `Firebase: no` 
 is set). Firebase enforces [its own limits](https://firebase.google.com/docs/cloud-messaging/concept-options#topics_throttling)
@@ -2309,6 +2320,8 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `visitor-request-limit-exempt-hosts`       | `NTFY_VISITOR_REQUEST_LIMIT_EXEMPT_HOSTS`       | *comma-separated host/IP/CIDR list*                 | -                 | Rate limiting: List of hostnames and IPs to be exempt from request rate limiting                                                                                                                                                        |
 | `visitor-subscription-limit`               | `NTFY_VISITOR_SUBSCRIPTION_LIMIT`               | *number*                                            | 30                | Rate limiting: Number of subscriptions per visitor (IP address)                                                                                                                                                                         |
 | `visitor-subscriber-rate-limiting`         | `NTFY_VISITOR_SUBSCRIBER_RATE_LIMITING`         | *bool*                                              | `false`           | Rate limiting: Enables subscriber-based rate limiting                                                                                                                                                                                   |
+| `visitor-topic-creation-limit-burst`       | `NTFY_VISITOR_TOPIC_CREATION_LIMIT_BURST`       | *number*                                            | 100               | Rate limiting: Initial bucket of new topic creations per visitor. 0 disables the limit.                                                                                                                                                 |
+| `visitor-topic-creation-limit-replenish`   | `NTFY_VISITOR_TOPIC_CREATION_LIMIT_REPLENISH`   | *duration*                                          | 1m                | Rate limiting: Rate at which the per-visitor topic-creation bucket is refilled (one new topic per x).                                                                                                                                   |
 | `visitor-prefix-bits-ipv4`                 | `NTFY_VISITOR_PREFIX_BITS_IPV4`                 | *number*                                            | 32                | Rate limiting: Number of bits to use for IPv4 visitor prefix, e.g. 24 for /24                                                                                                                                                           |
 | `visitor-prefix-bits-ipv6`                 | `NTFY_VISITOR_PREFIX_BITS_IPV6`                 | *number*                                            | 64                | Rate limiting: Number of bits to use for IPv6 visitor prefix, e.g. 48 for /48                                                                                                                                                           |
 | `web-root`                                 | `NTFY_WEB_ROOT`                                 | *path*, e.g. `/` or `/app`, or `disable`            | `/`               | Sets root of the web app (e.g. /, or /app), or disables it entirely (disable)                                                                                                                                                           |
@@ -2416,6 +2429,8 @@ OPTIONS:
    --visitor-message-daily-limit value, --visitor_message_daily_limit value                                               max messages per visitor per day, derived from request limit if unset (default: 0) [$NTFY_VISITOR_MESSAGE_DAILY_LIMIT]
    --visitor-email-limit-burst value, --visitor_email_limit_burst value                                                   initial limit of e-mails per visitor (default: 16) [$NTFY_VISITOR_EMAIL_LIMIT_BURST]
    --visitor-email-limit-replenish value, --visitor_email_limit_replenish value                                           interval at which burst limit is replenished (one per x) (default: "1h") [$NTFY_VISITOR_EMAIL_LIMIT_REPLENISH]
+   --visitor-topic-creation-limit-burst value, --visitor_topic_creation_limit_burst value                                 burst of new topic creations per visitor (0 = disabled) (default: 100) [$NTFY_VISITOR_TOPIC_CREATION_LIMIT_BURST]
+   --visitor-topic-creation-limit-replenish value, --visitor_topic_creation_limit_replenish value                         interval at which topic-creation tokens are refilled (one per x) (default: "1m") [$NTFY_VISITOR_TOPIC_CREATION_LIMIT_REPLENISH]
    --visitor-prefix-bits-ipv4 value, --visitor_prefix_bits_ipv4 value                                                     number of bits of the IPv4 address to use for rate limiting (default: 32, full address) (default: 32) [$NTFY_VISITOR_PREFIX_BITS_IPV4]
    --visitor-prefix-bits-ipv6 value, --visitor_prefix_bits_ipv6 value                                                     number of bits of the IPv6 address to use for rate limiting (default: 64, /64 subnet) (default: 64) [$NTFY_VISITOR_PREFIX_BITS_IPV6]
    --behind-proxy, --behind_proxy, -P                                                                                     if set, use forwarded header (e.g. X-Forwarded-For, X-Client-IP) to determine visitor IP address (for rate limiting) (default: false) [$NTFY_BEHIND_PROXY]

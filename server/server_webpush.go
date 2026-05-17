@@ -56,7 +56,7 @@ func (s *Server) handleWebPushUpdate(w http.ResponseWriter, r *http.Request, v *
 	} else if len(req.Topics) > webPushTopicSubscribeLimit {
 		return errHTTPBadRequestWebPushTopicCountTooHigh
 	}
-	topics, err := s.topicsFromIDs(req.Topics...)
+	topics, err := s.topicsFromIDs(v, req.Topics...)
 	if err != nil {
 		return err
 	}

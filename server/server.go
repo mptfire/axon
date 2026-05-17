@@ -1543,7 +1543,7 @@ func (s *Server) handleSubscribeHTTP(w http.ResponseWriter, r *http.Request, v *
 		return errHTTPTooManyRequestsLimitSubscriptions
 	}
 	defer v.RemoveSubscription()
-	topics, topicsStr, err := s.topicsFromPath(r.URL.Path)
+	topics, topicsStr, err := s.topicsFromPath(v, r.URL.Path)
 	if err != nil {
 		return err
 	}
@@ -1646,7 +1646,7 @@ func (s *Server) handleSubscribeWS(w http.ResponseWriter, r *http.Request, v *vi
 	defer v.RemoveSubscription()
 	logvr(v, r).Tag(tagWebsocket).Debug("WebSocket connection opened")
 	defer logvr(v, r).Tag(tagWebsocket).Debug("WebSocket connection closed")
-	topics, topicsStr, err := s.topicsFromPath(r.URL.Path)
+	topics, topicsStr, err := s.topicsFromPath(v, r.URL.Path)
 	if err != nil {
 		return err
 	}
@@ -1916,24 +1916,26 @@ func (s *Server) handleOptions(w http.ResponseWriter, _ *http.Request, _ *visito
 }
 
 // topicFromPath returns the topic from a root path (e.g. /mytopic), creating it if it doesn't exist.
-func (s *Server) topicFromPath(path string) (*topic, error) {
+// The visitor is consulted for the per-visitor topic-creation rate limit; pass nil to bypass (internal use).
+func (s *Server) topicFromPath(v *visitor, path string) (*topic, error) {
 	parts := strings.Split(path, "/")
 	if len(parts) < 2 {
 		return nil, errHTTPBadRequestTopicInvalid
 	}
-	return s.topicFromID(parts[1])
+	return s.topicFromID(v, parts[1])
 }
 
 // topicsFromPath returns the topic from a root path (e.g. /mytopic,mytopic2), creating it if it doesn't exist.
-func (s *Server) topicsFromPath(path string) ([]*topic, string, error) {
+// The visitor is consulted for the per-visitor topic-creation rate limit; pass nil to bypass (internal use).
+func (s *Server) topicsFromPath(v *visitor, path string) ([]*topic, string, error) {
 	parts := strings.Split(path, "/")
 	if len(parts) < 2 {
 		return nil, "", errHTTPBadRequestTopicInvalid
 	}
 	topicIDs := util.SplitNoEmpty(parts[1], ",")
-	topics, err := s.topicsFromIDs(topicIDs...)
+	topics, err := s.topicsFromIDs(v, topicIDs...)
 	if err != nil {
-		return nil, "", errHTTPBadRequestTopicInvalid
+		return nil, "", err
 	}
 	return topics, parts[1], nil
 }
@@ -1948,7 +1950,9 @@ func (s *Server) sequenceIDFromPath(path string) (string, *errHTTP) {
 }
 
 // topicsFromIDs returns the topics with the given IDs, creating them if they don't exist.
-func (s *Server) topicsFromIDs(ids ...string) ([]*topic, error) {
+// If v is non-nil, its per-visitor topic-creation rate limiter is consulted before each new
+// insertion into the in-memory topic map. Pass nil to bypass the limit (internal use only).
+func (s *Server) topicsFromIDs(v *visitor, ids ...string) ([]*topic, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	topics := make([]*topic, 0)
@@ -1960,6 +1964,9 @@ func (s *Server) topicsFromIDs(ids ...string) ([]*topic, error) {
 			if len(s.topics) >= s.config.TotalTopicLimit {
 				return nil, errHTTPTooManyRequestsLimitTotalTopics
 			}
+			if v != nil && !v.TopicCreationAllowed() {
+				return nil, errHTTPTooManyRequestsLimitTopicCreation
+			}
 			s.topics[id] = newTopic(id)
 		}
 		topics = append(topics, s.topics[id])
@@ -1968,8 +1975,9 @@ func (s *Server) topicsFromIDs(ids ...string) ([]*topic, error) {
 }
 
 // topicFromID returns the topic with the given ID, creating it if it doesn't exist.
-func (s *Server) topicFromID(id string) (*topic, error) {
-	topics, err := s.topicsFromIDs(id)
+// The visitor is consulted for the per-visitor topic-creation rate limit; pass nil to bypass (internal use).
+func (s *Server) topicFromID(v *visitor, id string) (*topic, error) {
+	topics, err := s.topicsFromIDs(v, id)
 	if err != nil {
 		return nil, err
 	}
@@ -2239,7 +2247,7 @@ func (s *Server) authorizeTopic(next handleFunc, perm user.Permission) handleFun
 		if s.userManager == nil {
 			return next(w, r, v)
 		}
-		topics, _, err := s.topicsFromPath(r.URL.Path)
+		topics, _, err := s.topicsFromPath(v, r.URL.Path)
 		if err != nil {
 			return err
 		}

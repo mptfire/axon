@@ -1895,6 +1895,10 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## ntfy server v2.23.x (UNRELEASED)
 
+**Features:**
+
+* Add per-visitor rate limit on new topic creations (`visitor-topic-creation-limit-burst` / `visitor-topic-creation-limit-replenish`, defaults 100 burst / 1m replenish) to mitigate topic-enumeration / squatting attacks that inflate the in-memory topic map
+
 **Bug fixes + maintenance:**
 
 * Remove `stacktrace-js`, `stacktrace-gps`, `humanize-duration`, and `js-base64` from the web app to reduce dependency and security footprint

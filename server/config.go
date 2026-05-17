@@ -69,6 +69,8 @@ const (
 	DefaultVisitorMessageDailyLimit             = 0
 	DefaultVisitorEmailLimitBurst               = 16
 	DefaultVisitorEmailLimitReplenish           = time.Hour
+	DefaultVisitorTopicCreationLimitBurst       = 100
+	DefaultVisitorTopicCreationLimitReplenish   = time.Minute
 	DefaultVisitorAccountCreationLimitBurst     = 3
 	DefaultVisitorAccountCreationLimitReplenish = 24 * time.Hour
 	DefaultVisitorAuthFailureLimitBurst         = 30
@@ -163,6 +165,8 @@ type Config struct {
 	VisitorMessageDailyLimit             int
 	VisitorEmailLimitBurst               int
 	VisitorEmailLimitReplenish           time.Duration
+	VisitorTopicCreationLimitBurst       int           // Burst of new topic creations per visitor
+	VisitorTopicCreationLimitReplenish   time.Duration // Interval at which topic-creation tokens are refilled
 	VisitorAccountCreationLimitBurst     int
 	VisitorAccountCreationLimitReplenish time.Duration
 	VisitorAuthFailureLimitBurst         int
@@ -266,6 +270,8 @@ func NewConfig() *Config {
 		VisitorMessageDailyLimit:             DefaultVisitorMessageDailyLimit,
 		VisitorEmailLimitBurst:               DefaultVisitorEmailLimitBurst,
 		VisitorEmailLimitReplenish:           DefaultVisitorEmailLimitReplenish,
+		VisitorTopicCreationLimitBurst:       DefaultVisitorTopicCreationLimitBurst,
+		VisitorTopicCreationLimitReplenish:   DefaultVisitorTopicCreationLimitReplenish,
 		VisitorAccountCreationLimitBurst:     DefaultVisitorAccountCreationLimitBurst,
 		VisitorAccountCreationLimitReplenish: DefaultVisitorAccountCreationLimitReplenish,
 		VisitorAuthFailureLimitBurst:         DefaultVisitorAuthFailureLimitBurst,
