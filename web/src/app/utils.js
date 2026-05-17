@@ -142,9 +142,11 @@ export const hashCode = (s) => {
 
 /**
  * convert `i18n.language` style str (e.g.: `en_US`) to kebab-case (e.g.: `en-US`),
- * which is expected by `<html lang>` and `Intl.DateTimeFormat`
+ * which is expected by `<html lang>` and `Intl.DateTimeFormat`. Falls back to "en"
+ * if the input is missing or not a string.
  */
-export const getKebabCaseLangStr = (language) => language.replace(/_/g, "-");
+export const getKebabCaseLangStr = (language) =>
+  typeof language === "string" && language.length > 0 ? language.replace(/_/g, "-") : "en";
 
 export const formatShortDateTime = (timestamp, language) =>
   new Intl.DateTimeFormat(getKebabCaseLangStr(language), {
@@ -168,11 +170,17 @@ export const formatShortDuration = (ms, language) => {
   ];
   const match = units.find((u) => seconds >= u.s) ?? units[units.length - 1];
   const value = Math.round(seconds / match.s);
-  return new Intl.NumberFormat(getKebabCaseLangStr(language), {
-    style: "unit",
-    unit: match.unit,
-    unitDisplay: "long",
-  }).format(value);
+  // [lang, "en"] makes Intl fall back to English for well-formed-but-unsupported tags;
+  // the try/catch covers malformed tags (RangeError) so the web app never crashes here.
+  try {
+    return new Intl.NumberFormat([getKebabCaseLangStr(language), "en"], {
+      style: "unit",
+      unit: match.unit,
+      unitDisplay: "long",
+    }).format(value);
+  } catch {
+    return new Intl.NumberFormat("en", { style: "unit", unit: match.unit, unitDisplay: "long" }).format(value);
+  }
 };
 
 export const formatBytes = (bytes, decimals = 2) => {
