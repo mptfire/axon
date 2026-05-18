@@ -6,11 +6,23 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 | Component        | Version | Release date |
 |------------------|---------|--------------|
-| ntfy server      | v2.22.0 | Apr 21, 2026 |
+| ntfy server      | v2.23.0 | May 17, 2026 |
 | ntfy Android app | v1.24.0 | Mar 5, 2026  |
 | ntfy iOS app     | v1.6.0  | May 12, 2026 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+## ntfy server v2.23.0
+Released May 17, 2026
+
+**Features:**
+
+* Add per-visitor rate limit on new topic creations (`visitor-topic-creation-limit-burst` / `visitor-topic-creation-limit-replenish`, defaults 100 burst / 1m replenish) to mitigate topic-enumeration / squatting attacks that inflate the in-memory topic map
+
+**Bug fixes + maintenance:**
+
+* Remove `stacktrace-js`, `stacktrace-gps`, `humanize-duration`, and `js-base64` from the web app to reduce dependency and security footprint
+* Restrict the publish dialog's local file preview to safe image types (png/jpg/gif/webp) to prevent same-origin script execution from blob URLs when previewing a crafted SVG ([GHSA-j8hr-p342-xrmh](https://github.com/binwiederhier/ntfy/security/advisories/GHSA-j8hr-p342-xrmh), thanks to [@Venukamatchi](https://github.com/Venukamatchi) for reporting)
 
 ## ntfy iOS app v1.6.0
 Released May 12, 2026
@@ -1892,17 +1904,6 @@ For older releases, check out the GitHub releases pages for the [ntfy server](ht
 and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/releases).
 
 ## Not released yet
-
-## ntfy server v2.23.x (UNRELEASED)
-
-**Features:**
-
-* Add per-visitor rate limit on new topic creations (`visitor-topic-creation-limit-burst` / `visitor-topic-creation-limit-replenish`, defaults 100 burst / 1m replenish) to mitigate topic-enumeration / squatting attacks that inflate the in-memory topic map
-
-**Bug fixes + maintenance:**
-
-* Remove `stacktrace-js`, `stacktrace-gps`, `humanize-duration`, and `js-base64` from the web app to reduce dependency and security footprint
-* Restrict the publish dialog's local file preview to safe image types (png/jpg/gif/webp) to prevent same-origin script execution from blob URLs when previewing a crafted SVG ([GHSA-j8hr-p342-xrmh](https://github.com/binwiederhier/ntfy/security/advisories/GHSA-j8hr-p342-xrmh), thanks to [@Venukamatchi](https://github.com/Venukamatchi) for reporting)
 
 ## ntfy Android v1.25.x (UNRELEASED)
 
