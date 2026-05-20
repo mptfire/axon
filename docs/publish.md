@@ -932,7 +932,7 @@ Here's an example of how it will look on Android:
 </figure>
 
 ## Attachments
-_Supported on:_ :material-android: :material-firefox:
+_Supported on:_ :material-android: :material-apple: :material-firefox:
 
 You can **send images and other files to your phone** as attachments to a notification. The attachments are then downloaded
 onto your phone (depending on size and setting automatically), and can be used from the Downloads folder.
