@@ -70,12 +70,10 @@ const (
 	postgresDeleteUsersProvisionedQuery   = `DELETE FROM "user" WHERE provisioned = true`
 
 	// Access queries
-	postgresSelectTopicPermsQuery = `
-		SELECT read, write
+	postgresSelectAllAccessForCacheQuery = `
+		SELECT u.user_name, a.topic, a.read, a.write
 		FROM user_access a
 		JOIN "user" u ON u.id = a.user_id
-		WHERE (u.user_name = $1 OR u.user_name = $2) AND $3 LIKE a.topic ESCAPE '\'
-		ORDER BY u.user_name DESC, LENGTH(a.topic) DESC, CASE WHEN a.write THEN 1 ELSE 0 END DESC
 	`
 	postgresSelectUserAllAccessQuery = `
 		SELECT user_id, topic, read, write, provisioned
@@ -244,7 +242,7 @@ var postgresQueries = queries{
 	deleteUserTier:               postgresDeleteUserTierQuery,
 	deleteUsersMarked:            postgresDeleteUsersMarkedQuery,
 	deleteUsersProvisioned:       postgresDeleteUsersProvisionedQuery,
-	selectTopicPerms:             postgresSelectTopicPermsQuery,
+	selectAllAccessForCache:      postgresSelectAllAccessForCacheQuery,
 	selectUserAllAccess:          postgresSelectUserAllAccessQuery,
 	selectUserAccess:             postgresSelectUserAccessQuery,
 	selectUserReservations:       postgresSelectUserReservationsQuery,

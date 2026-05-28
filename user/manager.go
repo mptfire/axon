@@ -38,6 +38,11 @@ const (
 const (
 	DefaultUserStatsQueueWriterInterval = 33 * time.Second
 	DefaultUserPasswordBcryptCost       = 10
+	// DefaultAccessCacheReloadInterval bounds how stale the in-memory ACL snapshot
+	// can be relative to writes made by *other* processes (e.g. a separate `ntfy
+	// access` CLI invocation modifying the same database). Mutations performed
+	// by this Manager refresh the cache synchronously and do not depend on this.
+	DefaultAccessCacheReloadInterval = 5 * time.Second
 )
 
 var (
@@ -48,12 +53,14 @@ var (
 
 // Manager handles user authentication, authorization, and management
 type Manager struct {
-	config     *Config
-	db         *db.DB
-	queries    queries
-	statsQueue map[string]*Stats       // "Queue" to asynchronously write user stats to the database (UserID -> Stats)
-	tokenQueue map[string]*TokenUpdate // "Queue" to asynchronously write token access stats to the database (Token ID -> TokenUpdate)
-	mu         sync.Mutex
+	config      *Config
+	db          *db.DB
+	queries     queries
+	statsQueue  map[string]*Stats       // "Queue" to asynchronously write user stats to the database (UserID -> Stats)
+	tokenQueue  map[string]*TokenUpdate // "Queue" to asynchronously write token access stats to the database (Token ID -> TokenUpdate)
+	accessCache *aclCache               // In-memory snapshot of user_access; rebuilt after every ACL mutation
+	quit        chan struct{}           // Closed by Close() to signal background goroutines to stop
+	mu          sync.Mutex
 }
 
 var _ Auther = (*Manager)(nil)
@@ -65,18 +72,58 @@ func newManager(d *db.DB, queries queries, config *Config) (*Manager, error) {
 	if config.QueueWriterInterval.Seconds() <= 0 {
 		config.QueueWriterInterval = DefaultUserStatsQueueWriterInterval
 	}
+	if config.AccessCacheReloadInterval == 0 {
+		config.AccessCacheReloadInterval = DefaultAccessCacheReloadInterval
+	}
 	manager := &Manager{
-		config:     config,
-		db:         d,
-		statsQueue: make(map[string]*Stats),
-		tokenQueue: make(map[string]*TokenUpdate),
-		queries:    queries,
+		config:      config,
+		db:          d,
+		statsQueue:  make(map[string]*Stats),
+		tokenQueue:  make(map[string]*TokenUpdate),
+		accessCache: newAccessCache(),
+		quit:        make(chan struct{}),
+		queries:     queries,
 	}
 	if err := manager.maybeProvisionUsersAccessAndTokens(); err != nil {
 		return nil, err
 	}
+	// Populate the ACL cache after provisioning so the initial snapshot includes
+	// any provisioned access rules. Subsequent mutations call reloadAccessCache.
+	if err := manager.reloadAccessCache(); err != nil {
+		return nil, err
+	}
 	go manager.asyncQueueWriter(manager.config.QueueWriterInterval)
+	if manager.config.AccessCacheReloadInterval > 0 {
+		go manager.asyncAccessCacheReloader(manager.config.AccessCacheReloadInterval)
+	}
 	return manager, nil
+}
+
+// reloadAccessCache rebuilds the in-memory ACL snapshot from the primary
+// database. Called once at startup (after provisioning) and after every method
+// that mutates user_access (directly or by cascade from "user" deletion).
+func (a *Manager) reloadAccessCache() error {
+	return a.accessCache.reload(a.db, a.queries.selectAllAccessForCache)
+}
+
+// asyncAccessCacheReloader periodically refreshes the ACL snapshot so that
+// writes made by other processes against the same database (most notably the
+// `ntfy access` CLI subcommand running while a server holds the cache) become
+// visible within the configured interval. This Manager's own writes do not
+// depend on the poller -- they refresh the cache synchronously.
+func (a *Manager) asyncAccessCacheReloader(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-a.quit:
+			return
+		case <-ticker.C:
+			if err := a.reloadAccessCache(); err != nil {
+				log.Tag(tag).Err(err).Warn("Reloading ACL cache failed")
+			}
+		}
+	}
 }
 
 // Authenticate checks username and password and returns a User if correct, and the user has not been
@@ -151,9 +198,13 @@ func (a *Manager) RemoveUser(username string) error {
 	if err := a.CanChangeUser(username); err != nil {
 		return err
 	}
-	return db.ExecTx(a.db, func(tx *sql.Tx) error {
+	if err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		return a.removeUserTx(tx, username)
-	})
+	}); err != nil {
+		return err
+	}
+	// user_access rows are cascade-deleted along with the user; refresh the snapshot.
+	return a.reloadAccessCache()
 }
 
 // removeUserTx deletes the user with the given username
@@ -174,7 +225,7 @@ func (a *Manager) MarkUserRemoved(user *User) error {
 	if !AllowedUsername(user.Name) {
 		return ErrInvalidArgument
 	}
-	return db.ExecTx(a.db, func(tx *sql.Tx) error {
+	if err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		if err := a.resetUserAccessTx(tx, user.Name); err != nil {
 			return err
 		}
@@ -186,7 +237,11 @@ func (a *Manager) MarkUserRemoved(user *User) error {
 			return err
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	// resetUserAccessTx wiped this user's user_access rows; refresh the snapshot.
+	return a.reloadAccessCache()
 }
 
 // RemoveDeletedUsers deletes all users that have been marked deleted
@@ -194,7 +249,8 @@ func (a *Manager) RemoveDeletedUsers() error {
 	if _, err := a.db.Exec(a.queries.deleteUsersMarked, time.Now().Unix()); err != nil {
 		return err
 	}
-	return nil
+	// user_access rows are cascade-deleted with the users; refresh the snapshot.
+	return a.reloadAccessCache()
 }
 
 // ChangePassword changes a user's password
@@ -225,9 +281,15 @@ func (a *Manager) ChangeRole(username string, role Role) error {
 	if err := a.CanChangeUser(username); err != nil {
 		return err
 	}
-	return db.ExecTx(a.db, func(tx *sql.Tx) error {
+	if err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		return a.changeRoleTx(tx, username, role)
-	})
+	}); err != nil {
+		return err
+	}
+	// Promotion to admin clears user_access rows for the user; refresh the snapshot.
+	// Other role changes are no-ops for the cache but reloading is cheap and keeps
+	// the code path uniform.
+	return a.reloadAccessCache()
 }
 
 // changeRoleTx changes a user's role
@@ -588,9 +650,12 @@ func (a *Manager) resolvePerms(base, perm Permission) error {
 // read/write access to a topic. The parameter topicPattern may include wildcards (*). The ACL entry
 // owner may either be a user (username), or the system (empty).
 func (a *Manager) AllowAccess(username string, topicPattern string, permission Permission) error {
-	return db.ExecTx(a.db, func(tx *sql.Tx) error {
+	if err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		return a.allowAccessTx(tx, username, topicPattern, permission, false)
-	})
+	}); err != nil {
+		return err
+	}
+	return a.reloadAccessCache()
 }
 
 func (a *Manager) allowAccessTx(tx *sql.Tx, username string, topicPattern string, permission Permission, provisioned bool) error {
@@ -606,9 +671,12 @@ func (a *Manager) allowAccessTx(tx *sql.Tx, username string, topicPattern string
 // ResetAccess removes an access control list entry for a specific username/topic, or (if topic is
 // empty) for an entire user. The parameter topicPattern may include wildcards (*).
 func (a *Manager) ResetAccess(username string, topicPattern string) error {
-	return db.ExecTx(a.db, func(tx *sql.Tx) error {
+	if err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		return a.resetAccessTx(tx, username, topicPattern)
-	})
+	}); err != nil {
+		return err
+	}
+	return a.reloadAccessCache()
 }
 
 func (a *Manager) resetAccessTx(tx *sql.Tx, username string, topicPattern string) error {
@@ -650,24 +718,15 @@ func (a *Manager) AllowReservation(username string, topic string) error {
 // authorizeTopicAccess returns the read/write permissions for the given username and topic.
 // The found return value indicates whether an ACL entry was found at all.
 //
-// - The query may return two rows (one for everyone, and one for the user), but prioritizes the user.
-// - Furthermore, the query prioritizes more specific permissions (longer!) over more generic ones, e.g. "test*" > "*"
+// - The cache may contain two matching entries (one for everyone, and one for the user), but prioritizes the user.
+// - Furthermore, the lookup prioritizes more specific permissions (longer!) over more generic ones, e.g. "test*" > "*"
 // - It also prioritizes write permissions over read permissions
+//
+// The lookup is served entirely from the in-memory snapshot maintained by accessCache,
+// so this is on the hot path of every authenticatable HTTP request and must stay allocation-free.
 func (a *Manager) authorizeTopicAccess(usernameOrEveryone, topic string) (read, write, found bool, err error) {
-	rows, err := a.db.ReadOnly().Query(a.queries.selectTopicPerms, Everyone, usernameOrEveryone, topic)
-	if err != nil {
-		return false, false, false, err
-	}
-	defer rows.Close()
-	if !rows.Next() {
-		return false, false, false, nil
-	}
-	if err := rows.Scan(&read, &write); err != nil {
-		return false, false, false, err
-	} else if err := rows.Err(); err != nil {
-		return false, false, false, err
-	}
-	return read, write, true, nil
+	read, write, found = a.accessCache.Lookup(usernameOrEveryone, topic)
+	return read, write, found, nil
 }
 
 // AllGrants returns all user-specific access control entries, mapped to their respective user IDs
@@ -731,7 +790,7 @@ func (a *Manager) AddReservation(username string, topic string, everyone Permiss
 	if !AllowedUsername(username) || username == Everyone || !AllowedTopic(topic) {
 		return ErrInvalidArgument
 	}
-	return db.ExecTx(a.db, func(tx *sql.Tx) error {
+	if err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		if limit > 0 {
 			hasReservation, err := a.hasReservationTx(tx, username, topic)
 			if err != nil {
@@ -754,7 +813,10 @@ func (a *Manager) AddReservation(username string, topic string, everyone Permiss
 			return err
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	return a.reloadAccessCache()
 }
 
 // RemoveReservations deletes the access control entries associated with the given username/topic,
@@ -769,14 +831,17 @@ func (a *Manager) RemoveReservations(username string, topics ...string) error {
 			return ErrInvalidArgument
 		}
 	}
-	return db.ExecTx(a.db, func(tx *sql.Tx) error {
+	if err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		for _, topic := range topics {
 			if err := a.removeReservationAccessTx(tx, username, topic); err != nil {
 				return err
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	return a.reloadAccessCache()
 }
 
 // Reservations returns all user-owned topics, and the associated everyone-access
@@ -1515,8 +1580,15 @@ func (a *Manager) maybeProvisionTokens(tx *sql.Tx, provisionUsernames []string, 
 	return nil
 }
 
-// Close closes the underlying database
+// Close stops background goroutines and closes the underlying database.
+// Safe to call multiple times.
 func (a *Manager) Close() error {
+	select {
+	case <-a.quit:
+		// already closed
+	default:
+		close(a.quit)
+	}
 	return a.db.Close()
 }
 

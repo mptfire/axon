@@ -116,6 +116,7 @@ type Config struct {
 	AuthTokens                           map[string][]*user.Token
 	AuthBcryptCost                       int
 	AuthStatsQueueWriterInterval         time.Duration
+	AuthAccessCacheReloadInterval        time.Duration
 	AttachmentCacheDir                   string
 	AttachmentTotalSizeLimit             int64
 	AttachmentFileSizeLimit              int64
@@ -223,6 +224,7 @@ func NewConfig() *Config {
 		AuthDefault:                          user.PermissionReadWrite,
 		AuthBcryptCost:                       user.DefaultUserPasswordBcryptCost,
 		AuthStatsQueueWriterInterval:         user.DefaultUserStatsQueueWriterInterval,
+		AuthAccessCacheReloadInterval:        user.DefaultAccessCacheReloadInterval,
 		AttachmentCacheDir:                   "",
 		AttachmentTotalSizeLimit:             DefaultAttachmentTotalSizeLimit,
 		AttachmentFileSizeLimit:              DefaultAttachmentFileSizeLimit,

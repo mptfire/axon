@@ -255,6 +255,16 @@ type Config struct {
 	Tokens              map[string][]*Token // Predefined users to create on startup (username -> []*Token)
 	QueueWriterInterval time.Duration       // Interval for the async queue writer to flush stats and token updates to the database
 	BcryptCost          int                 // Cost of generated passwords; lowering makes testing faster
+
+	// AccessCacheReloadInterval bounds the staleness of the in-memory ACL cache
+	// relative to writes from other processes (e.g. `ntfy access` CLI against a
+	// running server).
+	//   0        -> use DefaultAccessCacheReloadInterval
+	//   negative -> disable the background poller; cache only refreshes on this
+	//               Manager's own ACL mutations. Use this for short-lived Managers
+	//               (e.g. the CLI subcommands) where polling is wasted work.
+	//   positive -> poll at the given interval
+	AccessCacheReloadInterval time.Duration
 }
 
 // Error constants used by the package
@@ -303,7 +313,7 @@ type queries struct {
 	deleteUsersProvisioned       string
 
 	// Access queries
-	selectTopicPerms            string
+	selectAllAccessForCache     string // Bulk load: (user_name, topic, read, write) for the in-memory ACL cache
 	selectUserAllAccess         string
 	selectUserAccess            string
 	selectUserReservations      string

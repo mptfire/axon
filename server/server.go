@@ -247,16 +247,17 @@ func New(conf *Config) (*Server, error) {
 	var userManager *user.Manager
 	if conf.AuthFile != "" || pool != nil {
 		authConfig := &user.Config{
-			Filename:            conf.AuthFile,
-			DatabaseURL:         conf.DatabaseURL,
-			StartupQueries:      conf.AuthStartupQueries,
-			DefaultAccess:       conf.AuthDefault,
-			ProvisionEnabled:    true, // Enable provisioning of users and access
-			Users:               conf.AuthUsers,
-			Access:              conf.AuthAccess,
-			Tokens:              conf.AuthTokens,
-			BcryptCost:          conf.AuthBcryptCost,
-			QueueWriterInterval: conf.AuthStatsQueueWriterInterval,
+			Filename:                  conf.AuthFile,
+			DatabaseURL:               conf.DatabaseURL,
+			StartupQueries:            conf.AuthStartupQueries,
+			DefaultAccess:             conf.AuthDefault,
+			ProvisionEnabled:          true, // Enable provisioning of users and access
+			Users:                     conf.AuthUsers,
+			Access:                    conf.AuthAccess,
+			Tokens:                    conf.AuthTokens,
+			BcryptCost:                conf.AuthBcryptCost,
+			QueueWriterInterval:       conf.AuthStatsQueueWriterInterval,
+			AccessCacheReloadInterval: conf.AuthAccessCacheReloadInterval,
 		}
 		if pool != nil {
 			userManager, err = user.NewPostgresManager(pool, authConfig)

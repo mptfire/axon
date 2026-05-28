@@ -76,12 +76,10 @@ const (
 	sqliteDeleteUsersProvisionedQuery   = `DELETE FROM user WHERE provisioned = 1`
 
 	// Access queries
-	sqliteSelectTopicPermsQuery = `
-		SELECT read, write
+	sqliteSelectAllAccessForCacheQuery = `
+		SELECT u.user, a.topic, a.read, a.write
 		FROM user_access a
 		JOIN user u ON u.id = a.user_id
-		WHERE (u.user = ? OR u.user = ?) AND ? LIKE a.topic ESCAPE '\'
-		ORDER BY u.user DESC, LENGTH(a.topic) DESC, a.write DESC
 	`
 	sqliteSelectUserAllAccessQuery = `
 		SELECT user_id, topic, read, write, provisioned
@@ -242,7 +240,7 @@ var sqliteQueries = queries{
 	deleteUserTier:               sqliteDeleteUserTierQuery,
 	deleteUsersMarked:            sqliteDeleteUsersMarkedQuery,
 	deleteUsersProvisioned:       sqliteDeleteUsersProvisionedQuery,
-	selectTopicPerms:             sqliteSelectTopicPermsQuery,
+	selectAllAccessForCache:      sqliteSelectAllAccessForCacheQuery,
 	selectUserAllAccess:          sqliteSelectUserAllAccessQuery,
 	selectUserAccess:             sqliteSelectUserAccessQuery,
 	selectUserReservations:       sqliteSelectUserReservationsQuery,
