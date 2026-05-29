@@ -12,8 +12,9 @@ import {
   EVENT_MESSAGE,
   EVENT_MESSAGE_CLEAR,
   EVENT_MESSAGE_DELETE,
-  WEBPUSH_EVENT_MESSAGE,
-  WEBPUSH_EVENT_SUBSCRIPTION_EXPIRING,
+  SW_PERIODIC_SYNC_EXTEND_TOKEN_TAG,
+  SW_WEBPUSH_EVENT_MESSAGE,
+  SW_WEBPUSH_EVENT_SUBSCRIPTION_EXPIRING,
 } from "../src/app/events";
 
 /**
@@ -88,11 +89,11 @@ const handlePushMessage = async (data) => {
   // Broadcast the message to potentially play a sound
   broadcastChannel.postMessage(message);
 
-  await extendToken();
+  await maybeExtendToken();
 };
 
-const refreshThreshold = 1000 * 60 * 60; // 1 hour
-const extendToken = async () => {
+const refreshTokenThreshold = 1000 * 60 * 60; // 1 hour
+const maybeExtendToken = async () => {
   if (import.meta.env.DEV) {
     console.warn("[ServiceWorker] Skipping token extension in development since no config.base_url exists");
     return;
@@ -107,7 +108,7 @@ const extendToken = async () => {
   const lastExtendedAt = await session.lastExtendedAtAsync();
   const now = Date.now();
 
-  if (lastExtendedAt && now - lastExtendedAt < refreshThreshold) {
+  if (lastExtendedAt && now - lastExtendedAt < refreshTokenThreshold) {
     console.debug(`[ServiceWorker] Token extended ${Math.floor((now - lastExtendedAt) / 1000 / 60)} minutes ago, skipping`);
     return;
   }
@@ -138,7 +139,7 @@ const extendToken = async () => {
 };
 
 /**
- * Registers a periodic-sync listener for `extend-token` (see hooks.js).
+ * Registers a periodic-sync listener for `extend_token` (see hooks.js).
  * This extends the token regardless of whether the browser is open.
  *
  * CAVEATS:
@@ -147,9 +148,9 @@ const extendToken = async () => {
  * - Only when notifications are granted
  */
 self.addEventListener("periodicsync", (event) => {
-  if (event.tag === "extend-token") {
-    console.log('[ServiceWorker] Received periodicsync event "extend-token"');
-    event.waitUntil(extendToken());
+  if (event.tag === SW_PERIODIC_SYNC_EXTEND_TOKEN_TAG) {
+    console.log(`[ServiceWorker] Received periodicsync event "${SW_PERIODIC_SYNC_EXTEND_TOKEN_TAG}"`);
+    event.waitUntil(maybeExtendToken());
   }
 });
 
@@ -263,7 +264,7 @@ const handlePush = async (data) => {
   // - Web app: hooks.js:handleNotification()
   // - Web app: sw.js:handleMessage(), sw.js:handleMessageClear(), ...
 
-  if (data.event === WEBPUSH_EVENT_MESSAGE) {
+  if (data.event === SW_WEBPUSH_EVENT_MESSAGE) {
     const { message } = data;
     if (message.event === EVENT_MESSAGE) {
       return await handlePushMessage(data);
@@ -272,7 +273,7 @@ const handlePush = async (data) => {
     } else if (message.event === EVENT_MESSAGE_CLEAR) {
       return await handlePushMessageClear(data);
     }
-  } else if (data.event === WEBPUSH_EVENT_SUBSCRIPTION_EXPIRING) {
+  } else if (data.event === SW_WEBPUSH_EVENT_SUBSCRIPTION_EXPIRING) {
     return await handlePushSubscriptionExpiring(data);
   }
 

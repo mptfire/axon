@@ -13,7 +13,7 @@ import versionChecker from "../app/VersionChecker";
 import { UnauthorizedError } from "../app/errors";
 import notifier from "../app/Notifier";
 import prefs from "../app/Prefs";
-import { EVENT_MESSAGE_DELETE, EVENT_MESSAGE_CLEAR } from "../app/events";
+import { EVENT_MESSAGE_DELETE, EVENT_MESSAGE_CLEAR, SW_PERIODIC_SYNC_EXTEND_TOKEN_TAG } from "../app/events";
 
 /**
  * Wire connectionManager and subscriptionManager so that subscriptions are updated when the connection
@@ -284,13 +284,16 @@ export const useStandaloneWebPushAutoSubscribe = () => {
 };
 
 /**
- * Registers a periodicsync listener for `extend-token` (see sw.js).
+ * Registers a periodicsync listener for `extend_token` (see sw.js).
  * This extends the token regardless of whether the browser is open.
  *
  * CAVEATS:
  * - Chromium-only
  * - Only when the PWA is _installed_ (not just running in a browser tab)
  * - Only when notifications are granted
+ *
+ * This is an experimental feature:
+ * https://developer.mozilla.org/en-US/docs/Web/API/Web_Periodic_Background_Synchronization_API
  */
 const usePeriodicTokenExtend = () => {
   const isLaunchedPWA = useIsLaunchedPWA();
@@ -315,9 +318,9 @@ const usePeriodicTokenExtend = () => {
           return;
         }
 
-        console.log(`[usePeriodicTokenExtend] Turning on periodicsync "extend-token"`);
-        await registration.periodicSync.register("extend-token", {
-          minInterval: 24 * 60 * 60 * 1000, // 24 hours
+        console.log(`[usePeriodicTokenExtend] Turning on periodicsync "${SW_PERIODIC_SYNC_EXTEND_TOKEN_TAG}"`);
+        await registration.periodicSync.register(SW_PERIODIC_SYNC_EXTEND_TOKEN_TAG, {
+          minInterval: 60 * 1000 // 24 * 60 * 60 * 1000 // 24 hours
         });
       } catch (error) {
         console.log("[usePeriodicTokenExtend] Periodic Sync could not be registered", error);
