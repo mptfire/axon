@@ -1,6 +1,6 @@
 # Privacy policy
 
-**Last updated:** January 2, 2026
+**Last updated:** March 31, 2026
 
 This privacy policy describes how ntfy ("we", "us", or "our") collects, uses, and handles your information
 when you use the ntfy.sh service, web app, and mobile applications (Android and iOS).
@@ -19,7 +19,8 @@ If you create an account on ntfy.sh, we collect:
 
 - **Username** - A unique identifier you choose
 - **Password** - Stored as a secure bcrypt hash (we never store your plaintext password)
-- **Email address** - Only if you subscribe to a paid plan (for billing purposes)
+- **Email address** - If you subscribe to a paid plan (for billing purposes via Stripe), or if you add a verified
+  email address for use with the email notification feature
 - **Phone number** - Only if you enable the phone call notification feature (verified via SMS/call)
 
 You can use ntfy without creating an account. Anonymous usage is fully supported.
@@ -143,6 +144,7 @@ No cookies are used for tracking. The web app does not have a backend beyond the
 | Attachments            | 3 hours (configurable by server operators)        |
 | User accounts          | Until you delete your account                     |
 | Access tokens          | Until you revoke them or delete your account      |
+| Email addresses        | Until you remove them or delete your account      |
 | Phone numbers          | Until you remove them or delete your account      |
 | Web push subscriptions | 60 days of inactivity, then automatically removed |
 | Server logs            | Varies; debugging logs are typically temporary    |

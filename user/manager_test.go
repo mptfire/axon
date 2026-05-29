@@ -1137,6 +1137,60 @@ func TestUser_PhoneNumberAdd_Multiple_Users_Same_Number(t *testing.T) {
 	})
 }
 
+func TestUser_EmailAddListRemove(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+		require.Nil(t, a.AddEmail(phil.ID, "phil@example.com"))
+
+		emails, err := a.Emails(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, 1, len(emails))
+		require.Equal(t, "phil@example.com", emails[0])
+
+		require.Nil(t, a.RemoveEmail(phil.ID, "phil@example.com"))
+		emails, err = a.Emails(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, 0, len(emails))
+
+		// Paranoia check: We do NOT want to keep emails in there
+		rows, err := testDB(a).Query(`SELECT * FROM user_email`)
+		require.Nil(t, err)
+		require.False(t, rows.Next())
+		require.Nil(t, rows.Close())
+	})
+}
+
+func TestUser_EmailAdd_Multiple_Users_Same_Email(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+		ben, err := a.User("ben")
+		require.Nil(t, err)
+		require.Nil(t, a.AddEmail(phil.ID, "shared@example.com"))
+		require.Nil(t, a.AddEmail(ben.ID, "shared@example.com"))
+	})
+}
+
+func TestUser_EmailAdd_Duplicate(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+		require.Nil(t, a.AddEmail(phil.ID, "phil@example.com"))
+		require.ErrorIs(t, a.AddEmail(phil.ID, "phil@example.com"), ErrEmailExists)
+	})
+}
+
 func TestManager_Topic_Wildcard_With_Asterisk_Underscore(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		a := newTestManager(t, newManager, PermissionDenyAll)
@@ -2325,6 +2379,27 @@ func TestStorePhoneNumbers(t *testing.T) {
 		require.Nil(t, err)
 		require.Len(t, numbers, 1)
 		require.Equal(t, "+0987654321", numbers[0])
+	})
+}
+
+func TestStoreEmails(t *testing.T) {
+	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
+		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
+		u, err := manager.User("phil")
+		require.Nil(t, err)
+
+		require.Nil(t, manager.AddEmail(u.ID, "phil@example.com"))
+		require.Nil(t, manager.AddEmail(u.ID, "phil2@example.com"))
+
+		emails, err := manager.Emails(u.ID)
+		require.Nil(t, err)
+		require.Len(t, emails, 2)
+
+		require.Nil(t, manager.RemoveEmail(u.ID, "phil@example.com"))
+		emails, err = manager.Emails(u.ID)
+		require.Nil(t, err)
+		require.Len(t, emails, 1)
+		require.Equal(t, "phil2@example.com", emails[0])
 	})
 }
 

@@ -6,13 +6,120 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 | Component        | Version | Release date |
 |------------------|---------|--------------|
-| ntfy server      | v2.19.2 | Mar 16, 2026 |
+| ntfy server      | v2.23.0 | May 17, 2026 |
 | ntfy Android app | v1.24.0 | Mar 5, 2026  |
-| ntfy iOS app     | v1.3    | Nov 26, 2023 |
+| ntfy iOS app     | v1.6.0  | May 12, 2026 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
 
-### ntfy server v2.19.2
+## ntfy server v2.23.0
+Released May 17, 2026
+
+**Features:**
+
+* Add per-visitor rate limit on new topic creations (`visitor-topic-creation-limit-burst` / `visitor-topic-creation-limit-replenish`, defaults 100 burst / 1m replenish) to mitigate topic-enumeration / squatting attacks that inflate the in-memory topic map
+
+**Bug fixes + maintenance:**
+
+* Remove `stacktrace-js`, `stacktrace-gps`, `humanize-duration`, and `js-base64` from the web app to reduce dependency and security footprint
+* Restrict the publish dialog's local file preview to safe image types (png/jpg/gif/webp) to prevent same-origin script execution from blob URLs when previewing a crafted SVG ([GHSA-j8hr-p342-xrmh](https://github.com/binwiederhier/ntfy/security/advisories/GHSA-j8hr-p342-xrmh), thanks to [@Venukamatchi](https://github.com/Venukamatchi) for reporting)
+
+## ntfy iOS app v1.6.0
+Released May 12, 2026
+
+**Bug fixes + maintenance:**
+
+* Fix crash in iOS v1.5.1 ([#1736](https://github.com/binwiederhier/ntfy/issues/1736), thanks to [@russ-who](https://github.com/russ-who) for reporting and [@am7590](https://github.com/am7590) for fixing)
+
+**Features:**
+
+* Tap a notification to open its click URL, or copy the message text if no click URL is set; inline URLs in message text are now tappable as well ([ntfy-ios#37](https://github.com/binwiederhier/ntfy-ios/pull/37), thanks to [@am7590](https://github.com/am7590) for the contribution)
+
+## ntfy iOS app v1.5.1
+Released April 27, 2026
+
+This release continues the iOS stability push from v1.4.1, with improved background polling reliability, better error
+handling and logging, and a few small UI fixes. The minimum supported iOS version is now iOS 15.
+
+**Features:**
+
+* Bump minimum iOS version to iOS 15 ([ntfy-ios#36](https://github.com/binwiederhier/ntfy-ios/pull/36), thanks to [@am7590](https://github.com/am7590) for the contribution)
+
+**Bug fixes + maintenance:**
+
+* Improve background poll reliability by waiting for polls to finish before calling the fetch completion handler, and saving notifications on the Core Data context queue ([ntfy-ios#34](https://github.com/binwiederhier/ntfy-ios/pull/34), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Make `poll_request` parsing more tolerant and surface concrete poll errors instead of failing silently ([ntfy-ios#34](https://github.com/binwiederhier/ntfy-ios/pull/34), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Poll subscriptions when the subscribed topics list appears, for more reactive updates ([ntfy-ios#34](https://github.com/binwiederhier/ntfy-ios/pull/34), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Fix bug where tapping "Add user" a second time would briefly open and then dismiss the add user view ([ntfy-ios#35](https://github.com/binwiederhier/ntfy-ios/pull/35), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Split `SettingsView` into separate files to improve readability ([ntfy-ios#35](https://github.com/binwiederhier/ntfy-ios/pull/35), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Add Firebase subscribe/unsubscribe logging to aid debugging ([ntfy-ios#34](https://github.com/binwiederhier/ntfy-ios/pull/34), thanks to [@am7590](https://github.com/am7590) for the contribution)
+
+## ntfy server v2.22.0
+Released April 21, 2026
+
+**Bug fixes + maintenance:**
+
+* Tighten web push endpoint allow-list regex to prevent SSRF via unanchored pattern matching ([GHSA-w9hq-5jg7-q4j7](https://github.com/binwiederhier/ntfy/security/advisories/GHSA-w9hq-5jg7-q4j7), thanks to [@MightyNawaf](https://github.com/MightyNawaf) for reporting)
+* Fix web app not allowing access tokens to be changed to never expire ([#1693](https://github.com/binwiederhier/ntfy/issues/1693)/[#1694](https://github.com/binwiederhier/ntfy/pull/1694), thanks to [@lastsamurai26](https://github.com/lastsamurai26) for reporting and to [@ShipItAndPray](https://github.com/ShipItAndPray) for fixing)
+* Fix web app crashing on account page for tokens without a last access time ([#1651](https://github.com/binwiederhier/ntfy/issues/1651), [#1684](https://github.com/binwiederhier/ntfy/issues/1684), thanks to [@Pulsar7](https://github.com/Pulsar7) and [@rzhli](https://github.com/rzhli) for reporting)
+
+## ntfy iOS app v1.4.1
+Released April 14, 2026
+
+This is the first iOS release in 3 years, focusing on stability fixes as per the [iOS improvement plan](https://github.com/binwiederhier/ntfy/issues/1680).
+
+**Bug fixes + maintenance:**
+
+* Fix crash when deleting notifications ([ntfy-ios#33](https://github.com/binwiederhier/ntfy-ios/pull/33), [#1642](https://github.com/binwiederhier/ntfy/issues/1642), [#377](https://github.com/binwiederhier/ntfy/issues/377), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Fix topic normalization for base URLs and refresh list after sending test notification ([ntfy-ios#32](https://github.com/binwiederhier/ntfy-ios/pull/32), [#337](https://github.com/binwiederhier/ntfy/issues/337), thanks to [@am7590](https://github.com/am7590) for the contribution)
+
+## ntfy server v2.21.0
+Released March 30, 2026
+
+This release adds the ability to verify email addresses using the `smtp-sender-verify` flag. This is a change that is
+required because ntfy.sh was used to send unsolicited emails and the AWS SES account was suspended. Going forward,
+ntfy.sh won't be able to send emails unless the email address was verified ahead of time.
+
+**Features:**
+
+* Add verified email recipients feature with `smtp-sender-verify` config flag, allowing server admins to require email
+  address verification before sending email notifications ([#1681](https://github.com/binwiederhier/ntfy/pull/1681))
+
+## ntfy server v2.20.1
+Released March 27, 2026
+
+This is a small bugfix release that only affects high volume S3 backends that struggle with HTTP/2.
+
+**Bug fixes + maintenance:**
+
+* [Attachments](config.md#attachments): Add `disable_http2=true` S3 URL option to work around HTTP/2 stream errors with DigitalOcean Spaces and other S3-compatible providers ([#1678](https://github.com/binwiederhier/ntfy/issues/1678)/[#1679](https://github.com/binwiederhier/ntfy/pull/1679))
+
+## ntfy server v2.20.0
+Released March 26, 2026
+
+This release is another step towards making it possible to help scale ntfy up and out 🔥! With this release, you can store
+attachments in an S3-compatible object store as an alterative to the directory. See [attachment store](config.md#attachments)
+for details.
+
+!!! warning
+    With this release, ntfy will take full control over the attachment directory or S3 bucket. Files/objects in the configured `attachment-cache-dir`
+    that match the message ID format (12 chars, matching `^[A-Za-z0-9]{12}$`), and have no entries in the message database will be deleted.
+    **Do not use a directory or S3 bucket as `attachment-cache-dir` that is also used for something else.**
+
+    This is a small behavioral change that was necessary because the old logic often left attachments behind and would not clean them
+    up. Unless you have re-used the attachment directory for anything else (which is hopefully never done), this should not affect
+    you at all.
+
+**Features:**
+
+* Add S3-compatible object storage as an alternative [attachment store](config.md#attachments) via `attachment-cache-dir` config option ([#1656](https://github.com/binwiederhier/ntfy/pull/1656)/[#1672](https://github.com/binwiederhier/ntfy/pull/1672))
+
+**Bug fixes + maintenance:**
+
+* Reject invalid e-mail addresses (e.g. multiple comma-separated recipients) with HTTP 400
+* Add OpenRC init service file ([#1650](https://github.com/binwiederhier/ntfy/pull/1650), thanks to [@ageru](https://github.com/ageru) for the contribution)
+
+## ntfy server v2.19.2
 Released March 16, 2026
 
 This is another small bugfix release for PostgreSQL, avoiding races between primary and read replica, as well as to
@@ -1798,8 +1905,47 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-### ntfy server v2.20.x (UNRELEASED)
+## ntfy iOS app v1.7.0 (UNRELEASED)
+
+This release brings **image and attachment support** to the iOS app, finally closing one of the longest-standing iOS
+feature gaps. Images sent via the `Attach` header (or as a PUT body) are now previewed inline in the notification banner
+and inside the app, and other attachments can be downloaded, previewed via Quick Look, and shared from the notification
+row. There's also a new "Download attachments" setting to control auto-download by size.
+
+**Features:**
+
+* Show image previews in notifications and inline in the notification list, with tap-to-zoom Quick Look preview and share sheet ([ntfy-ios#40](https://github.com/binwiederhier/ntfy-ios/pull/40), [#276](https://github.com/binwiederhier/ntfy/issues/276), [#1226](https://github.com/binwiederhier/ntfy/issues/1226), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Download non-image attachments on demand with progress indication, persist them locally, and reuse files already fetched by the notification service extension ([ntfy-ios#40](https://github.com/binwiederhier/ntfy-ios/pull/40), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Add "Download attachments" setting with size thresholds (Never, Under 100 KB / 500 KB / 1 MB / 5 MB / 10 MB / 50 MB, Always) to control automatic attachment downloads ([ntfy-ios#40](https://github.com/binwiederhier/ntfy-ios/pull/40), thanks to [@am7590](https://github.com/am7590) for the contribution)
 
 **Bug fixes + maintenance:**
 
-* Reject invalid e-mail addresses (e.g. multiple comma-separated recipients) with HTTP 400
+* Improve background download reliability so attachments continue downloading when the app is suspended ([ntfy-ios#40](https://github.com/binwiederhier/ntfy-ios/pull/40), thanks to [@am7590](https://github.com/am7590) for the contribution)
+* Reorganize notification and subscription views into their own folders and split out `NotificationRowView` for readability ([ntfy-ios#40](https://github.com/binwiederhier/ntfy-ios/pull/40), thanks to [@am7590](https://github.com/am7590) for the contribution)
+
+## ntfy Android v1.25.x (UNRELEASED)
+
+This release makes the "connection lost" alert configurable and turns it off by default. Folks did not like it and many reached out
+or even gave ntfy bad reviews. I heard you! You can re-enable the alert in the advanced settings.
+
+The release also tries to be smarter about not retrying the connection at all if the app is in flight mode, or has no network. If there
+is no network, ntfy will now stop the foreground service entirely.
+
+Another change related to the networking is that we now force-reconnect when the connection is changed, e.g. during transitions
+from Wi-Fi to cellular network, or vice versa. That should allow for faster transitions during hand-overs.
+
+We also increase the client-side WebSocket ping interval from 1 minute to 3 minutes, which should slightly improve battery life,
+especially when paired with increaseing the server-side `keepalive-interval` in your self-hosted server. 
+
+**Features:**
+
+* Add configurable "Alert when connection is lost" setting ([#1665](https://github.com/binwiederhier/ntfy/issues/1665), [#1662](https://github.com/binwiederhier/ntfy/issues/1662), [#1652](https://github.com/binwiederhier/ntfy/issues/1652), [#1655](https://github.com/binwiederhier/ntfy/issues/1655), thanks to [@tintamarre](https://github.com/tintamarre), [@sjozs](https://github.com/sjozs), [@TheRealOne78](https://github.com/TheRealOne78), and [@DAE51D](https://github.com/DAE51D) for reporting)
+* Suppress connection alerts and stop foreground service when there is no network ([ntfy-android#165](https://github.com/binwiederhier/ntfy-android/pull/165), thanks to [@tintamarre](https://github.com/tintamarre) for the contribution)
+* Restart the foreground service immediately when network returns, even if the app process was killed while offline
+* Improve battery life by increasing WebSocket client ping interval from 1 min to 3 min, and reconnect instantly on Wi-Fi/cellular/VPN transitions ([ntfy-android#113](https://github.com/binwiederhier/ntfy-android/pull/113), thanks to [@ftilde](https://github.com/ftilde) for the investigation)
+* Disable UnifiedPush components when UnifiedPush is disabled in settings ([ntfy-android#168](https://github.com/binwiederhier/ntfy-android/pull/168), thanks to [@p1gp1g](https://github.com/p1gp1g) for the contribution)
+
+**Bug fixes + maintenance:**
+
+* Undo automatic phone number linking for numbers in message body ([ntfy-android#170](https://github.com/binwiederhier/ntfy-android/pull/170), thanks to [@acortelyou](https://github.com/acortelyou) for the contribution)
+* Fix subscription icons disappearing after a few days due to Android clearing cache ([#1322](https://github.com/binwiederhier/ntfy/issues/1322), thanks to [@mcanning](https://github.com/mcanning) for reporting)

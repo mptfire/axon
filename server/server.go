@@ -32,9 +32,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
 	"gopkg.in/yaml.v2"
+	"heckel.io/ntfy/v2/attachment"
 	"heckel.io/ntfy/v2/db"
 	"heckel.io/ntfy/v2/db/pg"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/mail"
 	"heckel.io/ntfy/v2/message"
 	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/payments"
@@ -56,6 +58,7 @@ type Server struct {
 	smtpServer        *smtp.Server
 	smtpServerBackend *smtpBackend
 	smtpSender        mailer
+	mailSender        *mail.Sender
 	topics            map[string]*topic
 	visitors          map[string]*visitor // ip:<ip> or user:<user>
 	firebaseClient    *firebaseClient
@@ -64,7 +67,7 @@ type Server struct {
 	userManager       *user.Manager                       // Might be nil!
 	messageCache      *message.Cache                      // Database that stores the messages
 	webPush           *webpush.Store                      // Database that stores web push subscriptions
-	fileCache         *fileCache                          // File system based cache that stores attachments
+	attachment        *attachment.Store                   // Attachment store (file system or S3)
 	stripe            stripeAPI                           // Stripe API, can be replaced with a mock
 	priceCache        *util.LookupCache[map[string]int64] // Stripe price ID -> price as cents (USD implied!)
 	metricsHandler    http.Handler                        // Handles /metrics if enable-metrics set, and listen-metrics-http not set
@@ -111,6 +114,8 @@ var (
 	apiAccountReservationPath                            = "/v1/account/reservation"
 	apiAccountPhonePath                                  = "/v1/account/phone"
 	apiAccountPhoneVerifyPath                            = "/v1/account/phone/verify"
+	apiAccountEmailPath                                  = "/v1/account/email"
+	apiAccountEmailVerifyPath                            = "/v1/account/email/verify"
 	apiAccountBillingPortalPath                          = "/v1/account/billing/portal"
 	apiAccountBillingWebhookPath                         = "/v1/account/billing/webhook"
 	apiAccountBillingSubscriptionPath                    = "/v1/account/billing/subscription"
@@ -172,8 +177,15 @@ const (
 // subscriber (if configured).
 func New(conf *Config) (*Server, error) {
 	var mailer mailer
+	var mailSender *mail.Sender
 	if conf.SMTPSenderAddr != "" {
-		mailer = &smtpSender{config: conf}
+		mailSender = mail.NewSender(&mail.Config{
+			SMTPAddr: conf.SMTPSenderAddr,
+			SMTPUser: conf.SMTPSenderUser,
+			SMTPPass: conf.SMTPSenderPass,
+			From:     conf.SMTPSenderFrom,
+		})
+		mailer = &smtpSender{config: conf, sender: mailSender}
 	}
 	var stripe stripeAPI
 	if payments.Available && conf.StripeSecretKey != "" {
@@ -228,12 +240,9 @@ func New(conf *Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	var fileCache *fileCache
-	if conf.AttachmentCacheDir != "" {
-		fileCache, err = newFileCache(conf.AttachmentCacheDir, conf.AttachmentTotalSizeLimit)
-		if err != nil {
-			return nil, err
-		}
+	attachmentStore, err := createAttachmentStore(conf, messageCache)
+	if err != nil {
+		return nil, err
 	}
 	var userManager *user.Manager
 	if conf.AuthFile != "" || pool != nil {
@@ -277,9 +286,10 @@ func New(conf *Config) (*Server, error) {
 		db:              pool,
 		messageCache:    messageCache,
 		webPush:         wp,
-		fileCache:       fileCache,
+		attachment:      attachmentStore,
 		firebaseClient:  firebaseClient,
 		smtpSender:      mailer,
+		mailSender:      mailSender,
 		topics:          topics,
 		userManager:     userManager,
 		messages:        messages,
@@ -300,6 +310,15 @@ func createMessageCache(conf *Config, pool *db.DB) (*message.Cache, error) {
 		return message.NewSQLiteStore(conf.CacheFile, conf.CacheStartupQueries, conf.CacheDuration, conf.CacheBatchSize, conf.CacheBatchTimeout, false)
 	}
 	return message.NewMemStore()
+}
+
+func createAttachmentStore(conf *Config, messageCache *message.Cache) (*attachment.Store, error) {
+	if strings.HasPrefix(conf.AttachmentCacheDir, "s3://") {
+		return attachment.NewS3Store(conf.AttachmentCacheDir, conf.AttachmentTotalSizeLimit, conf.AttachmentOrphanGracePeriod, messageCache.AttachmentsWithSizes)
+	} else if conf.AttachmentCacheDir != "" {
+		return attachment.NewFileStore(conf.AttachmentCacheDir, conf.AttachmentTotalSizeLimit, conf.AttachmentOrphanGracePeriod, messageCache.AttachmentsWithSizes)
+	}
+	return nil, nil
 }
 
 // Run executes the main server. It listens on HTTP (+ HTTPS, if configured), and starts
@@ -422,15 +441,25 @@ func (s *Server) Stop() {
 	if s.smtpServer != nil {
 		s.smtpServer.Close()
 	}
+	if s.mailSender != nil {
+		s.mailSender.Close()
+	}
+	if s.attachment != nil {
+		s.attachment.Close()
+	}
 	s.closeDatabases()
-	close(s.closeChan)
+	if s.closeChan != nil {
+		close(s.closeChan)
+	}
 }
 
 func (s *Server) closeDatabases() {
 	if s.userManager != nil {
 		s.userManager.Close()
 	}
-	s.messageCache.Close()
+	if s.messageCache != nil {
+		s.messageCache.Close()
+	}
 	if s.webPush != nil {
 		s.webPush.Close()
 	}
@@ -580,6 +609,12 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureUser(s.ensureCallsEnabled(s.withAccountSync(s.handleAccountPhoneNumberAdd)))(w, r, v)
 	} else if r.Method == http.MethodDelete && r.URL.Path == apiAccountPhonePath {
 		return s.ensureUser(s.ensureCallsEnabled(s.withAccountSync(s.handleAccountPhoneNumberDelete)))(w, r, v)
+	} else if r.Method == http.MethodPut && r.URL.Path == apiAccountEmailVerifyPath {
+		return s.ensureUser(s.ensureEmailsEnabled(s.withAccountSync(s.handleAccountEmailVerify)))(w, r, v)
+	} else if r.Method == http.MethodPut && r.URL.Path == apiAccountEmailPath {
+		return s.ensureUser(s.ensureEmailsEnabled(s.withAccountSync(s.handleAccountEmailAdd)))(w, r, v)
+	} else if r.Method == http.MethodDelete && r.URL.Path == apiAccountEmailPath {
+		return s.ensureUser(s.ensureEmailsEnabled(s.withAccountSync(s.handleAccountEmailDelete)))(w, r, v)
 	} else if r.Method == http.MethodPost && apiWebPushPath == r.URL.Path {
 		return s.ensureWebPushEnabled(s.limitRequests(s.handleWebPushUpdate))(w, r, v)
 	} else if r.Method == http.MethodDelete && apiWebPushPath == r.URL.Path {
@@ -596,7 +631,7 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureWebEnabled(s.handleStatic)(w, r, v)
 	} else if r.Method == http.MethodGet && docsRegex.MatchString(r.URL.Path) {
 		return s.ensureWebEnabled(s.handleDocs)(w, r, v)
-	} else if (r.Method == http.MethodGet || r.Method == http.MethodHead) && fileRegex.MatchString(r.URL.Path) && s.config.AttachmentCacheDir != "" {
+	} else if (r.Method == http.MethodGet || r.Method == http.MethodHead) && fileRegex.MatchString(r.URL.Path) && s.attachment != nil {
 		return s.limitRequests(s.handleFile)(w, r, v)
 	} else if r.Method == http.MethodOptions {
 		return s.limitRequests(s.handleOptions)(w, r, v) // Should work even if the web app is not enabled, see #598
@@ -686,6 +721,7 @@ func (s *Server) configResponse() *apiConfigResponse {
 		EnablePayments:     s.config.StripeSecretKey != "",
 		EnableCalls:        s.config.TwilioAccount != "",
 		EnableEmails:       s.config.SMTPSenderFrom != "",
+		EnableEmailVerify:  s.config.SMTPSenderVerify,
 		EnableReservations: s.config.EnableReservations,
 		EnableWebPush:      s.config.WebPushPublicKey != "",
 		BillingContact:     s.config.BillingContact,
@@ -753,7 +789,7 @@ func (s *Server) handleStats(w http.ResponseWriter, _ *http.Request, _ *visitor)
 // Before streaming the file to a client, it locates uploader (m.Sender or m.User) in the message cache, so it
 // can associate the download bandwidth with the uploader.
 func (s *Server) handleFile(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	if s.config.AttachmentCacheDir == "" {
+	if s.attachment == nil {
 		return errHTTPInternalError
 	}
 	matches := fileRegex.FindStringSubmatch(r.URL.Path)
@@ -761,16 +797,16 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request, v *visitor) 
 		return errHTTPInternalErrorInvalidPath
 	}
 	messageID := matches[1]
-	file := filepath.Join(s.config.AttachmentCacheDir, messageID)
-	stat, err := os.Stat(file)
+	reader, size, err := s.attachment.Read(messageID)
 	if err != nil {
 		return errHTTPNotFound.Fields(log.Context{
 			"message_id":    messageID,
-			"error_context": "filesystem",
+			"error_context": "attachment_store",
 		})
 	}
+	defer reader.Close()
 	w.Header().Set("Access-Control-Allow-Origin", s.config.AccessControlAllowOrigin) // CORS, allow cross-origin requests
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", stat.Size()))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", size))
 	if r.Method == http.MethodHead {
 		return nil
 	}
@@ -806,19 +842,14 @@ func (s *Server) handleFile(w http.ResponseWriter, r *http.Request, v *visitor) 
 	} else if m.Sender.IsValid() {
 		bandwidthVisitor = s.visitor(m.Sender, nil)
 	}
-	if !bandwidthVisitor.BandwidthAllowed(stat.Size()) {
+	if !bandwidthVisitor.BandwidthAllowed(size) {
 		return errHTTPTooManyRequestsLimitAttachmentBandwidth.With(m)
 	}
 	// Actually send file
-	f, err := os.Open(file)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
 	if m.Attachment.Name != "" {
 		w.Header().Set("Content-Disposition", "attachment; filename="+strconv.Quote(m.Attachment.Name))
 	}
-	_, err = io.Copy(util.NewContentTypeWriter(w, r.URL.Path), f)
+	_, err = io.Copy(util.NewContentTypeWriter(w, r.URL.Path), reader)
 	return err
 }
 
@@ -856,9 +887,17 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 		return nil, errHTTPInsufficientStorageUnifiedPush.With(t)
 	} else if !util.ContainsIP(s.config.VisitorRequestExemptPrefixes, v.ip) && !vrate.MessageAllowed() {
 		return nil, errHTTPTooManyRequestsLimitMessages.With(t)
-	} else if email != "" && !vrate.EmailAllowed() {
-		return nil, errHTTPTooManyRequestsLimitEmails.With(t)
-	} else if call != "" {
+	}
+	if email != "" {
+		var httpErr *errHTTP
+		email, httpErr = s.convertEmailAddress(v.User(), email)
+		if httpErr != nil {
+			return nil, httpErr.With(t)
+		} else if !vrate.EmailAllowed() {
+			return nil, errHTTPTooManyRequestsLimitEmails.With(t)
+		}
+	}
+	if call != "" {
 		var httpErr *errHTTP
 		call, httpErr = s.convertPhoneNumber(v.User(), call)
 		if httpErr != nil {
@@ -927,8 +966,8 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 			return nil, err
 		}
 		// Delete attachment files for deleted scheduled messages
-		if s.fileCache != nil && len(deletedIDs) > 0 {
-			if err := s.fileCache.Remove(deletedIDs...); err != nil {
+		if s.attachment != nil && len(deletedIDs) > 0 {
+			if err := s.attachment.Remove(deletedIDs...); err != nil {
 				logvrm(v, r, m).Tag(tagPublish).Err(err).Warn("Error removing attachments for deleted scheduled messages")
 			}
 		}
@@ -1034,8 +1073,8 @@ func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *
 			return err
 		}
 		// Delete attachment files for deleted scheduled messages
-		if s.fileCache != nil && len(deletedIDs) > 0 {
-			if err := s.fileCache.Remove(deletedIDs...); err != nil {
+		if s.attachment != nil && len(deletedIDs) > 0 {
+			if err := s.attachment.Remove(deletedIDs...); err != nil {
 				logvrm(v, r, m).Tag(tagPublish).Err(err).Warn("Error removing attachments for deleted scheduled messages")
 			}
 		}
@@ -1066,7 +1105,7 @@ func (s *Server) sendToFirebase(v *visitor, m *model.Message) {
 }
 
 func (s *Server) sendEmail(v *visitor, m *model.Message, email string) {
-	logvm(v, m).Tag(tagEmail).Field("email", email).Debug("Sending email to %s", email)
+	logvm(v, m).Tag(tagEmail).Field("email", email).Info("Sending email to %s", email)
 	if err := s.smtpSender.Send(v, m, email); err != nil {
 		logvm(v, m).Tag(tagEmail).Field("email", email).Err(err).Warn("Unable to send email to %s: %v", email, err.Error())
 		minc(metricEmailsPublishedFailure)
@@ -1164,7 +1203,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 		m.Icon = icon
 	}
 	email = readParam(r, "x-email", "x-e-mail", "email", "e-mail", "mail", "e")
-	if email != "" && !emailAddressRegex.MatchString(email) {
+	if email != "" && !emailAddressRegex.MatchString(email) && !toBool(email) {
 		return false, false, "", "", "", false, "", errHTTPBadRequestEmailAddressInvalid
 	}
 	if s.smtpSender == nil && email != "" {
@@ -1413,7 +1452,7 @@ func (s *Server) renderTemplate(name, tpl, source string) (string, error) {
 }
 
 func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *model.Message, body *util.PeekedReadCloser) error {
-	if s.fileCache == nil || s.config.BaseURL == "" || s.config.AttachmentCacheDir == "" {
+	if s.attachment == nil || s.config.BaseURL == "" {
 		return errHTTPBadRequestAttachmentsDisallowed.With(m)
 	}
 	vinfo, err := v.Info()
@@ -1421,19 +1460,19 @@ func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *model.Me
 		return err
 	}
 	attachmentExpiry := time.Now().Add(vinfo.Limits.AttachmentExpiryDuration).Unix()
+	if m.Expires > 0 && attachmentExpiry > m.Expires {
+		attachmentExpiry = m.Expires // Attachment must never outlive the message
+	}
 	if m.Time > attachmentExpiry {
 		return errHTTPBadRequestAttachmentsExpiryBeforeDelivery.With(m)
 	}
-	contentLengthStr := r.Header.Get("Content-Length")
-	if contentLengthStr != "" { // Early "do-not-trust" check, hard limit see below
-		contentLength, err := strconv.ParseInt(contentLengthStr, 10, 64)
-		if err == nil && (contentLength > vinfo.Stats.AttachmentTotalSizeRemaining || contentLength > vinfo.Limits.AttachmentFileSizeLimit) {
-			return errHTTPEntityTooLargeAttachment.With(m).Fields(log.Context{
-				"message_content_length":          contentLength,
-				"attachment_total_size_remaining": vinfo.Stats.AttachmentTotalSizeRemaining,
-				"attachment_file_size_limit":      vinfo.Limits.AttachmentFileSizeLimit,
-			})
-		}
+	// Early "do-not-trust" check, hard limit see below
+	if r.ContentLength > 0 && (r.ContentLength > vinfo.Stats.AttachmentTotalSizeRemaining || r.ContentLength > vinfo.Limits.AttachmentFileSizeLimit) {
+		return errHTTPEntityTooLargeAttachment.With(m).Fields(log.Context{
+			"message_content_length":          r.ContentLength,
+			"attachment_total_size_remaining": vinfo.Stats.AttachmentTotalSizeRemaining,
+			"attachment_file_size_limit":      vinfo.Limits.AttachmentFileSizeLimit,
+		})
 	}
 	if m.Attachment == nil {
 		m.Attachment = &model.Attachment{}
@@ -1453,7 +1492,7 @@ func (s *Server) handleBodyAsAttachment(r *http.Request, v *visitor, m *model.Me
 		util.NewFixedLimiter(vinfo.Limits.AttachmentFileSizeLimit),
 		util.NewFixedLimiter(vinfo.Stats.AttachmentTotalSizeRemaining),
 	}
-	m.Attachment.Size, err = s.fileCache.Write(m.ID, body, limiters...)
+	m.Attachment.Size, err = s.attachment.Write(m.ID, body, r.ContentLength, limiters...)
 	if errors.Is(err, util.ErrLimitReached) {
 		return errHTTPEntityTooLargeAttachment.With(m)
 	} else if err != nil {
@@ -1504,7 +1543,7 @@ func (s *Server) handleSubscribeHTTP(w http.ResponseWriter, r *http.Request, v *
 		return errHTTPTooManyRequestsLimitSubscriptions
 	}
 	defer v.RemoveSubscription()
-	topics, topicsStr, err := s.topicsFromPath(r.URL.Path)
+	topics, topicsStr, err := s.topicsFromPath(v, r.URL.Path)
 	if err != nil {
 		return err
 	}
@@ -1607,7 +1646,7 @@ func (s *Server) handleSubscribeWS(w http.ResponseWriter, r *http.Request, v *vi
 	defer v.RemoveSubscription()
 	logvr(v, r).Tag(tagWebsocket).Debug("WebSocket connection opened")
 	defer logvr(v, r).Tag(tagWebsocket).Debug("WebSocket connection closed")
-	topics, topicsStr, err := s.topicsFromPath(r.URL.Path)
+	topics, topicsStr, err := s.topicsFromPath(v, r.URL.Path)
 	if err != nil {
 		return err
 	}
@@ -1877,24 +1916,26 @@ func (s *Server) handleOptions(w http.ResponseWriter, _ *http.Request, _ *visito
 }
 
 // topicFromPath returns the topic from a root path (e.g. /mytopic), creating it if it doesn't exist.
-func (s *Server) topicFromPath(path string) (*topic, error) {
+// The visitor is consulted for the per-visitor topic-creation rate limit; pass nil to bypass (internal use).
+func (s *Server) topicFromPath(v *visitor, path string) (*topic, error) {
 	parts := strings.Split(path, "/")
 	if len(parts) < 2 {
 		return nil, errHTTPBadRequestTopicInvalid
 	}
-	return s.topicFromID(parts[1])
+	return s.topicFromID(v, parts[1])
 }
 
 // topicsFromPath returns the topic from a root path (e.g. /mytopic,mytopic2), creating it if it doesn't exist.
-func (s *Server) topicsFromPath(path string) ([]*topic, string, error) {
+// The visitor is consulted for the per-visitor topic-creation rate limit; pass nil to bypass (internal use).
+func (s *Server) topicsFromPath(v *visitor, path string) ([]*topic, string, error) {
 	parts := strings.Split(path, "/")
 	if len(parts) < 2 {
 		return nil, "", errHTTPBadRequestTopicInvalid
 	}
 	topicIDs := util.SplitNoEmpty(parts[1], ",")
-	topics, err := s.topicsFromIDs(topicIDs...)
+	topics, err := s.topicsFromIDs(v, topicIDs...)
 	if err != nil {
-		return nil, "", errHTTPBadRequestTopicInvalid
+		return nil, "", err
 	}
 	return topics, parts[1], nil
 }
@@ -1909,7 +1950,9 @@ func (s *Server) sequenceIDFromPath(path string) (string, *errHTTP) {
 }
 
 // topicsFromIDs returns the topics with the given IDs, creating them if they don't exist.
-func (s *Server) topicsFromIDs(ids ...string) ([]*topic, error) {
+// If v is non-nil, its per-visitor topic-creation rate limiter is consulted before each new
+// insertion into the in-memory topic map. Pass nil to bypass the limit (internal use only).
+func (s *Server) topicsFromIDs(v *visitor, ids ...string) ([]*topic, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	topics := make([]*topic, 0)
@@ -1921,6 +1964,9 @@ func (s *Server) topicsFromIDs(ids ...string) ([]*topic, error) {
 			if len(s.topics) >= s.config.TotalTopicLimit {
 				return nil, errHTTPTooManyRequestsLimitTotalTopics
 			}
+			if v != nil && !v.TopicCreationAllowed() {
+				return nil, errHTTPTooManyRequestsLimitTopicCreation
+			}
 			s.topics[id] = newTopic(id)
 		}
 		topics = append(topics, s.topics[id])
@@ -1929,8 +1975,9 @@ func (s *Server) topicsFromIDs(ids ...string) ([]*topic, error) {
 }
 
 // topicFromID returns the topic with the given ID, creating it if it doesn't exist.
-func (s *Server) topicFromID(id string) (*topic, error) {
-	topics, err := s.topicsFromIDs(id)
+// The visitor is consulted for the per-visitor topic-creation rate limit; pass nil to bypass (internal use).
+func (s *Server) topicFromID(v *visitor, id string) (*topic, error) {
+	topics, err := s.topicsFromIDs(v, id)
 	if err != nil {
 		return nil, err
 	}
@@ -2200,7 +2247,7 @@ func (s *Server) authorizeTopic(next handleFunc, perm user.Permission) handleFun
 		if s.userManager == nil {
 			return next(w, r, v)
 		}
-		topics, _, err := s.topicsFromPath(r.URL.Path)
+		topics, _, err := s.topicsFromPath(v, r.URL.Path)
 		if err != nil {
 			return err
 		}

@@ -153,7 +153,8 @@
 # If enabled, clients can attach files to notifications as attachments. Minimum settings to enable attachments
 # are "attachment-cache-dir" and "base-url".
 #
-# - attachment-cache-dir is the cache directory for attached files
+# - attachment-cache-dir is the cache directory for attached files, or an S3 URL for object storage
+#   e.g. /var/cache/ntfy/attachments, or s3://ACCESS_KEY:SECRET_KEY@bucket/prefix?region=us-east-1&endpoint=https://...
 # - attachment-total-size-limit is the limit of the on-disk attachment cache directory (total size)
 # - attachment-file-size-limit is the per-file attachment size limit (e.g. 300k, 2M, 100M)
 # - attachment-expiry-duration is the duration after which uploaded attachments will be deleted (e.g. 3h, 20h)
@@ -192,11 +193,14 @@
 # - smtp-sender-addr is the hostname:port of the SMTP server
 # - smtp-sender-from is the e-mail address of the sender
 # - smtp-sender-user/smtp-sender-pass are the username and password of the SMTP user (leave blank for no auth)
+# - smtp-sender-verify is a flag that forces email recipient verification when enabled. If set to true,
+#   only verified email recipients can be used in the X-Email header.
 #
 # smtp-sender-addr:
 # smtp-sender-from:
 # smtp-sender-user:
 # smtp-sender-pass:
+# smtp-sender-verify: false
 
 # If enabled, ntfy will launch a lightweight SMTP server for incoming messages. Once configured, users can send
 # emails to a topic e-mail address to publish messages to a topic.
@@ -353,6 +357,15 @@
 #
 # visitor-email-limit-burst: 16
 # visitor-email-limit-replenish: "1h"
+
+# Rate limiting: Allowed new topic creations per visitor. A "creation" is when a request
+# causes a previously-unknown topic ID to be added to the in-memory topic map. Touches of
+# existing topics do not consume tokens. Mitigates topic-enumeration / squatting attacks.
+# - visitor-topic-creation-limit-burst is the initial bucket of new-topic tokens (0 = disabled)
+# - visitor-topic-creation-limit-replenish is the rate at which the bucket is refilled
+#
+# visitor-topic-creation-limit-burst: 100
+# visitor-topic-creation-limit-replenish: "1m"
 
 # Rate limiting: IPv4/IPv6 address prefix bits used for rate limiting
 # - visitor-prefix-bits-ipv4: number of bits of the IPv4 address to use for rate limiting (default: 32, full address)

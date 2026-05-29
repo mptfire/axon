@@ -24,7 +24,6 @@ var errNoRows = errors.New("no rows found")
 // queries holds the database-specific SQL queries
 type queries struct {
 	insertMessage                    string
-	deleteMessage                    string
 	selectScheduledMessageIDsBySeqID string
 	deleteScheduledBySequenceID      string
 	updateMessagesForTopicExpiry     string
@@ -35,14 +34,14 @@ type queries struct {
 	selectMessagesSinceIDScheduled   string
 	selectMessagesLatest             string
 	selectMessagesDue                string
-	selectMessagesExpired            string
+	deleteExpiredMessages            string
 	updateMessagePublished           string
 	selectMessagesCount              string
 	selectTopics                     string
-	updateAttachmentDeleted          string
-	selectAttachmentsExpired         string
+	markExpiredAttachmentsDeleted    string
 	selectAttachmentsSizeBySender    string
 	selectAttachmentsSizeByUserID    string
+	selectAttachmentsWithSizes       string
 	selectStats                      string
 	updateStats                      string
 	updateMessageTime                string
@@ -245,25 +244,16 @@ func (c *Cache) MessagesDue() ([]*model.Message, error) {
 	return readMessages(rows)
 }
 
-// MessagesExpired returns a list of IDs for messages that have expired (should be deleted)
-func (c *Cache) MessagesExpired() ([]string, error) {
-	rows, err := c.db.Query(c.queries.selectMessagesExpired, time.Now().Unix())
+// DeleteExpiredMessages deletes up to `limit` expired messages in a single query
+// and returns the number of deleted rows.
+func (c *Cache) DeleteExpiredMessages(limit int) (int64, error) {
+	c.maybeLock()
+	defer c.maybeUnlock()
+	result, err := c.db.Exec(c.queries.deleteExpiredMessages, time.Now().Unix(), limit)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	defer rows.Close()
-	ids := make([]string, 0)
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return ids, nil
+	return result.RowsAffected()
 }
 
 // Message returns the message with the given ID, or ErrMessageNotFound if not found
@@ -272,10 +262,10 @@ func (c *Cache) Message(id string) (*model.Message, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	if !rows.Next() {
 		return nil, model.ErrMessageNotFound
 	}
-	defer rows.Close()
 	return readMessage(rows)
 }
 
@@ -319,32 +309,7 @@ func (c *Cache) Topics() ([]string, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	topics := make([]string, 0)
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		topics = append(topics, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return topics, nil
-}
-
-// DeleteMessages deletes the messages with the given IDs
-func (c *Cache) DeleteMessages(ids ...string) error {
-	c.maybeLock()
-	defer c.maybeUnlock()
-	return db.ExecTx(c.db, func(tx *sql.Tx) error {
-		for _, id := range ids {
-			if _, err := tx.Exec(c.queries.deleteMessage, id); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	return readStrings(rows)
 }
 
 // DeleteScheduledBySequenceID deletes unpublished (scheduled) messages with the given topic and sequence ID.
@@ -358,15 +323,8 @@ func (c *Cache) DeleteScheduledBySequenceID(topic, sequenceID string) ([]string,
 			return nil, err
 		}
 		defer rows.Close()
-		ids := make([]string, 0)
-		for rows.Next() {
-			var id string
-			if err := rows.Scan(&id); err != nil {
-				return nil, err
-			}
-			ids = append(ids, id)
-		}
-		if err := rows.Err(); err != nil {
+		ids, err := readStrings(rows)
+		if err != nil {
 			return nil, err
 		}
 		rows.Close() // Close rows before executing delete in same transaction
@@ -391,39 +349,16 @@ func (c *Cache) ExpireMessages(topics ...string) error {
 	})
 }
 
-// AttachmentsExpired returns message IDs with expired attachments that have not been deleted
-func (c *Cache) AttachmentsExpired() ([]string, error) {
-	rows, err := c.db.Query(c.queries.selectAttachmentsExpired, time.Now().Unix())
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	ids := make([]string, 0)
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return ids, nil
-}
-
-// MarkAttachmentsDeleted marks the attachments for the given message IDs as deleted
-func (c *Cache) MarkAttachmentsDeleted(ids ...string) error {
+// MarkExpiredAttachmentsDeleted marks up to `limit` expired attachments as deleted in a single
+// query and returns the number of updated rows.
+func (c *Cache) MarkExpiredAttachmentsDeleted(limit int) (int64, error) {
 	c.maybeLock()
 	defer c.maybeUnlock()
-	return db.ExecTx(c.db, func(tx *sql.Tx) error {
-		for _, id := range ids {
-			if _, err := tx.Exec(c.queries.updateAttachmentDeleted, id); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
+	result, err := c.db.Exec(c.queries.markExpiredAttachmentsDeleted, time.Now().Unix(), limit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 // AttachmentBytesUsedBySender returns the total size of active attachments sent by the given sender
@@ -442,6 +377,30 @@ func (c *Cache) AttachmentBytesUsedByUser(userID string) (int64, error) {
 		return 0, err
 	}
 	return c.readAttachmentBytesUsed(rows)
+}
+
+// AttachmentsWithSizes returns a map of message ID to attachment size for all active
+// (non-expired, non-deleted) attachments. This is used to hydrate the attachment store's
+// size tracking on startup and during periodic sync.
+func (c *Cache) AttachmentsWithSizes() (map[string]int64, error) {
+	rows, err := c.db.ReadOnly().Query(c.queries.selectAttachmentsWithSizes, time.Now().Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	attachments := make(map[string]int64)
+	for rows.Next() {
+		var id string
+		var size int64
+		if err := rows.Scan(&id, &size); err != nil {
+			return nil, err
+		}
+		attachments[id] = size
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return attachments, nil
 }
 
 func (c *Cache) readAttachmentBytesUsed(rows *sql.Rows) (int64, error) {
@@ -589,4 +548,19 @@ func readMessage(rows *sql.Rows) (*model.Message, error) {
 		ContentType: contentType,
 		Encoding:    encoding,
 	}, nil
+}
+
+func readStrings(rows *sql.Rows) ([]string, error) {
+	strs := make([]string, 0)
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err != nil {
+			return nil, err
+		}
+		strs = append(strs, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return strs, nil
 }

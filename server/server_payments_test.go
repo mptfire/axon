@@ -14,6 +14,7 @@ import (
 	"heckel.io/ntfy/v2/util"
 	"io"
 	"net/netip"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -543,9 +544,14 @@ func TestPayments_Webhook_Subscription_Updated_Downgrade_From_PastDue_To_Active(
 		require.Equal(t, 1, len(r)) // "ztopic" reservation was deleted
 		require.Equal(t, "atopic", r[0].Topic)
 
-		// Verify that messages and attachments were deleted
+		// Verify that messages and attachments were deleted. We backdate the
+		// attachment files so sync's grace period doesn't protect them.
+		past := time.Now().Add(-2 * time.Hour)
+		os.Chtimes(filepath.Join(s.config.AttachmentCacheDir, a2.ID), past, past)
+		os.Chtimes(filepath.Join(s.config.AttachmentCacheDir, z2.ID), past, past)
 		time.Sleep(time.Second)
 		s.execManager()
+		s.attachment.Sync() // File cleanup is done by sync, not by the manager
 
 		ms, err := s.messageCache.Messages("atopic", model.SinceAllMessages, false)
 		require.Nil(t, err)

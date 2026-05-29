@@ -72,6 +72,11 @@ const (
 			phone_number TEXT NOT NULL,
 			PRIMARY KEY (user_id, phone_number)
 		);
+		CREATE TABLE IF NOT EXISTS user_email (
+			user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+			email TEXT NOT NULL,
+			PRIMARY KEY (user_id, email)
+		);
 		CREATE TABLE IF NOT EXISTS schema_version (
 			store TEXT PRIMARY KEY,
 			version INT NOT NULL
@@ -84,10 +89,25 @@ const (
 
 // Schema table management queries for Postgres
 const (
-	postgresCurrentSchemaVersion     = 6
+	postgresCurrentSchemaVersion     = 7
 	postgresSelectSchemaVersionQuery = `SELECT version FROM schema_version WHERE store = 'user'`
 	postgresInsertSchemaVersionQuery = `INSERT INTO schema_version (store, version) VALUES ('user', $1)`
 )
+
+const (
+	postgresMigrate6To7UpdateQueries = `
+		CREATE TABLE IF NOT EXISTS user_email (
+			user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+			email TEXT NOT NULL,
+			PRIMARY KEY (user_id, email)
+		);
+	`
+	postgresUpdateSchemaVersionQuery = `UPDATE schema_version SET version = $1 WHERE store = 'user'`
+)
+
+var postgresMigrations = map[int]func(db *sql.DB) error{
+	6: postgresMigrateFrom6,
+}
 
 func setupPostgres(db *sql.DB) error {
 	var schemaVersion int
@@ -95,10 +115,29 @@ func setupPostgres(db *sql.DB) error {
 	if err != nil {
 		return setupNewPostgres(db)
 	}
-	if schemaVersion > postgresCurrentSchemaVersion {
+	if schemaVersion == postgresCurrentSchemaVersion {
+		return nil
+	} else if schemaVersion > postgresCurrentSchemaVersion {
 		return fmt.Errorf("unexpected schema version: version %d is higher than current version %d", schemaVersion, postgresCurrentSchemaVersion)
 	}
-	// Note: PostgreSQL migrations will be added when needed
+	for i := schemaVersion; i < postgresCurrentSchemaVersion; i++ {
+		fn, ok := postgresMigrations[i]
+		if !ok {
+			return fmt.Errorf("cannot find migration step from schema version %d to %d", i, i+1)
+		} else if err := fn(db); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func postgresMigrateFrom6(db *sql.DB) error {
+	if _, err := db.Exec(postgresMigrate6To7UpdateQueries); err != nil {
+		return err
+	}
+	if _, err := db.Exec(postgresUpdateSchemaVersionQuery, 7); err != nil {
+		return err
+	}
 	return nil
 }
 

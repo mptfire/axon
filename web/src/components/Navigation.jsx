@@ -117,7 +117,8 @@ const NavList = (props) => {
 
   const isAdmin = account?.role === Role.ADMIN;
   const isPaid = account?.billing?.subscription;
-  const showUpgradeBanner = config.enable_payments && !isAdmin && !isPaid;
+  const hasTier = !!account?.tier;
+  const showUpgradeBanner = config.enable_payments && !isAdmin && !isPaid && !hasTier;
   const showSubscriptionsList = props.subscriptions?.length > 0;
   const showNotificationPermissionRequired = useNotificationPermissionListener(() => notifier.notRequested());
   const showNotificationPermissionDenied = useNotificationPermissionListener(() => notifier.denied());

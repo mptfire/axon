@@ -85,6 +85,12 @@ const (
 			PRIMARY KEY (user_id, phone_number),
 			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
 		);
+		CREATE TABLE IF NOT EXISTS user_email (
+			user_id TEXT NOT NULL,
+			email TEXT NOT NULL,
+			PRIMARY KEY (user_id, email),
+			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
+		);
 		CREATE TABLE IF NOT EXISTS schemaVersion (
 			id INT PRIMARY KEY,
 			version INT NOT NULL
@@ -101,7 +107,7 @@ const (
 
 // Schema version table management for SQLite
 const (
-	sqliteCurrentSchemaVersion     = 6
+	sqliteCurrentSchemaVersion     = 7
 	sqliteInsertSchemaVersionQuery = `INSERT INTO schemaVersion VALUES (1, ?)`
 	sqliteUpdateSchemaVersionQuery = `UPDATE schemaVersion SET version = ? WHERE id = 1`
 	sqliteSelectSchemaVersionQuery = `SELECT version FROM schemaVersion WHERE id = 1`
@@ -220,6 +226,16 @@ const (
 		UPDATE user_access SET topic = REPLACE(topic, '_', '\_');
 	`
 
+	// 6 -> 7
+	sqliteMigrate6To7UpdateQueries = `
+		CREATE TABLE IF NOT EXISTS user_email (
+			user_id TEXT NOT NULL,
+			email TEXT NOT NULL,
+			PRIMARY KEY (user_id, email),
+			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
+		);
+	`
+
 	// 5 -> 6
 	sqliteMigrate5To6UpdateQueries = `
 		PRAGMA foreign_keys=off;
@@ -322,6 +338,7 @@ var (
 		3: sqliteMigrateFrom3,
 		4: sqliteMigrateFrom4,
 		5: sqliteMigrateFrom5,
+		6: sqliteMigrateFrom6,
 	}
 )
 
@@ -458,6 +475,19 @@ func sqliteMigrateFrom5(sqlDB *sql.DB) error {
 			return err
 		}
 		if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 6); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func sqliteMigrateFrom6(sqlDB *sql.DB) error {
+	log.Tag(tag).Info("Migrating user database schema: from 6 to 7")
+	return db.ExecTx(sqlDB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(sqliteMigrate6To7UpdateQueries); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 7); err != nil {
 			return err
 		}
 		return nil

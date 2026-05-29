@@ -20,6 +20,7 @@ const (
 	DefaultCacheBatchTimeout                    = time.Duration(0)
 	DefaultKeepaliveInterval                    = 45 * time.Second // Not too frequently to save battery (Android read timeout used to be 77s!)
 	DefaultManagerInterval                      = time.Minute
+	DefaultManagerBatchSize                     = 30000
 	DefaultDelayedSenderInterval                = 10 * time.Second
 	DefaultMessageDelayMin                      = 10 * time.Second
 	DefaultMessageDelayMax                      = 3 * 24 * time.Hour
@@ -46,11 +47,13 @@ const (
 // - total topic limit: max number of topics overall
 // - various attachment limits
 const (
-	DefaultMessageSizeLimit         = 4096 // Bytes; note that FCM/APNS have a limit of ~4 KB for the entire message
-	DefaultTotalTopicLimit          = 15000
-	DefaultAttachmentTotalSizeLimit = int64(5 * 1024 * 1024 * 1024) // 5 GB
-	DefaultAttachmentFileSizeLimit  = int64(15 * 1024 * 1024)       // 15 MB
-	DefaultAttachmentExpiryDuration = 3 * time.Hour
+	DefaultMessageSizeLimit            = 4096 // Bytes; note that FCM/APNS have a limit of ~4 KB for the entire message
+	DefaultTotalTopicLimit             = 15000
+	DefaultAttachmentTotalSizeLimit    = int64(5 * 1024 * 1024 * 1024) // 5 GB
+	DefaultAttachmentFileSizeLimit     = int64(15 * 1024 * 1024)       // 15 MB
+	DefaultAttachmentExpiryDuration    = 3 * time.Hour
+	DefaultAttachmentOrphanGracePeriod = time.Hour // Don't delete orphaned objects younger than this to avoid races with in-flight uploads
+
 )
 
 // Defines all per-visitor limits
@@ -66,6 +69,8 @@ const (
 	DefaultVisitorMessageDailyLimit             = 0
 	DefaultVisitorEmailLimitBurst               = 16
 	DefaultVisitorEmailLimitReplenish           = time.Hour
+	DefaultVisitorTopicCreationLimitBurst       = 100
+	DefaultVisitorTopicCreationLimitReplenish   = time.Minute
 	DefaultVisitorAccountCreationLimitBurst     = 3
 	DefaultVisitorAccountCreationLimitReplenish = 24 * time.Hour
 	DefaultVisitorAuthFailureLimitBurst         = 30
@@ -115,9 +120,11 @@ type Config struct {
 	AttachmentTotalSizeLimit             int64
 	AttachmentFileSizeLimit              int64
 	AttachmentExpiryDuration             time.Duration
+	AttachmentOrphanGracePeriod          time.Duration
 	TemplateDir                          string // Directory to load named templates from
 	KeepaliveInterval                    time.Duration
 	ManagerInterval                      time.Duration
+	ManagerBatchSize                     int
 	DisallowedTopics                     []string
 	WebRoot                              string // empty to disable
 	DelayedSenderInterval                time.Duration
@@ -130,6 +137,7 @@ type Config struct {
 	SMTPSenderUser                       string
 	SMTPSenderPass                       string
 	SMTPSenderFrom                       string
+	SMTPSenderVerify                     bool
 	SMTPServerListen                     string
 	SMTPServerDomain                     string
 	SMTPServerAddrPrefix                 string
@@ -157,6 +165,8 @@ type Config struct {
 	VisitorMessageDailyLimit             int
 	VisitorEmailLimitBurst               int
 	VisitorEmailLimitReplenish           time.Duration
+	VisitorTopicCreationLimitBurst       int           // Burst of new topic creations per visitor
+	VisitorTopicCreationLimitReplenish   time.Duration // Interval at which topic-creation tokens are refilled
 	VisitorAccountCreationLimitBurst     int
 	VisitorAccountCreationLimitReplenish time.Duration
 	VisitorAuthFailureLimitBurst         int
@@ -217,9 +227,11 @@ func NewConfig() *Config {
 		AttachmentTotalSizeLimit:             DefaultAttachmentTotalSizeLimit,
 		AttachmentFileSizeLimit:              DefaultAttachmentFileSizeLimit,
 		AttachmentExpiryDuration:             DefaultAttachmentExpiryDuration,
+		AttachmentOrphanGracePeriod:          DefaultAttachmentOrphanGracePeriod,
 		TemplateDir:                          DefaultTemplateDir,
 		KeepaliveInterval:                    DefaultKeepaliveInterval,
 		ManagerInterval:                      DefaultManagerInterval,
+		ManagerBatchSize:                     DefaultManagerBatchSize,
 		DisallowedTopics:                     DefaultDisallowedTopics,
 		WebRoot:                              "/",
 		DelayedSenderInterval:                DefaultDelayedSenderInterval,
@@ -232,6 +244,7 @@ func NewConfig() *Config {
 		SMTPSenderUser:                       "",
 		SMTPSenderPass:                       "",
 		SMTPSenderFrom:                       "",
+		SMTPSenderVerify:                     false,
 		SMTPServerListen:                     "",
 		SMTPServerDomain:                     "",
 		SMTPServerAddrPrefix:                 "",
@@ -257,6 +270,8 @@ func NewConfig() *Config {
 		VisitorMessageDailyLimit:             DefaultVisitorMessageDailyLimit,
 		VisitorEmailLimitBurst:               DefaultVisitorEmailLimitBurst,
 		VisitorEmailLimitReplenish:           DefaultVisitorEmailLimitReplenish,
+		VisitorTopicCreationLimitBurst:       DefaultVisitorTopicCreationLimitBurst,
+		VisitorTopicCreationLimitReplenish:   DefaultVisitorTopicCreationLimitReplenish,
 		VisitorAccountCreationLimitBurst:     DefaultVisitorAccountCreationLimitBurst,
 		VisitorAccountCreationLimitReplenish: DefaultVisitorAccountCreationLimitReplenish,
 		VisitorAuthFailureLimitBurst:         DefaultVisitorAuthFailureLimitBurst,

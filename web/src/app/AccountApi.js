@@ -2,6 +2,8 @@ import i18n from "i18next";
 import {
   accountBillingPortalUrl,
   accountBillingSubscriptionUrl,
+  accountEmailUrl,
+  accountEmailVerifyUrl,
   accountPasswordUrl,
   accountPhoneUrl,
   accountPhoneVerifyUrl,
@@ -135,8 +137,8 @@ class AccountApi {
       token,
       label,
     };
-    if (expires > 0) {
-      body.expires = Math.floor(Date.now() / 1000) + expires;
+    if (expires >= 0) {
+      body.expires = expires > 0 ? Math.floor(Date.now() / 1000) + expires : 0;
     }
     console.log(`[AccountApi] Creating user access token ${url}`);
     await fetchOrThrow(url, {
@@ -336,6 +338,43 @@ class AccountApi {
       headers: withBearerAuth({}, session.token()),
       body: JSON.stringify({
         number: phoneNumber,
+      }),
+    });
+  }
+
+  async verifyEmail(email) {
+    const url = accountEmailVerifyUrl(config.base_url);
+    console.log(`[AccountApi] Sending email verification ${url}`);
+    await fetchOrThrow(url, {
+      method: "PUT",
+      headers: withBearerAuth({}, session.token()),
+      body: JSON.stringify({
+        email,
+      }),
+    });
+  }
+
+  async addEmail(email, code) {
+    const url = accountEmailUrl(config.base_url);
+    console.log(`[AccountApi] Adding email with verification code ${url}`);
+    await fetchOrThrow(url, {
+      method: "PUT",
+      headers: withBearerAuth({}, session.token()),
+      body: JSON.stringify({
+        email,
+        code,
+      }),
+    });
+  }
+
+  async deleteEmail(email) {
+    const url = accountEmailUrl(config.base_url);
+    console.log(`[AccountApi] Deleting email ${url}`);
+    await fetchOrThrow(url, {
+      method: "DELETE",
+      headers: withBearerAuth({}, session.token()),
+      body: JSON.stringify({
+        email,
       }),
     });
   }

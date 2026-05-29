@@ -39,13 +39,12 @@ import EditIcon from "@mui/icons-material/Edit";
 import { Trans, useTranslation } from "react-i18next";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import humanizeDuration from "humanize-duration";
 import CelebrationIcon from "@mui/icons-material/Celebration";
 import CloseIcon from "@mui/icons-material/Close";
 import { ContentCopy, Public } from "@mui/icons-material";
 import AddIcon from "@mui/icons-material/Add";
 import routes from "./routes";
-import { copyToClipboard, formatBytes, formatShortDate, formatShortDateTime, openUrl } from "../app/utils";
+import { copyToClipboard, formatBytes, formatShortDate, formatShortDateTime, formatShortDuration, openUrl } from "../app/utils";
 import accountApi, { LimitBasis, Role, SubscriptionInterval, SubscriptionStatus } from "../app/AccountApi";
 import { Pref, PrefGroup } from "./Pref";
 import db from "../app/db";
@@ -53,7 +52,7 @@ import UpgradeDialog from "./UpgradeDialog";
 import { AccountContext } from "./App";
 import DialogFooter from "./DialogFooter";
 import { Paragraph } from "./styles";
-import { IncorrectPasswordError, UnauthorizedError } from "../app/errors";
+import { EmailVerificationCodeInvalidError, IncorrectPasswordError, UnauthorizedError } from "../app/errors";
 import { ProChip } from "./SubscriptionPopup";
 import session from "../app/Session";
 
@@ -84,6 +83,7 @@ const Basics = () => {
       <PrefGroup>
         <Username />
         <ChangePassword />
+        <Emails />
         <PhoneNumbers />
         <AccountType />
       </PrefGroup>
@@ -351,6 +351,200 @@ const AccountType = () => {
         />
       </Portal>
     </Pref>
+  );
+};
+
+const Emails = () => {
+  const { t } = useTranslation();
+  const { account } = useContext(AccountContext);
+  const [dialogKey, setDialogKey] = useState(0);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [snackOpen, setSnackOpen] = useState(false);
+  const labelId = "prefVerifiedEmails";
+
+  const handleDialogOpen = () => {
+    setDialogKey((prev) => prev + 1);
+    setDialogOpen(true);
+  };
+
+  const handleDialogClose = () => {
+    setDialogOpen(false);
+  };
+
+  const handleCopy = (email) => {
+    copyToClipboard(email);
+    setSnackOpen(true);
+  };
+
+  const handleDelete = async (email) => {
+    try {
+      await accountApi.deleteEmail(email);
+    } catch (e) {
+      console.log(`[Account] Error deleting email`, e);
+      if (e instanceof UnauthorizedError) {
+        await session.resetAndRedirect(routes.login);
+      }
+    }
+  };
+
+  if (!config.enable_email_verify) {
+    return null;
+  }
+
+  if (account?.limits.emails === 0) {
+    return (
+      <Pref
+        title={
+          <>
+            {t("account_basics_emails_title")}
+            {config.enable_payments && <ProChip />}
+          </>
+        }
+        description={t("account_basics_emails_description")}
+      >
+        <em>{t("account_usage_emails_none")}</em>
+      </Pref>
+    );
+  }
+
+  return (
+    <Pref labelId={labelId} title={t("account_basics_emails_title")} description={t("account_basics_emails_description")}>
+      <div aria-labelledby={labelId}>
+        {account?.emails?.map((email) => (
+          <Chip
+            key={email}
+            label={
+              <Tooltip title={t("common_copy_to_clipboard")}>
+                <span>{email}</span>
+              </Tooltip>
+            }
+            variant="outlined"
+            onClick={() => handleCopy(email)}
+            onDelete={() => handleDelete(email)}
+          />
+        ))}
+        {!account?.emails && <em>{t("account_basics_emails_no_emails_yet")}</em>}
+        <IconButton onClick={handleDialogOpen}>
+          <AddIcon />
+        </IconButton>
+      </div>
+      <AddEmailDialog key={`addEmailDialog${dialogKey}`} open={dialogOpen} onClose={handleDialogClose} />
+      <Portal>
+        <Snackbar
+          open={snackOpen}
+          autoHideDuration={3000}
+          onClose={() => setSnackOpen(false)}
+          message={t("account_basics_emails_copied_to_clipboard")}
+        />
+      </Portal>
+    </Pref>
+  );
+};
+
+const AddEmailDialog = (props) => {
+  const theme = useTheme();
+  const { t } = useTranslation();
+  const [error, setError] = useState("");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [sending, setSending] = useState(false);
+  const [verificationCodeSent, setVerificationCodeSent] = useState(false);
+  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
+
+  const verifyEmail = async () => {
+    try {
+      setSending(true);
+      await accountApi.verifyEmail(email);
+      setVerificationCodeSent(true);
+    } catch (e) {
+      console.log(`[Account] Error sending email verification`, e);
+      if (e instanceof UnauthorizedError) {
+        await session.resetAndRedirect(routes.login);
+      } else {
+        setError(e.message);
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const checkVerifyEmail = async () => {
+    try {
+      setSending(true);
+      await accountApi.addEmail(email, code);
+      props.onClose();
+    } catch (e) {
+      console.log(`[Account] Error confirming email verification`, e);
+      if (e instanceof UnauthorizedError) {
+        await session.resetAndRedirect(routes.login);
+      } else if (e instanceof EmailVerificationCodeInvalidError) {
+        setError(t("account_basics_emails_dialog_code_invalid"));
+      } else {
+        setError(e.message);
+      }
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleDialogSubmit = async () => {
+    if (!verificationCodeSent) {
+      await verifyEmail();
+    } else {
+      await checkVerifyEmail();
+    }
+  };
+
+  const handleCancel = () => {
+    if (verificationCodeSent) {
+      setVerificationCodeSent(false);
+      setCode("");
+    } else {
+      props.onClose();
+    }
+  };
+
+  return (
+    <Dialog open={props.open} onClose={props.onCancel} fullScreen={fullScreen}>
+      <DialogTitle>{t("account_basics_emails_dialog_title")}</DialogTitle>
+      <DialogContent>
+        <DialogContentText>{t("account_basics_emails_dialog_description")}</DialogContentText>
+        {!verificationCodeSent && (
+          <TextField
+            margin="dense"
+            label={t("account_basics_emails_dialog_email_label")}
+            aria-label={t("account_basics_emails_dialog_email_label")}
+            placeholder={t("account_basics_emails_dialog_email_placeholder")}
+            type="email"
+            value={email}
+            onChange={(ev) => setEmail(ev.target.value)}
+            fullWidth
+            variant="standard"
+          />
+        )}
+        {verificationCodeSent && (
+          <TextField
+            margin="dense"
+            label={t("account_basics_emails_dialog_code_label")}
+            aria-label={t("account_basics_emails_dialog_code_label")}
+            placeholder={t("account_basics_emails_dialog_code_placeholder")}
+            type="text"
+            value={code}
+            onChange={(ev) => setCode(ev.target.value)}
+            fullWidth
+            inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
+            variant="standard"
+          />
+        )}
+      </DialogContent>
+      <DialogFooter status={error}>
+        <Button onClick={handleCancel}>{verificationCodeSent ? t("common_back") : t("common_cancel")}</Button>
+        <Button onClick={handleDialogSubmit} disabled={sending || !/^[^\s,;]+@[^\s,;]+$/.test(email)}>
+          {!verificationCodeSent && t("account_basics_emails_dialog_verify_button")}
+          {verificationCodeSent && t("account_basics_emails_dialog_check_verification_button")}
+        </Button>
+      </DialogFooter>
+    </Dialog>
   );
 };
 
@@ -701,10 +895,7 @@ const Stats = () => {
           title={t("account_usage_attachment_storage_title")}
           description={t("account_usage_attachment_storage_description", {
             filesize: formatBytes(account.limits.attachment_file_size),
-            expiry: humanizeDuration(account.limits.attachment_expiry_duration * 1000, {
-              language: i18n.resolvedLanguage,
-              fallbacks: ["en"],
-            }),
+            expiry: formatShortDuration(account.limits.attachment_expiry_duration * 1000, i18n.resolvedLanguage),
           })}
         >
           <div>
@@ -750,7 +941,9 @@ const Stats = () => {
         )}
       </PrefGroup>
       {account.role === Role.USER && account.limits.basis === LimitBasis.IP && (
-        <Typography variant="body1">{t("account_usage_basis_ip_description")}</Typography>
+        <Typography variant="body1" sx={{ pt: 3 }}>
+          {t("account_usage_basis_ip_description")}
+        </Typography>
       )}
     </Card>
   );
@@ -859,87 +1052,94 @@ const TokensTable = (props) => {
         </TableRow>
       </TableHead>
       <TableBody>
-        {tokens.map((token) => (
-          <TableRow key={token.token} sx={{ "&:last-child td, &:last-child th": { border: 0 } }}>
-            <TableCell
-              component="th"
-              scope="row"
-              sx={{ paddingLeft: 0, whiteSpace: "nowrap" }}
-              aria-label={t("account_tokens_table_token_header")}
-            >
-              <span>
-                <span style={{ fontFamily: "Monospace", fontSize: "0.9rem" }}>{token.token.slice(0, 12)}</span>
-                ...
-                <Tooltip title={t("common_copy_to_clipboard")} placement="right">
-                  <IconButton onClick={() => handleCopy(token.token)}>
-                    <ContentCopy />
-                  </IconButton>
-                </Tooltip>
-              </span>
-            </TableCell>
-            <TableCell aria-label={t("account_tokens_table_label_header")}>
-              {token.token === session.token() && <em>{t("account_tokens_table_current_session")}</em>}
-              {token.token !== session.token() && (token.label || "-")}
-            </TableCell>
-            <TableCell sx={{ whiteSpace: "nowrap" }} aria-label={t("account_tokens_table_expires_header")}>
-              {token.expires ? formatShortDateTime(token.expires, i18n.language) : <em>{t("account_tokens_table_never_expires")}</em>}
-            </TableCell>
-            <TableCell sx={{ whiteSpace: "nowrap" }} aria-label={t("account_tokens_table_last_access_header")}>
-              <div style={{ display: "flex", alignItems: "center" }}>
-                <span>{formatShortDateTime(token.last_access, i18n.language)}</span>
-                <Tooltip
-                  title={t("account_tokens_table_last_origin_tooltip", {
-                    ip: token.last_origin,
-                  })}
-                >
-                  <IconButton onClick={() => openUrl(`https://whatismyipaddress.com/ip/${token.last_origin}`)}>
-                    <Public />
-                  </IconButton>
-                </Tooltip>
-              </div>
-            </TableCell>
-            <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
-              {token.token !== session.token() && !token.provisioned && (
-                <>
-                  <Tooltip title={t("account_tokens_dialog_title_edit")}>
-                    <IconButton onClick={() => handleEditClick(token)} aria-label={t("account_tokens_dialog_title_edit")}>
-                      <EditIcon />
+        {tokens.map((token) => {
+          const hasLastAccess = Number.isFinite(token.last_access) && token.last_access > 0;
+          const hasLastOrigin = !!token.last_origin;
+
+          return (
+            <TableRow key={token.token} sx={{ "&:last-child td, &:last-child th": { border: 0 } }}>
+              <TableCell
+                component="th"
+                scope="row"
+                sx={{ paddingLeft: 0, whiteSpace: "nowrap" }}
+                aria-label={t("account_tokens_table_token_header")}
+              >
+                <span>
+                  <span style={{ fontFamily: "Monospace", fontSize: "0.9rem" }}>{token.token.slice(0, 12)}</span>
+                  ...
+                  <Tooltip title={t("common_copy_to_clipboard")} placement="right">
+                    <IconButton onClick={() => handleCopy(token.token)}>
+                      <ContentCopy />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title={t("account_tokens_dialog_title_delete")}>
-                    <IconButton onClick={() => handleDeleteClick(token)} aria-label={t("account_tokens_dialog_title_delete")}>
-                      <CloseIcon />
-                    </IconButton>
+                </span>
+              </TableCell>
+              <TableCell aria-label={t("account_tokens_table_label_header")}>
+                {token.token === session.token() && <em>{t("account_tokens_table_current_session")}</em>}
+                {token.token !== session.token() && (token.label || "-")}
+              </TableCell>
+              <TableCell sx={{ whiteSpace: "nowrap" }} aria-label={t("account_tokens_table_expires_header")}>
+                {token.expires ? formatShortDateTime(token.expires, i18n.language) : <em>{t("account_tokens_table_never_expires")}</em>}
+              </TableCell>
+              <TableCell sx={{ whiteSpace: "nowrap" }} aria-label={t("account_tokens_table_last_access_header")}>
+                <div style={{ display: "flex", alignItems: "center" }}>
+                  {hasLastAccess ? <span>{formatShortDateTime(token.last_access, i18n.language)}</span> : <em>-</em>}
+                  {hasLastOrigin && (
+                    <Tooltip
+                      title={t("account_tokens_table_last_origin_tooltip", {
+                        ip: token.last_origin,
+                      })}
+                    >
+                      <IconButton onClick={() => openUrl(`https://whatismyipaddress.com/ip/${token.last_origin}`)}>
+                        <Public />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </div>
+              </TableCell>
+              <TableCell align="right" sx={{ whiteSpace: "nowrap" }}>
+                {token.token !== session.token() && !token.provisioned && (
+                  <>
+                    <Tooltip title={t("account_tokens_dialog_title_edit")}>
+                      <IconButton onClick={() => handleEditClick(token)} aria-label={t("account_tokens_dialog_title_edit")}>
+                        <EditIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title={t("account_tokens_dialog_title_delete")}>
+                      <IconButton onClick={() => handleDeleteClick(token)} aria-label={t("account_tokens_dialog_title_delete")}>
+                        <CloseIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </>
+                )}
+                {token.token === session.token() && (
+                  <Tooltip title={t("account_tokens_table_cannot_delete_or_edit")}>
+                    <span>
+                      <IconButton disabled>
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton disabled>
+                        <CloseIcon />
+                      </IconButton>
+                    </span>
                   </Tooltip>
-                </>
-              )}
-              {token.token === session.token() && (
-                <Tooltip title={t("account_tokens_table_cannot_delete_or_edit")}>
-                  <span>
-                    <IconButton disabled>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton disabled>
-                      <CloseIcon />
-                    </IconButton>
-                  </span>
-                </Tooltip>
-              )}
-              {token.provisioned && (
-                <Tooltip title={t("account_tokens_table_cannot_delete_or_edit_provisioned_token")}>
-                  <span>
-                    <IconButton disabled>
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton disabled>
-                      <CloseIcon />
-                    </IconButton>
-                  </span>
-                </Tooltip>
-              )}
-            </TableCell>
-          </TableRow>
-        ))}
+                )}
+                {token.provisioned && (
+                  <Tooltip title={t("account_tokens_table_cannot_delete_or_edit_provisioned_token")}>
+                    <span>
+                      <IconButton disabled>
+                        <EditIcon />
+                      </IconButton>
+                      <IconButton disabled>
+                        <CloseIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                )}
+              </TableCell>
+            </TableRow>
+          );
+        })}
       </TableBody>
       <Portal>
         <Snackbar

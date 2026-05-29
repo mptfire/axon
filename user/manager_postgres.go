@@ -208,6 +208,11 @@ const (
 	postgresInsertPhoneNumberQuery  = `INSERT INTO user_phone (user_id, phone_number) VALUES ($1, $2)`
 	postgresDeletePhoneNumberQuery  = `DELETE FROM user_phone WHERE user_id = $1 AND phone_number = $2`
 
+	// Email queries
+	postgresSelectEmailsQuery = `SELECT email FROM user_email WHERE user_id = $1 ORDER BY email`
+	postgresInsertEmailQuery  = `INSERT INTO user_email (user_id, email) VALUES ($1, $2)`
+	postgresDeleteEmailQuery  = `DELETE FROM user_email WHERE user_id = $1 AND email = $2`
+
 	// Billing queries
 	postgresUpdateBillingQuery = `
 		UPDATE "user"
@@ -274,6 +279,9 @@ var postgresQueries = queries{
 	selectPhoneNumbers:           postgresSelectPhoneNumbersQuery,
 	insertPhoneNumber:            postgresInsertPhoneNumberQuery,
 	deletePhoneNumber:            postgresDeletePhoneNumberQuery,
+	selectEmails:                 postgresSelectEmailsQuery,
+	insertEmail:                  postgresInsertEmailQuery,
+	deleteEmail:                  postgresDeleteEmailQuery,
 	updateBilling:                postgresUpdateBillingQuery,
 }
 

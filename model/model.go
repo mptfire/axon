@@ -19,8 +19,8 @@ const (
 	PollRequestEvent   = "poll_request"
 )
 
-// MessageIDLength is the length of a randomly generated message ID
-const MessageIDLength = 12
+// messageIDLength is the length of a randomly generated message ID
+const messageIDLength = 12
 
 // Errors for message operations
 var (
@@ -133,10 +133,20 @@ func NewAction() *Action {
 	}
 }
 
+// GenerateMessageID creates a new random message ID
+func GenerateMessageID() string {
+	return util.RandomString(messageIDLength)
+}
+
+// ValidMessageID returns true if the given string is a valid message ID
+func ValidMessageID(s string) bool {
+	return util.ValidRandomString(s, messageIDLength)
+}
+
 // NewMessage creates a new message with the current timestamp
 func NewMessage(event, topic, msg string) *Message {
 	return &Message{
-		ID:      util.RandomString(MessageIDLength),
+		ID:      GenerateMessageID(),
 		Time:    time.Now().Unix(),
 		Event:   event,
 		Topic:   topic,
@@ -171,11 +181,6 @@ func NewPollRequestMessage(topic, pollID string) *Message {
 	m := NewMessage(PollRequestEvent, topic, "New message")
 	m.PollID = pollID
 	return m
-}
-
-// ValidMessageID returns true if the given string is a valid message ID
-func ValidMessageID(s string) bool {
-	return util.ValidRandomString(s, MessageIDLength)
 }
 
 // SinceMarker represents a point in time or message ID from which to retrieve messages

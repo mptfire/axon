@@ -1,4 +1,3 @@
-import { Base64 } from "js-base64";
 import beep from "../sounds/beep.mp3";
 import juntos from "../sounds/juntos.mp3";
 import pristine from "../sounds/pristine.mp3";
@@ -34,6 +33,8 @@ export const accountBillingSubscriptionUrl = (baseUrl) => `${baseUrl}/v1/account
 export const accountBillingPortalUrl = (baseUrl) => `${baseUrl}/v1/account/billing/portal`;
 export const accountPhoneUrl = (baseUrl) => `${baseUrl}/v1/account/phone`;
 export const accountPhoneVerifyUrl = (baseUrl) => `${baseUrl}/v1/account/phone/verify`;
+export const accountEmailUrl = (baseUrl) => `${baseUrl}/v1/account/email`;
+export const accountEmailVerifyUrl = (baseUrl) => `${baseUrl}/v1/account/email/verify`;
 
 export const validUrl = (url) => url.match(/^https?:\/\/.+/);
 
@@ -61,9 +62,14 @@ export const unmatchedTags = (tags) => {
   return tags.filter((tag) => !(tag in emojisMapped));
 };
 
-export const encodeBase64 = (s) => Base64.encode(s);
+export const encodeBase64 = (s) => {
+  const bytes = new TextEncoder().encode(s);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+};
 
-export const encodeBase64Url = (s) => Base64.encodeURI(s);
+export const encodeBase64Url = (s) => encodeBase64(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 export const bearerAuth = (token) => `Bearer ${token}`;
 
@@ -136,9 +142,10 @@ export const hashCode = (s) => {
 
 /**
  * convert `i18n.language` style str (e.g.: `en_US`) to kebab-case (e.g.: `en-US`),
- * which is expected by `<html lang>` and `Intl.DateTimeFormat`
+ * which is expected by `<html lang>` and `Intl.DateTimeFormat`. Falls back to "en"
+ * if the input is missing or not a string.
  */
-export const getKebabCaseLangStr = (language) => language.replace(/_/g, "-");
+export const getKebabCaseLangStr = (language) => (typeof language === "string" && language.length > 0 ? language.replace(/_/g, "-") : "en");
 
 export const formatShortDateTime = (timestamp, language) =>
   new Intl.DateTimeFormat(getKebabCaseLangStr(language), {
@@ -148,6 +155,32 @@ export const formatShortDateTime = (timestamp, language) =>
 
 export const formatShortDate = (timestamp, language) =>
   new Intl.DateTimeFormat(getKebabCaseLangStr(language), { dateStyle: "short" }).format(new Date(timestamp * 1000));
+
+export const formatShortDuration = (ms, language) => {
+  const seconds = Math.round(ms / 1000);
+  const units = [
+    { unit: "year", s: 31536000 },
+    { unit: "month", s: 2592000 },
+    { unit: "week", s: 604800 },
+    { unit: "day", s: 86400 },
+    { unit: "hour", s: 3600 },
+    { unit: "minute", s: 60 },
+    { unit: "second", s: 1 },
+  ];
+  const match = units.find((u) => seconds >= u.s) ?? units[units.length - 1];
+  const value = Math.round(seconds / match.s);
+  // [lang, "en"] makes Intl fall back to English for well-formed-but-unsupported tags;
+  // the try/catch covers malformed tags (RangeError) so the web app never crashes here.
+  try {
+    return new Intl.NumberFormat([getKebabCaseLangStr(language), "en"], {
+      style: "unit",
+      unit: match.unit,
+      unitDisplay: "long",
+    }).format(value);
+  } catch {
+    return new Intl.NumberFormat("en", { style: "unit", unit: match.unit, unitDisplay: "long" }).format(value);
+  }
+};
 
 export const formatBytes = (bytes, decimals = 2) => {
   if (bytes === 0) return "0 bytes";

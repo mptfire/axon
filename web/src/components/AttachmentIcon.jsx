@@ -31,18 +31,24 @@ const AttachmentIcon = (props) => {
     imageFile = fileDocument;
     imageLabel = t("notifications_attachment_file_document");
   }
+  const icon = (
+    <Box
+      component="img"
+      src={imageFile}
+      alt={imageLabel}
+      loading="lazy"
+      sx={{
+        width: "28px",
+        height: "28px",
+      }}
+    />
+  );
+  if (!props.href) {
+    return icon;
+  }
   return (
-    <Link href={props.href} target="_blank">
-      <Box
-        component="img"
-        src={imageFile}
-        alt={imageLabel}
-        loading="lazy"
-        sx={{
-          width: "28px",
-          height: "28px",
-        }}
-      />
+    <Link href={props.href} target="_blank" rel="noopener noreferrer">
+      {icon}
     </Link>
   );
 };

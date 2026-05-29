@@ -52,7 +52,7 @@ var flagsServe = append(
 	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "auth-users", Aliases: []string{"auth_users"}, EnvVars: []string{"NTFY_AUTH_USERS"}, Usage: "pre-provisioned declarative users"}),
 	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "auth-access", Aliases: []string{"auth_access"}, EnvVars: []string{"NTFY_AUTH_ACCESS"}, Usage: "pre-provisioned declarative access control entries"}),
 	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "auth-tokens", Aliases: []string{"auth_tokens"}, EnvVars: []string{"NTFY_AUTH_TOKENS"}, Usage: "pre-provisioned declarative access tokens"}),
-	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-cache-dir", Aliases: []string{"attachment_cache_dir"}, EnvVars: []string{"NTFY_ATTACHMENT_CACHE_DIR"}, Usage: "cache directory for attached files"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-cache-dir", Aliases: []string{"attachment_cache_dir"}, EnvVars: []string{"NTFY_ATTACHMENT_CACHE_DIR"}, Usage: "cache directory for attached files, or S3 URL (s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT])"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-total-size-limit", Aliases: []string{"attachment_total_size_limit", "A"}, EnvVars: []string{"NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT"}, Value: util.FormatSize(server.DefaultAttachmentTotalSizeLimit), Usage: "limit of the on-disk attachment cache"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-file-size-limit", Aliases: []string{"attachment_file_size_limit", "Y"}, EnvVars: []string{"NTFY_ATTACHMENT_FILE_SIZE_LIMIT"}, Value: util.FormatSize(server.DefaultAttachmentFileSizeLimit), Usage: "per-file attachment size limit (e.g. 300k, 2M, 100M)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "attachment-expiry-duration", Aliases: []string{"attachment_expiry_duration", "X"}, EnvVars: []string{"NTFY_ATTACHMENT_EXPIRY_DURATION"}, Value: util.FormatDuration(server.DefaultAttachmentExpiryDuration), Usage: "duration after which uploaded attachments will be deleted (e.g. 3h, 20h)"}),
@@ -71,6 +71,7 @@ var flagsServe = append(
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-user", Aliases: []string{"smtp_sender_user"}, EnvVars: []string{"NTFY_SMTP_SENDER_USER"}, Usage: "SMTP user (if e-mail sending is enabled)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-pass", Aliases: []string{"smtp_sender_pass"}, EnvVars: []string{"NTFY_SMTP_SENDER_PASS"}, Usage: "SMTP password (if e-mail sending is enabled)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-from", Aliases: []string{"smtp_sender_from"}, EnvVars: []string{"NTFY_SMTP_SENDER_FROM"}, Usage: "SMTP sender address (if e-mail sending is enabled)"}),
+	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "smtp-sender-verify", Aliases: []string{"smtp_sender_verify"}, EnvVars: []string{"NTFY_SMTP_SENDER_VERIFY"}, Value: false, Usage: "require verified email addresses for sending email notifications"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-server-listen", Aliases: []string{"smtp_server_listen"}, EnvVars: []string{"NTFY_SMTP_SERVER_LISTEN"}, Usage: "SMTP server address (ip:port) for incoming emails, e.g. :25"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-server-domain", Aliases: []string{"smtp_server_domain"}, EnvVars: []string{"NTFY_SMTP_SERVER_DOMAIN"}, Usage: "SMTP domain for incoming e-mail, e.g. ntfy.sh"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-server-addr-prefix", Aliases: []string{"smtp_server_addr_prefix"}, EnvVars: []string{"NTFY_SMTP_SERVER_ADDR_PREFIX"}, Usage: "SMTP email address prefix for topics to prevent spam (e.g. 'ntfy-')"}),
@@ -92,6 +93,8 @@ var flagsServe = append(
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-message-daily-limit", Aliases: []string{"visitor_message_daily_limit"}, EnvVars: []string{"NTFY_VISITOR_MESSAGE_DAILY_LIMIT"}, Value: server.DefaultVisitorMessageDailyLimit, Usage: "max messages per visitor per day, derived from request limit if unset"}),
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-email-limit-burst", Aliases: []string{"visitor_email_limit_burst"}, EnvVars: []string{"NTFY_VISITOR_EMAIL_LIMIT_BURST"}, Value: server.DefaultVisitorEmailLimitBurst, Usage: "initial limit of e-mails per visitor"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "visitor-email-limit-replenish", Aliases: []string{"visitor_email_limit_replenish"}, EnvVars: []string{"NTFY_VISITOR_EMAIL_LIMIT_REPLENISH"}, Value: util.FormatDuration(server.DefaultVisitorEmailLimitReplenish), Usage: "interval at which burst limit is replenished (one per x)"}),
+	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-topic-creation-limit-burst", Aliases: []string{"visitor_topic_creation_limit_burst"}, EnvVars: []string{"NTFY_VISITOR_TOPIC_CREATION_LIMIT_BURST"}, Value: server.DefaultVisitorTopicCreationLimitBurst, Usage: "burst of new topic creations per visitor (0 = disabled)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "visitor-topic-creation-limit-replenish", Aliases: []string{"visitor_topic_creation_limit_replenish"}, EnvVars: []string{"NTFY_VISITOR_TOPIC_CREATION_LIMIT_REPLENISH"}, Value: util.FormatDuration(server.DefaultVisitorTopicCreationLimitReplenish), Usage: "interval at which topic-creation tokens are refilled (one per x)"}),
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-prefix-bits-ipv4", Aliases: []string{"visitor_prefix_bits_ipv4"}, EnvVars: []string{"NTFY_VISITOR_PREFIX_BITS_IPV4"}, Value: server.DefaultVisitorPrefixBitsIPv4, Usage: "number of bits of the IPv4 address to use for rate limiting (default: 32, full address)"}),
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-prefix-bits-ipv6", Aliases: []string{"visitor_prefix_bits_ipv6"}, EnvVars: []string{"NTFY_VISITOR_PREFIX_BITS_IPV6"}, Value: server.DefaultVisitorPrefixBitsIPv6, Usage: "number of bits of the IPv6 address to use for rate limiting (default: 64, /64 subnet)"}),
 	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "behind-proxy", Aliases: []string{"behind_proxy", "P"}, EnvVars: []string{"NTFY_BEHIND_PROXY"}, Value: false, Usage: "if set, use forwarded header (e.g. X-Forwarded-For, X-Client-IP) to determine visitor IP address (for rate limiting)"}),
@@ -184,6 +187,7 @@ func execServe(c *cli.Context) error {
 	smtpSenderUser := c.String("smtp-sender-user")
 	smtpSenderPass := c.String("smtp-sender-pass")
 	smtpSenderFrom := c.String("smtp-sender-from")
+	smtpSenderVerify := c.Bool("smtp-sender-verify")
 	smtpServerListen := c.String("smtp-server-listen")
 	smtpServerDomain := c.String("smtp-server-domain")
 	smtpServerAddrPrefix := c.String("smtp-server-addr-prefix")
@@ -205,6 +209,8 @@ func execServe(c *cli.Context) error {
 	visitorMessageDailyLimit := c.Int("visitor-message-daily-limit")
 	visitorEmailLimitBurst := c.Int("visitor-email-limit-burst")
 	visitorEmailLimitReplenishStr := c.String("visitor-email-limit-replenish")
+	visitorTopicCreationLimitBurst := c.Int("visitor-topic-creation-limit-burst")
+	visitorTopicCreationLimitReplenishStr := c.String("visitor-topic-creation-limit-replenish")
 	visitorPrefixBitsIPv4 := c.Int("visitor-prefix-bits-ipv4")
 	visitorPrefixBitsIPv6 := c.Int("visitor-prefix-bits-ipv6")
 	behindProxy := c.Bool("behind-proxy")
@@ -249,6 +255,10 @@ func execServe(c *cli.Context) error {
 	visitorEmailLimitReplenish, err := util.ParseDuration(visitorEmailLimitReplenishStr)
 	if err != nil {
 		return fmt.Errorf("invalid visitor email limit replenish: %s", visitorEmailLimitReplenishStr)
+	}
+	visitorTopicCreationLimitReplenish, err := util.ParseDuration(visitorTopicCreationLimitReplenishStr)
+	if err != nil {
+		return fmt.Errorf("invalid visitor topic creation limit replenish: %s", visitorTopicCreationLimitReplenishStr)
 	}
 	webPushExpiryDuration, err := util.ParseDuration(webPushExpiryDurationStr)
 	if err != nil {
@@ -310,6 +320,8 @@ func execServe(c *cli.Context) error {
 		return errors.New("if listen-https is set, both key-file and cert-file must be set")
 	} else if smtpSenderAddr != "" && (baseURL == "" || smtpSenderFrom == "") {
 		return errors.New("if smtp-sender-addr is set, base-url, and smtp-sender-from must also be set")
+	} else if smtpSenderVerify && smtpSenderAddr == "" {
+		return errors.New("if smtp-sender-verify is set, smtp-sender-addr must also be set")
 	} else if smtpServerListen != "" && smtpServerDomain == "" {
 		return errors.New("if smtp-server-listen is set, smtp-server-domain must also be set")
 	} else if attachmentCacheDir != "" && baseURL == "" {
@@ -471,6 +483,7 @@ func execServe(c *cli.Context) error {
 	conf.SMTPSenderUser = smtpSenderUser
 	conf.SMTPSenderPass = smtpSenderPass
 	conf.SMTPSenderFrom = smtpSenderFrom
+	conf.SMTPSenderVerify = smtpSenderVerify
 	conf.SMTPServerListen = smtpServerListen
 	conf.SMTPServerDomain = smtpServerDomain
 	conf.SMTPServerAddrPrefix = smtpServerAddrPrefix
@@ -492,6 +505,8 @@ func execServe(c *cli.Context) error {
 	conf.VisitorMessageDailyLimit = visitorMessageDailyLimit
 	conf.VisitorEmailLimitBurst = visitorEmailLimitBurst
 	conf.VisitorEmailLimitReplenish = visitorEmailLimitReplenish
+	conf.VisitorTopicCreationLimitBurst = visitorTopicCreationLimitBurst
+	conf.VisitorTopicCreationLimitReplenish = visitorTopicCreationLimitReplenish
 	conf.VisitorPrefixBitsIPv4 = visitorPrefixBitsIPv4
 	conf.VisitorPrefixBitsIPv6 = visitorPrefixBitsIPv6
 	conf.BehindProxy = behindProxy

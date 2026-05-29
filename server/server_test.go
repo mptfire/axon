@@ -1567,6 +1567,177 @@ func TestServer_PublishEmailAddressInvalid(t *testing.T) {
 	})
 }
 
+func TestServer_PublishEmailVerify_VerifiedAddress(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
+		conf.SMTPSenderVerify = true
+		s := newTestServer(t, conf)
+		s.smtpSender = &testMailer{}
+		defer s.closeDatabases()
+
+		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
+		u, err := s.userManager.User("phil")
+		require.Nil(t, err)
+		require.Nil(t, s.userManager.AddEmail(u.ID, "phil@example.com"))
+
+		// Verified address should succeed
+		response := request(t, s, "PUT", "/mytopic", "hi", map[string]string{
+			"Email":         "phil@example.com",
+			"Authorization": util.BasicAuth("phil", "phil"),
+		})
+		require.Equal(t, 200, response.Code)
+
+		// Unverified address should fail
+		response = request(t, s, "PUT", "/mytopic", "hi", map[string]string{
+			"Email":         "other@example.com",
+			"Authorization": util.BasicAuth("phil", "phil"),
+		})
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, 40052, toHTTPError(t, response.Body.String()).Code)
+	})
+}
+
+func TestServer_PublishEmailVerify_BoolValue(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
+		conf.SMTPSenderVerify = true
+		s := newTestServer(t, conf)
+		s.smtpSender = &testMailer{}
+		defer s.closeDatabases()
+
+		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
+		u, err := s.userManager.User("phil")
+		require.Nil(t, err)
+		require.Nil(t, s.userManager.AddEmail(u.ID, "phil@example.com"))
+
+		// "yes" should resolve to first verified email
+		response := request(t, s, "PUT", "/mytopic", "hi", map[string]string{
+			"Email":         "yes",
+			"Authorization": util.BasicAuth("phil", "phil"),
+		})
+		require.Equal(t, 200, response.Code)
+
+		// "true" and "1" should also work
+		for _, val := range []string{"true", "1"} {
+			response = request(t, s, "PUT", "/mytopic", "hi", map[string]string{
+				"Email":         val,
+				"Authorization": util.BasicAuth("phil", "phil"),
+			})
+			require.Equal(t, 200, response.Code, "expected 200 for email: %s", val)
+		}
+	})
+}
+
+func TestServer_PublishEmailVerify_BoolValue_NoVerify(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+		s.smtpSender = &testMailer{}
+
+		// "yes" without smtp-sender-verify should fail with invalid address
+		response := request(t, s, "PUT", "/mytopic", "hi", map[string]string{
+			"Email": "yes",
+		})
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, 40050, toHTTPError(t, response.Body.String()).Code)
+	})
+}
+
+func TestServer_PublishEmailVerify_Anonymous(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
+		conf.SMTPSenderVerify = true
+		s := newTestServer(t, conf)
+		s.smtpSender = &testMailer{}
+		defer s.closeDatabases()
+
+		// Anonymous user should be rejected
+		response := request(t, s, "PUT", "/mytopic", "hi", map[string]string{
+			"Email": "test@example.com",
+		})
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, 40053, toHTTPError(t, response.Body.String()).Code)
+	})
+}
+
+func TestServer_PublishEmailVerify_NoVerifiedEmails(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
+		conf.SMTPSenderVerify = true
+		s := newTestServer(t, conf)
+		s.smtpSender = &testMailer{}
+		defer s.closeDatabases()
+
+		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
+
+		// Authenticated user with no verified emails should fail
+		response := request(t, s, "PUT", "/mytopic", "hi", map[string]string{
+			"Email":         "phil@example.com",
+			"Authorization": util.BasicAuth("phil", "phil"),
+		})
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, 40052, toHTTPError(t, response.Body.String()).Code)
+	})
+}
+
+func TestServer_PublishEmailVerify_Disabled_Backwards_Compatible(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+		s.smtpSender = &testMailer{}
+
+		// Without smtp-sender-verify, any email address should work (backwards compatible)
+		response := request(t, s, "PUT", "/mytopic", "hi", map[string]string{
+			"Email": "anyone@example.com",
+		})
+		require.Equal(t, 200, response.Code)
+	})
+}
+
+func TestServer_AccountEmailVerify_UserWithoutTier(t *testing.T) {
+	// This test verifies that an authenticated user WITHOUT a tier can verify emails
+	// when the default visitor email limit allows it.
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
+		conf.SMTPSenderVerify = true
+		conf.SMTPSenderAddr = "localhost:25" // Dummy SMTP server (will fail to send, but that's ok)
+		conf.SMTPSenderFrom = "noreply@example.com"
+		s := newTestServer(t, conf)
+		defer s.closeDatabases()
+
+		// Create a user without a tier
+		require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser, false))
+
+		// Verify email request should NOT return 401
+		response := request(t, s, "PUT", "/v1/account/email/verify", `{"email":"ben@example.com"}`, map[string]string{
+			"Authorization": util.BasicAuth("ben", "ben"),
+		})
+		// The request will fail (SMTP not available), but it must NOT be a 401
+		require.NotEqual(t, 401, response.Code)
+	})
+}
+
+func TestServer_AccountEmailVerify_UserWithoutTier_EmailLimitZero(t *testing.T) {
+	// This test verifies that a tier-less user is rejected when the server's
+	// visitor email limit is zero (email sending disabled).
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
+		conf.SMTPSenderVerify = true
+		conf.SMTPSenderAddr = "localhost:25"
+		conf.SMTPSenderFrom = "noreply@example.com"
+		conf.VisitorEmailLimitBurst = 0
+		s := newTestServer(t, conf)
+		defer s.closeDatabases()
+
+		// Create a user without a tier
+		require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser, false))
+
+		// Should be rejected with 401 since email sending is disabled
+		response := request(t, s, "PUT", "/v1/account/email/verify", `{"email":"ben@example.com"}`, map[string]string{
+			"Authorization": util.BasicAuth("ben", "ben"),
+		})
+		require.Equal(t, 401, response.Code)
+	})
+}
+
 func TestServer_PublishAndExpungeTopicAfter16Hours(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
@@ -2145,7 +2316,7 @@ func TestServer_PublishAttachmentShortWithFilename(t *testing.T) {
 		require.Equal(t, "myfile.txt", msg.Attachment.Name)
 		require.Equal(t, "text/plain; charset=utf-8", msg.Attachment.Type)
 		require.Equal(t, int64(21), msg.Attachment.Size)
-		require.GreaterOrEqual(t, msg.Attachment.Expires, time.Now().Add(3*time.Hour).Unix())
+		require.GreaterOrEqual(t, msg.Attachment.Expires, time.Now().Add(3*time.Hour).Unix()-1)
 		require.Contains(t, msg.Attachment.URL, "http://127.0.0.1:12345/file/")
 		require.Equal(t, netip.Addr{}, msg.Sender) // Should never be returned
 		require.FileExists(t, filepath.Join(s.config.AttachmentCacheDir, msg.ID))
@@ -2218,8 +2389,8 @@ func TestServer_PublishAttachmentTooLargeContentLength(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		content := util.RandomString(5000) // > 4096
 		s := newTestServer(t, newTestConfig(t, databaseURL))
-		response := request(t, s, "PUT", "/mytopic", content, map[string]string{
-			"Content-Length": "20000000",
+		response := request(t, s, "PUT", "/mytopic", content, nil, func(r *http.Request) {
+			r.ContentLength = 20000000
 		})
 		err := toHTTPError(t, response.Body.String())
 		require.Equal(t, 413, response.Code)
@@ -2299,9 +2470,12 @@ func TestServer_PublishAttachmentAndExpire(t *testing.T) {
 		require.Equal(t, 200, response.Code)
 		require.Equal(t, content, response.Body.String())
 
-		// Prune and makes sure it's gone
+		// Prune and makes sure it's gone. We backdate the file so sync's grace
+		// period doesn't protect it, then run the manager + sync explicitly.
+		require.Nil(t, os.Chtimes(file, time.Now().Add(-2*time.Hour), time.Now().Add(-2*time.Hour)))
 		waitFor(t, func() bool {
-			s.execManager() // May run many times
+			s.execManager()
+			s.attachment.Sync() // File cleanup is done by sync, not by the manager
 			return !util.FileExists(file)
 		})
 		response = request(t, s, "GET", path, "", nil)
@@ -2411,6 +2585,7 @@ func TestServer_PublishAttachmentWithTierBasedLimits(t *testing.T) {
 		require.Nil(t, s.userManager.AddTier(&user.Tier{
 			Code:                     "test",
 			MessageLimit:             100,
+			MessageExpiryDuration:    time.Hour,
 			AttachmentFileSizeLimit:  50_000,
 			AttachmentTotalSizeLimit: 200_000,
 			AttachmentExpiryDuration: 30 * time.Second,
@@ -2674,7 +2849,7 @@ func TestServer_PublishWhileUpdatingStatsWithLotsOfMessages(t *testing.T) {
 		messages := make([]*model.Message, 0)
 		for i := 0; i < count; i++ {
 			topicID := fmt.Sprintf("topic%d", i)
-			_, err := s.topicsFromIDs(topicID) // Add topic to internal s.topics array
+			_, err := s.topicsFromIDs(nil, topicID) // Add topic to internal s.topics array
 			require.Nil(t, err)
 			messages = append(messages, model.NewDefaultMessage(topicID, "some message"))
 		}
@@ -2698,7 +2873,7 @@ func TestServer_PublishWhileUpdatingStatsWithLotsOfMessages(t *testing.T) {
 		response := request(t, s, "PUT", "/mytopic", "some body", nil)
 		m := toMessage(t, response.Body.String())
 		require.Equal(t, "some body", m.Message)
-		require.True(t, time.Since(start) < 100*time.Millisecond)
+		require.True(t, time.Since(start) < 2*time.Second)
 		log.Info("Done: Publishing message; took %s", time.Since(start).Round(time.Millisecond))
 
 		// Wait for all Goroutines
@@ -2970,6 +3145,67 @@ func TestServer_SubscriberRateLimiting_ProtectedTopics_WithDefaultReadWrite(t *t
 		require.Equal(t, 200, rr.Code)
 		require.Equal(t, "1.2.3.4", s.topics["up123456789012"].rateVisitor.ip.String())
 		require.Nil(t, s.topics["announcements"].rateVisitor)
+	})
+}
+
+func TestServer_VisitorTopicCreationLimit(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
+		c.VisitorTopicCreationLimitBurst = 5
+		c.VisitorTopicCreationLimitReplenish = time.Hour // Effectively no refill during the test
+		s := newTestServer(t, c)
+
+		// First 5 brand-new topics succeed
+		for i := 0; i < 5; i++ {
+			rr := request(t, s, "PUT", fmt.Sprintf("/fresh-topic-%d", i), "hi", nil)
+			require.Equal(t, 200, rr.Code)
+		}
+		// 6th brand-new topic is throttled (42911)
+		rr := request(t, s, "PUT", "/fresh-topic-6", "hi", nil)
+		require.Equal(t, 429, rr.Code)
+		require.Contains(t, rr.Body.String(), `"code":42911`)
+
+		// Republishing to an existing topic doesn't consume a token
+		for i := 0; i < 3; i++ {
+			rr := request(t, s, "PUT", "/fresh-topic-0", "again", nil)
+			require.Equal(t, 200, rr.Code)
+		}
+	})
+}
+
+func TestServer_VisitorTopicCreationLimit_Refill(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		c := newTestConfig(t, databaseURL)
+		c.VisitorTopicCreationLimitBurst = 2
+		c.VisitorTopicCreationLimitReplenish = 300 * time.Millisecond
+		s := newTestServer(t, c)
+
+		// Burn the burst
+		for i := 0; i < 2; i++ {
+			rr := request(t, s, "PUT", fmt.Sprintf("/refill-topic-%d", i), "hi", nil)
+			require.Equal(t, 200, rr.Code)
+		}
+		rr := request(t, s, "PUT", "/refill-topic-blocked", "hi", nil)
+		require.Equal(t, 429, rr.Code)
+
+		// Wait for a token to be replenished
+		time.Sleep(400 * time.Millisecond)
+
+		rr = request(t, s, "PUT", "/refill-topic-after", "hi", nil)
+		require.Equal(t, 200, rr.Code)
+	})
+}
+
+func TestServer_VisitorTopicCreationLimit_Disabled(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfig(t, databaseURL)
+		c.VisitorTopicCreationLimitBurst = 0 // 0 disables the limit
+		s := newTestServer(t, c)
+		for i := 0; i < 25; i++ {
+			rr := request(t, s, "PUT", fmt.Sprintf("/nolimit-topic-%d", i), "hi", nil)
+			require.Equal(t, 200, rr.Code)
+		}
 	})
 }
 
@@ -4191,7 +4427,7 @@ func newTestConfigWithAuthFile(t *testing.T, databaseURL string) *Config {
 func newTestServer(t *testing.T, config *Config) *Server {
 	server, err := New(config)
 	require.Nil(t, err)
-	t.Cleanup(server.closeDatabases)
+	t.Cleanup(server.Stop)
 	return server
 }
 

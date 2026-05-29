@@ -30,6 +30,7 @@ import priority3 from "../img/priority-3.svg";
 import priority4 from "../img/priority-4.svg";
 import priority5 from "../img/priority-5.svg";
 import { formatBytes, maybeWithAuth, topicShortUrl, topicUrl, validTopic, validUrl } from "../app/utils";
+import { imageRegex } from "../app/notificationUtils";
 import AttachmentIcon from "./AttachmentIcon";
 import DialogFooter from "./DialogFooter";
 import api from "../app/Api";
@@ -805,7 +806,7 @@ const AttachmentBox = (props) => {
           borderRadius: "4px",
         }}
       >
-        <AttachmentIcon type={file.type} href={URL.createObjectURL(file)} />
+        <AttachmentIcon type={file.type} href={imageRegex.test(file.name) ? URL.createObjectURL(file) : undefined} />
         <Box sx={{ marginLeft: 1, textAlign: "left" }}>
           <ExpandingTextField
             minWidth={140}
