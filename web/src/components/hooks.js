@@ -320,7 +320,7 @@ const usePeriodicTokenExtend = () => {
 
         console.log(`[usePeriodicTokenExtend] Turning on periodicsync "${SW_PERIODIC_SYNC_EXTEND_TOKEN_TAG}"`);
         await registration.periodicSync.register(SW_PERIODIC_SYNC_EXTEND_TOKEN_TAG, {
-          minInterval: 12 * 60 * 60 * 1000 // 12 hours
+          minInterval: 12 * 60 * 60 * 1000, // 12 hours
         });
       } catch (error) {
         console.log("[usePeriodicTokenExtend] Periodic Sync could not be registered", error);
