@@ -1905,6 +1905,12 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
+## ntfy server v2.24.0 (UNRELEASED)
+
+**Bug fixes + maintenance:**
+
+* Extend account token automatically from the PWA service worker, so installed PWAs don't get logged out ([#1669](https://github.com/binwiederhier/ntfy/pull/1669), [#1203](https://github.com/binwiederhier/ntfy/issues/1203), [#1533](https://github.com/binwiederhier/ntfy/issues/1533), thanks to [@nihalgonsalves](https://github.com/nihalgonsalves) for the contribution)
+
 ## ntfy iOS app v1.7.0 (UNRELEASED)
 
 This release brings **image and attachment support** to the iOS app, finally closing one of the longest-standing iOS
