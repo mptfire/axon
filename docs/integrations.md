@@ -89,6 +89,7 @@ I've added a ⭐ to projects or posts that have a significant following, or had 
 - [ntfy-desktop](https://codeberg.org/zvava/ntfy-desktop) - Cross-platform desktop application for ntfy
 - [ntfy-desktop](https://github.com/Aetherinox/ntfy-desktop) - Desktop client for Windows, Linux, and MacOS with push notifications
 - [ntfy svelte front-end](https://github.com/novatorem/Ntfy) - Front-end built with svelte
+- [ntfy Desktop (Windows)](https://github.com/simoneferrari/ntfy-desktop) - Native Windows desktop client with multi-server support, toast notifications and message history, built with WPF and .NET (C#)
 - [wio-ntfy-ticker](https://github.com/nachotp/wio-ntfy-ticker) - Ticker display for a ntfy.sh topic
 - [ntfysh-windows](https://github.com/mshafer1/ntfysh-windows) - A ntfy client for Windows Desktop
 - [ntfyr](https://github.com/haxwithaxe/ntfyr) - A simple commandline tool to send notifications to ntfy
