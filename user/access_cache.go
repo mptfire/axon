@@ -113,9 +113,17 @@ func (c *aclCache) Lookup(usernameOrEveryone, topic string) (read, write, found 
 	return false, false, false
 }
 
-// pickBestNoLock returns the highest-priority entry for a single user, combining
-// the exact-match O(1) probe with a linear scan over the (usually empty or tiny)
-// pattern list. Caller must hold c.mu (RLock is sufficient).
+// pickBestNoLock returns the highest-priority entry for a single user. When
+// more than one of that user's rules matches the requested topic, the winner
+// is chosen by:
+//
+//  1. longer stored pattern beats shorter (a more specific rule wins over a
+//     more general one)
+//  2. at equal length, write beats read (a stronger permission wins the tie)
+//
+// Exact and wildcard rules are ranked together under the same criteria, so
+// an exact "foo" (length 3) beats a wildcard "f%" (length 2), but a wildcard
+// "foo%" (length 4) beats an exact "foo" (length 3).
 func (c *aclCache) pickBestNoLock(username, topic, escapedTopic string) (*aclEntry, bool) {
 	var best aclEntry
 	var found bool
@@ -139,8 +147,7 @@ func (c *aclCache) pickBestNoLock(username, topic, escapedTopic string) (*aclEnt
 func better(a, b aclEntry) bool {
 	if a.length != b.length {
 		return a.length > b.length
-	}
-	if a.write != b.write {
+	} else if a.write != b.write {
 		return a.write
 	}
 	return false

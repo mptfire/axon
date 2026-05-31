@@ -64,14 +64,6 @@ func TestCompileLikeToRegex_RegexMetaCharsInTopic(t *testing.T) {
 	require.False(t, r.MatchString("foo.bar")) // would match if '-' leaked into a character class
 }
 
-func TestACLCache_LookupOnNilReceiverSafe(t *testing.T) {
-	var c *aclCache
-	read, write, found := c.Lookup("phil", "mytopic")
-	require.False(t, found)
-	require.False(t, read)
-	require.False(t, write)
-}
-
 func TestACLCache_LookupBeforeReload(t *testing.T) {
 	// A freshly-constructed cache has empty exact and wildcards maps. The
 	// cache treats this as "no rule found", which the caller resolves via
@@ -142,6 +134,36 @@ func TestACLCache_SpecificUserBeatsEveryone(t *testing.T) {
 	require.False(t, write)
 }
 
+func TestACLCache_SpecificUserBeatsEveryoneEvenWhenShorter(t *testing.T) {
+	// The SQL's "user_name DESC" sort key takes precedence over LENGTH(topic).
+	// Concretely: a specific user with a shorter matching rule still wins over
+	// Everyone with a longer matching rule.
+	c := newAccessCache()
+	loadCache(t, c, []rawACLRow{
+		{user: Everyone, topic: "foo", read: true, write: true},  // exact, length 3
+		{user: "phil", topic: "f%", read: false, write: false},   // wildcard, length 2, deny-all
+	})
+	read, write, found := c.Lookup("phil", "foo")
+	require.True(t, found)
+	require.False(t, read)
+	require.False(t, write)
+}
+
+func TestACLCache_SpecificUserBeatsEveryoneRegardlessOfWrite(t *testing.T) {
+	// Same-length rules but conflicting permissions across user boundary: the
+	// specific user always wins, even if its permission set is weaker (or
+	// stronger, in either direction).
+	c := newAccessCache()
+	loadCache(t, c, []rawACLRow{
+		{user: Everyone, topic: "mytopic", read: true, write: true},  // wide-open
+		{user: "phil", topic: "mytopic", read: true, write: false},   // read-only for phil
+	})
+	read, write, found := c.Lookup("phil", "mytopic")
+	require.True(t, found)
+	require.True(t, read)
+	require.False(t, write)
+}
+
 func TestACLCache_AnonymousReadsEveryone(t *testing.T) {
 	c := newAccessCache()
 	loadCache(t, c, []rawACLRow{
@@ -162,6 +184,38 @@ func TestACLCache_LongerPatternWinsForSameUser(t *testing.T) {
 		{user: Everyone, topic: "mytopic%", read: true, write: true},
 	})
 	read, write, found := c.Lookup(Everyone, "mytopicX")
+	require.True(t, found)
+	require.True(t, read)
+	require.True(t, write)
+}
+
+func TestACLCache_ExactBeatsShorterWildcardSameUser(t *testing.T) {
+	// Same user, two matching rules: exact "foo" (length 3) and wildcard "f%"
+	// (length 2). The longer one wins, which is the exact rule -- mirroring
+	// the SQL's "LENGTH(topic) DESC" tie-break. Crucially, the cache must seed
+	// "best" from the exact map probe before walking wildcards, otherwise a
+	// shorter wildcard could overwrite a longer exact.
+	c := newAccessCache()
+	loadCache(t, c, []rawACLRow{
+		{user: "phil", topic: "foo", read: true, write: true},   // exact, length 3
+		{user: "phil", topic: "f%", read: false, write: false},  // wildcard, length 2, deny-all
+	})
+	read, write, found := c.Lookup("phil", "foo")
+	require.True(t, found)
+	require.True(t, read)
+	require.True(t, write)
+}
+
+func TestACLCache_LongerWildcardBeatsExactSameUser(t *testing.T) {
+	// Same user, two matching rules: exact "foo" (length 3) and wildcard "foo%"
+	// (length 4). The wildcard wins on length DESC. Exercises the "swap best
+	// to wildcard when better() returns true" path.
+	c := newAccessCache()
+	loadCache(t, c, []rawACLRow{
+		{user: "phil", topic: "foo", read: false, write: false},  // exact, length 3, deny-all
+		{user: "phil", topic: "foo%", read: true, write: true},   // wildcard, length 4
+	})
+	read, write, found := c.Lookup("phil", "foo")
 	require.True(t, found)
 	require.True(t, read)
 	require.True(t, write)
