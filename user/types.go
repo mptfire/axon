@@ -318,9 +318,9 @@ type queries struct {
 	deleteUsersProvisioned       string
 
 	// Access queries
-	selectTopicPerms            string // Direct-DB authorizeTopicAccess query; used when the in-memory cache is disabled
-	selectAllAccessForCache     string // Bulk load: (user_name, topic, read, write) for the in-memory ACL cache
-	selectAccessForCacheByUser  string // Per-user load: (topic, read, write) for one username; used to refresh just one user's slice of the cache after mutation
+	selectTopicPerms            string             // Direct-DB authorizeTopicAccess query; used when the in-memory cache is disabled
+	selectAccessCacheAll        string             // Bulk load: (user_name, topic, read, write) for the in-memory ACL cache
+	selectAccessCacheUsersFn    func(n int) string // Returns a per-users load query whose IN clause is sized for n usernames
 	selectUserAllAccess         string
 	selectUserAccess            string
 	selectUserReservations      string

@@ -378,11 +378,7 @@ func createUserManager(c *cli.Context) (*user.Manager, error) {
 		ProvisionEnabled:    false, // Hack: Do not re-provision users on manager initialization
 		BcryptCost:          user.DefaultUserPasswordBcryptCost,
 		QueueWriterInterval: user.DefaultUserStatsQueueWriterInterval,
-		// CLI subcommands never serve authorizeTopicAccess and are short-lived,
-		// so the cache (and its background poller) would be wasted work. Mutations
-		// hit the DB directly; the running server, if any, picks them up via its
-		// own poller when the cache is enabled there.
-		AccessCacheEnabled: false,
+		AccessCacheEnabled:  false, // Do not cache for CLI commands
 	}
 	if databaseURL != "" {
 		host, dbErr := pg.Open(databaseURL)

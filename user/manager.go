@@ -93,39 +93,28 @@ func newManager(d *db.DB, queries queries, config *Config) (*Manager, error) {
 	if err := manager.maybeProvisionUsersAccessAndTokens(); err != nil {
 		return nil, err
 	}
-	// Populate the cache after provisioning so the initial snapshot includes
-	// any provisioned access rules. No-op when the cache is disabled.
-	if err := manager.reloadAccessCache(); err != nil {
-		return nil, err
-	}
-	go manager.asyncQueueWriter(manager.config.QueueWriterInterval)
-	if manager.accessCache != nil && manager.config.AccessCacheReloadInterval > 0 {
+	if manager.accessCache != nil {
+		if err := manager.maybeReloadAccessCache(); err != nil {
+			return nil, err
+		}
 		go manager.asyncAccessCacheReloader(manager.config.AccessCacheReloadInterval)
 	}
+	go manager.asyncQueueWriter(manager.config.QueueWriterInterval)
 	return manager, nil
 }
 
-// reloadAccessCache rebuilds the in-memory access cache from the primary
-// database. No-op when the cache is disabled.
-func (a *Manager) reloadAccessCache() error {
+// maybeReloadAccessCache refreshes the in-memory access cache from the
+// primary database. No-op when the cache is disabled. With no usernames it
+// does a full bulk reload; with one or more it refreshes only those users'
+// slices in a single DB round-trip via an IN clause.
+func (a *Manager) maybeReloadAccessCache(usernames ...string) error {
 	if a.accessCache == nil {
 		return nil
 	}
-	return a.accessCache.reload(a.db, a.queries.selectAllAccessForCache)
-}
-
-// reloadAccessCacheUsers refreshes the cache slices for the given usernames.
-// No-op when the cache is disabled.
-func (a *Manager) reloadAccessCacheUsers(usernames ...string) error {
-	if a.accessCache == nil {
-		return nil
+	if len(usernames) == 0 {
+		return a.accessCache.reload(a.db, a.queries.selectAccessCacheAll)
 	}
-	for _, username := range usernames {
-		if err := a.accessCache.reloadUser(a.db, a.queries.selectAccessForCacheByUser, username); err != nil {
-			return err
-		}
-	}
-	return nil
+	return a.accessCache.reload(a.db, a.queries.selectAccessCacheUsersFn(len(usernames)), usernames...)
 }
 
 // asyncAccessCacheReloader periodically refreshes the access cache
@@ -137,7 +126,7 @@ func (a *Manager) asyncAccessCacheReloader(interval time.Duration) {
 		case <-a.quit:
 			return
 		case <-ticker.C:
-			if err := a.reloadAccessCache(); err != nil {
+			if err := a.maybeReloadAccessCache(); err != nil {
 				log.Tag(tag).Err(err).Warn("Reloading ACL cache failed")
 			}
 		}
@@ -225,7 +214,7 @@ func (a *Manager) RemoveUser(username string) error {
 	// user_access rows are cascade-deleted along with the user (both by user_id
 	// and by owner_user_id). Refresh this user's own slice (now empty) and
 	// Everyone's slice, since reservations owned by this user landed there too.
-	return a.reloadAccessCacheUsers(username, Everyone)
+	return a.maybeReloadAccessCache(username, Everyone)
 }
 
 // removeUserTx deletes the user with the given username
@@ -265,7 +254,7 @@ func (a *Manager) MarkUserRemoved(user *User) error {
 	// resetUserAccessTx deleted this user's rows AND any row owned by this user
 	// (typically the matching Everyone rows from their reservations). Refresh
 	// both slices to mirror the DB exactly.
-	return a.reloadAccessCacheUsers(user.Name, Everyone)
+	return a.maybeReloadAccessCache(user.Name, Everyone)
 }
 
 // RemoveDeletedUsers deletes all users that have been marked deleted
@@ -274,7 +263,7 @@ func (a *Manager) RemoveDeletedUsers() error {
 		return err
 	}
 	// user_access rows are cascade-deleted with the users; refresh the snapshot.
-	return a.reloadAccessCache()
+	return a.maybeReloadAccessCache()
 }
 
 // ChangePassword changes a user's password
@@ -315,7 +304,7 @@ func (a *Manager) ChangeRole(username string, role Role) error {
 	// by this user (Everyone rows from their reservations). Other role changes
 	// are no-ops for the cache but reloading the two affected slices is cheap
 	// and keeps the code path uniform.
-	return a.reloadAccessCacheUsers(username, Everyone)
+	return a.maybeReloadAccessCache(username, Everyone)
 }
 
 // changeRoleTx changes a user's role
@@ -683,7 +672,7 @@ func (a *Manager) AllowAccess(username string, topicPattern string, permission P
 		return err
 	}
 	// Only this user's row set changed; refresh their slice only.
-	return a.reloadAccessCacheUsers(username)
+	return a.maybeReloadAccessCache(username)
 }
 
 func (a *Manager) allowAccessTx(tx *sql.Tx, username string, topicPattern string, permission Permission, provisioned bool) error {
@@ -710,9 +699,9 @@ func (a *Manager) ResetAccess(username string, topicPattern string) error {
 	// and deleteTopicAccess both touch rows owned by the user (typically
 	// Everyone rows from their reservations).
 	if username == "" {
-		return a.reloadAccessCache()
+		return a.maybeReloadAccessCache()
 	}
-	return a.reloadAccessCacheUsers(username, Everyone)
+	return a.maybeReloadAccessCache(username, Everyone)
 }
 
 func (a *Manager) resetAccessTx(tx *sql.Tx, username string, topicPattern string) error {
@@ -873,7 +862,7 @@ func (a *Manager) AddReservation(username string, topic string, everyone Permiss
 		return err
 	}
 	// Both user's and Everyone's rows changed.
-	return a.reloadAccessCacheUsers(username, Everyone)
+	return a.maybeReloadAccessCache(username, Everyone)
 }
 
 // RemoveReservations deletes the access control entries associated with the given username/topic,
@@ -901,7 +890,7 @@ func (a *Manager) RemoveReservations(username string, topics ...string) error {
 	}
 	// Mirror the DB: rows for this user and any Everyone rows owned by this
 	// user are gone. Refresh both slices.
-	return a.reloadAccessCacheUsers(username, Everyone)
+	return a.maybeReloadAccessCache(username, Everyone)
 }
 
 // Reservations returns all user-owned topics, and the associated everyone-access

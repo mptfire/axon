@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 
@@ -83,16 +84,10 @@ const (
 		WHERE (u.user = ? OR u.user = ?) AND ? LIKE a.topic ESCAPE '\'
 		ORDER BY u.user DESC, LENGTH(a.topic) DESC, a.write DESC
 	`
-	sqliteSelectAllAccessForCacheQuery = `
+	sqliteSelectAccessCacheAllQuery = `
 		SELECT u.user, a.topic, a.read, a.write
 		FROM user_access a
 		JOIN user u ON u.id = a.user_id
-	`
-	sqliteSelectAccessForCacheByUserQuery = `
-		SELECT a.topic, a.read, a.write
-		FROM user_access a
-		JOIN user u ON u.id = a.user_id
-		WHERE u.user = ?
 	`
 	sqliteSelectUserAllAccessQuery = `
 		SELECT user_id, topic, read, write, provisioned
@@ -231,6 +226,16 @@ const (
 	`
 )
 
+// sqliteSelectAccessCacheUsersQuery builds the per-users cache-load query
+// with a "?, ?, ..." IN clause sized for n usernames.
+func sqliteSelectAccessCacheUsersQuery(n int) string {
+	placeholders := strings.Repeat(",?", n)
+	if n > 0 {
+		placeholders = placeholders[1:] // drop the leading comma
+	}
+	return `SELECT u.user, a.topic, a.read, a.write FROM user_access a JOIN user u ON u.id = a.user_id WHERE u.user IN (` + placeholders + `)`
+}
+
 var sqliteQueries = queries{
 	selectUserByID:               sqliteSelectUserByIDQuery,
 	selectUserByName:             sqliteSelectUserByNameQuery,
@@ -254,8 +259,8 @@ var sqliteQueries = queries{
 	deleteUsersMarked:            sqliteDeleteUsersMarkedQuery,
 	deleteUsersProvisioned:       sqliteDeleteUsersProvisionedQuery,
 	selectTopicPerms:             sqliteSelectTopicPermsQuery,
-	selectAllAccessForCache:      sqliteSelectAllAccessForCacheQuery,
-	selectAccessForCacheByUser:   sqliteSelectAccessForCacheByUserQuery,
+	selectAccessCacheAll:         sqliteSelectAccessCacheAllQuery,
+	selectAccessCacheUsersFn:     sqliteSelectAccessCacheUsersQuery,
 	selectUserAllAccess:          sqliteSelectUserAllAccessQuery,
 	selectUserAccess:             sqliteSelectUserAccessQuery,
 	selectUserReservations:       sqliteSelectUserReservationsQuery,
