@@ -7,7 +7,6 @@ import (
 	"heckel.io/ntfy/v2/server"
 	"heckel.io/ntfy/v2/test"
 	"testing"
-	"time"
 )
 
 func TestCLI_Access_Show(t *testing.T) {
@@ -43,12 +42,6 @@ user * (role: anonymous, tier: none)
 - no access to any (other) topics (server config)
 `
 	require.Equal(t, expected, stdout.String())
-
-	// The CLI commands above ran against a separate Manager instance (their own
-	// process-equivalent), so the server's ACL cache hasn't seen the new grants
-	// yet. Wait for the server's background reloader (interval set in
-	// newTestServerWithAuth) to pick them up.
-	time.Sleep(150 * time.Millisecond)
 
 	// See if access permissions match
 	app, _, _, _ = newTestApp()

@@ -116,6 +116,7 @@ type Config struct {
 	AuthTokens                           map[string][]*user.Token
 	AuthBcryptCost                       int
 	AuthStatsQueueWriterInterval         time.Duration
+	AuthAccessCacheEnabled               bool
 	AuthAccessCacheReloadInterval        time.Duration
 	AttachmentCacheDir                   string
 	AttachmentTotalSizeLimit             int64
@@ -224,6 +225,7 @@ func NewConfig() *Config {
 		AuthDefault:                          user.PermissionReadWrite,
 		AuthBcryptCost:                       user.DefaultUserPasswordBcryptCost,
 		AuthStatsQueueWriterInterval:         user.DefaultUserStatsQueueWriterInterval,
+		AuthAccessCacheEnabled:               user.DefaultAccessCacheEnabled, // Opt-in (e.g. ntfy.sh) via server.yml
 		AuthAccessCacheReloadInterval:        user.DefaultAccessCacheReloadInterval,
 		AttachmentCacheDir:                   "",
 		AttachmentTotalSizeLimit:             DefaultAttachmentTotalSizeLimit,

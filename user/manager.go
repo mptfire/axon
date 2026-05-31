@@ -38,9 +38,14 @@ const (
 const (
 	DefaultUserStatsQueueWriterInterval = 33 * time.Second
 	DefaultUserPasswordBcryptCost       = 10
+	// DefaultAccessCacheEnabled is the default for Config.AccessCacheEnabled.
+	// Off by default so self-hosters keep the direct-DB authorizeTopicAccess
+	// path; ntfy.sh opts in via server config.
+	DefaultAccessCacheEnabled = false
 	// DefaultAccessCacheReloadInterval bounds how stale the in-memory ACL snapshot
 	// can be relative to writes made by *other* processes (e.g. a separate `ntfy
-	// access` CLI invocation modifying the same database)
+	// access` CLI invocation modifying the same database). Only honored when the
+	// cache is enabled.
 	DefaultAccessCacheReloadInterval = 60 * time.Second
 )
 
@@ -75,34 +80,46 @@ func newManager(d *db.DB, queries queries, config *Config) (*Manager, error) {
 		config.AccessCacheReloadInterval = DefaultAccessCacheReloadInterval
 	}
 	manager := &Manager{
-		config:      config,
-		db:          d,
-		statsQueue:  make(map[string]*Stats),
-		tokenQueue:  make(map[string]*TokenUpdate),
-		accessCache: newAccessCache(),
-		quit:        make(chan struct{}),
-		queries:     queries,
+		config:     config,
+		db:         d,
+		statsQueue: make(map[string]*Stats),
+		tokenQueue: make(map[string]*TokenUpdate),
+		quit:       make(chan struct{}),
+		queries:    queries,
+	}
+	if config.AccessCacheEnabled {
+		manager.accessCache = newAccessCache()
 	}
 	if err := manager.maybeProvisionUsersAccessAndTokens(); err != nil {
 		return nil, err
 	}
+	// Populate the cache after provisioning so the initial snapshot includes
+	// any provisioned access rules. No-op when the cache is disabled.
 	if err := manager.reloadAccessCache(); err != nil {
 		return nil, err
 	}
 	go manager.asyncQueueWriter(manager.config.QueueWriterInterval)
-	if manager.config.AccessCacheReloadInterval > 0 {
+	if manager.accessCache != nil && manager.config.AccessCacheReloadInterval > 0 {
 		go manager.asyncAccessCacheReloader(manager.config.AccessCacheReloadInterval)
 	}
 	return manager, nil
 }
 
-// reloadAccessCache rebuilds the in-memory access cache from the primary database
+// reloadAccessCache rebuilds the in-memory access cache from the primary
+// database. No-op when the cache is disabled.
 func (a *Manager) reloadAccessCache() error {
+	if a.accessCache == nil {
+		return nil
+	}
 	return a.accessCache.reload(a.db, a.queries.selectAllAccessForCache)
 }
 
-// reloadAccessCacheUsers refreshes the cache slices for the given usernames
+// reloadAccessCacheUsers refreshes the cache slices for the given usernames.
+// No-op when the cache is disabled.
 func (a *Manager) reloadAccessCacheUsers(usernames ...string) error {
+	if a.accessCache == nil {
+		return nil
+	}
 	for _, username := range usernames {
 		if err := a.accessCache.reloadUser(a.db, a.queries.selectAccessForCacheByUser, username); err != nil {
 			return err
@@ -737,15 +754,34 @@ func (a *Manager) AllowReservation(username string, topic string) error {
 // authorizeTopicAccess returns the read/write permissions for the given username and topic.
 // The found return value indicates whether an ACL entry was found at all.
 //
-// - The cache may contain two matching entries (one for everyone, and one for the user), but prioritizes the user.
-// - Furthermore, the lookup prioritizes more specific permissions (longer!) over more generic ones, e.g. "test*" > "*"
-// - It also prioritizes write permissions over read permissions
+// Priority:
+//   - specific user beats Everyone
+//   - longer pattern beats shorter (a more specific rule beats a more general one,
+//     e.g. "test*" > "*")
+//   - write beats read at equal length
 //
-// The lookup is served entirely from the in-memory snapshot maintained by accessCache,
-// so this is on the hot path of every authenticatable HTTP request and must stay allocation-free.
+// When AccessCacheEnabled is true (config), the lookup is served entirely from
+// the in-memory snapshot maintained by accessCache. Otherwise the original SQL
+// query is executed against the database on every call.
 func (a *Manager) authorizeTopicAccess(usernameOrEveryone, topic string) (read, write, found bool, err error) {
-	read, write, found = a.accessCache.Lookup(usernameOrEveryone, topic)
-	return read, write, found, nil
+	if a.accessCache != nil {
+		read, write, found = a.accessCache.Lookup(usernameOrEveryone, topic)
+		return read, write, found, nil
+	}
+	rows, err := a.db.ReadOnly().Query(a.queries.selectTopicPerms, Everyone, usernameOrEveryone, topic)
+	if err != nil {
+		return false, false, false, err
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		return false, false, false, nil
+	}
+	if err := rows.Scan(&read, &write); err != nil {
+		return false, false, false, err
+	} else if err := rows.Err(); err != nil {
+		return false, false, false, err
+	}
+	return read, write, true, nil
 }
 
 // AllGrants returns all user-specific access control entries, mapped to their respective user IDs

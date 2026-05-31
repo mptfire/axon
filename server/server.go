@@ -257,6 +257,7 @@ func New(conf *Config) (*Server, error) {
 			Tokens:                    conf.AuthTokens,
 			BcryptCost:                conf.AuthBcryptCost,
 			QueueWriterInterval:       conf.AuthStatsQueueWriterInterval,
+			AccessCacheEnabled:        conf.AuthAccessCacheEnabled,
 			AccessCacheReloadInterval: conf.AuthAccessCacheReloadInterval,
 		}
 		if pool != nil {

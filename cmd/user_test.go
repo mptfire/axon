@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 )
 
 func TestCLI_User_Add(t *testing.T) {
@@ -129,10 +128,8 @@ func newTestServerWithAuth(t *testing.T) (s *server.Server, conf *server.Config,
 	conf.File = configFile
 	conf.AuthFile = filepath.Join(t.TempDir(), "user.db")
 	conf.AuthDefault = user.PermissionDenyAll
-	// Tight interval so cross-process writes from the `ntfy access`/`ntfy user`
-	// CLI commands (which run via a separate Manager) propagate to the server's
-	// ACL cache within tens of ms instead of the default 5s.
-	conf.AuthAccessCacheReloadInterval = 25 * time.Millisecond
+	// Cache is off by default (matches self-hoster setup), so the server reads
+	// authorizations directly from the DB and sees CLI mutations immediately.
 	s, port = test.StartServerWithConfig(t, conf)
 	return
 }

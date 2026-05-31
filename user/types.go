@@ -256,14 +256,19 @@ type Config struct {
 	QueueWriterInterval time.Duration       // Interval for the async queue writer to flush stats and token updates to the database
 	BcryptCost          int                 // Cost of generated passwords; lowering makes testing faster
 
-	// AccessCacheReloadInterval bounds the staleness of the in-memory ACL cache
-	// relative to writes from other processes (e.g. `ntfy access` CLI against a
-	// running server).
-	//   0        -> use DefaultAccessCacheReloadInterval
-	//   negative -> disable the background poller; cache only refreshes on this
-	//               Manager's own ACL mutations. Use this for short-lived Managers
-	//               (e.g. the CLI subcommands) where polling is wasted work.
-	//   positive -> poll at the given interval
+	// AccessCacheEnabled gates the in-memory ACL cache. When false (the
+	// default), authorizeTopicAccess runs the direct SQL query against the
+	// database on every call -- mutations and authorization are unaffected by
+	// any cache logic. When true, the Manager keeps an in-memory snapshot of
+	// user_access and serves authorizeTopicAccess from it; mutations refresh
+	// the affected slices, and a background poller picks up cross-process
+	// writes at AccessCacheReloadInterval.
+	AccessCacheEnabled bool
+
+	// AccessCacheReloadInterval bounds the staleness of the in-memory ACL
+	// cache relative to writes from other processes (e.g. `ntfy access` CLI
+	// against a running server). Only honored when AccessCacheEnabled is true.
+	// Zero falls back to DefaultAccessCacheReloadInterval.
 	AccessCacheReloadInterval time.Duration
 }
 
@@ -313,6 +318,7 @@ type queries struct {
 	deleteUsersProvisioned       string
 
 	// Access queries
+	selectTopicPerms            string // Direct-DB authorizeTopicAccess query; used when the in-memory cache is disabled
 	selectAllAccessForCache     string // Bulk load: (user_name, topic, read, write) for the in-memory ACL cache
 	selectAccessForCacheByUser  string // Per-user load: (topic, read, write) for one username; used to refresh just one user's slice of the cache after mutation
 	selectUserAllAccess         string
