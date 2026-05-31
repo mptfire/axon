@@ -81,6 +81,12 @@ const (
 		FROM user_access a
 		JOIN user u ON u.id = a.user_id
 	`
+	sqliteSelectAccessForCacheByUserQuery = `
+		SELECT a.topic, a.read, a.write
+		FROM user_access a
+		JOIN user u ON u.id = a.user_id
+		WHERE u.user = ?
+	`
 	sqliteSelectUserAllAccessQuery = `
 		SELECT user_id, topic, read, write, provisioned
 		FROM user_access
@@ -241,6 +247,7 @@ var sqliteQueries = queries{
 	deleteUsersMarked:            sqliteDeleteUsersMarkedQuery,
 	deleteUsersProvisioned:       sqliteDeleteUsersProvisionedQuery,
 	selectAllAccessForCache:      sqliteSelectAllAccessForCacheQuery,
+	selectAccessForCacheByUser:   sqliteSelectAccessForCacheByUserQuery,
 	selectUserAllAccess:          sqliteSelectUserAllAccessQuery,
 	selectUserAccess:             sqliteSelectUserAccessQuery,
 	selectUserReservations:       sqliteSelectUserReservationsQuery,

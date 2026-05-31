@@ -75,6 +75,12 @@ const (
 		FROM user_access a
 		JOIN "user" u ON u.id = a.user_id
 	`
+	postgresSelectAccessForCacheByUserQuery = `
+		SELECT a.topic, a.read, a.write
+		FROM user_access a
+		JOIN "user" u ON u.id = a.user_id
+		WHERE u.user_name = $1
+	`
 	postgresSelectUserAllAccessQuery = `
 		SELECT user_id, topic, read, write, provisioned
 		FROM user_access
@@ -243,6 +249,7 @@ var postgresQueries = queries{
 	deleteUsersMarked:            postgresDeleteUsersMarkedQuery,
 	deleteUsersProvisioned:       postgresDeleteUsersProvisionedQuery,
 	selectAllAccessForCache:      postgresSelectAllAccessForCacheQuery,
+	selectAccessForCacheByUser:   postgresSelectAccessForCacheByUserQuery,
 	selectUserAllAccess:          postgresSelectUserAllAccessQuery,
 	selectUserAccess:             postgresSelectUserAccessQuery,
 	selectUserReservations:       postgresSelectUserReservationsQuery,

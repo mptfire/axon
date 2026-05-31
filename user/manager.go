@@ -40,9 +40,8 @@ const (
 	DefaultUserPasswordBcryptCost       = 10
 	// DefaultAccessCacheReloadInterval bounds how stale the in-memory ACL snapshot
 	// can be relative to writes made by *other* processes (e.g. a separate `ntfy
-	// access` CLI invocation modifying the same database). Mutations performed
-	// by this Manager refresh the cache synchronously and do not depend on this.
-	DefaultAccessCacheReloadInterval = 5 * time.Second
+	// access` CLI invocation modifying the same database)
+	DefaultAccessCacheReloadInterval = 60 * time.Second
 )
 
 var (
@@ -87,8 +86,6 @@ func newManager(d *db.DB, queries queries, config *Config) (*Manager, error) {
 	if err := manager.maybeProvisionUsersAccessAndTokens(); err != nil {
 		return nil, err
 	}
-	// Populate the ACL cache after provisioning so the initial snapshot includes
-	// any provisioned access rules. Subsequent mutations call reloadAccessCache.
 	if err := manager.reloadAccessCache(); err != nil {
 		return nil, err
 	}
@@ -99,18 +96,22 @@ func newManager(d *db.DB, queries queries, config *Config) (*Manager, error) {
 	return manager, nil
 }
 
-// reloadAccessCache rebuilds the in-memory ACL snapshot from the primary
-// database. Called once at startup (after provisioning) and after every method
-// that mutates user_access (directly or by cascade from "user" deletion).
+// reloadAccessCache rebuilds the in-memory access cache from the primary database
 func (a *Manager) reloadAccessCache() error {
 	return a.accessCache.reload(a.db, a.queries.selectAllAccessForCache)
 }
 
-// asyncAccessCacheReloader periodically refreshes the ACL snapshot so that
-// writes made by other processes against the same database (most notably the
-// `ntfy access` CLI subcommand running while a server holds the cache) become
-// visible within the configured interval. This Manager's own writes do not
-// depend on the poller -- they refresh the cache synchronously.
+// reloadAccessCacheUsers refreshes the cache slices for the given usernames
+func (a *Manager) reloadAccessCacheUsers(usernames ...string) error {
+	for _, username := range usernames {
+		if err := a.accessCache.reloadUser(a.db, a.queries.selectAccessForCacheByUser, username); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// asyncAccessCacheReloader periodically refreshes the access cache
 func (a *Manager) asyncAccessCacheReloader(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -198,13 +199,16 @@ func (a *Manager) RemoveUser(username string) error {
 	if err := a.CanChangeUser(username); err != nil {
 		return err
 	}
-	if err := db.ExecTx(a.db, func(tx *sql.Tx) error {
+	err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		return a.removeUserTx(tx, username)
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	// user_access rows are cascade-deleted along with the user; refresh the snapshot.
-	return a.reloadAccessCache()
+	// user_access rows are cascade-deleted along with the user (both by user_id
+	// and by owner_user_id). Refresh this user's own slice (now empty) and
+	// Everyone's slice, since reservations owned by this user landed there too.
+	return a.reloadAccessCacheUsers(username, Everyone)
 }
 
 // removeUserTx deletes the user with the given username
@@ -225,7 +229,7 @@ func (a *Manager) MarkUserRemoved(user *User) error {
 	if !AllowedUsername(user.Name) {
 		return ErrInvalidArgument
 	}
-	if err := db.ExecTx(a.db, func(tx *sql.Tx) error {
+	err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		if err := a.resetUserAccessTx(tx, user.Name); err != nil {
 			return err
 		}
@@ -237,11 +241,14 @@ func (a *Manager) MarkUserRemoved(user *User) error {
 			return err
 		}
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	// resetUserAccessTx wiped this user's user_access rows; refresh the snapshot.
-	return a.reloadAccessCache()
+	// resetUserAccessTx deleted this user's rows AND any row owned by this user
+	// (typically the matching Everyone rows from their reservations). Refresh
+	// both slices to mirror the DB exactly.
+	return a.reloadAccessCacheUsers(user.Name, Everyone)
 }
 
 // RemoveDeletedUsers deletes all users that have been marked deleted
@@ -281,15 +288,17 @@ func (a *Manager) ChangeRole(username string, role Role) error {
 	if err := a.CanChangeUser(username); err != nil {
 		return err
 	}
-	if err := db.ExecTx(a.db, func(tx *sql.Tx) error {
+	err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		return a.changeRoleTx(tx, username, role)
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	// Promotion to admin clears user_access rows for the user; refresh the snapshot.
-	// Other role changes are no-ops for the cache but reloading is cheap and keeps
-	// the code path uniform.
-	return a.reloadAccessCache()
+	// Promotion to admin clears user_access rows for this user AND rows owned
+	// by this user (Everyone rows from their reservations). Other role changes
+	// are no-ops for the cache but reloading the two affected slices is cheap
+	// and keeps the code path uniform.
+	return a.reloadAccessCacheUsers(username, Everyone)
 }
 
 // changeRoleTx changes a user's role
@@ -650,12 +659,14 @@ func (a *Manager) resolvePerms(base, perm Permission) error {
 // read/write access to a topic. The parameter topicPattern may include wildcards (*). The ACL entry
 // owner may either be a user (username), or the system (empty).
 func (a *Manager) AllowAccess(username string, topicPattern string, permission Permission) error {
-	if err := db.ExecTx(a.db, func(tx *sql.Tx) error {
+	err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		return a.allowAccessTx(tx, username, topicPattern, permission, false)
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	return a.reloadAccessCache()
+	// Only this user's row set changed; refresh their slice only.
+	return a.reloadAccessCacheUsers(username)
 }
 
 func (a *Manager) allowAccessTx(tx *sql.Tx, username string, topicPattern string, permission Permission, provisioned bool) error {
@@ -671,12 +682,20 @@ func (a *Manager) allowAccessTx(tx *sql.Tx, username string, topicPattern string
 // ResetAccess removes an access control list entry for a specific username/topic, or (if topic is
 // empty) for an entire user. The parameter topicPattern may include wildcards (*).
 func (a *Manager) ResetAccess(username string, topicPattern string) error {
-	if err := db.ExecTx(a.db, func(tx *sql.Tx) error {
+	err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		return a.resetAccessTx(tx, username, topicPattern)
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	return a.reloadAccessCache()
+	// "Delete all access" affects every user; do the bulk reload.
+	// Otherwise refresh the named user plus Everyone, since resetUserAccessTx
+	// and deleteTopicAccess both touch rows owned by the user (typically
+	// Everyone rows from their reservations).
+	if username == "" {
+		return a.reloadAccessCache()
+	}
+	return a.reloadAccessCacheUsers(username, Everyone)
 }
 
 func (a *Manager) resetAccessTx(tx *sql.Tx, username string, topicPattern string) error {
@@ -790,7 +809,7 @@ func (a *Manager) AddReservation(username string, topic string, everyone Permiss
 	if !AllowedUsername(username) || username == Everyone || !AllowedTopic(topic) {
 		return ErrInvalidArgument
 	}
-	if err := db.ExecTx(a.db, func(tx *sql.Tx) error {
+	err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		if limit > 0 {
 			hasReservation, err := a.hasReservationTx(tx, username, topic)
 			if err != nil {
@@ -813,10 +832,12 @@ func (a *Manager) AddReservation(username string, topic string, everyone Permiss
 			return err
 		}
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	return a.reloadAccessCache()
+	// Both user's and Everyone's rows changed.
+	return a.reloadAccessCacheUsers(username, Everyone)
 }
 
 // RemoveReservations deletes the access control entries associated with the given username/topic,
@@ -831,17 +852,20 @@ func (a *Manager) RemoveReservations(username string, topics ...string) error {
 			return ErrInvalidArgument
 		}
 	}
-	if err := db.ExecTx(a.db, func(tx *sql.Tx) error {
+	err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		for _, topic := range topics {
 			if err := a.removeReservationAccessTx(tx, username, topic); err != nil {
 				return err
 			}
 		}
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
-	return a.reloadAccessCache()
+	// Mirror the DB: rows for this user and any Everyone rows owned by this
+	// user are gone. Refresh both slices.
+	return a.reloadAccessCacheUsers(username, Everyone)
 }
 
 // Reservations returns all user-owned topics, and the associated everyone-access

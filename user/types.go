@@ -314,6 +314,7 @@ type queries struct {
 
 	// Access queries
 	selectAllAccessForCache     string // Bulk load: (user_name, topic, read, write) for the in-memory ACL cache
+	selectAccessForCacheByUser  string // Per-user load: (topic, read, write) for one username; used to refresh just one user's slice of the cache after mutation
 	selectUserAllAccess         string
 	selectUserAccess            string
 	selectUserReservations      string

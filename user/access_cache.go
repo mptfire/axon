@@ -64,17 +64,15 @@ func (c *accessCache) reload(d *db.DB, query string) error {
 	patterns := make(map[string][]aclEntry)
 	for rows.Next() {
 		var username, topic string
-		var entry aclEntry
-		if err := rows.Scan(&username, &topic, &entry.read, &entry.write); err != nil {
+		var read, write bool
+		if err := rows.Scan(&username, &topic, &read, &write); err != nil {
 			return err
 		}
-		entry.length = len(topic)
-		if strings.Contains(topic, "%") {
-			re, err := compileLikeToRegex(topic)
-			if err != nil {
-				return err
-			}
-			entry.pattern = re
+		entry, isWildcard, err := newACLEntry(topic, read, write)
+		if err != nil {
+			return err
+		}
+		if isWildcard {
 			patterns[username] = append(patterns[username], entry)
 		} else {
 			if exacts[username] == nil {
@@ -91,6 +89,77 @@ func (c *accessCache) reload(d *db.DB, query string) error {
 	c.pattern = patterns
 	c.mu.Unlock()
 	return nil
+}
+
+// reloadUser refreshes just one user's rules from the database and swaps them
+// into the cache. Used as a cheaper, owner-cascade-safe alternative to the
+// full bulk reload after a mutation that affects a known set of users. The
+// caller is expected to invoke reloadUser for every user whose row set may
+// have changed -- typically the targeted user plus Everyone, since most
+// reservation flows touch both.
+//
+// The query must return (topic, read, write) for every row whose user_id
+// matches the given username. An empty result set is treated as "this user
+// has no rules": the user's entries are removed from both maps so the inner
+// maps don't grow unbounded under churn.
+func (c *accessCache) reloadUser(d *db.DB, query, username string) error {
+	rows, err := d.Query(query, username)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	exact := make(map[string]aclEntry)
+	var pattern []aclEntry
+	for rows.Next() {
+		var topic string
+		var read, write bool
+		if err := rows.Scan(&topic, &read, &write); err != nil {
+			return err
+		}
+		entry, isWildcard, err := newACLEntry(topic, read, write)
+		if err != nil {
+			return err
+		}
+		if isWildcard {
+			pattern = append(pattern, entry)
+		} else {
+			exact[topic] = entry
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	c.mu.Lock()
+	if len(exact) == 0 {
+		delete(c.exact, username)
+	} else {
+		c.exact[username] = exact
+	}
+	if len(pattern) == 0 {
+		delete(c.pattern, username)
+	} else {
+		c.pattern[username] = pattern
+	}
+	c.mu.Unlock()
+	return nil
+}
+
+// newACLEntry builds an aclEntry from one user_access row's values. The
+// isWildcard return tells the caller which storage slot the entry belongs in:
+// the per-user wildcard slice if true, the per-user exact map if false.
+// Wildcards have their LIKE pattern pre-compiled into entry.pattern; exact
+// entries leave entry.pattern nil.
+func newACLEntry(topic string, read, write bool) (entry aclEntry, isWildcard bool, err error) {
+	entry = aclEntry{length: len(topic), read: read, write: write}
+	if !strings.Contains(topic, "%") {
+		return entry, false, nil
+	}
+	re, err := compileLikeToRegex(topic)
+	if err != nil {
+		return entry, true, err
+	}
+	entry.pattern = re
+	return entry, true, nil
 }
 
 // Lookup returns the effective (read, write, found) permission for the given
