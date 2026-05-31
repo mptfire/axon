@@ -8,7 +8,7 @@ import (
 	"heckel.io/ntfy/v2/db"
 )
 
-// aclCache is an in-memory index over the entire user_access table.
+// accessCache is an in-memory index over the entire user_access table.
 //
 // exact[username][escapedTopic] returns the matching entry in O(1) for the common
 // case where the requested topic appears verbatim in some rule. The key is the
@@ -18,7 +18,7 @@ import (
 // pattern[username] is the linear-scan list of %-bearing rules for that user.
 // Walked per request; trivially small in practice. Wildcards are NOT u_everyone-
 // only -- any user can create them.
-type aclCache struct {
+type accessCache struct {
 	exact   map[string]map[string]aclEntry
 	pattern map[string][]aclEntry
 	mu      sync.RWMutex // Protect exact and pattern
@@ -35,7 +35,7 @@ type aclCache struct {
 //
 // pattern is the pre-compiled regex equivalent of the stored LIKE pattern.
 // For exact-match entries (no % in the stored value) pattern is nil and the
-// entry is reachable only through aclCache.exact[username][topic].
+// entry is reachable only through accessCache.exact[username][topic].
 type aclEntry struct {
 	length  int            // len() of the original stored topic/pattern
 	pattern *regexp.Regexp // nil for exact entries
@@ -43,8 +43,8 @@ type aclEntry struct {
 	write   bool
 }
 
-func newAccessCache() *aclCache {
-	return &aclCache{
+func newAccessCache() *accessCache {
+	return &accessCache{
 		exact:   make(map[string]map[string]aclEntry),
 		pattern: make(map[string][]aclEntry),
 	}
@@ -54,7 +54,7 @@ func newAccessCache() *aclCache {
 // exact and pattern maps under the write lock. The primary is used (not
 // ReadOnly) so a reload immediately after an ACL mutation sees the freshly-
 // written rows without replica lag.
-func (c *aclCache) reload(d *db.DB, query string) error {
+func (c *accessCache) reload(d *db.DB, query string) error {
 	rows, err := d.Query(query)
 	if err != nil {
 		return err
@@ -98,7 +98,7 @@ func (c *aclCache) reload(d *db.DB, query string) error {
 //  1. specific user beats Everyone
 //  2. longer pattern beats shorter (more specific wins)
 //  3. write beats read at equal length (write is "stronger")
-func (c *aclCache) Lookup(usernameOrEveryone, topic string) (read, write, found bool) {
+func (c *accessCache) Lookup(usernameOrEveryone, topic string) (read, write, found bool) {
 	escapedTopic := escapeUnderscore(topic)
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -124,7 +124,7 @@ func (c *aclCache) Lookup(usernameOrEveryone, topic string) (read, write, found 
 // Exact and wildcard rules are ranked together under the same criteria, so
 // an exact "foo" (length 3) beats a wildcard "f%" (length 2), but a wildcard
 // "foo%" (length 4) beats an exact "foo" (length 3).
-func (c *aclCache) pickBestNoLock(username, topic, escapedTopic string) (*aclEntry, bool) {
+func (c *accessCache) pickBestNoLock(username, topic, escapedTopic string) (*aclEntry, bool) {
 	var best aclEntry
 	var found bool
 	if exact, exists := c.exact[username]; exists {

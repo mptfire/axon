@@ -140,8 +140,8 @@ func TestACLCache_SpecificUserBeatsEveryoneEvenWhenShorter(t *testing.T) {
 	// Everyone with a longer matching rule.
 	c := newAccessCache()
 	loadCache(t, c, []rawACLRow{
-		{user: Everyone, topic: "foo", read: true, write: true},  // exact, length 3
-		{user: "phil", topic: "f%", read: false, write: false},   // wildcard, length 2, deny-all
+		{user: Everyone, topic: "foo", read: true, write: true}, // exact, length 3
+		{user: "phil", topic: "f%", read: false, write: false},  // wildcard, length 2, deny-all
 	})
 	read, write, found := c.Lookup("phil", "foo")
 	require.True(t, found)
@@ -155,8 +155,8 @@ func TestACLCache_SpecificUserBeatsEveryoneRegardlessOfWrite(t *testing.T) {
 	// stronger, in either direction).
 	c := newAccessCache()
 	loadCache(t, c, []rawACLRow{
-		{user: Everyone, topic: "mytopic", read: true, write: true},  // wide-open
-		{user: "phil", topic: "mytopic", read: true, write: false},   // read-only for phil
+		{user: Everyone, topic: "mytopic", read: true, write: true}, // wide-open
+		{user: "phil", topic: "mytopic", read: true, write: false},  // read-only for phil
 	})
 	read, write, found := c.Lookup("phil", "mytopic")
 	require.True(t, found)
@@ -197,8 +197,8 @@ func TestACLCache_ExactBeatsShorterWildcardSameUser(t *testing.T) {
 	// shorter wildcard could overwrite a longer exact.
 	c := newAccessCache()
 	loadCache(t, c, []rawACLRow{
-		{user: "phil", topic: "foo", read: true, write: true},   // exact, length 3
-		{user: "phil", topic: "f%", read: false, write: false},  // wildcard, length 2, deny-all
+		{user: "phil", topic: "foo", read: true, write: true},  // exact, length 3
+		{user: "phil", topic: "f%", read: false, write: false}, // wildcard, length 2, deny-all
 	})
 	read, write, found := c.Lookup("phil", "foo")
 	require.True(t, found)
@@ -212,8 +212,8 @@ func TestACLCache_LongerWildcardBeatsExactSameUser(t *testing.T) {
 	// to wildcard when better() returns true" path.
 	c := newAccessCache()
 	loadCache(t, c, []rawACLRow{
-		{user: "phil", topic: "foo", read: false, write: false},  // exact, length 3, deny-all
-		{user: "phil", topic: "foo%", read: true, write: true},   // wildcard, length 4
+		{user: "phil", topic: "foo", read: false, write: false}, // exact, length 3, deny-all
+		{user: "phil", topic: "foo%", read: true, write: true},  // wildcard, length 4
 	})
 	read, write, found := c.Lookup("phil", "foo")
 	require.True(t, found)
@@ -281,7 +281,7 @@ type rawACLRow struct {
 
 // loadCache writes the given rows into the cache under its write lock,
 // preserving the same exact/wildcard partitioning that reload would produce.
-func loadCache(t *testing.T, c *aclCache, rows []rawACLRow) {
+func loadCache(t *testing.T, c *accessCache, rows []rawACLRow) {
 	t.Helper()
 	exact := make(map[string]map[string]aclEntry)
 	wildcards := make(map[string][]aclEntry)

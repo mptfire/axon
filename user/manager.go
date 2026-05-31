@@ -58,7 +58,7 @@ type Manager struct {
 	queries     queries
 	statsQueue  map[string]*Stats       // "Queue" to asynchronously write user stats to the database (UserID -> Stats)
 	tokenQueue  map[string]*TokenUpdate // "Queue" to asynchronously write token access stats to the database (Token ID -> TokenUpdate)
-	accessCache *aclCache               // In-memory snapshot of user_access; rebuilt after every ACL mutation
+	accessCache *accessCache            // In-memory snapshot of user_access; rebuilt after every ACL mutation
 	quit        chan struct{}           // Closed by Close() to signal background goroutines to stop
 	mu          sync.Mutex
 }
