@@ -1,6 +1,7 @@
 package user
 
 import (
+	"regexp"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -14,21 +15,21 @@ import (
 // forEachStoreBackend.
 
 func TestCompileLikeToRegex_Exact(t *testing.T) {
-	r := compileLikeToRegex("foo")
+	r := mustCompileLikeToRegex(t, "foo")
 	require.True(t, r.MatchString("foo"))
 	require.False(t, r.MatchString("foox"))
 	require.False(t, r.MatchString("xfoo"))
 }
 
 func TestCompileLikeToRegex_TrailingPercent(t *testing.T) {
-	r := compileLikeToRegex("up%")
+	r := mustCompileLikeToRegex(t, "up%")
 	require.True(t, r.MatchString("up"))
 	require.True(t, r.MatchString("up123"))
 	require.False(t, r.MatchString("xup"))
 }
 
 func TestCompileLikeToRegex_LeadingAndEmbeddedPercent(t *testing.T) {
-	r := compileLikeToRegex("%test%")
+	r := mustCompileLikeToRegex(t, "%test%")
 	require.True(t, r.MatchString("test"))
 	require.True(t, r.MatchString("mytest"))
 	require.True(t, r.MatchString("testxxx"))
@@ -39,7 +40,7 @@ func TestCompileLikeToRegex_LeadingAndEmbeddedPercent(t *testing.T) {
 func TestCompileLikeToRegex_EscapedUnderscore(t *testing.T) {
 	// "my\_topic" is the stored form of a literal "my_topic" -- the underscore
 	// must match itself, NOT act as a SQL one-character wildcard.
-	r := compileLikeToRegex(`my\_topic`)
+	r := mustCompileLikeToRegex(t, `my\_topic`)
 	require.True(t, r.MatchString("my_topic"))
 	require.False(t, r.MatchString("myXtopic"))
 	require.False(t, r.MatchString("mytopic"))
@@ -48,7 +49,7 @@ func TestCompileLikeToRegex_EscapedUnderscore(t *testing.T) {
 func TestCompileLikeToRegex_EscapedUnderscoreAdjacentToPercent(t *testing.T) {
 	// "nz\_vip\_%" is the stored form of "nz_vip_*" -- literal "nz_vip_" prefix
 	// followed by any suffix.
-	r := compileLikeToRegex(`nz\_vip\_%`)
+	r := mustCompileLikeToRegex(t, `nz\_vip\_%`)
 	require.True(t, r.MatchString("nz_vip_"))
 	require.True(t, r.MatchString("nz_vip_alpha"))
 	require.False(t, r.MatchString("nz_vipX"))
@@ -58,7 +59,7 @@ func TestCompileLikeToRegex_EscapedUnderscoreAdjacentToPercent(t *testing.T) {
 func TestCompileLikeToRegex_RegexMetaCharsInTopic(t *testing.T) {
 	// Topics in ntfy can include '-', which is benign, but make sure
 	// regex metacharacters in the pattern are escaped properly anyway.
-	r := compileLikeToRegex("foo-bar")
+	r := mustCompileLikeToRegex(t, "foo-bar")
 	require.True(t, r.MatchString("foo-bar"))
 	require.False(t, r.MatchString("foo.bar")) // would match if '-' leaked into a character class
 }
@@ -72,8 +73,9 @@ func TestACLCache_LookupOnNilReceiverSafe(t *testing.T) {
 }
 
 func TestACLCache_LookupBeforeReload(t *testing.T) {
-	// Before reload the snapshot pointer is nil. The cache treats this as
-	// "no rule found", which the caller resolves via DefaultAccess.
+	// A freshly-constructed cache has empty exact and wildcards maps. The
+	// cache treats this as "no rule found", which the caller resolves via
+	// DefaultAccess.
 	c := newAccessCache()
 	read, write, found := c.Lookup("phil", "mytopic")
 	require.False(t, found)
@@ -83,9 +85,9 @@ func TestACLCache_LookupBeforeReload(t *testing.T) {
 
 func TestACLCache_ExactMatchHit(t *testing.T) {
 	c := newAccessCache()
-	c.snap.Store(buildSnapshot(t, []rawACLRow{
+	loadCache(t, c, []rawACLRow{
 		{user: "phil", topic: "mytopic", read: true, write: true},
-	}))
+	})
 	read, write, found := c.Lookup("phil", "mytopic")
 	require.True(t, found)
 	require.True(t, read)
@@ -94,9 +96,9 @@ func TestACLCache_ExactMatchHit(t *testing.T) {
 
 func TestACLCache_ExactMatchMiss(t *testing.T) {
 	c := newAccessCache()
-	c.snap.Store(buildSnapshot(t, []rawACLRow{
+	loadCache(t, c, []rawACLRow{
 		{user: "phil", topic: "mytopic", read: true, write: true},
-	}))
+	})
 	_, _, found := c.Lookup("phil", "othertopic")
 	require.False(t, found)
 }
@@ -105,9 +107,9 @@ func TestACLCache_LiteralUnderscoreExactMatch(t *testing.T) {
 	// Stored as "my\_topic" (toSQLWildcard of "my_topic"). A literal underscore
 	// in the requested topic must match, while any other single char must not.
 	c := newAccessCache()
-	c.snap.Store(buildSnapshot(t, []rawACLRow{
+	loadCache(t, c, []rawACLRow{
 		{user: "phil", topic: `my\_topic`, read: true, write: false},
-	}))
+	})
 	read, write, found := c.Lookup("phil", "my_topic")
 	require.True(t, found)
 	require.True(t, read)
@@ -119,9 +121,9 @@ func TestACLCache_LiteralUnderscoreExactMatch(t *testing.T) {
 
 func TestACLCache_WildcardMatch(t *testing.T) {
 	c := newAccessCache()
-	c.snap.Store(buildSnapshot(t, []rawACLRow{
+	loadCache(t, c, []rawACLRow{
 		{user: Everyone, topic: "up%", read: false, write: true},
-	}))
+	})
 	read, write, found := c.Lookup("phil", "up42")
 	require.True(t, found)
 	require.False(t, read)
@@ -130,10 +132,10 @@ func TestACLCache_WildcardMatch(t *testing.T) {
 
 func TestACLCache_SpecificUserBeatsEveryone(t *testing.T) {
 	c := newAccessCache()
-	c.snap.Store(buildSnapshot(t, []rawACLRow{
+	loadCache(t, c, []rawACLRow{
 		{user: Everyone, topic: "mytopic", read: true, write: false},
 		{user: "phil", topic: "mytopic", read: false, write: false}, // deny-all for phil
-	}))
+	})
 	read, write, found := c.Lookup("phil", "mytopic")
 	require.True(t, found)
 	require.False(t, read)
@@ -142,9 +144,9 @@ func TestACLCache_SpecificUserBeatsEveryone(t *testing.T) {
 
 func TestACLCache_AnonymousReadsEveryone(t *testing.T) {
 	c := newAccessCache()
-	c.snap.Store(buildSnapshot(t, []rawACLRow{
+	loadCache(t, c, []rawACLRow{
 		{user: Everyone, topic: "announcements", read: true, write: false},
-	}))
+	})
 	read, write, found := c.Lookup(Everyone, "announcements")
 	require.True(t, found)
 	require.True(t, read)
@@ -155,10 +157,10 @@ func TestACLCache_LongerPatternWinsForSameUser(t *testing.T) {
 	// Both rules belong to the same user (Everyone). The more specific (longer)
 	// "mytopic%" should beat the catch-all "%".
 	c := newAccessCache()
-	c.snap.Store(buildSnapshot(t, []rawACLRow{
+	loadCache(t, c, []rawACLRow{
 		{user: Everyone, topic: "%", read: true, write: false},
 		{user: Everyone, topic: "mytopic%", read: true, write: true},
-	}))
+	})
 	read, write, found := c.Lookup(Everyone, "mytopicX")
 	require.True(t, found)
 	require.True(t, read)
@@ -167,36 +169,31 @@ func TestACLCache_LongerPatternWinsForSameUser(t *testing.T) {
 
 func TestACLCache_WriteBeatsReadAtEqualLength(t *testing.T) {
 	// Two wildcard rules of identical length for the same user. The write rule
-	// should win the tie-break.
+	// should win the tie-break. The two-rows-with-same-topic shape is
+	// impossible via real upsert (pkey would conflict), so we inject the entries
+	// directly into the cache's wildcard slice.
 	c := newAccessCache()
-	c.snap.Store(buildSnapshot(t, []rawACLRow{
-		{user: Everyone, topic: "ab%", read: true, write: false},
-		{user: Everyone, topic: "ab%", read: false, write: true}, // synthesized; impossible via real upsert but exercises the tie-break
-	}))
-	// One of the two will be the surviving exact-key entry (map collision keeps last);
-	// but the wildcard slice is what we want to exercise. Inject two wildcard entries
-	// directly to force the tie-break path.
-	c.snap.Store(&aclSnapshot{
-		exact: map[string]map[string]aclEntry{},
-		wildcards: map[string][]aclEntry{
-			Everyone: {
-				{topic: "ab%", read: true, write: false, matcher: compileLikeToRegex("ab%")},
-				{topic: "ab%", read: false, write: true, matcher: compileLikeToRegex("ab%")},
-			},
+	c.mu.Lock()
+	c.exact = map[string]map[string]aclEntry{}
+	c.wildcard = map[string][]aclEntry{
+		Everyone: {
+			{topic: "ab%", read: true, write: false, matcher: mustCompileLikeToRegex(t, "ab%")},
+			{topic: "ab%", read: false, write: true, matcher: mustCompileLikeToRegex(t, "ab%")},
 		},
-	})
+	}
+	c.mu.Unlock()
 	_, write, found := c.Lookup(Everyone, "abc")
 	require.True(t, found)
 	require.True(t, write)
 }
 
 func TestACLCache_ConcurrentLookupAndReload(t *testing.T) {
-	// Atomic-pointer swap must be safe under concurrent reads. The race detector
+	// Lock-based swap must be safe under concurrent reads. The race detector
 	// catches any unsafe shared mutation.
 	c := newAccessCache()
-	c.snap.Store(buildSnapshot(t, []rawACLRow{
+	loadCache(t, c, []rawACLRow{
 		{user: Everyone, topic: "mytopic", read: true, write: true},
-	}))
+	})
 
 	var stop atomic.Bool
 	var wg sync.WaitGroup
@@ -210,17 +207,17 @@ func TestACLCache_ConcurrentLookupAndReload(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 100; i++ {
-			c.snap.Store(buildSnapshot(t, []rawACLRow{
+			loadCache(t, c, []rawACLRow{
 				{user: Everyone, topic: "mytopic", read: i%2 == 0, write: i%2 == 1},
-			}))
+			})
 		}
 		stop.Store(true)
 	}()
 	wg.Wait()
 }
 
-// rawACLRow + buildSnapshot mirror the rows that reload would Scan from the DB
-// but avoid actually opening a DB for these unit tests.
+// rawACLRow models the rows that reload would Scan from the DB but avoids
+// actually opening a DB for these unit tests.
 type rawACLRow struct {
 	user  string
 	topic string
@@ -228,25 +225,35 @@ type rawACLRow struct {
 	write bool
 }
 
-func buildSnapshot(t *testing.T, rows []rawACLRow) *aclSnapshot {
+// loadCache writes the given rows into the cache under its write lock,
+// preserving the same exact/wildcard partitioning that reload would produce.
+func loadCache(t *testing.T, c *aclCache, rows []rawACLRow) {
 	t.Helper()
-	snap := &aclSnapshot{
-		exact:     make(map[string]map[string]aclEntry),
-		wildcards: make(map[string][]aclEntry),
-	}
+	exact := make(map[string]map[string]aclEntry)
+	wildcards := make(map[string][]aclEntry)
 	for _, r := range rows {
 		e := aclEntry{topic: r.topic, read: r.read, write: r.write}
 		if containsPercent(r.topic) {
-			e.matcher = compileLikeToRegex(r.topic)
-			snap.wildcards[r.user] = append(snap.wildcards[r.user], e)
+			e.matcher = mustCompileLikeToRegex(t, r.topic)
+			wildcards[r.user] = append(wildcards[r.user], e)
 		} else {
-			if snap.exact[r.user] == nil {
-				snap.exact[r.user] = make(map[string]aclEntry)
+			if exact[r.user] == nil {
+				exact[r.user] = make(map[string]aclEntry)
 			}
-			snap.exact[r.user][r.topic] = e
+			exact[r.user][r.topic] = e
 		}
 	}
-	return snap
+	c.mu.Lock()
+	c.exact = exact
+	c.wildcard = wildcards
+	c.mu.Unlock()
+}
+
+func mustCompileLikeToRegex(t *testing.T, pattern string) *regexp.Regexp {
+	t.Helper()
+	r, err := compileLikeToRegex(pattern)
+	require.NoError(t, err)
+	return r
 }
 
 func containsPercent(s string) bool {
