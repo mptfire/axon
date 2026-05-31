@@ -119,8 +119,8 @@ func (c *aclCache) Lookup(usernameOrEveryone, topic string) (read, write, found 
 func (c *aclCache) pickBestNoLock(username, topic, escapedTopic string) (*aclEntry, bool) {
 	var best aclEntry
 	var found bool
-	if m, exists := c.exact[username]; exists {
-		if entry, exists := m[escapedTopic]; exists {
+	if exact, exists := c.exact[username]; exists {
+		if entry, exists := exact[escapedTopic]; exists {
 			best, found = entry, true
 		}
 	}
