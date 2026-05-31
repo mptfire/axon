@@ -15,37 +15,43 @@ import (
 // stored form of the topic (i.e. with \_ escapes), so Lookup escapes incoming
 // topics through escapeUnderscore before probing.
 //
-// wildcard[username] is the linear-scan list of %-bearing rules for that user.
+// pattern[username] is the linear-scan list of %-bearing rules for that user.
 // Walked per request; trivially small in practice. Wildcards are NOT u_everyone-
 // only -- any user can create them.
 type aclCache struct {
-	exact    map[string]map[string]aclEntry
-	wildcard map[string][]aclEntry
-	mu       sync.RWMutex // Protect exact and wildcard
+	exact   map[string]map[string]aclEntry
+	pattern map[string][]aclEntry
+	mu      sync.RWMutex // Protect exact and pattern
 }
 
 // aclEntry mirrors one user_access row in the in-memory cache.
 //
-// topic is the raw stored value: it may contain \_ escapes (for literal underscores)
-// and % wildcards (translated from user-supplied *). For exact-match entries (no %)
-// matcher is nil and the entry is keyed by topic in aclCache.exact. For wildcard
-// entries (with %) matcher is the pre-compiled regex equivalent of the LIKE pattern.
+// length is the length of the original stored value (topic for exact rows,
+// SQL LIKE pattern for wildcard rows). It is only used by better() to
+// implement the "longer pattern beats shorter" tie-break from the original
+// SQL ORDER BY. The string itself is intentionally not stored on the entry:
+// the exact map already keys on it, and surfacing it would invite misuse
+// (wildcard "topics" are actually SQL patterns like "up%").
+//
+// pattern is the pre-compiled regex equivalent of the stored LIKE pattern.
+// For exact-match entries (no % in the stored value) pattern is nil and the
+// entry is reachable only through aclCache.exact[username][topic].
 type aclEntry struct {
-	topic   string
+	length  int            // len() of the original stored topic/pattern
+	pattern *regexp.Regexp // nil for exact entries
 	read    bool
 	write   bool
-	matcher *regexp.Regexp //  Nil for exact entries
 }
 
 func newAccessCache() *aclCache {
 	return &aclCache{
-		exact:    make(map[string]map[string]aclEntry),
-		wildcard: make(map[string][]aclEntry),
+		exact:   make(map[string]map[string]aclEntry),
+		pattern: make(map[string][]aclEntry),
 	}
 }
 
 // reload runs the bulk-load query against the primary and swaps in freshly-built
-// exact and wildcard maps under the write lock. The primary is used (not
+// exact and pattern maps under the write lock. The primary is used (not
 // ReadOnly) so a reload immediately after an ACL mutation sees the freshly-
 // written rows without replica lag.
 func (c *aclCache) reload(d *db.DB, query string) error {
@@ -54,34 +60,35 @@ func (c *aclCache) reload(d *db.DB, query string) error {
 		return err
 	}
 	defer rows.Close()
-	exact := make(map[string]map[string]aclEntry)
-	wildcards := make(map[string][]aclEntry)
+	exacts := make(map[string]map[string]aclEntry)
+	patterns := make(map[string][]aclEntry)
 	for rows.Next() {
-		var username string
+		var username, topic string
 		var entry aclEntry
-		if err := rows.Scan(&username, &entry.topic, &entry.read, &entry.write); err != nil {
+		if err := rows.Scan(&username, &topic, &entry.read, &entry.write); err != nil {
 			return err
 		}
-		if strings.Contains(entry.topic, "%") {
-			re, err := compileLikeToRegex(entry.topic)
+		entry.length = len(topic)
+		if strings.Contains(topic, "%") {
+			re, err := compileLikeToRegex(topic)
 			if err != nil {
 				return err
 			}
-			entry.matcher = re
-			wildcards[username] = append(wildcards[username], entry)
+			entry.pattern = re
+			patterns[username] = append(patterns[username], entry)
 		} else {
-			if exact[username] == nil {
-				exact[username] = make(map[string]aclEntry)
+			if exacts[username] == nil {
+				exacts[username] = make(map[string]aclEntry)
 			}
-			exact[username][entry.topic] = entry
+			exacts[username][topic] = entry
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
 	c.mu.Lock()
-	c.exact = exact
-	c.wildcard = wildcards
+	c.exact = exacts
+	c.pattern = patterns
 	c.mu.Unlock()
 	return nil
 }
@@ -92,56 +99,46 @@ func (c *aclCache) reload(d *db.DB, query string) error {
 //  2. longer pattern beats shorter (more specific wins)
 //  3. write beats read at equal length (write is "stronger")
 func (c *aclCache) Lookup(usernameOrEveryone, topic string) (read, write, found bool) {
-	if c == nil {
-		return false, false, false
-	}
+	escapedTopic := escapeUnderscore(topic)
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	// Pre-compute the escaped form once: exact-match keys in the cache are
-	// stored as toSQLWildcard would emit them (literal _ -> \_), so the
-	// incoming topic must be escaped the same way before map lookup.
-	escaped := escapeUnderscore(topic)
-
-	// Specific user takes priority over Everyone. Skip the first lookup when
-	// the request is already anonymous to avoid scanning the same map twice.
 	if usernameOrEveryone != Everyone {
-		if e, ok := c.pickBestLocked(usernameOrEveryone, topic, escaped); ok {
-			return e.read, e.write, true
+		if entry, ok := c.pickBestNoLock(usernameOrEveryone, topic, escapedTopic); ok {
+			return entry.read, entry.write, true
 		}
 	}
-	if e, ok := c.pickBestLocked(Everyone, topic, escaped); ok {
-		return e.read, e.write, true
+	if entry, ok := c.pickBestNoLock(Everyone, topic, escapedTopic); ok {
+		return entry.read, entry.write, true
 	}
 	return false, false, false
 }
 
-// pickBestLocked returns the highest-priority entry for a single user, combining
+// pickBestNoLock returns the highest-priority entry for a single user, combining
 // the exact-match O(1) probe with a linear scan over the (usually empty or tiny)
-// wildcard list. Caller must hold c.mu (RLock is sufficient).
-func (c *aclCache) pickBestLocked(username, topic, escaped string) (aclEntry, bool) {
+// pattern list. Caller must hold c.mu (RLock is sufficient).
+func (c *aclCache) pickBestNoLock(username, topic, escapedTopic string) (*aclEntry, bool) {
 	var best aclEntry
 	var found bool
-	if m, ok := c.exact[username]; ok {
-		if e, ok := m[escaped]; ok {
-			best, found = e, true
+	if m, exists := c.exact[username]; exists {
+		if entry, exists := m[escapedTopic]; exists {
+			best, found = entry, true
 		}
 	}
-	for _, w := range c.wildcard[username] {
-		if !w.matcher.MatchString(topic) {
+	for _, pattern := range c.pattern[username] {
+		if !pattern.pattern.MatchString(topic) {
 			continue
-		}
-		if !found || better(w, best) {
-			best, found = w, true
+		} else if !found || better(pattern, best) {
+			best, found = pattern, true
 		}
 	}
-	return best, found
+	return &best, found
 }
 
 // better implements the (length DESC, write DESC) tie-break used by the original
 // query's ORDER BY for entries owned by the same user.
 func better(a, b aclEntry) bool {
-	if len(a.topic) != len(b.topic) {
-		return len(a.topic) > len(b.topic)
+	if a.length != b.length {
+		return a.length > b.length
 	}
 	if a.write != b.write {
 		return a.write

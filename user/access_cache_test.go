@@ -175,10 +175,10 @@ func TestACLCache_WriteBeatsReadAtEqualLength(t *testing.T) {
 	c := newAccessCache()
 	c.mu.Lock()
 	c.exact = map[string]map[string]aclEntry{}
-	c.wildcard = map[string][]aclEntry{
+	c.pattern = map[string][]aclEntry{
 		Everyone: {
-			{topic: "ab%", read: true, write: false, matcher: mustCompileLikeToRegex(t, "ab%")},
-			{topic: "ab%", read: false, write: true, matcher: mustCompileLikeToRegex(t, "ab%")},
+			{length: len("ab%"), read: true, write: false, pattern: mustCompileLikeToRegex(t, "ab%")},
+			{length: len("ab%"), read: false, write: true, pattern: mustCompileLikeToRegex(t, "ab%")},
 		},
 	}
 	c.mu.Unlock()
@@ -232,9 +232,9 @@ func loadCache(t *testing.T, c *aclCache, rows []rawACLRow) {
 	exact := make(map[string]map[string]aclEntry)
 	wildcards := make(map[string][]aclEntry)
 	for _, r := range rows {
-		e := aclEntry{topic: r.topic, read: r.read, write: r.write}
+		e := aclEntry{length: len(r.topic), read: r.read, write: r.write}
 		if containsPercent(r.topic) {
-			e.matcher = mustCompileLikeToRegex(t, r.topic)
+			e.pattern = mustCompileLikeToRegex(t, r.topic)
 			wildcards[r.user] = append(wildcards[r.user], e)
 		} else {
 			if exact[r.user] == nil {
@@ -245,7 +245,7 @@ func loadCache(t *testing.T, c *aclCache, rows []rawACLRow) {
 	}
 	c.mu.Lock()
 	c.exact = exact
-	c.wildcard = wildcards
+	c.pattern = wildcards
 	c.mu.Unlock()
 }
 
