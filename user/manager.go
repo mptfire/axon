@@ -62,7 +62,7 @@ type Manager struct {
 	queries     queries
 	statsQueue  map[string]*Stats       // "Queue" to asynchronously write user stats to the database (UserID -> Stats)
 	tokenQueue  map[string]*TokenUpdate // "Queue" to asynchronously write token access stats to the database (Token ID -> TokenUpdate)
-	accessCache *accessCache            // In-memory snapshot of user_access; rebuilt after every ACL mutation
+	accessCache *accessCache            // In-memory snapshot of user_access; refreshed by maybeReloadAccessCache after every ACL mutation
 	quit        chan struct{}           // Closed by Close() to signal background goroutines to stop
 	mu          sync.Mutex
 }
@@ -76,7 +76,7 @@ func newManager(d *db.DB, queries queries, config *Config) (*Manager, error) {
 	if config.QueueWriterInterval.Seconds() <= 0 {
 		config.QueueWriterInterval = DefaultUserStatsQueueWriterInterval
 	}
-	if config.AccessCacheReloadInterval == 0 {
+	if config.AccessCacheReloadInterval <= 0 {
 		config.AccessCacheReloadInterval = DefaultAccessCacheReloadInterval
 	}
 	manager := &Manager{
@@ -87,13 +87,11 @@ func newManager(d *db.DB, queries queries, config *Config) (*Manager, error) {
 		quit:       make(chan struct{}),
 		queries:    queries,
 	}
-	if config.AccessCacheEnabled {
-		manager.accessCache = newAccessCache()
-	}
 	if err := manager.maybeProvisionUsersAccessAndTokens(); err != nil {
 		return nil, err
 	}
-	if manager.accessCache != nil {
+	if config.AccessCacheEnabled {
+		manager.accessCache = newAccessCache()
 		if err := manager.maybeReloadAccessCache(); err != nil {
 			return nil, err
 		}
@@ -114,10 +112,14 @@ func (a *Manager) maybeReloadAccessCache(usernames ...string) error {
 	if len(usernames) == 0 {
 		return a.accessCache.reload(a.db, a.queries.selectAccessCacheAll)
 	}
-	return a.accessCache.reload(a.db, a.queries.selectAccessCacheUsersFn(len(usernames)), usernames...)
+	return a.accessCache.reload(a.db, a.queries.selectAccessCacheUsers(len(usernames)), usernames...)
 }
 
-// asyncAccessCacheReloader periodically refreshes the access cache
+// asyncAccessCacheReloader periodically bulk-reloads the access cache so that
+// writes made by other processes against the same database (most notably the
+// `ntfy access` CLI subcommand running while a server holds the cache) become
+// visible within the configured interval. This Manager's own mutations do
+// not depend on the poller -- they refresh affected users synchronously.
 func (a *Manager) asyncAccessCacheReloader(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -430,12 +432,18 @@ func (a *Manager) EnqueueUserStats(userID string, stats *Stats) {
 
 func (a *Manager) asyncQueueWriter(interval time.Duration) {
 	ticker := time.NewTicker(interval)
-	for range ticker.C {
-		if err := a.writeUserStatsQueue(); err != nil {
-			log.Tag(tag).Err(err).Warn("Writing user stats queue failed")
-		}
-		if err := a.writeTokenUpdateQueue(); err != nil {
-			log.Tag(tag).Err(err).Warn("Writing token update queue failed")
+	defer ticker.Stop()
+	for {
+		select {
+		case <-a.quit:
+			return
+		case <-ticker.C:
+			if err := a.writeUserStatsQueue(); err != nil {
+				log.Tag(tag).Err(err).Warn("Writing user stats queue failed")
+			}
+			if err := a.writeTokenUpdateQueue(); err != nil {
+				log.Tag(tag).Err(err).Warn("Writing token update queue failed")
+			}
 		}
 	}
 }
@@ -694,10 +702,10 @@ func (a *Manager) ResetAccess(username string, topicPattern string) error {
 	if err != nil {
 		return err
 	}
-	// "Delete all access" affects every user; do the bulk reload.
+	// Empty username -> deleteAllAccess affected every user, bulk reload.
 	// Otherwise refresh the named user plus Everyone, since resetUserAccessTx
-	// and deleteTopicAccess both touch rows owned by the user (typically
-	// Everyone rows from their reservations).
+	// and deleteTopicAccess both touch rows owned by the user (typically the
+	// Everyone row from their reservations).
 	if username == "" {
 		return a.maybeReloadAccessCache()
 	}

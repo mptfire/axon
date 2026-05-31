@@ -269,7 +269,7 @@ var postgresQueries = queries{
 	deleteUsersProvisioned:       postgresDeleteUsersProvisionedQuery,
 	selectTopicPerms:             postgresSelectTopicPermsQuery,
 	selectAccessCacheAll:         postgresSelectAccessCacheAllQuery,
-	selectAccessCacheUsersFn:     postgresSelectAccessCacheUsersQuery,
+	selectAccessCacheUsers:       postgresSelectAccessCacheUsersQuery,
 	selectUserAllAccess:          postgresSelectUserAllAccessQuery,
 	selectUserAccess:             postgresSelectUserAccessQuery,
 	selectUserReservations:       postgresSelectUserReservationsQuery,

@@ -260,7 +260,7 @@ var sqliteQueries = queries{
 	deleteUsersProvisioned:       sqliteDeleteUsersProvisionedQuery,
 	selectTopicPerms:             sqliteSelectTopicPermsQuery,
 	selectAccessCacheAll:         sqliteSelectAccessCacheAllQuery,
-	selectAccessCacheUsersFn:     sqliteSelectAccessCacheUsersQuery,
+	selectAccessCacheUsers:       sqliteSelectAccessCacheUsersQuery,
 	selectUserAllAccess:          sqliteSelectUserAllAccessQuery,
 	selectUserAccess:             sqliteSelectUserAccessQuery,
 	selectUserReservations:       sqliteSelectUserReservationsQuery,

@@ -320,7 +320,7 @@ type queries struct {
 	// Access queries
 	selectTopicPerms            string             // Direct-DB authorizeTopicAccess query; used when the in-memory cache is disabled
 	selectAccessCacheAll        string             // Bulk load: (user_name, topic, read, write) for the in-memory ACL cache
-	selectAccessCacheUsersFn    func(n int) string // Returns a per-users load query whose IN clause is sized for n usernames
+	selectAccessCacheUsers      func(n int) string // Returns a per-users load query whose IN clause is sized for n usernames
 	selectUserAllAccess         string
 	selectUserAccess            string
 	selectUserReservations      string
