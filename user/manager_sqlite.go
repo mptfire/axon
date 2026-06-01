@@ -229,11 +229,16 @@ const (
 // sqliteSelectAccessCacheUsersQuery builds the per-users cache-load query
 // with a "?, ?, ..." IN clause sized for n usernames.
 func sqliteSelectAccessCacheUsersQuery(n int) string {
-	placeholders := strings.Repeat(",?", n)
-	if n > 0 {
-		placeholders = placeholders[1:] // drop the leading comma
+	var sb strings.Builder
+	sb.WriteString(`SELECT u.user, a.topic, a.read, a.write FROM user_access a JOIN user u ON u.id = a.user_id WHERE u.user IN (`)
+	for i := 0; i < n; i++ {
+		if i > 0 {
+			sb.WriteString(",")
+		}
+		sb.WriteString("?")
 	}
-	return `SELECT u.user, a.topic, a.read, a.write FROM user_access a JOIN user u ON u.id = a.user_id WHERE u.user IN (` + placeholders + `)`
+	sb.WriteString(")")
+	return sb.String()
 }
 
 var sqliteQueries = queries{
