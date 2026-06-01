@@ -39,7 +39,7 @@ const (
 	DefaultUserStatsQueueWriterInterval = 33 * time.Second
 	DefaultUserPasswordBcryptCost       = 10
 	DefaultAccessCacheEnabled           = false
-	DefaultAccessCacheReloadInterval    = 60 * time.Second
+	DefaultAccessCacheReloadInterval    = 87 * time.Second
 )
 
 var (
@@ -250,10 +250,17 @@ func (a *Manager) MarkUserRemoved(user *User) error {
 
 // RemoveDeletedUsers deletes all users that have been marked deleted
 func (a *Manager) RemoveDeletedUsers() error {
-	if _, err := a.db.Exec(a.queries.deleteUsersMarked, time.Now().Unix()); err != nil {
+	res, err := a.db.Exec(a.queries.deleteUsersMarked, time.Now().Unix())
+	if err != nil {
 		return err
 	}
-	// Full cache reload, because we don't know what the query affects
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	} else if affected == 0 {
+		return nil
+	}
+	// Full cache reload, because we don't know which users were affected.
 	return a.maybeReloadAccessCache()
 }
 

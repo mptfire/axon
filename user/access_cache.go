@@ -4,8 +4,10 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"heckel.io/ntfy/v2/db"
+	"heckel.io/ntfy/v2/log"
 )
 
 // accessCache is an in-memory index over the entire user_access table.
@@ -70,6 +72,11 @@ func (c *accessCache) Lookup(usernameOrEveryone, topic string) (read, write, fou
 // them from both maps). Runs against the primary so a reload after a
 // mutation sees the just-written rows.
 func (c *accessCache) reload(d *db.DB, query string, usernames ...string) error {
+	started := time.Now()
+	scope := "all_users"
+	if len(usernames) > 0 {
+		scope = "users=" + strings.Join(usernames, ",")
+	}
 	args := make([]any, len(usernames))
 	for i, u := range usernames {
 		args[i] = u
@@ -81,6 +88,7 @@ func (c *accessCache) reload(d *db.DB, query string, usernames ...string) error 
 	defer rows.Close()
 	exacts := make(map[string]map[string]aclEntry)
 	patterns := make(map[string][]aclEntry)
+	updatedEntries := 0
 	for rows.Next() {
 		var u, topic string
 		var read, write bool
@@ -99,29 +107,35 @@ func (c *accessCache) reload(d *db.DB, query string, usernames ...string) error 
 			}
 			exacts[u][topic] = entry
 		}
+		updatedEntries++
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	if len(usernames) == 0 {
 		c.exact = exacts
 		c.pattern = patterns
-		return nil
-	}
-	for _, u := range usernames {
-		if e, ok := exacts[u]; ok {
-			c.exact[u] = e
-		} else {
-			delete(c.exact, u)
+	} else {
+		for _, u := range usernames {
+			if e, ok := exacts[u]; ok {
+				c.exact[u] = e
+			} else {
+				delete(c.exact, u)
+			}
+			if p, ok := patterns[u]; ok {
+				c.pattern[u] = p
+			} else {
+				delete(c.pattern, u)
+			}
 		}
-		if p, ok := patterns[u]; ok {
-			c.pattern[u] = p
-		} else {
-			delete(c.pattern, u)
-		}
 	}
+	c.mu.Unlock()
+	log.Tag(tag).
+		Field("reload_scope", scope).
+		Field("updated_entries", updatedEntries).
+		Field("duration_ms", time.Since(started).Milliseconds()).
+		Debug("Reloaded ACL cache")
 	return nil
 }
 
