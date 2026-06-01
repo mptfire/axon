@@ -116,8 +116,8 @@ type Config struct {
 	AuthTokens                           map[string][]*user.Token
 	AuthBcryptCost                       int
 	AuthStatsQueueWriterInterval         time.Duration
-	AuthAccessCacheEnabled               bool
-	AuthAccessCacheReloadInterval        time.Duration
+	AuthAccessCacheEnabled               bool          // Enables the in-memory ACL cache (high volume servers only)
+	AuthAccessCacheReloadInterval        time.Duration // Reload interval for access cache, relevant for ACL writes from CLI
 	AttachmentCacheDir                   string
 	AttachmentTotalSizeLimit             int64
 	AttachmentFileSizeLimit              int64
@@ -225,7 +225,7 @@ func NewConfig() *Config {
 		AuthDefault:                          user.PermissionReadWrite,
 		AuthBcryptCost:                       user.DefaultUserPasswordBcryptCost,
 		AuthStatsQueueWriterInterval:         user.DefaultUserStatsQueueWriterInterval,
-		AuthAccessCacheEnabled:               user.DefaultAccessCacheEnabled, // Opt-in (e.g. ntfy.sh) via server.yml
+		AuthAccessCacheEnabled:               user.DefaultAccessCacheEnabled,
 		AuthAccessCacheReloadInterval:        user.DefaultAccessCacheReloadInterval,
 		AttachmentCacheDir:                   "",
 		AttachmentTotalSizeLimit:             DefaultAttachmentTotalSizeLimit,

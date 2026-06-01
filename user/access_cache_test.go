@@ -2,6 +2,7 @@ package user
 
 import (
 	"regexp"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -287,7 +288,7 @@ func loadCache(t *testing.T, c *accessCache, rows []rawACLRow) {
 	wildcards := make(map[string][]aclEntry)
 	for _, r := range rows {
 		e := aclEntry{length: len(r.topic), read: r.read, write: r.write}
-		if containsPercent(r.topic) {
+		if strings.Contains(r.topic, "%") {
 			e.pattern = mustCompileLikeToRegex(t, r.topic)
 			wildcards[r.user] = append(wildcards[r.user], e)
 		} else {
@@ -308,13 +309,4 @@ func mustCompileLikeToRegex(t *testing.T, pattern string) *regexp.Regexp {
 	r, err := compileLikeToRegex(pattern)
 	require.NoError(t, err)
 	return r
-}
-
-func containsPercent(s string) bool {
-	for i := 0; i < len(s); i++ {
-		if s[i] == '%' {
-			return true
-		}
-	}
-	return false
 }

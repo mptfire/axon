@@ -38,15 +38,8 @@ const (
 const (
 	DefaultUserStatsQueueWriterInterval = 33 * time.Second
 	DefaultUserPasswordBcryptCost       = 10
-	// DefaultAccessCacheEnabled is the default for Config.AccessCacheEnabled.
-	// Off by default so self-hosters keep the direct-DB authorizeTopicAccess
-	// path; ntfy.sh opts in via server config.
-	DefaultAccessCacheEnabled = false
-	// DefaultAccessCacheReloadInterval bounds how stale the in-memory ACL snapshot
-	// can be relative to writes made by *other* processes (e.g. a separate `ntfy
-	// access` CLI invocation modifying the same database). Only honored when the
-	// cache is enabled.
-	DefaultAccessCacheReloadInterval = 60 * time.Second
+	DefaultAccessCacheEnabled           = false
+	DefaultAccessCacheReloadInterval    = 60 * time.Second
 )
 
 var (
@@ -95,9 +88,9 @@ func newManager(d *db.DB, queries queries, config *Config) (*Manager, error) {
 		if err := manager.maybeReloadAccessCache(); err != nil {
 			return nil, err
 		}
-		go manager.asyncAccessCacheReloader(manager.config.AccessCacheReloadInterval)
+		go manager.asyncAccessCacheReloadLoop(manager.config.AccessCacheReloadInterval)
 	}
-	go manager.asyncQueueWriter(manager.config.QueueWriterInterval)
+	go manager.asyncQueueWriteLoop(manager.config.QueueWriterInterval)
 	return manager, nil
 }
 
@@ -115,12 +108,12 @@ func (a *Manager) maybeReloadAccessCache(usernames ...string) error {
 	return a.accessCache.reload(a.db, a.queries.selectAccessCacheUsers(len(usernames)), usernames...)
 }
 
-// asyncAccessCacheReloader periodically bulk-reloads the access cache so that
+// asyncAccessCacheReloadLoop periodically bulk-reloads the access cache so that
 // writes made by other processes against the same database (most notably the
 // `ntfy access` CLI subcommand running while a server holds the cache) become
 // visible within the configured interval. This Manager's own mutations do
 // not depend on the poller -- they refresh affected users synchronously.
-func (a *Manager) asyncAccessCacheReloader(interval time.Duration) {
+func (a *Manager) asyncAccessCacheReloadLoop(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
@@ -213,9 +206,7 @@ func (a *Manager) RemoveUser(username string) error {
 	if err != nil {
 		return err
 	}
-	// user_access rows are cascade-deleted along with the user (both by user_id
-	// and by owner_user_id). Refresh this user's own slice (now empty) and
-	// Everyone's slice, since reservations owned by this user landed there too.
+	// Reload user-specific parts of the access cache
 	return a.maybeReloadAccessCache(username, Everyone)
 }
 
@@ -253,9 +244,7 @@ func (a *Manager) MarkUserRemoved(user *User) error {
 	if err != nil {
 		return err
 	}
-	// resetUserAccessTx deleted this user's rows AND any row owned by this user
-	// (typically the matching Everyone rows from their reservations). Refresh
-	// both slices to mirror the DB exactly.
+	// Reload user-specific parts of the access cache
 	return a.maybeReloadAccessCache(user.Name, Everyone)
 }
 
@@ -264,7 +253,7 @@ func (a *Manager) RemoveDeletedUsers() error {
 	if _, err := a.db.Exec(a.queries.deleteUsersMarked, time.Now().Unix()); err != nil {
 		return err
 	}
-	// user_access rows are cascade-deleted with the users; refresh the snapshot.
+	// Full cache reload, because we don't know what the query affects
 	return a.maybeReloadAccessCache()
 }
 
@@ -430,7 +419,7 @@ func (a *Manager) EnqueueUserStats(userID string, stats *Stats) {
 	a.statsQueue[userID] = stats
 }
 
-func (a *Manager) asyncQueueWriter(interval time.Duration) {
+func (a *Manager) asyncQueueWriteLoop(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {

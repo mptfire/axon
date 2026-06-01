@@ -245,31 +245,18 @@ const (
 
 // Config holds the configuration for the user Manager
 type Config struct {
-	Filename            string              // Database filename, e.g. "/var/lib/ntfy/user.db" (SQLite)
-	DatabaseURL         string              // Database connection string (PostgreSQL)
-	StartupQueries      string              // Queries to run on startup, e.g. to create initial users or tiers (SQLite only)
-	DefaultAccess       Permission          // Default permission if no ACL matches
-	ProvisionEnabled    bool                // Hack: Enable auto-provisioning of users and access grants, disabled for "ntfy user" commands
-	Users               []*User             // Predefined users to create on startup
-	Access              map[string][]*Grant // Predefined access grants to create on startup (username -> []*Grant)
-	Tokens              map[string][]*Token // Predefined users to create on startup (username -> []*Token)
-	QueueWriterInterval time.Duration       // Interval for the async queue writer to flush stats and token updates to the database
-	BcryptCost          int                 // Cost of generated passwords; lowering makes testing faster
-
-	// AccessCacheEnabled gates the in-memory ACL cache. When false (the
-	// default), authorizeTopicAccess runs the direct SQL query against the
-	// database on every call -- mutations and authorization are unaffected by
-	// any cache logic. When true, the Manager keeps an in-memory snapshot of
-	// user_access and serves authorizeTopicAccess from it; mutations refresh
-	// the affected slices, and a background poller picks up cross-process
-	// writes at AccessCacheReloadInterval.
-	AccessCacheEnabled bool
-
-	// AccessCacheReloadInterval bounds the staleness of the in-memory ACL
-	// cache relative to writes from other processes (e.g. `ntfy access` CLI
-	// against a running server). Only honored when AccessCacheEnabled is true.
-	// Zero falls back to DefaultAccessCacheReloadInterval.
-	AccessCacheReloadInterval time.Duration
+	Filename                  string              // Database filename, e.g. "/var/lib/ntfy/user.db" (SQLite)
+	DatabaseURL               string              // Database connection string (PostgreSQL)
+	StartupQueries            string              // Queries to run on startup, e.g. to create initial users or tiers (SQLite only)
+	DefaultAccess             Permission          // Default permission if no ACL matches
+	ProvisionEnabled          bool                // Hack: Enable auto-provisioning of users and access grants, disabled for "ntfy user" commands
+	Users                     []*User             // Predefined users to create on startup
+	Access                    map[string][]*Grant // Predefined access grants to create on startup (username -> []*Grant)
+	Tokens                    map[string][]*Token // Predefined users to create on startup (username -> []*Token)
+	QueueWriterInterval       time.Duration       // Interval for the async queue writer to flush stats and token updates to the database
+	BcryptCost                int                 // Cost of generated passwords; lowering makes testing faster
+	AccessCacheEnabled        bool                // Enables the in-memory ACL cache (high volume servers only)
+	AccessCacheReloadInterval time.Duration       // Reload interval for access cache, relevant for ACL writes from CLI
 }
 
 // Error constants used by the package
