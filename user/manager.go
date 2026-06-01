@@ -103,9 +103,9 @@ func (a *Manager) maybeReloadAccessCache(usernames ...string) error {
 		return nil
 	}
 	if len(usernames) == 0 {
-		return a.accessCache.reload(a.db, a.queries.selectAccessCacheAll)
+		return a.accessCache.Reload(a.db, a.queries.selectAccessCacheAll)
 	}
-	return a.accessCache.reload(a.db, a.queries.selectAccessCacheUsers(len(usernames)), usernames...)
+	return a.accessCache.Reload(a.db, a.queries.selectAccessCacheUsers(len(usernames)), usernames...)
 }
 
 // asyncAccessCacheReloadLoop periodically bulk-reloads the access cache so that

@@ -65,15 +65,15 @@ func (c *accessCache) Lookup(usernameOrEveryone, topic string) (read, write, fou
 	return false, false, false
 }
 
-// reload scans (user_name, topic, read, write) rows and merges them into the
+// Reload scans (user_name, topic, read, write) rows and merges them into the
 // cache. With no usernames the cache is replaced wholesale; otherwise the
 // query is invoked with those usernames as positional args and only the
 // listed users' slices are touched (a username absent from the result drops
 // them from both maps). Runs against the primary so a reload after a
 // mutation sees the just-written rows.
-func (c *accessCache) reload(d *db.DB, query string, usernames ...string) error {
+func (c *accessCache) Reload(d *db.DB, query string, usernames ...string) error {
 	started := time.Now()
-	scope := "all_users"
+	scope := "full"
 	if len(usernames) > 0 {
 		scope = "users=" + strings.Join(usernames, ",")
 	}
