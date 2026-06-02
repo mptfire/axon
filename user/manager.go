@@ -298,11 +298,8 @@ func (a *Manager) ChangeRole(username string, role Role) error {
 	if err != nil {
 		return err
 	}
-	// Promotion to admin clears user_access rows for this user AND rows owned
-	// by this user (Everyone rows from their reservations). Other role changes
-	// are no-ops for the cache but reloading the two affected slices is cheap
-	// and keeps the code path uniform.
-	return a.maybeReloadAccessCache(username, Everyone)
+	// Full cache reload: Role changes are extremely rare.
+	return a.maybeReloadAccessCache()
 }
 
 // changeRoleTx changes a user's role
