@@ -53,16 +53,38 @@ func newAccessCache() *accessCache {
 func (c *accessCache) Lookup(usernameOrEveryone, topic string) (read, write, found bool) {
 	escapedTopic := escapeUnderscore(topic)
 	c.mu.RLock()
-	defer c.mu.RUnlock()
 	if usernameOrEveryone != Everyone {
 		if entry, ok := c.pickBestNoLock(usernameOrEveryone, topic, escapedTopic); ok {
+			c.mu.RUnlock()
+			traceACLDecision(usernameOrEveryone, usernameOrEveryone, topic, entry.read, entry.write)
 			return entry.read, entry.write, true
 		}
 	}
 	if entry, ok := c.pickBestNoLock(Everyone, topic, escapedTopic); ok {
+		c.mu.RUnlock()
+		traceACLDecision(usernameOrEveryone, Everyone, topic, entry.read, entry.write)
 		return entry.read, entry.write, true
 	}
+	c.mu.RUnlock()
+	traceACLDecision(usernameOrEveryone, "", topic, false, false)
 	return false, false, false
+}
+
+// traceACLDecision logs an ACL lookup result
+func traceACLDecision(requestUser, matchedUser, topic string, read, write bool) {
+	ev := log.Tag(tag).
+		Field("user_name", requestUser).
+		Field("topic", topic).
+		Field("read", read).
+		Field("write", write)
+	if !ev.IsTrace() {
+		return
+	}
+	if matchedUser == "" {
+		ev.Trace("ACL no match")
+		return
+	}
+	ev.Field("matched_user", matchedUser).Trace("ACL match")
 }
 
 // Reload scans (user_name, topic, read, write) rows and merges them into the

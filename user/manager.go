@@ -748,10 +748,10 @@ func (a *Manager) AllowReservation(username string, topic string) error {
 // The found return value indicates whether an ACL entry was found at all.
 //
 // Priority:
-//   - specific user beats Everyone
-//   - longer pattern beats shorter (a more specific rule beats a more general one,
+//   - Specific user beats Everyone
+//   - Longer pattern beats shorter (a more specific rule beats a more general one,
 //     e.g. "test*" > "*")
-//   - write beats read at equal length
+//   - Write beats read at equal length
 //
 // When AccessCacheEnabled is true (config), the lookup is served entirely from
 // the in-memory snapshot maintained by accessCache. Otherwise the original SQL
@@ -1634,11 +1634,10 @@ func (a *Manager) maybeProvisionTokens(tx *sql.Tx, provisionUsernames []string, 
 }
 
 // Close stops background goroutines and closes the underlying database.
-// Safe to call multiple times.
 func (a *Manager) Close() error {
 	select {
 	case <-a.quit:
-		// already closed
+		// Already closed
 	default:
 		close(a.quit)
 	}
