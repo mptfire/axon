@@ -2169,6 +2169,148 @@ func TestStoreAuthorizeTopicAccessDenyAll(t *testing.T) {
 	})
 }
 
+// TestAuthorizeTopicAccess_CacheAndDirectDBAgree wires up two Managers on the
+// same backend storage -- one with AccessCacheEnabled=true (in-memory cache
+// path) and one with AccessCacheEnabled=false (direct SQL path) -- then runs
+// an identical battery of authorizeTopicAccess queries against both and
+// asserts byte-identical (read, write, found) responses for every query.
+// This protects the in-memory implementation from drifting away from the
+// SQL behavior it is meant to mirror.
+func TestAuthorizeTopicAccess_CacheAndDirectDBAgree(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		// Seed via a Manager with the cache enabled. Writes go to the shared
+		// backend; both Managers will see them after the writes commit.
+		writer := newManager(&Config{
+			DefaultAccess:      PermissionDenyAll,
+			BcryptCost:         bcrypt.MinCost,
+			AccessCacheEnabled: true,
+		})
+		t.Cleanup(func() { writer.Close() })
+
+		require.Nil(t, writer.AddUser("phil", "mypass", RoleAdmin, false))
+		require.Nil(t, writer.AddUser("ben", "mypass", RoleUser, false))
+		require.Nil(t, writer.AddUser("alice", "mypass", RoleUser, false))
+
+		// A mix that exercises every branch of the priority logic:
+		//   - exact and wildcard rules for the same user
+		//   - exact and wildcard rules under Everyone
+		//   - Everyone rules that are longer than the matching user rule
+		//   - literal underscores (stored as "\_")
+		//   - deny-all permissions
+		require.Nil(t, writer.AllowAccess("ben", "mytopic", PermissionReadWrite))
+		require.Nil(t, writer.AllowAccess("ben", "readme", PermissionRead))
+		require.Nil(t, writer.AllowAccess("ben", "writeme", PermissionWrite))
+		require.Nil(t, writer.AllowAccess("ben", "ben_topic", PermissionReadWrite))
+		require.Nil(t, writer.AllowAccess("ben", "mytopic*", PermissionRead))
+		require.Nil(t, writer.AllowAccess("alice", "alice_*", PermissionWrite))
+		require.Nil(t, writer.AllowAccess("alice", "secret", PermissionDenyAll))
+		require.Nil(t, writer.AllowAccess(Everyone, "announcements", PermissionRead))
+		require.Nil(t, writer.AllowAccess(Everyone, "up*", PermissionWrite))
+		require.Nil(t, writer.AllowAccess(Everyone, "mytopic", PermissionDenyAll))
+
+		// Build a reader Manager with the cache OFF, pointing at the same backend.
+		reader := newManager(&Config{
+			DefaultAccess:      PermissionDenyAll,
+			BcryptCost:         bcrypt.MinCost,
+			AccessCacheEnabled: false,
+		})
+		t.Cleanup(func() { reader.Close() })
+
+		// Probe matrix: every (user, topic) pair that exercises some branch.
+		cases := []struct {
+			user, topic string
+		}{
+			// Anonymous reads.
+			{Everyone, "announcements"},
+			{Everyone, "up42"},
+			{Everyone, "up"},
+			{Everyone, "downstream"},
+			{Everyone, "mytopic"},
+			{Everyone, "nope"},
+			// Specific user, only-user rules.
+			{"ben", "mytopic"},
+			{"ben", "readme"},
+			{"ben", "writeme"},
+			{"ben", "ben_topic"},
+			{"ben", "benXtopic"}, // underscore in rule means "X" must NOT match
+			// Specific user falls through to Everyone.
+			{"ben", "announcements"},
+			{"ben", "up5"},
+			{"alice", "announcements"},
+			// Wildcards with literal underscores.
+			{"alice", "alice_anything"},
+			{"alice", "alice_"},
+			{"alice", "aliceX"}, // does NOT match alice_*
+			// Exact-vs-wildcard overlap for the same user (ben has both
+			// "mytopic" exact and "mytopic*" wildcard).
+			{"ben", "mytopic"},   // exact wins on length
+			{"ben", "mytopicX"},  // only wildcard matches
+			{"ben", "mytopicYZ"}, // only wildcard matches
+			// Deny-all override.
+			{"alice", "secret"},
+			// No matching rule anywhere.
+			{"ben", "completely_unmatched"},
+			{"alice", "completely_unmatched"},
+			{Everyone, "completely_unmatched"},
+		}
+
+		// Sanity: the two Managers must agree on every probe.
+		for _, tc := range cases {
+			cRead, cWrite, cFound, cErr := writer.authorizeTopicAccess(tc.user, tc.topic)
+			dRead, dWrite, dFound, dErr := reader.authorizeTopicAccess(tc.user, tc.topic)
+			require.Nil(t, cErr, "cache path errored for (%s, %s)", tc.user, tc.topic)
+			require.Nil(t, dErr, "direct-DB path errored for (%s, %s)", tc.user, tc.topic)
+			require.Equal(t, dFound, cFound, "found mismatch for (%s, %s)", tc.user, tc.topic)
+			require.Equal(t, dRead, cRead, "read mismatch for (%s, %s)", tc.user, tc.topic)
+			require.Equal(t, dWrite, cWrite, "write mismatch for (%s, %s)", tc.user, tc.topic)
+		}
+	})
+}
+
+// TestAccessCacheReloadInterval_PicksUpExternalWrite proves that the
+// background reloader actually closes the cross-process coherence gap: a
+// write made through a *different* Manager on the same backend becomes
+// visible to a cache-enabled Manager within roughly one reload interval,
+// without that Manager being told about the write.
+func TestAccessCacheReloadInterval_PicksUpExternalWrite(t *testing.T) {
+	const interval = 25 * time.Millisecond
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		// reader holds the cache and polls; writer plays the role of an
+		// out-of-band process (e.g. `ntfy access` CLI) writing to the same
+		// backend.
+		reader := newManager(&Config{
+			DefaultAccess:             PermissionDenyAll,
+			BcryptCost:                bcrypt.MinCost,
+			AccessCacheEnabled:        true,
+			AccessCacheReloadInterval: interval,
+		})
+		t.Cleanup(func() { reader.Close() })
+
+		writer := newManager(&Config{
+			DefaultAccess:      PermissionDenyAll,
+			BcryptCost:         bcrypt.MinCost,
+			AccessCacheEnabled: false,
+		})
+		t.Cleanup(func() { writer.Close() })
+
+		require.Nil(t, writer.AddUser("phil", "mypass", RoleUser, false))
+		// Sanity: before the write, the reader sees no rule for this topic.
+		_, _, found, err := reader.authorizeTopicAccess("phil", "via-poller")
+		require.Nil(t, err)
+		require.False(t, found)
+
+		// Write through the second Manager. reader's cache is unaware.
+		require.Nil(t, writer.AllowAccess("phil", "via-poller", PermissionReadWrite))
+
+		// Wait for the poller to catch up. The interval is 25ms; allow a
+		// generous multiple to keep this test from flaking on slow CI.
+		require.Eventually(t, func() bool {
+			read, write, found, err := reader.authorizeTopicAccess("phil", "via-poller")
+			return err == nil && found && read && write
+		}, 2*time.Second, 10*time.Millisecond, "reader's cache never observed the external write")
+	})
+}
+
 func TestStoreReservations(t *testing.T) {
 	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
 		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))
