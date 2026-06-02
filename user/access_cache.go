@@ -50,41 +50,24 @@ func newAccessCache() *accessCache {
 //  1. specific user beats Everyone
 //  2. longer pattern beats shorter (more specific wins)
 //  3. write beats read at equal length (write is "stronger")
-func (c *accessCache) Lookup(usernameOrEveryone, topic string) (read, write, found bool) {
+func (c *accessCache) Lookup(username, topic string) (read, write, found bool) {
 	escapedTopic := escapeUnderscore(topic)
 	c.mu.RLock()
-	if usernameOrEveryone != Everyone {
-		if entry, ok := c.pickBestNoLock(usernameOrEveryone, topic, escapedTopic); ok {
+	if username != Everyone {
+		if entry, found := c.lookupNoLock(username, topic, escapedTopic); found {
 			c.mu.RUnlock()
-			traceACLDecision(usernameOrEveryone, usernameOrEveryone, topic, entry.read, entry.write)
+			maybeLogACLDecision(username, username, topic, entry.read, entry.write)
 			return entry.read, entry.write, true
 		}
 	}
-	if entry, ok := c.pickBestNoLock(Everyone, topic, escapedTopic); ok {
+	if entry, found := c.lookupNoLock(Everyone, topic, escapedTopic); found {
 		c.mu.RUnlock()
-		traceACLDecision(usernameOrEveryone, Everyone, topic, entry.read, entry.write)
+		maybeLogACLDecision(username, Everyone, topic, entry.read, entry.write)
 		return entry.read, entry.write, true
 	}
 	c.mu.RUnlock()
-	traceACLDecision(usernameOrEveryone, "", topic, false, false)
+	maybeLogACLDecision(username, "", topic, false, false)
 	return false, false, false
-}
-
-// traceACLDecision logs an ACL lookup result
-func traceACLDecision(requestUser, matchedUser, topic string, read, write bool) {
-	ev := log.Tag(tag).
-		Field("user_name", requestUser).
-		Field("topic", topic).
-		Field("read", read).
-		Field("write", write)
-	if !ev.IsTrace() {
-		return
-	}
-	if matchedUser == "" {
-		ev.Trace("ACL no match")
-		return
-	}
-	ev.Field("matched_user", matchedUser).Trace("ACL match")
 }
 
 // Reload scans (user_name, topic, read, write) rows and merges them into the
@@ -103,6 +86,7 @@ func (c *accessCache) Reload(d *db.DB, query string, usernames ...string) error 
 	for i, u := range usernames {
 		args[i] = u
 	}
+	// Query the database for all ACL entries
 	rows, err := d.Query(query, args...)
 	if err != nil {
 		return err
@@ -112,28 +96,29 @@ func (c *accessCache) Reload(d *db.DB, query string, usernames ...string) error 
 	patterns := make(map[string][]aclEntry)
 	updatedEntries := 0
 	for rows.Next() {
-		var u, topic string
+		var username, escapedTopic string
 		var read, write bool
-		if err := rows.Scan(&u, &topic, &read, &write); err != nil {
+		if err := rows.Scan(&username, &escapedTopic, &read, &write); err != nil {
 			return err
 		}
-		entry, isPattern, err := toACLEntry(topic, read, write)
+		entry, hasWildcard, err := toACLEntry(escapedTopic, read, write)
 		if err != nil {
 			return err
 		}
-		if isPattern {
-			patterns[u] = append(patterns[u], entry)
+		if hasWildcard {
+			patterns[username] = append(patterns[username], entry)
 		} else {
-			if exacts[u] == nil {
-				exacts[u] = make(map[string]aclEntry)
+			if exacts[username] == nil {
+				exacts[username] = make(map[string]aclEntry)
 			}
-			exacts[u][topic] = entry
+			exacts[username][escapedTopic] = entry
 		}
 		updatedEntries++
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	// Replace or update the internal maps
 	c.mu.Lock()
 	if len(usernames) == 0 {
 		c.exact = exacts
@@ -161,7 +146,7 @@ func (c *accessCache) Reload(d *db.DB, query string, usernames ...string) error 
 	return nil
 }
 
-// pickBestNoLock returns the highest-priority entry for a single user. When
+// lookupNoLock returns the highest-priority entry for a single user. When
 // more than one of that user's rules matches the requested topic, the winner
 // is chosen by:
 //
@@ -172,7 +157,7 @@ func (c *accessCache) Reload(d *db.DB, query string, usernames ...string) error 
 // Exact and wildcard rules are ranked together under the same criteria, so
 // an exact "foo" (length 3) beats a wildcard "f%" (length 2), but a wildcard
 // "foo%" (length 4) beats an exact "foo" (length 3).
-func (c *accessCache) pickBestNoLock(username, topic, escapedTopic string) (*aclEntry, bool) {
+func (c *accessCache) lookupNoLock(username, topic, escapedTopic string) (*aclEntry, bool) {
 	var best aclEntry
 	var found bool
 	if exact, exists := c.exact[username]; exists {
@@ -195,12 +180,16 @@ func (c *accessCache) pickBestNoLock(username, topic, escapedTopic string) (*acl
 // the per-user wildcard slice if true, the per-user exact map if false.
 // Wildcards have their LIKE pattern pre-compiled into entry.pattern; exact
 // entries leave entry.pattern nil.
-func toACLEntry(topic string, read, write bool) (entry aclEntry, isWildcard bool, err error) {
-	entry = aclEntry{length: len(topic), read: read, write: write}
-	if !strings.Contains(topic, "%") {
+func toACLEntry(escapedTopic string, read, write bool) (entry aclEntry, hasWildcard bool, err error) {
+	entry = aclEntry{
+		length: len(escapedTopic),
+		read:   read,
+		write:  write,
+	}
+	if !strings.Contains(escapedTopic, "%") {
 		return entry, false, nil
 	}
-	pattern, err := compileLikeToRegex(topic)
+	pattern, err := compileLikeToRegex(escapedTopic)
 	if err != nil {
 		return entry, true, err
 	}
@@ -243,4 +232,21 @@ func compileLikeToRegex(pattern string) (*regexp.Regexp, error) {
 	}
 	sb.WriteString("$")
 	return regexp.Compile(sb.String())
+}
+
+// maybeLogACLDecision logs an ACL lookup result
+func maybeLogACLDecision(requestUser, matchedUser, topic string, read, write bool) {
+	ev := log.Tag(tag).
+		Field("user_name", requestUser).
+		Field("topic", topic).
+		Field("read", read).
+		Field("write", write)
+	if !ev.IsTrace() {
+		return
+	}
+	if matchedUser == "" {
+		ev.Trace("ACL no match")
+		return
+	}
+	ev.Field("matched_user", matchedUser).Trace("ACL match")
 }
