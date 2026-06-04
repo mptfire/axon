@@ -987,7 +987,7 @@ func (a *Manager) ReservationOwner(topic string) (string, error) {
 // It returns the list of topics whose reservations were removed. The read and removal are
 // performed atomically in a single transaction to avoid issues with stale replica data.
 func (a *Manager) RemoveExcessReservations(username string, limit int64) ([]string, error) {
-	return db.QueryTx(a.db, func(tx *sql.Tx) ([]string, error) {
+	removedTopics, err := db.QueryTx(a.db, func(tx *sql.Tx) ([]string, error) {
 		reservations, err := a.reservationsTx(tx, username)
 		if err != nil {
 			return nil, err
@@ -1005,6 +1005,17 @@ func (a *Manager) RemoveExcessReservations(username string, limit int64) ([]stri
 		}
 		return removedTopics, nil
 	})
+	if err != nil {
+		return nil, err
+	}
+	if len(removedTopics) > 0 {
+		// removeReservationAccessTx deletes rows owned by this user and the
+		// matching Everyone rows, so we refresh the access cache.
+		if err := a.maybeReloadAccessCache(username, Everyone); err != nil {
+			return nil, err
+		}
+	}
+	return removedTopics, nil
 }
 
 // otherAccessCount returns the number of access entries for the given topic that are not owned by the user

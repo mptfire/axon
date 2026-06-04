@@ -2311,6 +2311,109 @@ func TestAccessCacheReloadInterval_PicksUpExternalWrite(t *testing.T) {
 	})
 }
 
+// TestAccessCache_RemoveExcessReservationsInvalidatesCache models finding #1:
+// RemoveExcessReservations deletes user_access rows but must also refresh the
+// in-memory cache. Otherwise the owner keeps cached read/write access to a
+// reservation that was removed (e.g. on a tier downgrade) until the next
+// periodic reload -- and if another user re-reserves the freed topic in the
+// meantime, the former owner can read/write the new owner's reserved topic.
+func TestAccessCache_RemoveExcessReservationsInvalidatesCache(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		// A deliberately long reload interval ensures the background poller
+		// cannot mask a missing synchronous invalidation: the mutation itself
+		// must refresh the cache.
+		a := newTestManagerFromConfig(t, newManager, &Config{
+			DefaultAccess:             PermissionDenyAll,
+			BcryptCost:                bcrypt.MinCost,
+			AccessCacheEnabled:        true,
+			AccessCacheReloadInterval: time.Hour,
+		})
+		require.Nil(t, a.AddUser("ben", "mypass", RoleUser, false))
+		require.Nil(t, a.AddReservation("ben", "topic1", PermissionDenyAll, 2))
+		require.Nil(t, a.AddReservation("ben", "topic2", PermissionDenyAll, 2))
+
+		// Both reservations grant ben full read/write; confirm the cache agrees.
+		for _, topic := range []string{"topic1", "topic2"} {
+			read, write, found, err := a.authorizeTopicAccess("ben", topic)
+			require.Nil(t, err)
+			require.True(t, found)
+			require.True(t, read)
+			require.True(t, write)
+		}
+
+		// Downgrade ben to a single reservation; one topic is removed from the DB.
+		removed, err := a.RemoveExcessReservations("ben", 1)
+		require.Nil(t, err)
+		require.Len(t, removed, 1)
+
+		// The removed reservation's grant must be gone from the cache, not just
+		// from the database.
+		read, write, found, err := a.authorizeTopicAccess("ben", removed[0])
+		require.Nil(t, err)
+		require.False(t, found, "stale ACL for removed reservation %q still served from cache", removed[0])
+		require.False(t, read)
+		require.False(t, write)
+
+		// The surviving reservation must still be served from the cache.
+		survivor := "topic1"
+		if removed[0] == "topic1" {
+			survivor = "topic2"
+		}
+		read, write, found, err = a.authorizeTopicAccess("ben", survivor)
+		require.Nil(t, err)
+		require.True(t, found)
+		require.True(t, read)
+		require.True(t, write)
+	})
+}
+
+// TestAccessCache_FullReloadDoesNotClobberConcurrentRevoke models finding #2:
+// a periodic full reload scans the whole user_access table outside the cache
+// lock. If a local ACL mutation revokes a grant and refreshes that user's slice
+// while the scan is in flight, applying the now-stale full snapshot must not
+// resurrect the revoked grant. The testHookReloadScanned seam injects the revoke
+// into exactly that race window.
+func TestAccessCache_FullReloadDoesNotClobberConcurrentRevoke(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManagerFromConfig(t, newManager, &Config{
+			DefaultAccess:             PermissionDenyAll,
+			BcryptCost:                bcrypt.MinCost,
+			AccessCacheEnabled:        true,
+			AccessCacheReloadInterval: time.Hour, // keep the background poller out of this test
+		})
+		require.Nil(t, a.AddUser("phil", "mypass", RoleUser, false))
+		require.Nil(t, a.AllowAccess("phil", "secret", PermissionReadWrite))
+
+		// Sanity: the grant is served from the cache.
+		_, _, found, err := a.authorizeTopicAccess("phil", "secret")
+		require.Nil(t, err)
+		require.True(t, found)
+
+		// Arm the seam: when the full reload below finishes scanning (and still
+		// sees the grant), revoke it via a per-user reload before the full reload
+		// applies its now-stale snapshot. The re-entrant per-user reload that
+		// ResetAccess triggers is a no-op here (fired guard), and the whole thing
+		// runs single-threaded in this goroutine.
+		fired := false
+		testHookReloadScanned = func() {
+			if fired {
+				return
+			}
+			fired = true
+			require.Nil(t, a.ResetAccess("phil", "secret"))
+		}
+		defer func() { testHookReloadScanned = nil }()
+
+		// Trigger the full reload. Without the seq guard it would swap in its
+		// stale snapshot and resurrect the grant.
+		require.Nil(t, a.maybeReloadAccessCache())
+
+		_, _, found, err = a.authorizeTopicAccess("phil", "secret")
+		require.Nil(t, err)
+		require.False(t, found, "stale full reload resurrected a revoked grant")
+	})
+}
+
 func TestStoreReservations(t *testing.T) {
 	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
 		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))

@@ -23,15 +23,14 @@ import (
 type accessCache struct {
 	exact   map[string]map[string]aclEntry
 	pattern map[string][]aclEntry
-	seq     uint64       // Bumped on every apply; lets a slow full reload notice that a mutation raced its table scan
+	seq     uint64       // Bumped on every reload; lets a full reload detect a per-user reload that raced its scan
 	mu      sync.RWMutex // Protect exact, pattern, and seq
 }
 
-// maxFullReloadRetries bounds how many extra times a full reload re-scans the
-// table when a per-user mutation keeps landing mid-scan before it gives up for
-// this cycle (the local mutation already kept the cache correct; only external
-// writes are deferred to the next cycle).
-const maxFullReloadRetries = 2
+// testHookReloadScanned, if non-nil, is invoked by Reload after the DB scan but
+// before the result is applied. Tests use it to inject a concurrent mutation
+// into the full-reload race window; it is always nil in production.
+var testHookReloadScanned func()
 
 // aclEntry mirrors one user_access row. length feeds better()'s "longer
 // pattern wins" tie-break; the stored topic/pattern string itself is not kept
@@ -83,12 +82,20 @@ func (c *accessCache) Lookup(username, topic string) (read, write, found bool) {
 // listed users' slices are touched (a username absent from the result drops
 // them from both maps). Runs against the primary so a reload after a
 // mutation sees the just-written rows.
+//
+// Since Reload can be triggered from different places and for different scopes (full
+// and user-specific), the function may cause races and lost-updates. This is solved
+// with the sequence number.
 func (c *accessCache) Reload(d *db.DB, query string, usernames ...string) error {
 	started := time.Now()
 	scope := "full"
 	if len(usernames) > 0 {
 		scope = "users=" + strings.Join(usernames, ",")
 	}
+	// Read the sequence number before the SQL query so we can detect races later
+	c.mu.RLock()
+	seqBefore := c.seq
+	c.mu.RUnlock()
 	args := make([]any, len(usernames))
 	for i, u := range usernames {
 		args[i] = u
@@ -125,9 +132,20 @@ func (c *accessCache) Reload(d *db.DB, query string, usernames ...string) error 
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	if testHookReloadScanned != nil {
+		testHookReloadScanned()
+	}
 	// Replace or update the internal maps
 	c.mu.Lock()
 	if len(usernames) == 0 {
+		if c.seq != seqBefore {
+			c.mu.Unlock()
+			log.Tag(tag).
+				Field("reload_scope", scope).
+				Field("duration_ms", time.Since(started).Milliseconds()).
+				Warn("ACL cache reload skipped due to race")
+			return nil
+		}
 		c.exact = exacts
 		c.pattern = patterns
 	} else {
@@ -144,12 +162,13 @@ func (c *accessCache) Reload(d *db.DB, query string, usernames ...string) error 
 			}
 		}
 	}
+	c.seq++
 	c.mu.Unlock()
 	log.Tag(tag).
 		Field("reload_scope", scope).
 		Field("updated_entries", updatedEntries).
 		Field("duration_ms", time.Since(started).Milliseconds()).
-		Debug("Reloaded ACL cache")
+		Debug("ACL cache reloaded")
 	return nil
 }
 
