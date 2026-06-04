@@ -1929,6 +1929,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 **Features:**
 
 * Add opt-in in-memory ACL cache (`auth-access-cache`) that serves topic authorization without a database round-trip; off by default, intended for high-volume servers
+* Add `ntfy version` command / `--version` flag to the CLI ([#1722](https://github.com/binwiederhier/ntfy/issues/1722), [#1748](https://github.com/binwiederhier/ntfy/pull/1748), thanks to [@sskender](https://github.com/sskender) for the contribution, and [@Saucy9607](https://github.com/Saucy9607) for reporting)
 
 **Bug fixes + maintenance:**
 
