@@ -1926,6 +1926,10 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ### ntfy server v2.24.0 (UNRELEASED)
 
+**Security issues:**
+
+* Fix case-insensitive ACL topic matching on SQLite: an access control rule for `secret` no longer also matches a request for `SECRET`. SQLite's `LIKE` is case-insensitive for ASCII by default; PostgreSQL was unaffected (no ticket)
+* 
 **Features:**
 
 * Add opt-in in-memory ACL cache (`auth-access-cache`) that serves topic authorization without a database round-trip; off by default, intended for high-volume servers

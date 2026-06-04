@@ -2414,6 +2414,55 @@ func TestAccessCache_FullReloadDoesNotClobberConcurrentRevoke(t *testing.T) {
 	})
 }
 
+// TestAuthorizeTopicAccess_TopicMatchingIsCaseSensitive guards against ACL
+// topic matching being case-insensitive. SQLite's LIKE is case-insensitive for
+// ASCII by default, which would let a request for "SECRET" match an ACL rule
+// for "secret" -- a security hole. PostgreSQL's LIKE is already case-sensitive.
+// NewSQLiteManager opens the database with case_sensitive_like enabled to close
+// this gap. This exercises the direct-DB path (cache disabled), which is the
+// path that runs the LIKE query; the in-memory cache is independently
+// case-sensitive (Go map keys / case-sensitive regex).
+func TestAuthorizeTopicAccess_TopicMatchingIsCaseSensitive(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newManager(&Config{
+			DefaultAccess:      PermissionDenyAll,
+			BcryptCost:         bcrypt.MinCost,
+			AccessCacheEnabled: false, // exercise the direct-DB LIKE path
+		})
+		t.Cleanup(func() { a.Close() })
+
+		require.Nil(t, a.AddUser("ben", "mypass", RoleUser, false))
+		require.Nil(t, a.AllowAccess("ben", "secret", PermissionReadWrite)) // exact rule
+		require.Nil(t, a.AllowAccess("ben", "team*", PermissionReadWrite))  // wildcard rule, stored as "team%"
+
+		// The exact rule is honored verbatim.
+		read, write, found, err := a.authorizeTopicAccess("ben", "secret")
+		require.Nil(t, err)
+		require.True(t, found)
+		require.True(t, read)
+		require.True(t, write)
+
+		// Case variants of the exact rule must NOT match.
+		for _, topic := range []string{"SECRET", "Secret", "sEcReT"} {
+			_, _, found, err := a.authorizeTopicAccess("ben", topic)
+			require.Nil(t, err)
+			require.False(t, found, "ACL rule for \"secret\" must not match %q (case-insensitive match is a security hole)", topic)
+		}
+
+		// The wildcard rule is honored for the matching case.
+		_, _, found, err = a.authorizeTopicAccess("ben", "team-rocket")
+		require.Nil(t, err)
+		require.True(t, found)
+
+		// Case variants of the wildcard prefix must NOT match.
+		for _, topic := range []string{"TEAM-rocket", "Team-rocket", "TEAMING"} {
+			_, _, found, err := a.authorizeTopicAccess("ben", topic)
+			require.Nil(t, err)
+			require.False(t, found, "wildcard rule for \"team*\" must not match %q", topic)
+		}
+	})
+}
+
 func TestStoreReservations(t *testing.T) {
 	forEachStoreBackend(t, func(t *testing.T, manager *Manager) {
 		require.Nil(t, manager.AddUser("phil", "mypass", RoleUser, false))

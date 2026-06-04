@@ -312,7 +312,13 @@ func NewSQLiteManager(filename, startupQueries string, config *Config) (*Manager
 	if !util.FileExists(parentDir) {
 		return nil, fmt.Errorf("user database directory %s does not exist or is not accessible", parentDir)
 	}
-	d, err := sql.Open("sqlite3", filename)
+	// Open with case-sensitive LIKE. ACL topic matching is done via LIKE (see
+	// selectTopicPerms), and SQLite's LIKE is case-insensitive for ASCII by
+	// default -- without this, an ACL rule for "secret" would also match a
+	// request for "SECRET", which is a security iisue. PostgreSQL's LIKE is
+	// already case-sensitive, so this only affects SQLite. The pragma is
+	// applied to every pooled connection by the driver.
+	d, err := sql.Open("sqlite3", fmt.Sprintf("%s?_case_sensitive_like=on", filename))
 	if err != nil {
 		return nil, err
 	}
