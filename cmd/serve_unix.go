@@ -1,4 +1,4 @@
-//go:build darwin || linux || dragonfly || freebsd || netbsd || openbsd
+//go:build (darwin || linux || dragonfly || freebsd || netbsd || openbsd) && !noserver
 
 package cmd
 
