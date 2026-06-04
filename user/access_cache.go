@@ -23,8 +23,15 @@ import (
 type accessCache struct {
 	exact   map[string]map[string]aclEntry
 	pattern map[string][]aclEntry
-	mu      sync.RWMutex // Protect exact and pattern
+	seq     uint64       // Bumped on every apply; lets a slow full reload notice that a mutation raced its table scan
+	mu      sync.RWMutex // Protect exact, pattern, and seq
 }
+
+// maxFullReloadRetries bounds how many extra times a full reload re-scans the
+// table when a per-user mutation keeps landing mid-scan before it gives up for
+// this cycle (the local mutation already kept the cache correct; only external
+// writes are deferred to the next cycle).
+const maxFullReloadRetries = 2
 
 // aclEntry mirrors one user_access row. length feeds better()'s "longer
 // pattern wins" tie-break; the stored topic/pattern string itself is not kept

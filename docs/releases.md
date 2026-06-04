@@ -1934,6 +1934,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 * Extend account token automatically from the PWA service worker, so installed PWAs don't get logged out ([#1669](https://github.com/binwiederhier/ntfy/pull/1669), [#1203](https://github.com/binwiederhier/ntfy/issues/1203), [#1533](https://github.com/binwiederhier/ntfy/issues/1533), thanks to [@nihalgonsalves](https://github.com/nihalgonsalves) for the contribution)
 * Fix `rel` attribute on auto-linked notification URLs so `noreferrer`/`noopener` are actually applied ([#1720](https://github.com/binwiederhier/ntfy/pull/1720), thanks to [@dmitrylyzo](https://github.com/dmitrylyzo) for the contribution)
+* Add systemd sandboxing/hardening to the `ntfy.service` unit ([#1467](https://github.com/binwiederhier/ntfy/pull/1467), thanks to [@Velocifyer](https://github.com/Velocifyer) for the contribution)
 
 ### ntfy Android v1.25.x (UNRELEASED)
 
