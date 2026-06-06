@@ -4104,26 +4104,41 @@ field the response. A sequence of updates may look like this (first example from
 ### Clearing notifications
 Clearing a notification means **marking it as read and dismissing it from the notification drawer**. 
 
-To do this, send a PUT request to the `/<topic>/<sequence_id>/clear` endpoint (or `/<topic>/<sequence_id>/read` as an alias). 
+To do this, send a `PUT` request to the `/<topic>/<sequence_id>/clear` endpoint (or `/<topic>/<sequence_id>/read` as an alias).
 This will then emit a `message_clear` event that is used by the clients (web app and Android app) to update the read status
 and dismiss the notification.
 
+Alternatively, if your client has limited HTTP support, you can send a `GET` request to the same endpoints:
+`GET /<topic>/<sequence_id>/clear` or `GET /<topic>/<sequence_id>/read`.
+
 === "Command line (curl)"
     ```bash
+    # Via PUT method
     curl -X PUT ntfy.sh/mytopic/my-download-123/clear
+
+    # Via GET method
+    curl ntfy.sh/mytopic/my-download-123/clear
     ```
 
 === "HTTP"
     ``` http
     PUT /mytopic/my-download-123/clear HTTP/1.1
     Host: ntfy.sh
+
+    # Or using GET
+    GET /mytopic/my-download-123/clear HTTP/1.1
+    Host: ntfy.sh
     ```
 
 === "JavaScript"
     ``` javascript
+    // Via PUT method
     await fetch('https://ntfy.sh/mytopic/my-download-123/clear', {
       method: 'PUT'
     });
+
+    // Via GET method
+    await fetch('https://ntfy.sh/mytopic/my-download-123/clear');
     ```
 
 === "Go"

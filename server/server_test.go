@@ -4113,6 +4113,33 @@ func TestServer_ClearMessage_ReadEndpoint(t *testing.T) {
 	})
 }
 
+func TestServer_ClearMessage_GET(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+
+		// 1. Test GET /topic/seq-id/clear
+		response := request(t, s, "PUT", "/mytopic/seq456", "original message 1", nil)
+		require.Equal(t, 200, response.Code)
+
+		response = request(t, s, "GET", "/mytopic/seq456/clear", "", nil)
+		require.Equal(t, 200, response.Code)
+		clearMsg1 := toMessage(t, response.Body.String())
+		require.Equal(t, "seq456", clearMsg1.SequenceID)
+		require.Equal(t, "message_clear", clearMsg1.Event)
+
+		// 2. Test GET /topic/seq-id/read
+		response = request(t, s, "PUT", "/mytopic/seq789", "original message 2", nil)
+		require.Equal(t, 200, response.Code)
+
+		response = request(t, s, "GET", "/mytopic/seq789/read", "", nil)
+		require.Equal(t, 200, response.Code)
+		clearMsg2 := toMessage(t, response.Body.String())
+		require.Equal(t, "seq789", clearMsg2.SequenceID)
+		require.Equal(t, "message_clear", clearMsg2.Event)
+	})
+}
+
 func TestServer_UpdateMessage(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()

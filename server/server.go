@@ -648,7 +648,7 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handleDelete))(w, r, v)
 	} else if r.Method == http.MethodGet && deletePathRegex.MatchString(r.URL.Path) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handleDelete))(w, r, v)
-	} else if r.Method == http.MethodPut && clearPathRegex.MatchString(r.URL.Path) {
+	} else if (r.Method == http.MethodGet || r.Method == http.MethodPut) && clearPathRegex.MatchString(r.URL.Path) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handleClear))(w, r, v)
 	} else if r.Method == http.MethodGet && publishPathRegex.MatchString(r.URL.Path) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)
