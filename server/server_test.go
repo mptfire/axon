@@ -4026,6 +4026,40 @@ func TestServer_DeleteMessage(t *testing.T) {
 	})
 }
 
+func TestServer_DeleteMessage_GET(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+
+		// Publish a message with a sequence ID
+		response := request(t, s, "PUT", "/mytopic/seq123", "original message", nil)
+		require.Equal(t, 200, response.Code)
+		msg := toMessage(t, response.Body.String())
+		require.Equal(t, "seq123", msg.SequenceID)
+		require.Equal(t, "message", msg.Event)
+
+		// Delete the message using GET method (/topic/seq/delete)
+		response = request(t, s, "GET", "/mytopic/seq123/delete", "", nil)
+		require.Equal(t, 200, response.Code)
+		deleteMsg := toMessage(t, response.Body.String())
+		require.Equal(t, "seq123", deleteMsg.SequenceID)
+		require.Equal(t, "message_delete", deleteMsg.Event)
+
+		// Poll and verify both messages are returned
+		response = request(t, s, "GET", "/mytopic/json?poll=1", "", nil)
+		require.Equal(t, 200, response.Code)
+		lines := strings.Split(strings.TrimSpace(response.Body.String()), "\n")
+		require.Equal(t, 2, len(lines))
+
+		msg1 := toMessage(t, lines[0])
+		msg2 := toMessage(t, lines[1])
+		require.Equal(t, "message", msg1.Event)
+		require.Equal(t, "message_delete", msg2.Event)
+		require.Equal(t, "seq123", msg1.SequenceID)
+		require.Equal(t, "seq123", msg2.SequenceID)
+	})
+}
+
 func TestServer_ClearMessage(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
@@ -4271,6 +4305,41 @@ func TestServer_DeleteScheduledMessage(t *testing.T) {
 
 		// Delete the scheduled message
 		response = request(t, s, "DELETE", "/mytopic/delete-sched-seq", "", nil)
+		require.Equal(t, 200, response.Code)
+		deleteMsg := toMessage(t, response.Body.String())
+		require.Equal(t, "delete-sched-seq", deleteMsg.SequenceID)
+		require.Equal(t, "message_delete", deleteMsg.Event)
+
+		// Verify scheduled message was deleted, only delete event remains
+		response = request(t, s, "GET", "/mytopic/json?poll=1&scheduled=1", "", nil)
+		require.Equal(t, 200, response.Code)
+		messages = toMessages(t, response.Body.String())
+		require.Equal(t, 1, len(messages))
+		require.Equal(t, "message_delete", messages[0].Event)
+		require.Equal(t, "delete-sched-seq", messages[0].SequenceID)
+	})
+}
+
+func TestServer_DeleteScheduledMessage_GET(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+
+		// Publish a scheduled message (future delivery)
+		response := request(t, s, "PUT", "/mytopic/delete-sched-seq?delay=1h", "scheduled message to delete", nil)
+		require.Equal(t, 200, response.Code)
+		msg := toMessage(t, response.Body.String())
+		require.Equal(t, "delete-sched-seq", msg.SequenceID)
+
+		// Verify scheduled message exists
+		response = request(t, s, "GET", "/mytopic/json?poll=1&scheduled=1", "", nil)
+		require.Equal(t, 200, response.Code)
+		messages := toMessages(t, response.Body.String())
+		require.Equal(t, 1, len(messages))
+		require.Equal(t, "scheduled message to delete", messages[0].Message)
+
+		// Delete the scheduled message using GET method (/topic/seq/delete)
+		response = request(t, s, "GET", "/mytopic/delete-sched-seq/delete", "", nil)
 		require.Equal(t, 200, response.Code)
 		deleteMsg := toMessage(t, response.Body.String())
 		require.Equal(t, "delete-sched-seq", deleteMsg.SequenceID)
