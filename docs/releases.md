@@ -1948,6 +1948,12 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
+### ntfy server v2.25.0 (UNRELEASED)
+
+**Features:**
+
+* You can how clear/read messages and delete messages with a GET request ([#1771](https://github.com/binwiederhier/ntfy/issues/1771), thanks to [@lemmi](https://github.com/lemmi) for reporting and to [@wunter8](https://github.com/wunter8) for implementing)
+
 ### ntfy Android v1.25.x (UNRELEASED)
 
 This release makes the "connection lost" alert configurable and turns it off by default. Folks did not like it and many reached out
