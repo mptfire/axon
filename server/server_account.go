@@ -167,20 +167,24 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 			if err != nil {
 				return err
 			}
-			if len(emails) > 0 {
-				response.Emails = emails
-			}
 			primaryEmail, err := s.userManager.PrimaryEmail(u.ID)
 			if err != nil {
 				return err
 			}
-			response.PrimaryEmail = primaryEmail
 			pendingEmails, err := s.userManager.PendingEmails(u.ID)
 			if err != nil {
 				return err
 			}
-			if len(pendingEmails) > 0 {
-				response.PendingEmails = pendingEmails
+			// Combine verified (with primary flag) and pending (unverified) into one list
+			emailInfos := make([]*apiAccountEmailInfo, 0, len(emails)+len(pendingEmails))
+			for _, email := range emails {
+				emailInfos = append(emailInfos, &apiAccountEmailInfo{Address: email, Primary: email == primaryEmail})
+			}
+			for _, email := range pendingEmails {
+				emailInfos = append(emailInfos, &apiAccountEmailInfo{Address: email, Pending: true})
+			}
+			if len(emailInfos) > 0 {
+				response.Emails = emailInfos
 			}
 		}
 	} else {
@@ -718,6 +722,8 @@ func (s *Server) handleAccountEmailSetPrimary(w http.ResponseWriter, r *http.Req
 		return err
 	} else if !emailAddressRegex.MatchString(req.Email) {
 		return errHTTPBadRequestEmailAddressInvalid
+	} else if u.Provisioned {
+		return errHTTPConflictProvisionedUserChange // Provisioned users can't reset, so a recovery email is meaningless
 	}
 	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Info("Setting primary email")
 	err = s.userManager.SetPrimaryEmail(u.ID, req.Email)
@@ -810,13 +816,15 @@ func (s *Server) handleAccountPasswordResetRequest(w http.ResponseWriter, r *htt
 // The identifier is tried first as a username, then as a primary email address. It returns
 // ok=false if no account with a primary email matches (reset requires a verified primary email).
 func (s *Server) resolveResetTarget(identifier string) (userID string, email string, ok bool) {
-	if u, err := s.userManager.User(identifier); err == nil && u != nil {
+	if u, err := s.userManager.User(identifier); err == nil && u != nil && !u.Provisioned {
 		if primary, perr := s.userManager.PrimaryEmail(u.ID); perr == nil && primary != "" {
 			return u.ID, primary, true
 		}
 	}
 	if uid, err := s.userManager.UserIDByPrimaryEmail(identifier); err == nil {
-		return uid, identifier, true
+		if u, uerr := s.userManager.UserByID(uid); uerr == nil && !u.Provisioned {
+			return uid, identifier, true
+		}
 	}
 	return "", "", false
 }
@@ -834,8 +842,8 @@ func (s *Server) handleAccountPasswordReset(w http.ResponseWriter, r *http.Reque
 		return errHTTPBadRequest
 	}
 	err = s.userManager.ResetPassword(req.Token, req.Password)
-	if errors.Is(err, user.ErrMagicLinkNotFound) {
-		return errHTTPBadRequestResetLinkInvalid
+	if errors.Is(err, user.ErrMagicLinkNotFound) || errors.Is(err, user.ErrProvisionedUserChange) {
+		return errHTTPBadRequestResetLinkInvalid // Generic 400 (provisioned users can't be reset; don't leak that)
 	} else if err != nil {
 		return err
 	}

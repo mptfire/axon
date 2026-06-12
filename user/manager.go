@@ -1648,8 +1648,9 @@ func (a *Manager) DeleteEmailVerification(userID, email string) error {
 // validating the token (kind + expiry), it deletes the link, adds the address to the user's
 // verified emails, and -- if the user has no primary email yet and the address is not already
 // primary on another account -- promotes the new address to primary. All mutations run in one
-// transaction. A primary collision simply leaves the address verified but non-primary. Returns
-// the consumed link.
+// transaction. A primary collision simply leaves the address verified but non-primary. Provisioned
+// users never get a primary (the recovery email is meaningless for them -- they can't reset).
+// Returns the consumed link.
 func (a *Manager) VerifyEmail(rawToken string) (*MagicLink, error) {
 	tokenHash := hashToken(rawToken)
 	m, err := a.MagicLinkByHash(tokenHash)
@@ -1659,6 +1660,10 @@ func (a *Manager) VerifyEmail(rawToken string) (*MagicLink, error) {
 	if m.Kind != MagicLinkKindEmailVerify || time.Now().Unix() > m.Expires {
 		return nil, ErrMagicLinkNotFound
 	}
+	u, err := a.UserByID(m.UserID)
+	if err != nil {
+		return nil, err
+	}
 	err = db.ExecTx(a.db, func(tx *sql.Tx) error {
 		// Single use: delete the link, then add the (idempotent) verified address
 		if _, err := tx.Exec(a.queries.deleteMagicLinkByHash, tokenHash); err != nil {
@@ -1666,6 +1671,9 @@ func (a *Manager) VerifyEmail(rawToken string) (*MagicLink, error) {
 		}
 		if _, err := tx.Exec(a.queries.insertEmailIgnore, m.UserID, m.Email); err != nil {
 			return err
+		}
+		if u.Provisioned {
+			return nil // Provisioned users don't get a primary (recovery) email
 		}
 		// Promote to primary only if the user has none yet and the address is globally free.
 		// We check with SELECTs rather than catching a unique violation, because Postgres aborts
@@ -1711,6 +1719,9 @@ func (a *Manager) ResetPassword(rawToken, password string) error {
 	u, err := a.UserByID(m.UserID)
 	if err != nil {
 		return err
+	}
+	if u.Provisioned {
+		return ErrProvisionedUserChange // Provisioned users get their password from the config file, not reset
 	}
 	hash, err := a.maybeHashPassword(password, false)
 	if err != nil {

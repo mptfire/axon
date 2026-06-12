@@ -44,7 +44,7 @@ var flagsUser = append(
 var cmdUser = &cli.Command{
 	Name:      "user",
 	Usage:     "Manage/show users",
-	UsageText: "ntfy user [list|add|remove|change-pass|change-role] ...",
+	UsageText: "ntfy user [list|add|remove|change-pass|reset-pass|change-role] ...",
 	Flags:     flagsUser,
 	Before:    initConfigFileInputSourceFunc("config", flagsUser, initLogFunc),
 	Category:  categoryServer,
@@ -108,11 +108,11 @@ directly the bcrypt hash. This is useful if you are updating users via scripts.
 `,
 		},
 		{
-			Name:      "password-reset",
-			Aliases:   []string{"reset"},
+			Name:      "reset-pass",
+			Aliases:   []string{"rp"},
 			Usage:     "Generates a password reset link for a user",
-			UsageText: "ntfy user password-reset [--send-email] USERNAME",
-			Action:    execUserPasswordReset,
+			UsageText: "ntfy user reset-pass [--send-email] USERNAME",
+			Action:    execUserResetPass,
 			Flags: []cli.Flag{
 				&cli.BoolFlag{Name: "send-email", Aliases: []string{"e"}, Usage: "also email the reset link to the user's primary email"},
 			},
@@ -129,8 +129,8 @@ requires SMTP to be configured and the user to have a verified primary email).
 Requires base-url to be configured so an absolute link can be generated.
 
 Example:
-  ntfy user password-reset phil               # Print a reset link for user phil
-  ntfy user password-reset --send-email phil  # Print and email the reset link
+  ntfy user reset-pass phil               # Print a reset link for user phil
+  ntfy user reset-pass --send-email phil  # Print and email the reset link
 `,
 		},
 		{
@@ -319,12 +319,12 @@ func execUserChangePass(c *cli.Context) error {
 	return nil
 }
 
-func execUserPasswordReset(c *cli.Context) error {
+func execUserResetPass(c *cli.Context) error {
 	username := c.Args().Get(0)
 	sendEmail := c.Bool("send-email")
 	baseURL := strings.TrimSuffix(c.String("base-url"), "/")
 	if username == "" {
-		return errors.New("username expected, type 'ntfy user password-reset --help' for help")
+		return errors.New("username expected, type 'ntfy user reset-pass --help' for help")
 	} else if username == userEveryone || username == user.Everyone {
 		return errors.New("username not allowed")
 	} else if baseURL == "" {
@@ -339,6 +339,8 @@ func execUserPasswordReset(c *cli.Context) error {
 		return fmt.Errorf("user %s does not exist", username)
 	} else if err != nil {
 		return err
+	} else if u.Provisioned {
+		return fmt.Errorf("user %s is provisioned in the config file; its password cannot be reset", username)
 	}
 	// Resolve the primary email up front if we need to send -- fail before creating a token
 	var primaryEmail string

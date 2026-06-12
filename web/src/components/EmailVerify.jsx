@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Typography, Button, Box, CircularProgress } from "@mui/material";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
-import { useParams, NavLink } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import accountApi from "../app/AccountApi";
 import AvatarBox from "./AvatarBox";
@@ -16,6 +16,7 @@ import routes from "./routes";
 const EmailVerify = () => {
   const { t } = useTranslation();
   const { token } = useParams();
+  const navigate = useNavigate();
   const [status, setStatus] = useState("verifying"); // "verifying" | "success" | "error"
   const ran = useRef(false);
 
@@ -40,31 +41,33 @@ const EmailVerify = () => {
   return (
     <AvatarBox>
       {status === "verifying" && (
-        <>
-          <CircularProgress sx={{ mb: 2 }} />
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <CircularProgress size={24} />
           <Typography sx={{ typography: "h6" }}>{t("email_verify_progress_title")}</Typography>
-        </>
+        </Box>
       )}
       {status === "success" && (
         <>
-          <CheckCircleOutlineIcon color="success" sx={{ fontSize: 48, mb: 1 }} />
-          <Typography sx={{ typography: "h6" }}>{t("email_verify_success_title")}</Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <CheckCircleOutlineIcon color="success" sx={{ fontSize: 32 }} />
+            <Typography sx={{ typography: "h6" }}>{t("email_verify_success_title")}</Typography>
+          </Box>
           <Typography sx={{ mt: 1, textAlign: "center" }}>{t("email_verify_success_description")}</Typography>
-          <Button component={NavLink} to={routes.account} variant="contained" sx={{ mt: 2 }}>
+          <Button onClick={() => navigate(routes.account)} variant="contained" sx={{ mt: 2 }}>
             {t("email_verify_button_account")}
           </Button>
         </>
       )}
       {status === "error" && (
         <>
-          <ErrorOutlineIcon color="error" sx={{ fontSize: 48, mb: 1 }} />
-          <Typography sx={{ typography: "h6" }}>{t("email_verify_error_title")}</Typography>
-          <Typography sx={{ mt: 1, textAlign: "center" }}>{t("email_verify_error_description")}</Typography>
-          <Box sx={{ mt: 2 }}>
-            <Button component={NavLink} to={routes.account} variant="contained">
-              {t("email_verify_button_account")}
-            </Button>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <ErrorOutlineIcon color="error" sx={{ fontSize: 32 }} />
+            <Typography sx={{ typography: "h6" }}>{t("email_verify_error_title")}</Typography>
           </Box>
+          <Typography sx={{ mt: 1, textAlign: "center" }}>{t("email_verify_error_description")}</Typography>
+          <Button onClick={() => navigate(routes.account)} variant="contained" sx={{ mt: 2 }}>
+            {t("email_verify_button_account")}
+          </Button>
         </>
       )}
     </AvatarBox>

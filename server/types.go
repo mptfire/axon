@@ -287,6 +287,15 @@ type apiAccountReservation struct {
 	Everyone string `json:"everyone"`
 }
 
+// apiAccountEmailInfo describes one email address on the account, as returned by GET /v1/account.
+// Verified addresses have pending=false; exactly one verified address may be primary (the
+// recovery email). Pending addresses are awaiting a magic-link click and are never primary.
+type apiAccountEmailInfo struct {
+	Address string `json:"address"`
+	Primary bool   `json:"primary,omitempty"`
+	Pending bool   `json:"pending,omitempty"`
+}
+
 type apiAccountBilling struct {
 	Customer     bool   `json:"customer"`
 	Subscription bool   `json:"subscription"`
@@ -307,9 +316,7 @@ type apiAccountResponse struct {
 	Reservations  []*apiAccountReservation   `json:"reservations,omitempty"`
 	Tokens        []*apiAccountTokenResponse `json:"tokens,omitempty"`
 	PhoneNumbers  []string                   `json:"phone_numbers,omitempty"`
-	Emails        []string                   `json:"emails,omitempty"`
-	PrimaryEmail  string                     `json:"primary_email,omitempty"`  // The verified recovery email, if set
-	PendingEmails []string                   `json:"pending_emails,omitempty"` // Unverified addresses awaiting a magic-link click
+	Emails        []*apiAccountEmailInfo     `json:"emails,omitempty"`
 	Tier          *apiAccountTier            `json:"tier,omitempty"`
 	Limits        *apiAccountLimits          `json:"limits,omitempty"`
 	Stats         *apiAccountStats           `json:"stats,omitempty"`

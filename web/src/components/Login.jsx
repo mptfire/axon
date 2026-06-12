@@ -1,18 +1,6 @@
 import * as React from "react";
 import { useState } from "react";
-import {
-  Typography,
-  TextField,
-  Button,
-  Box,
-  IconButton,
-  InputAdornment,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-} from "@mui/material";
+import { Typography, TextField, Button, Box, IconButton, InputAdornment } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -29,7 +17,6 @@ const Login = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [resetOpen, setResetOpen] = useState(false);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -115,9 +102,9 @@ const Login = () => {
         <Box sx={{ width: "100%" }}>
           {config.enable_reset_password && (
             <div style={{ float: "left" }}>
-              <Button variant="text" onClick={() => setResetOpen(true)} sx={{ textTransform: "none", p: 0, minWidth: 0 }}>
+              <NavLink to={routes.resetPassword} variant="body1">
                 {t("login_link_forgot_password")}
-              </Button>
+              </NavLink>
             </div>
           )}
           {config.enable_signup && (
@@ -129,66 +116,7 @@ const Login = () => {
           )}
         </Box>
       </Box>
-      <ForgotPasswordDialog open={resetOpen} onClose={() => setResetOpen(false)} />
     </AvatarBox>
-  );
-};
-
-// ForgotPasswordDialog collects a username/email and asks the server to email a reset link. The
-// response is uniform, so the dialog always shows the same "if an account exists" confirmation.
-const ForgotPasswordDialog = (props) => {
-  const { t } = useTranslation();
-  const [identifier, setIdentifier] = useState("");
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-
-  const handleSubmit = async () => {
-    try {
-      setSending(true);
-      await accountApi.requestPasswordReset(identifier);
-    } catch (e) {
-      console.log(`[Login] Password reset request failed`, e);
-    } finally {
-      setSending(false);
-      setSent(true); // Uniform outcome regardless of success/failure (enumeration-safe)
-    }
-  };
-
-  return (
-    <Dialog open={props.open} onClose={props.onClose}>
-      <DialogTitle>{t("login_reset_dialog_title")}</DialogTitle>
-      <DialogContent>
-        {sent ? (
-          <DialogContentText>{t("login_reset_dialog_sent")}</DialogContentText>
-        ) : (
-          <>
-            <DialogContentText>{t("login_reset_dialog_description")}</DialogContentText>
-            <TextField
-              autoFocus
-              margin="dense"
-              label={t("login_reset_dialog_identifier_label")}
-              type="text"
-              value={identifier}
-              onChange={(ev) => setIdentifier(ev.target.value.trim())}
-              fullWidth
-              variant="standard"
-            />
-          </>
-        )}
-      </DialogContent>
-      <DialogActions>
-        {sent ? (
-          <Button onClick={props.onClose}>{t("common_close")}</Button>
-        ) : (
-          <>
-            <Button onClick={props.onClose}>{t("common_cancel")}</Button>
-            <Button onClick={handleSubmit} disabled={sending || identifier === ""}>
-              {t("login_reset_dialog_button_submit")}
-            </Button>
-          </>
-        )}
-      </DialogActions>
-    </Dialog>
   );
 };
 

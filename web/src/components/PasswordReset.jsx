@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Typography, TextField, Button, Box } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import { useParams, NavLink } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import accountApi from "../app/AccountApi";
 import AvatarBox from "./AvatarBox";
@@ -15,6 +15,7 @@ import routes from "./routes";
 const PasswordReset = () => {
   const { t } = useTranslation();
   const { token: tokenParam } = useParams();
+  const navigate = useNavigate();
   const token = useRef(tokenParam);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -49,10 +50,12 @@ const PasswordReset = () => {
   if (done) {
     return (
       <AvatarBox>
-        <CheckCircleOutlineIcon color="success" sx={{ fontSize: 48, mb: 1 }} />
-        <Typography sx={{ typography: "h6" }}>{t("reset_password_success_title")}</Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <CheckCircleOutlineIcon color="success" sx={{ fontSize: 32 }} />
+          <Typography sx={{ typography: "h6" }}>{t("reset_password_success_title")}</Typography>
+        </Box>
         <Typography sx={{ mt: 1, textAlign: "center" }}>{t("reset_password_success_description")}</Typography>
-        <Button component={NavLink} to={routes.login} variant="contained" sx={{ mt: 2 }}>
+        <Button onClick={() => navigate(routes.login)} variant="contained" sx={{ mt: 2 }}>
           {t("reset_password_button_login")}
         </Button>
       </AvatarBox>

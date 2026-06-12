@@ -289,6 +289,53 @@ func TestUser_MagicLink_ResetPassword_WrongKindRejected(t *testing.T) {
 	})
 }
 
+func TestUser_MagicLink_VerifyEmail_ProvisionedNoPrimary(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManagerFromConfig(t, newManager, &Config{
+			DefaultAccess:    PermissionDenyAll,
+			ProvisionEnabled: true,
+			Users: []*User{
+				{Name: "prov", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
+			},
+		})
+		prov, err := a.User("prov")
+		require.Nil(t, err)
+
+		// A provisioned user can verify an email (for notifications), but it must NOT become primary
+		_, err = a.VerifyEmail(addVerifyLink(t, a, prov.ID, "prov@example.com", time.Hour))
+		require.Nil(t, err)
+
+		emails, err := a.Emails(prov.ID)
+		require.Nil(t, err)
+		require.Equal(t, []string{"prov@example.com"}, emails)
+		primary, err := a.PrimaryEmail(prov.ID)
+		require.Nil(t, err)
+		require.Equal(t, "", primary)
+	})
+}
+
+func TestUser_MagicLink_ResetPassword_ProvisionedRejected(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		// Provisioned users come from the config file (ProvisionEnabled), not AddUser
+		a := newTestManagerFromConfig(t, newManager, &Config{
+			DefaultAccess:    PermissionDenyAll,
+			ProvisionEnabled: true,
+			Users: []*User{
+				{Name: "prov", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
+			},
+		})
+		prov, err := a.User("prov")
+		require.Nil(t, err)
+		require.True(t, prov.Provisioned)
+
+		// A reset token can be created, but consuming it must be rejected for a provisioned user
+		// (their password comes from the config file, like change-pass).
+		raw, err := a.CreateMagicLink(MagicLinkKindPasswordReset, prov.ID, "", time.Hour)
+		require.Nil(t, err)
+		require.ErrorIs(t, a.ResetPassword(raw, "newpass"), ErrProvisionedUserChange)
+	})
+}
+
 func TestUser_MagicLink_ResetPassword_Expired(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		a := newTestManager(t, newManager, PermissionDenyAll)

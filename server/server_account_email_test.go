@@ -57,6 +57,37 @@ func getAccount(t *testing.T, s *Server, auth map[string]string) *apiAccountResp
 	return account
 }
 
+// verifiedAddrs / pendingAddrs / primaryAddr extract the addresses from the structured email
+// list returned by GET /v1/account, so assertions stay readable.
+func verifiedAddrs(account *apiAccountResponse) []string {
+	addrs := make([]string, 0)
+	for _, e := range account.Emails {
+		if !e.Pending {
+			addrs = append(addrs, e.Address)
+		}
+	}
+	return addrs
+}
+
+func pendingAddrs(account *apiAccountResponse) []string {
+	addrs := make([]string, 0)
+	for _, e := range account.Emails {
+		if e.Pending {
+			addrs = append(addrs, e.Address)
+		}
+	}
+	return addrs
+}
+
+func primaryAddr(account *apiAccountResponse) string {
+	for _, e := range account.Emails {
+		if e.Primary {
+			return e.Address
+		}
+	}
+	return ""
+}
+
 func tokenFromLink(t *testing.T, link, prefix string) string {
 	require.True(t, strings.HasPrefix(link, prefix), "link %q missing prefix %q", link, prefix)
 	return strings.TrimPrefix(link, prefix)
@@ -73,9 +104,9 @@ func TestAccount_Email_AddVerifySetsPrimary(t *testing.T) {
 
 		// Pending, not yet verified, no primary
 		account := getAccount(t, s, auth)
-		require.Equal(t, []string{"ben@example.com"}, account.PendingEmails)
-		require.Empty(t, account.Emails)
-		require.Equal(t, "", account.PrimaryEmail)
+		require.Equal(t, []string{"ben@example.com"}, pendingAddrs(account))
+		require.Empty(t, verifiedAddrs(account))
+		require.Equal(t, "", primaryAddr(account))
 
 		// "Click" the captured link (unauthenticated POST)
 		token := tokenFromLink(t, mailer.verifyLinks["ben@example.com"], "https://ntfy.example.com/account/email/verify/")
@@ -84,9 +115,9 @@ func TestAccount_Email_AddVerifySetsPrimary(t *testing.T) {
 
 		// Now verified + primary, no longer pending
 		account = getAccount(t, s, auth)
-		require.Equal(t, []string{"ben@example.com"}, account.Emails)
-		require.Equal(t, "ben@example.com", account.PrimaryEmail)
-		require.Empty(t, account.PendingEmails)
+		require.Equal(t, []string{"ben@example.com"}, verifiedAddrs(account))
+		require.Equal(t, "ben@example.com", primaryAddr(account))
+		require.Empty(t, pendingAddrs(account))
 	})
 }
 
@@ -111,13 +142,13 @@ func TestAccount_Email_DeletePending(t *testing.T) {
 		defer s.closeDatabases()
 
 		require.Equal(t, 200, request(t, s, "PUT", "/v1/account/email", `{"email":"ben@example.com"}`, auth).Code)
-		require.Equal(t, []string{"ben@example.com"}, getAccount(t, s, auth).PendingEmails)
+		require.Equal(t, []string{"ben@example.com"}, pendingAddrs(getAccount(t, s, auth)))
 
 		// Deleting the pending address clears it (no verification ever happened)
 		require.Equal(t, 200, request(t, s, "DELETE", "/v1/account/email", `{"email":"ben@example.com"}`, auth).Code)
 		account := getAccount(t, s, auth)
-		require.Empty(t, account.PendingEmails)
-		require.Empty(t, account.Emails)
+		require.Empty(t, pendingAddrs(account))
+		require.Empty(t, verifiedAddrs(account))
 	})
 }
 
@@ -154,7 +185,7 @@ func TestAccount_Email_SetPrimaryCollision(t *testing.T) {
 		require.Equal(t, 200, request(t, s, "PUT", "/v1/account/email", `{"email":"shared@example.com"}`, auth).Code)
 		benToken := tokenFromLink(t, mailer.verifyLinks["shared@example.com"], "https://ntfy.example.com/account/email/verify/")
 		require.Equal(t, 200, request(t, s, "POST", "/v1/account/email/verify", fmt.Sprintf(`{"token":"%s"}`, benToken), nil).Code)
-		require.Equal(t, "shared@example.com", getAccount(t, s, auth).PrimaryEmail)
+		require.Equal(t, "shared@example.com", primaryAddr(getAccount(t, s, auth)))
 
 		// alice verifies the same address -> allowed as secondary, but it is not her primary
 		require.Nil(t, s.userManager.AddUser("alice", "alice", user.RoleUser, false))
@@ -163,8 +194,8 @@ func TestAccount_Email_SetPrimaryCollision(t *testing.T) {
 		aliceToken := tokenFromLink(t, mailer.verifyLinks["shared@example.com"], "https://ntfy.example.com/account/email/verify/")
 		require.Equal(t, 200, request(t, s, "POST", "/v1/account/email/verify", fmt.Sprintf(`{"token":"%s"}`, aliceToken), nil).Code)
 		aliceAccount := getAccount(t, s, aliceAuth)
-		require.Equal(t, []string{"shared@example.com"}, aliceAccount.Emails)
-		require.Equal(t, "", aliceAccount.PrimaryEmail)
+		require.Equal(t, []string{"shared@example.com"}, verifiedAddrs(aliceAccount))
+		require.Equal(t, "", primaryAddr(aliceAccount))
 
 		// alice trying to promote it to primary collides with ben's
 		rr := request(t, s, "POST", "/v1/account/email/primary", `{"email":"shared@example.com"}`, aliceAuth)
@@ -241,6 +272,63 @@ func TestAccount_PasswordReset_NoPrimaryEmailNoSend(t *testing.T) {
 		// ben exists but has no verified primary email -> uniform 200, nothing sent
 		rr := request(t, s, "POST", "/v1/account/password/reset/request", `{"identifier":"ben"}`, nil)
 		require.Equal(t, 200, rr.Code)
+		require.Empty(t, mailer.resetLinks)
+	})
+}
+
+func TestAccount_Email_ProvisionedNoPrimary(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		hash, err := user.HashPassword("provpass")
+		require.Nil(t, err)
+		conf := newTestConfigWithAuthFile(t, databaseURL)
+		conf.SMTPSenderAddr = "localhost:25"
+		conf.SMTPSenderFrom = "noreply@example.com"
+		conf.BaseURL = "https://ntfy.example.com"
+		conf.AuthUsers = []*user.User{{Name: "prov", Hash: hash, Role: user.RoleUser}}
+		s := newTestServer(t, conf)
+		mailer := newCaptureMailer()
+		s.mailSender = mailer
+		defer s.closeDatabases()
+		auth := map[string]string{"Authorization": util.BasicAuth("prov", "provpass")}
+
+		// A provisioned user can verify an email, but it must NOT become their primary
+		verifyEmailFor(t, s, mailer, auth, "prov@example.com")
+		account := getAccount(t, s, auth)
+		require.Equal(t, []string{"prov@example.com"}, verifiedAddrs(account))
+		require.Equal(t, "", primaryAddr(account))
+
+		// Explicitly setting it primary is rejected
+		rr := request(t, s, "POST", "/v1/account/email/primary", `{"email":"prov@example.com"}`, auth)
+		require.Equal(t, 409, rr.Code)
+		require.Equal(t, 40905, toHTTPError(t, rr.Body.String()).Code)
+	})
+}
+
+func TestAccount_PasswordReset_ProvisionedUserNoSend(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		// Provision a user via config (AuthUsers), with email sending enabled
+		conf := newTestConfigWithAuthFile(t, databaseURL)
+		conf.SMTPSenderAddr = "localhost:25"
+		conf.SMTPSenderFrom = "noreply@example.com"
+		conf.BaseURL = "https://ntfy.example.com"
+		conf.AuthUsers = []*user.User{
+			{Name: "prov", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: user.RoleUser},
+		}
+		s := newTestServer(t, conf)
+		mailer := newCaptureMailer()
+		s.mailSender = mailer
+		defer s.closeDatabases()
+
+		// Give the provisioned user a verified primary email anyway
+		prov, err := s.userManager.User("prov")
+		require.Nil(t, err)
+		require.True(t, prov.Provisioned)
+		require.Nil(t, s.userManager.AddEmail(prov.ID, "prov@example.com"))
+		require.Nil(t, s.userManager.SetPrimaryEmail(prov.ID, "prov@example.com"))
+
+		// Reset request by username and by email -> uniform 200, but no email sent (can't reset)
+		require.Equal(t, 200, request(t, s, "POST", "/v1/account/password/reset/request", `{"identifier":"prov"}`, nil).Code)
+		require.Equal(t, 200, request(t, s, "POST", "/v1/account/password/reset/request", `{"identifier":"prov@example.com"}`, nil).Code)
 		require.Empty(t, mailer.resetLinks)
 	})
 }

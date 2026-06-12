@@ -238,7 +238,8 @@ func (s *Server) handleAccountBillingSubscriptionCreateSuccess(w http.ResponseWr
 		return err
 	}
 	// Offer email recovery: auto-send a verification link to the billing email (best-effort).
-	if sess.CustomerDetails != nil {
+	// Provisioned users can't reset their password, so recovery setup doesn't apply to them.
+	if sess.CustomerDetails != nil && !u.Provisioned {
 		s.maybeEnqueueBillingEmailVerification(r, v, u.ID, sess.CustomerDetails.Email)
 	}
 	http.Redirect(w, r, s.config.BaseURL+accountPath, http.StatusSeeOther)

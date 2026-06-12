@@ -2,7 +2,6 @@ import * as React from "react";
 import { useContext, useState } from "react";
 import {
   Alert,
-  Box,
   CardActions,
   CardContent,
   Chip,
@@ -32,7 +31,10 @@ import {
   DialogContent,
   TextField,
   IconButton,
+  Menu,
   MenuItem,
+  ListItemIcon,
+  ListItemText,
   DialogContentText,
   useTheme,
 } from "@mui/material";
@@ -294,6 +296,7 @@ const AccountType = () => {
     >
       <div>
         {accountType}
+        {account.provisioned && <Chip size="small" label={t("account_basics_tier_provisioned")} sx={{ ml: 1 }} />}
         {account.billing?.paid_until && !account.billing?.cancel_at && (
           <Tooltip
             title={t("account_basics_tier_paid_until", {
@@ -364,7 +367,22 @@ const Emails = () => {
   const [dialogKey, setDialogKey] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [snack, setSnack] = useState(""); // Non-empty shows a transient snackbar message
+  const [menuAnchor, setMenuAnchor] = useState(null); // Chip element the actions menu is anchored to
+  const [menuEmail, setMenuEmail] = useState(null); // The email the open menu acts on
   const labelId = "prefVerifiedEmails";
+
+  const openMenu = (ev, email) => {
+    setMenuAnchor(ev.currentTarget);
+    setMenuEmail(email);
+  };
+  const closeMenu = () => {
+    setMenuAnchor(null);
+    setMenuEmail(null);
+  };
+  const runMenuAction = (fn) => {
+    closeMenu();
+    fn(menuEmail.address);
+  };
 
   const handleDialogOpen = () => {
     setDialogKey((prev) => prev + 1);
@@ -381,10 +399,12 @@ const Emails = () => {
   };
 
   // runEmailAction wraps an account API call with the shared error handling (redirect on
-  // unauthorized, surface a message otherwise). The account list refreshes via the sync event.
+  // unauthorized, surface a message otherwise). On success it refetches the account so the email
+  // list reflects the change immediately, rather than waiting for the async sync event.
   const runEmailAction = async (fn, errorMessage) => {
     try {
       await fn();
+      await accountApi.sync();
     } catch (e) {
       console.log(`[Account] Email action failed`, e);
       if (e instanceof UnauthorizedError) {
@@ -425,70 +445,82 @@ const Emails = () => {
     );
   }
 
-  const verifiedEmails = account?.emails ?? [];
-  const pendingEmails = account?.pending_emails ?? [];
-  const primaryEmail = account?.primary_email ?? "";
-  const showNoRecoveryWarning = config.enable_reset_password && primaryEmail === "";
+  const emails = account?.emails ?? [];
+  const verifiedEmails = emails.filter((e) => !e.pending);
+  const pendingEmails = emails.filter((e) => e.pending);
+  const primaryEmail = verifiedEmails.find((e) => e.primary)?.address ?? "";
+  // Provisioned users get their password from the server config and cannot reset it, so they don't
+  // get the "no recovery email" nudge (the Add-email dialog explains the recovery-email limitation).
+  const showNoRecoveryWarning = config.enable_reset_password && primaryEmail === "" && !account?.provisioned;
 
   return (
-    <Pref labelId={labelId} title={t("account_basics_emails_title")} description={t("account_basics_emails_description")}>
+    <Pref labelId={labelId} alignTop title={t("account_basics_emails_title")} description={t("account_basics_emails_description")}>
       <div aria-labelledby={labelId}>
-        {showNoRecoveryWarning && (
-          <Alert severity="warning" sx={{ mb: 1 }}>
-            {t("account_basics_emails_no_recovery_warning")}
-          </Alert>
-        )}
-        <Stack spacing={0.5}>
-          {verifiedEmails.map((email) => {
-            const isPrimary = email === primaryEmail;
-            return (
-              <Box key={email} sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Typography sx={{ flexGrow: 1, overflowWrap: "anywhere" }}>{email}</Typography>
-                {isPrimary && <Chip size="small" color="primary" label={t("account_basics_emails_primary_badge")} />}
-                {!isPrimary && (
-                  <Tooltip title={t("account_basics_emails_set_primary")}>
-                    <IconButton size="small" aria-label={t("account_basics_emails_set_primary")} onClick={() => handleSetPrimary(email)}>
-                      <StarBorderIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                )}
-                {isPrimary && <StarIcon fontSize="small" color="primary" sx={{ mx: 0.5 }} />}
-                <Tooltip title={t("common_copy_to_clipboard")}>
-                  <IconButton size="small" aria-label={t("common_copy_to_clipboard")} onClick={() => handleCopy(email)}>
-                    <ContentCopy fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title={t("account_basics_emails_delete")}>
-                  <IconButton size="small" aria-label={t("account_basics_emails_delete")} onClick={() => handleDelete(email)}>
-                    <DeleteOutlineIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            );
-          })}
-          {pendingEmails.map((email) => (
-            <Box key={email} sx={{ display: "flex", alignItems: "center", gap: 0.5, opacity: 0.65 }}>
-              <Typography sx={{ flexGrow: 1, overflowWrap: "anywhere" }}>
-                {email} <em>({t("account_basics_emails_unverified")})</em>
-              </Typography>
-              <Tooltip title={t("account_basics_emails_resend")}>
-                <IconButton size="small" aria-label={t("account_basics_emails_resend")} onClick={() => handleResend(email)}>
-                  <RefreshIcon fontSize="small" />
-                </IconButton>
+        {verifiedEmails.map((email) => (
+          <Chip
+            key={email.address}
+            icon={email.primary ? <StarIcon /> : undefined}
+            label={
+              <Tooltip title={t("account_basics_emails_chip_actions")}>
+                <span>{email.address}</span>
               </Tooltip>
-              <Tooltip title={t("account_basics_emails_cancel")}>
-                <IconButton size="small" aria-label={t("account_basics_emails_cancel")} onClick={() => handleDelete(email)}>
-                  <DeleteOutlineIcon fontSize="small" />
-                </IconButton>
+            }
+            variant="outlined"
+            onClick={(ev) => openMenu(ev, email)}
+            onDelete={() => handleDelete(email.address)}
+            sx={email.primary ? { "& .MuiChip-icon": { color: "primary.main" } } : undefined}
+          />
+        ))}
+        {pendingEmails.map((email) => (
+          <Chip
+            key={email.address}
+            label={
+              <Tooltip title={t("account_basics_emails_chip_actions")}>
+                <span>
+                  {email.address} <em>({t("account_basics_emails_unverified")})</em>
+                </span>
               </Tooltip>
-            </Box>
-          ))}
-          {verifiedEmails.length === 0 && pendingEmails.length === 0 && <em>{t("account_basics_emails_no_emails_yet")}</em>}
-        </Stack>
+            }
+            variant="outlined"
+            onClick={(ev) => openMenu(ev, email)}
+            onDelete={() => handleDelete(email.address)}
+            sx={{ opacity: 0.7 }}
+          />
+        ))}
+        {verifiedEmails.length === 0 && pendingEmails.length === 0 && <em>{t("account_basics_emails_no_emails_yet")}</em>}
         <IconButton onClick={handleDialogOpen} aria-label={t("account_basics_emails_dialog_title")}>
           <AddIcon />
         </IconButton>
+        {showNoRecoveryWarning && (
+          <Alert severity="warning" sx={{ mt: 1 }}>
+            {t("account_basics_emails_no_recovery_warning")}
+          </Alert>
+        )}
       </div>
+      <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
+        <MenuItem onClick={() => runMenuAction(handleCopy)}>
+          <ListItemIcon>
+            <ContentCopy fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>{t("common_copy_to_clipboard")}</ListItemText>
+        </MenuItem>
+        {menuEmail && !menuEmail.pending && !menuEmail.primary && !account?.provisioned && (
+          <MenuItem onClick={() => runMenuAction(handleSetPrimary)}>
+            <ListItemIcon>
+              <StarBorderIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>{t("account_basics_emails_set_primary")}</ListItemText>
+          </MenuItem>
+        )}
+        {menuEmail && menuEmail.pending && (
+          <MenuItem onClick={() => runMenuAction(handleResend)}>
+            <ListItemIcon>
+              <RefreshIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>{t("account_basics_emails_resend")}</ListItemText>
+          </MenuItem>
+        )}
+      </Menu>
       <AddEmailDialog key={`addEmailDialog${dialogKey}`} open={dialogOpen} onClose={handleDialogClose} />
       <Portal>
         <Snackbar open={snack !== ""} autoHideDuration={3000} onClose={() => setSnack("")} message={snack} />
@@ -500,6 +532,7 @@ const Emails = () => {
 const AddEmailDialog = (props) => {
   const theme = useTheme();
   const { t } = useTranslation();
+  const { account } = useContext(AccountContext);
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
@@ -512,6 +545,7 @@ const AddEmailDialog = (props) => {
     try {
       setSending(true);
       await accountApi.startEmailVerification(email);
+      await accountApi.sync(); // Refresh so the new "(unverified)" address shows up immediately
       setSent(true);
     } catch (e) {
       console.log(`[Account] Error starting email verification`, e);
@@ -534,6 +568,11 @@ const AddEmailDialog = (props) => {
         ) : (
           <>
             <DialogContentText>{t("account_basics_emails_dialog_description")}</DialogContentText>
+            {config.enable_reset_password && account?.provisioned && (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                {t("account_basics_emails_provisioned_info")}
+              </Alert>
+            )}
             <TextField
               autoFocus
               margin="dense"
