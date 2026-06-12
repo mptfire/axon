@@ -73,6 +73,27 @@ type TokenUpdate struct {
 	LastOrigin netip.Addr
 }
 
+// MagicLinkKind discriminates the two link-token flows stored in the user_magic_link table.
+type MagicLinkKind string
+
+// Magic link kinds
+const (
+	MagicLinkKindEmailVerify   MagicLinkKind = "email_verify"
+	MagicLinkKindPasswordReset MagicLinkKind = "password_reset"
+)
+
+// MagicLink is a pending, single-use link token -- either an email verification or a
+// password reset, distinguished by Kind. The raw token travels in the emailed link;
+// only its TokenHash (hex SHA-256) is persisted.
+type MagicLink struct {
+	TokenHash string
+	Kind      MagicLinkKind
+	UserID    string
+	Email     string // Address being verified for email_verify; empty (NULL) for password_reset
+	Expires   int64
+	Created   int64
+}
+
 // Prefs represents a user's configuration settings
 type Prefs struct {
 	Language      *string            `json:"language,omitempty"`
@@ -275,6 +296,8 @@ var (
 	ErrPhoneNumberExists      = errors.New("phone number already exists")
 	ErrEmailNotFound          = errors.New("email not found")
 	ErrEmailExists            = errors.New("email already exists")
+	ErrEmailPrimaryElsewhere  = errors.New("email is the recovery email on another account")
+	ErrMagicLinkNotFound      = errors.New("magic link not found")
 	ErrProvisionedUserChange  = errors.New("cannot change or delete provisioned user")
 	ErrProvisionedTokenChange = errors.New("cannot change or delete provisioned token")
 )
@@ -350,9 +373,23 @@ type queries struct {
 	deletePhoneNumber  string
 
 	// Email queries
-	selectEmails string
-	insertEmail  string
-	deleteEmail  string
+	selectEmails            string
+	insertEmail             string
+	insertEmailIgnore       string // Idempotent insert (ON CONFLICT DO NOTHING) used inside VerifyEmail
+	deleteEmail             string
+	selectPrimaryEmail      string
+	selectUserIDByPrimary   string
+	updateEmailSetPrimary   string
+	updateEmailClearPrimary string
+
+	// Magic link queries (email verification + password reset)
+	insertMagicLink         string
+	selectMagicLinkByHash   string
+	deleteMagicLinkByHash   string
+	deleteVerifyScope       string // Delete pending email_verify rows for (user_id, email)
+	deleteResetScope        string // Delete the active password_reset row for user_id
+	selectPendingEmails     string // Pending (unverified) email addresses for a user
+	deleteExpiredMagicLinks string
 
 	// Billing queries
 	updateBilling string

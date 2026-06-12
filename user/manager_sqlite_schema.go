@@ -88,9 +88,23 @@ const (
 		CREATE TABLE IF NOT EXISTS user_email (
 			user_id TEXT NOT NULL,
 			email TEXT NOT NULL,
+			is_primary INT NOT NULL DEFAULT (0),
 			PRIMARY KEY (user_id, email),
 			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
 		);
+		CREATE UNIQUE INDEX idx_user_email_primary_user ON user_email (user_id) WHERE is_primary = 1;
+		CREATE UNIQUE INDEX idx_user_email_primary_addr ON user_email (email) WHERE is_primary = 1;
+		CREATE TABLE IF NOT EXISTS user_magic_link (
+			token_hash TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			user_id TEXT NOT NULL,
+			email TEXT,
+			expires INT NOT NULL,
+			created INT NOT NULL,
+			PRIMARY KEY (token_hash),
+			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_magic_link_user_kind ON user_magic_link (user_id, kind);
 		CREATE TABLE IF NOT EXISTS schemaVersion (
 			id INT PRIMARY KEY,
 			version INT NOT NULL
@@ -107,7 +121,7 @@ const (
 
 // Schema version table management for SQLite
 const (
-	sqliteCurrentSchemaVersion     = 7
+	sqliteCurrentSchemaVersion     = 8
 	sqliteInsertSchemaVersionQuery = `INSERT INTO schemaVersion VALUES (1, ?)`
 	sqliteUpdateSchemaVersionQuery = `UPDATE schemaVersion SET version = ? WHERE id = 1`
 	sqliteSelectSchemaVersionQuery = `SELECT version FROM schemaVersion WHERE id = 1`
@@ -236,6 +250,26 @@ const (
 		);
 	`
 
+	// 7 -> 8: primary (recovery) email + magic-link table for verification/reset.
+	// No backfill -- existing verified emails stay non-primary, so the ALTER cannot
+	// conflict and no old notification address becomes a recovery channel.
+	sqliteMigrate7To8UpdateQueries = `
+		ALTER TABLE user_email ADD COLUMN is_primary INT NOT NULL DEFAULT (0);
+		CREATE UNIQUE INDEX idx_user_email_primary_user ON user_email (user_id) WHERE is_primary = 1;
+		CREATE UNIQUE INDEX idx_user_email_primary_addr ON user_email (email) WHERE is_primary = 1;
+		CREATE TABLE IF NOT EXISTS user_magic_link (
+			token_hash TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			user_id TEXT NOT NULL,
+			email TEXT,
+			expires INT NOT NULL,
+			created INT NOT NULL,
+			PRIMARY KEY (token_hash),
+			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_magic_link_user_kind ON user_magic_link (user_id, kind);
+	`
+
 	// 5 -> 6
 	sqliteMigrate5To6UpdateQueries = `
 		PRAGMA foreign_keys=off;
@@ -339,6 +373,7 @@ var (
 		4: sqliteMigrateFrom4,
 		5: sqliteMigrateFrom5,
 		6: sqliteMigrateFrom6,
+		7: sqliteMigrateFrom7,
 	}
 )
 
@@ -488,6 +523,19 @@ func sqliteMigrateFrom6(sqlDB *sql.DB) error {
 			return err
 		}
 		if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 7); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func sqliteMigrateFrom7(sqlDB *sql.DB) error {
+	log.Tag(tag).Info("Migrating user database schema: from 7 to 8")
+	return db.ExecTx(sqlDB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(sqliteMigrate7To8UpdateQueries); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(sqliteUpdateSchemaVersionQuery, 8); err != nil {
 			return err
 		}
 		return nil

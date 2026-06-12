@@ -217,9 +217,23 @@ const (
 	postgresDeletePhoneNumberQuery  = `DELETE FROM user_phone WHERE user_id = $1 AND phone_number = $2`
 
 	// Email queries
-	postgresSelectEmailsQuery = `SELECT email FROM user_email WHERE user_id = $1 ORDER BY email`
-	postgresInsertEmailQuery  = `INSERT INTO user_email (user_id, email) VALUES ($1, $2)`
-	postgresDeleteEmailQuery  = `DELETE FROM user_email WHERE user_id = $1 AND email = $2`
+	postgresSelectEmailsQuery            = `SELECT email FROM user_email WHERE user_id = $1 ORDER BY email`
+	postgresInsertEmailQuery             = `INSERT INTO user_email (user_id, email) VALUES ($1, $2)`
+	postgresInsertEmailIgnoreQuery       = `INSERT INTO user_email (user_id, email) VALUES ($1, $2) ON CONFLICT (user_id, email) DO NOTHING`
+	postgresDeleteEmailQuery             = `DELETE FROM user_email WHERE user_id = $1 AND email = $2`
+	postgresSelectPrimaryEmailQuery      = `SELECT email FROM user_email WHERE user_id = $1 AND is_primary`
+	postgresSelectUserIDByPrimaryQuery   = `SELECT user_id FROM user_email WHERE email = $1 AND is_primary`
+	postgresUpdateEmailSetPrimaryQuery   = `UPDATE user_email SET is_primary = TRUE WHERE user_id = $1 AND email = $2`
+	postgresUpdateEmailClearPrimaryQuery = `UPDATE user_email SET is_primary = FALSE WHERE user_id = $1 AND is_primary`
+
+	// Magic link queries (email verification + password reset)
+	postgresInsertMagicLinkQuery         = `INSERT INTO user_magic_link (token_hash, kind, user_id, email, expires, created) VALUES ($1, $2, $3, $4, $5, $6)`
+	postgresSelectMagicLinkByHashQuery   = `SELECT token_hash, kind, user_id, email, expires, created FROM user_magic_link WHERE token_hash = $1`
+	postgresDeleteMagicLinkByHashQuery   = `DELETE FROM user_magic_link WHERE token_hash = $1`
+	postgresDeleteVerifyScopeQuery       = `DELETE FROM user_magic_link WHERE kind = 'email_verify' AND user_id = $1 AND email = $2`
+	postgresDeleteResetScopeQuery        = `DELETE FROM user_magic_link WHERE kind = 'password_reset' AND user_id = $1`
+	postgresSelectPendingEmailsQuery     = `SELECT email FROM user_magic_link WHERE kind = 'email_verify' AND user_id = $1 ORDER BY email`
+	postgresDeleteExpiredMagicLinksQuery = `DELETE FROM user_magic_link WHERE expires < $1`
 
 	// Billing queries
 	postgresUpdateBillingQuery = `
@@ -306,7 +320,19 @@ var postgresQueries = queries{
 	deletePhoneNumber:            postgresDeletePhoneNumberQuery,
 	selectEmails:                 postgresSelectEmailsQuery,
 	insertEmail:                  postgresInsertEmailQuery,
+	insertEmailIgnore:            postgresInsertEmailIgnoreQuery,
 	deleteEmail:                  postgresDeleteEmailQuery,
+	selectPrimaryEmail:           postgresSelectPrimaryEmailQuery,
+	selectUserIDByPrimary:        postgresSelectUserIDByPrimaryQuery,
+	updateEmailSetPrimary:        postgresUpdateEmailSetPrimaryQuery,
+	updateEmailClearPrimary:      postgresUpdateEmailClearPrimaryQuery,
+	insertMagicLink:              postgresInsertMagicLinkQuery,
+	selectMagicLinkByHash:        postgresSelectMagicLinkByHashQuery,
+	deleteMagicLinkByHash:        postgresDeleteMagicLinkByHashQuery,
+	deleteVerifyScope:            postgresDeleteVerifyScopeQuery,
+	deleteResetScope:             postgresDeleteResetScopeQuery,
+	selectPendingEmails:          postgresSelectPendingEmailsQuery,
+	deleteExpiredMagicLinks:      postgresDeleteExpiredMagicLinksQuery,
 	updateBilling:                postgresUpdateBillingQuery,
 }
 

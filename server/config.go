@@ -71,7 +71,7 @@ const (
 	DefaultVisitorEmailLimitReplenish           = time.Hour
 	DefaultVisitorTopicCreationLimitBurst       = 100
 	DefaultVisitorTopicCreationLimitReplenish   = time.Minute
-	DefaultVisitorAccountCreationLimitBurst     = 3
+	DefaultVisitorAccountCreationLimitBurst     = 6 // Shared by signup and password-reset requests (same per-visitor bucket)
 	DefaultVisitorAccountCreationLimitReplenish = 24 * time.Hour
 	DefaultVisitorAuthFailureLimitBurst         = 30
 	DefaultVisitorAuthFailureLimitReplenish     = time.Minute

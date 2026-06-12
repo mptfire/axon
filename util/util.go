@@ -2,20 +2,19 @@ package util
 
 import (
 	"bytes"
+	crand "crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"math"
-	"math/rand"
 	"net/netip"
 	"os"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -30,8 +29,6 @@ const (
 )
 
 var (
-	random             = rand.New(rand.NewSource(time.Now().UnixNano()))
-	randomMutex        = sync.Mutex{}
 	sizeStrRegex       = regexp.MustCompile(`(?i)^(\d+)([gmkb])?$`)
 	errInvalidPriority = errors.New("invalid priority")
 	noQuotesRegex      = regexp.MustCompile(`^[-_./:@a-zA-Z0-9]+$`)
@@ -144,14 +141,33 @@ func RandomLowerStringPrefix(prefix string, length int) string {
 	return randomStringPrefixWithCharset(prefix, length, randomStringLowerCaseCharset)
 }
 
+// randomStringPrefixWithCharset builds a random string from charset using crypto/rand.
+// We use rejection sampling (dropping the few highest byte values that would skew the
+// distribution) so every character is uniformly distributed -- important because these
+// strings back security tokens (access tokens, magic-link tokens, IDs), not just labels.
 func randomStringPrefixWithCharset(prefix string, length int, charset string) string {
-	randomMutex.Lock() // Who would have thought that random.Intn() is not thread-safe?!
-	defer randomMutex.Unlock()
-	b := make([]byte, length-len(prefix))
-	for i := range b {
-		b[i] = charset[random.Intn(len(charset))]
+	n := length - len(prefix)
+	if n <= 0 {
+		return prefix[:length]
 	}
-	return prefix + string(b)
+	result := make([]byte, n)
+	limit := 256 - (256 % len(charset)) // reject byte values >= limit to avoid modulo bias
+	buf := make([]byte, n)
+	for i := 0; i < n; {
+		if _, err := crand.Read(buf); err != nil {
+			panic("crypto/rand failed: " + err.Error()) // Should never happen on a sane system
+		}
+		for _, c := range buf {
+			if i >= n {
+				break
+			}
+			if int(c) < limit {
+				result[i] = charset[int(c)%len(charset)]
+				i++
+			}
+		}
+	}
+	return prefix + string(result)
 }
 
 // ValidRandomString returns true if the given string matches the format created by RandomString

@@ -1789,6 +1789,83 @@ func TestMigrationFrom4(t *testing.T) {
 	require.Nil(t, a.Authorize(nil, "up", PermissionRead)) // % matches 0 or more characters
 }
 
+func TestMigrationFrom7(t *testing.T) {
+	filename := filepath.Join(t.TempDir(), "user.db")
+	rawDB, err := sql.Open("sqlite3", filename)
+	require.Nil(t, err)
+
+	// Create a "version 7" schema: user_email exists but has no is_primary column, and there
+	// is no user_magic_link table yet. (Mirrors the production schema right before v8.)
+	_, err = rawDB.Exec(`
+		BEGIN;
+		CREATE TABLE IF NOT EXISTS tier (
+			id TEXT PRIMARY KEY, code TEXT NOT NULL, name TEXT NOT NULL,
+			messages_limit INT NOT NULL, messages_expiry_duration INT NOT NULL, emails_limit INT NOT NULL,
+			calls_limit INT NOT NULL, reservations_limit INT NOT NULL, attachment_file_size_limit INT NOT NULL,
+			attachment_total_size_limit INT NOT NULL, attachment_expiry_duration INT NOT NULL,
+			attachment_bandwidth_limit INT NOT NULL, stripe_monthly_price_id TEXT, stripe_yearly_price_id TEXT
+		);
+		CREATE TABLE IF NOT EXISTS user (
+			id TEXT PRIMARY KEY, tier_id TEXT, user TEXT NOT NULL, pass TEXT NOT NULL,
+			role TEXT CHECK (role IN ('anonymous', 'admin', 'user')) NOT NULL,
+			prefs JSON NOT NULL DEFAULT '{}', sync_topic TEXT NOT NULL, provisioned INT NOT NULL,
+			stats_messages INT NOT NULL DEFAULT (0), stats_emails INT NOT NULL DEFAULT (0),
+			stats_calls INT NOT NULL DEFAULT (0), stripe_customer_id TEXT, stripe_subscription_id TEXT,
+			stripe_subscription_status TEXT, stripe_subscription_interval TEXT,
+			stripe_subscription_paid_until INT, stripe_subscription_cancel_at INT, created INT NOT NULL, deleted INT,
+			FOREIGN KEY (tier_id) REFERENCES tier (id)
+		);
+		CREATE UNIQUE INDEX idx_user ON user (user);
+		CREATE TABLE IF NOT EXISTS user_email (
+			user_id TEXT NOT NULL,
+			email TEXT NOT NULL,
+			PRIMARY KEY (user_id, email),
+			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
+		);
+		CREATE TABLE IF NOT EXISTS schemaVersion (id INT PRIMARY KEY, version INT NOT NULL);
+		INSERT INTO user (id, user, pass, role, sync_topic, provisioned, created)
+		VALUES ('u_everyone', '*', '', 'anonymous', '', 0, UNIXEPOCH());
+		INSERT INTO user (id, user, pass, role, sync_topic, provisioned, created)
+		VALUES ('u_phil', 'phil', '', 'user', 'st_phil', 0, UNIXEPOCH());
+		INSERT INTO user_email (user_id, email) VALUES ('u_phil', 'old@example.com');
+		INSERT INTO schemaVersion (id, version) VALUES (1, 7);
+		COMMIT;
+	`)
+	require.Nil(t, err)
+	require.Nil(t, rawDB.Close())
+
+	// Opening the manager triggers the 7 -> 8 migration
+	a := newTestManagerFromFile(t, filename, "", PermissionDenyAll, bcrypt.MinCost, DefaultUserStatsQueueWriterInterval)
+	checkSchemaVersion(t, testDB(a))
+
+	// The pre-existing verified email survives and stays NON-primary (no backfill)
+	emails, err := a.Emails("u_phil")
+	require.Nil(t, err)
+	require.Equal(t, []string{"old@example.com"}, emails)
+	primary, err := a.PrimaryEmail("u_phil")
+	require.Nil(t, err)
+	require.Equal(t, "", primary)
+
+	// The new magic-link machinery works post-migration
+	raw := generateLinkToken()
+	require.Nil(t, a.AddMagicLink(&MagicLink{
+		TokenHash: hashToken(raw),
+		Kind:      MagicLinkKindEmailVerify,
+		UserID:    "u_phil",
+		Email:     "new@example.com",
+		Expires:   time.Now().Add(24 * time.Hour).Unix(),
+		Created:   time.Now().Unix(),
+	}))
+	m, err := a.VerifyEmail(hashToken(raw))
+	require.Nil(t, err)
+	require.Equal(t, "new@example.com", m.Email)
+
+	// new@ becomes primary because the user had none (old@ was a pre-existing non-primary)
+	primary, err = a.PrimaryEmail("u_phil")
+	require.Nil(t, err)
+	require.Equal(t, "new@example.com", primary)
+}
+
 func checkSchemaVersion(t *testing.T, d *db.DB) {
 	rows, err := d.Query(`SELECT version FROM schemaVersion`)
 	require.Nil(t, err)
