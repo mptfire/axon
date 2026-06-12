@@ -18,6 +18,7 @@ const (
 	syncTopicAccountSyncEvent    = "sync"
 	tokenExpiryDuration          = 72 * time.Hour // Extend tokens by this much
 	emailVerificationTokenExpiry = 24 * time.Hour // Magic-link lifetime for email verification
+	passwordResetTokenExpiry     = time.Hour      // Magic-link lifetime for password reset (higher-privilege -> shorter)
 )
 
 func (s *Server) handleAccountCreate(w http.ResponseWriter, r *http.Request, v *visitor) error {
@@ -769,6 +770,77 @@ func (s *Server) enqueueEmailVerification(userID, email string) error {
 	}
 	link := s.config.BaseURL + webAppEmailVerifyPathPrefix + token
 	return s.mailSender.SendEmailVerification(email, link)
+}
+
+// handleAccountPasswordResetRequest starts a password reset (POST /v1/account/password/reset/request,
+// unauthenticated). It resolves the identifier (username or primary email) to at most one account
+// and emails a reset link to that account's primary email. The response is always a uniform 200,
+// regardless of whether anything matched, so it cannot be used to probe for accounts.
+func (s *Server) handleAccountPasswordResetRequest(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	req, err := readJSONWithLimit[apiAccountPasswordResetRequest](r.Body, jsonBodyBytesLimit, false)
+	if err != nil {
+		return err
+	}
+	// Rate limit via the shared per-visitor account-creation bucket (no new limiter/config)
+	if !v.AccountCreationAllowed() {
+		return errHTTPTooManyRequestsLimitAccountCreation
+	}
+	v.AccountCreated() // Consume a token on every request (including no-match), to throttle probing
+	identifier := strings.TrimSpace(req.Identifier)
+	if identifier != "" && s.config.BaseURL != "" {
+		if userID, email, ok := s.resolveResetTarget(identifier); ok {
+			token, err := s.userManager.CreateMagicLink(user.MagicLinkKindPasswordReset, userID, "", passwordResetTokenExpiry)
+			if err != nil {
+				logvr(v, r).Tag(tagAccount).Err(err).Warn("Failed to create password reset token")
+			} else {
+				link := s.config.BaseURL + webAppPasswordResetPathPrefix + token
+				logvr(v, r).Tag(tagAccount).Field("user_id", userID).Info("Sending password reset link")
+				if err := s.mailSender.SendPasswordReset(email, link); err != nil {
+					logvr(v, r).Tag(tagAccount).Err(err).Warn("Failed to send password reset email")
+				}
+			}
+		} else {
+			logvr(v, r).Tag(tagAccount).Debug("Password reset requested for unknown identifier (uniform response)")
+		}
+	}
+	return s.writeJSON(w, newSuccessResponse())
+}
+
+// resolveResetTarget resolves a reset identifier to a single account and its primary email.
+// The identifier is tried first as a username, then as a primary email address. It returns
+// ok=false if no account with a primary email matches (reset requires a verified primary email).
+func (s *Server) resolveResetTarget(identifier string) (userID string, email string, ok bool) {
+	if u, err := s.userManager.User(identifier); err == nil && u != nil {
+		if primary, perr := s.userManager.PrimaryEmail(u.ID); perr == nil && primary != "" {
+			return u.ID, primary, true
+		}
+	}
+	if uid, err := s.userManager.UserIDByPrimaryEmail(identifier); err == nil {
+		return uid, identifier, true
+	}
+	return "", "", false
+}
+
+// handleAccountPasswordReset performs the reset (POST /v1/account/password/reset, unauthenticated):
+// it validates the token and sets the new password. Existing access tokens stay valid.
+func (s *Server) handleAccountPasswordReset(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	req, err := readJSONWithLimit[apiAccountPasswordResetConfirmRequest](r.Body, jsonBodyBytesLimit, false)
+	if err != nil {
+		return err
+	}
+	if req.Token == "" {
+		return errHTTPBadRequestResetLinkInvalid
+	} else if req.Password == "" {
+		return errHTTPBadRequest
+	}
+	err = s.userManager.ResetPassword(req.Token, req.Password)
+	if errors.Is(err, user.ErrMagicLinkNotFound) {
+		return errHTTPBadRequestResetLinkInvalid
+	} else if err != nil {
+		return err
+	}
+	logvr(v, r).Tag(tagAccount).Info("Password reset performed")
+	return s.writeJSON(w, newSuccessResponse())
 }
 
 // convertEmailAddress checks the email address against the user's verified email list.

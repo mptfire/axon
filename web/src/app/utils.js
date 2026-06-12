@@ -37,6 +37,8 @@ export const accountEmailUrl = (baseUrl) => `${baseUrl}/v1/account/email`;
 export const accountEmailVerifyUrl = (baseUrl) => `${baseUrl}/v1/account/email/verify`;
 export const accountEmailPrimaryUrl = (baseUrl) => `${baseUrl}/v1/account/email/primary`;
 export const accountEmailResendUrl = (baseUrl) => `${baseUrl}/v1/account/email/resend`;
+export const accountPasswordResetRequestUrl = (baseUrl) => `${baseUrl}/v1/account/password/reset/request`;
+export const accountPasswordResetUrl = (baseUrl) => `${baseUrl}/v1/account/password/reset`;
 
 export const validUrl = (url) => url.match(/^https?:\/\/.+/);
 

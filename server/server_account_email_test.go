@@ -173,6 +173,89 @@ func TestAccount_Email_SetPrimaryCollision(t *testing.T) {
 	})
 }
 
+// verifyEmailFor runs the full add->click flow so the user ends up with a verified primary email.
+func verifyEmailFor(t *testing.T, s *Server, mailer *captureMailer, auth map[string]string, email string) {
+	require.Equal(t, 200, request(t, s, "PUT", "/v1/account/email", fmt.Sprintf(`{"email":"%s"}`, email), auth).Code)
+	token := tokenFromLink(t, mailer.verifyLinks[email], "https://ntfy.example.com/account/email/verify/")
+	require.Equal(t, 200, request(t, s, "POST", "/v1/account/email/verify", fmt.Sprintf(`{"token":"%s"}`, token), nil).Code)
+}
+
+// canLogin returns true if username/password authenticates (via the token-create endpoint).
+func canLogin(t *testing.T, s *Server, username, password string) bool {
+	rr := request(t, s, "POST", "/v1/account/token", "", map[string]string{"Authorization": util.BasicAuth(username, password)})
+	return rr.Code == 200
+}
+
+func TestAccount_PasswordReset_ByUsername(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s, mailer, auth := newEmailTestServer(t, databaseURL)
+		defer s.closeDatabases()
+		verifyEmailFor(t, s, mailer, auth, "ben@example.com")
+
+		// Request reset by username
+		rr := request(t, s, "POST", "/v1/account/password/reset/request", `{"identifier":"ben"}`, nil)
+		require.Equal(t, 200, rr.Code)
+		token := tokenFromLink(t, mailer.resetLinks["ben@example.com"], "https://ntfy.example.com/account/password/reset/")
+
+		// Confirm with a new password
+		rr = request(t, s, "POST", "/v1/account/password/reset", fmt.Sprintf(`{"token":"%s","password":"brandnew"}`, token), nil)
+		require.Equal(t, 200, rr.Code)
+
+		require.True(t, canLogin(t, s, "ben", "brandnew"))
+		require.False(t, canLogin(t, s, "ben", "ben"))
+	})
+}
+
+func TestAccount_PasswordReset_ByEmail(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s, mailer, auth := newEmailTestServer(t, databaseURL)
+		defer s.closeDatabases()
+		verifyEmailFor(t, s, mailer, auth, "ben@example.com")
+
+		rr := request(t, s, "POST", "/v1/account/password/reset/request", `{"identifier":"ben@example.com"}`, nil)
+		require.Equal(t, 200, rr.Code)
+		token := tokenFromLink(t, mailer.resetLinks["ben@example.com"], "https://ntfy.example.com/account/password/reset/")
+		rr = request(t, s, "POST", "/v1/account/password/reset", fmt.Sprintf(`{"token":"%s","password":"brandnew"}`, token), nil)
+		require.Equal(t, 200, rr.Code)
+		require.True(t, canLogin(t, s, "ben", "brandnew"))
+	})
+}
+
+func TestAccount_PasswordReset_UnknownIdentifierUniform(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s, mailer, _ := newEmailTestServer(t, databaseURL)
+		defer s.closeDatabases()
+
+		// Unknown identifier still returns a uniform 200, and no email is sent
+		rr := request(t, s, "POST", "/v1/account/password/reset/request", `{"identifier":"ghost"}`, nil)
+		require.Equal(t, 200, rr.Code)
+		require.Empty(t, mailer.resetLinks)
+	})
+}
+
+func TestAccount_PasswordReset_NoPrimaryEmailNoSend(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s, mailer, _ := newEmailTestServer(t, databaseURL)
+		defer s.closeDatabases()
+
+		// ben exists but has no verified primary email -> uniform 200, nothing sent
+		rr := request(t, s, "POST", "/v1/account/password/reset/request", `{"identifier":"ben"}`, nil)
+		require.Equal(t, 200, rr.Code)
+		require.Empty(t, mailer.resetLinks)
+	})
+}
+
+func TestAccount_PasswordReset_InvalidToken(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s, _, _ := newEmailTestServer(t, databaseURL)
+		defer s.closeDatabases()
+
+		rr := request(t, s, "POST", "/v1/account/password/reset", `{"token":"nope","password":"brandnew"}`, nil)
+		require.Equal(t, 400, rr.Code)
+		require.Equal(t, 40054, toHTTPError(t, rr.Body.String()).Code)
+	})
+}
+
 func TestAccount_Email_AddDuplicateVerified(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		s, mailer, auth := newEmailTestServer(t, databaseURL)

@@ -122,6 +122,49 @@ func TestCLI_User_Delete(t *testing.T) {
 	require.Contains(t, err.Error(), "user phil does not exist")
 }
 
+func TestCLI_User_PasswordReset(t *testing.T) {
+	s, conf, port := newTestServerWithAuth(t)
+	defer test.StopServer(t, s, port)
+
+	app, stdin, stdout, _ := newTestApp()
+	stdin.WriteString("mypass\nmypass")
+	require.Nil(t, runUserCommand(app, conf, "add", "phil"))
+
+	// Prints a working-looking reset link when base-url is set
+	app, _, stdout, _ = newTestApp()
+	require.Nil(t, runUserCommand(app, conf, "--base-url=https://ntfy.example.com", "password-reset", "phil"))
+	require.Contains(t, stdout.String(), "https://ntfy.example.com/account/password/reset/")
+}
+
+func TestCLI_User_PasswordReset_NoBaseURL(t *testing.T) {
+	s, conf, port := newTestServerWithAuth(t)
+	defer test.StopServer(t, s, port)
+
+	app, stdin, _, _ := newTestApp()
+	stdin.WriteString("mypass\nmypass")
+	require.Nil(t, runUserCommand(app, conf, "add", "phil"))
+
+	app, _, _, _ = newTestApp()
+	err := runUserCommand(app, conf, "password-reset", "phil")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "base-url")
+}
+
+func TestCLI_User_PasswordReset_SendEmailNoPrimary(t *testing.T) {
+	s, conf, port := newTestServerWithAuth(t)
+	defer test.StopServer(t, s, port)
+
+	app, stdin, _, _ := newTestApp()
+	stdin.WriteString("mypass\nmypass")
+	require.Nil(t, runUserCommand(app, conf, "add", "phil"))
+
+	// --send-email requires a primary email; phil has none
+	app, _, _, _ = newTestApp()
+	err := runUserCommand(app, conf, "--base-url=https://ntfy.example.com", "password-reset", "--send-email", "phil")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no primary email")
+}
+
 func newTestServerWithAuth(t *testing.T) (s *server.Server, conf *server.Config, port int) {
 	configFile := filepath.Join(t.TempDir(), "server-dummy.yml")
 	require.Nil(t, os.WriteFile(configFile, []byte(""), 0600)) // Dummy config file to avoid lookup of real server.yml

@@ -1948,6 +1948,23 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
+### ntfy server v2.25.0 (UNRELEASED)
+
+This release adds **password reset** via email, and reworks email verification to use durable,
+link-based magic links (replacing the old in-memory 6-digit codes). Email stays optional at
+signup; a user can reset their password only once they have a verified "primary" (recovery)
+email. All of this rides on the existing SMTP configuration -- no new config flag.
+
+**Features:**
+
+* Add password reset via emailed magic link, with a "Forgot password?" link on the login page and a `ntfy user password-reset` CLI command for admins
+* Rework email verification to use durable, single-use, expiring magic links instead of in-memory 6-digit codes, and add a "primary" (recovery) email with verified/unverified state in the account UI
+* Auto-send a verification link to the billing email after a Stripe checkout, so paying users can set up password recovery
+
+**Bug fixes + maintenance:**
+
+* Generate access tokens, IDs, and magic-link tokens with a cryptographically secure RNG (`crypto/rand`) instead of a clock-seeded PRNG
+
 ### ntfy Android v1.25.x (UNRELEASED)
 
 This release makes the "connection lost" alert configurable and turns it off by default. Folks did not like it and many reached out

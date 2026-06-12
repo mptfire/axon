@@ -239,6 +239,71 @@ func TestUser_MagicLink_Reaper(t *testing.T) {
 	})
 }
 
+func TestUser_MagicLink_ResetPassword(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "oldpass", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		raw, err := a.CreateMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
+		require.Nil(t, err)
+
+		// Old password works before reset
+		_, err = a.Authenticate("phil", "oldpass")
+		require.Nil(t, err)
+
+		require.Nil(t, a.ResetPassword(raw, "newpass"))
+
+		// New password works, old does not
+		_, err = a.Authenticate("phil", "newpass")
+		require.Nil(t, err)
+		_, err = a.Authenticate("phil", "oldpass")
+		require.ErrorIs(t, err, ErrUnauthenticated)
+
+		// Token is single-use
+		require.ErrorIs(t, a.ResetPassword(raw, "againpass"), ErrMagicLinkNotFound)
+	})
+}
+
+func TestUser_MagicLink_ResetPassword_WrongKindRejected(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "oldpass", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		// An email-verification token must not be usable for password reset...
+		verifyToken := addVerifyLink(t, a, phil.ID, "phil@example.com", time.Hour)
+		require.ErrorIs(t, a.ResetPassword(verifyToken, "newpass"), ErrMagicLinkNotFound)
+
+		// ...and a reset token must not be usable for email verification
+		resetToken, err := a.CreateMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
+		require.Nil(t, err)
+		_, err = a.VerifyEmail(resetToken)
+		require.ErrorIs(t, err, ErrMagicLinkNotFound)
+
+		// Old password unchanged
+		_, err = a.Authenticate("phil", "oldpass")
+		require.Nil(t, err)
+	})
+}
+
+func TestUser_MagicLink_ResetPassword_Expired(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "oldpass", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		raw, err := a.CreateMagicLink(MagicLinkKindPasswordReset, phil.ID, "", -time.Minute)
+		require.Nil(t, err)
+		require.ErrorIs(t, a.ResetPassword(raw, "newpass"), ErrMagicLinkNotFound)
+		_, err = a.Authenticate("phil", "oldpass")
+		require.Nil(t, err)
+	})
+}
+
 func TestUser_MagicLink_UserIDByPrimaryEmail_NotFound(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		a := newTestManager(t, newManager, PermissionDenyAll)

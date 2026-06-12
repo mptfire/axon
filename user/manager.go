@@ -1696,6 +1696,37 @@ func (a *Manager) VerifyEmail(rawToken string) (*MagicLink, error) {
 	return m, nil
 }
 
+// ResetPassword consumes a password-reset magic link, identified by its raw token: after
+// validating the token (kind + expiry), it sets the user's password and deletes the link in one
+// transaction. Existing access tokens are intentionally left valid (only the password changes).
+// Returns ErrMagicLinkNotFound if the token is invalid, expired, or not a reset token.
+func (a *Manager) ResetPassword(rawToken, password string) error {
+	m, err := a.MagicLinkByHash(hashToken(rawToken))
+	if err != nil {
+		return err
+	}
+	if m.Kind != MagicLinkKindPasswordReset || time.Now().Unix() > m.Expires {
+		return ErrMagicLinkNotFound
+	}
+	u, err := a.UserByID(m.UserID)
+	if err != nil {
+		return err
+	}
+	hash, err := a.maybeHashPassword(password, false)
+	if err != nil {
+		return err
+	}
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
+		if err := a.changePasswordHashTx(tx, u.Name, hash); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(a.queries.deleteMagicLinkByHash, m.TokenHash); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
 // deleteExpiredMagicLinks removes magic links whose expiry has passed. Expiry is also enforced
 // on read, so this is purely housekeeping to bound table growth; it runs from the reaper loop.
 func (a *Manager) deleteExpiredMagicLinks() error {

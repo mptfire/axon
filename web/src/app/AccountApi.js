@@ -6,6 +6,8 @@ import {
   accountEmailVerifyUrl,
   accountEmailPrimaryUrl,
   accountEmailResendUrl,
+  accountPasswordResetRequestUrl,
+  accountPasswordResetUrl,
   accountPasswordUrl,
   accountPhoneUrl,
   accountPhoneVerifyUrl,
@@ -393,6 +395,32 @@ class AccountApi {
       headers: withBearerAuth({}, session.token()),
       body: JSON.stringify({
         email,
+      }),
+    });
+  }
+
+  // requestPasswordReset starts the (unauthenticated) reset flow. The identifier is a username or
+  // primary email. The server always responds uniformly, regardless of whether an account matched.
+  async requestPasswordReset(identifier) {
+    const url = accountPasswordResetRequestUrl(config.base_url);
+    console.log(`[AccountApi] Requesting password reset ${url}`);
+    await fetchOrThrow(url, {
+      method: "POST",
+      body: JSON.stringify({
+        identifier,
+      }),
+    });
+  }
+
+  // resetPassword performs the (unauthenticated) reset from the set-new-password landing page.
+  async resetPassword(token, password) {
+    const url = accountPasswordResetUrl(config.base_url);
+    console.log(`[AccountApi] Resetting password ${url}`);
+    await fetchOrThrow(url, {
+      method: "POST",
+      body: JSON.stringify({
+        token,
+        password,
       }),
     });
   }

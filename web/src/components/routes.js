@@ -8,6 +8,7 @@ const routes = {
   account: "/account",
   settings: "/settings",
   emailVerify: "/account/email/verify/:token",
+  passwordReset: "/account/password/reset/:token",
   subscription: "/:topic",
   subscriptionExternal: "/:baseUrl/:topic",
   forSubscription: (subscription) => {

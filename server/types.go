@@ -238,6 +238,19 @@ type apiAccountEmailVerifyRequest struct {
 	Token string `json:"token"`
 }
 
+// apiAccountPasswordResetRequest is the body of the (unauthenticated) reset-request endpoint.
+// The identifier is a username or a primary email address.
+type apiAccountPasswordResetRequest struct {
+	Identifier string `json:"identifier"`
+}
+
+// apiAccountPasswordResetConfirmRequest is the body of the (unauthenticated) reset-confirm
+// endpoint, submitted from the set-new-password landing page.
+type apiAccountPasswordResetConfirmRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
 type apiAccountTier struct {
 	Code string `json:"code"`
 	Name string `json:"name"`

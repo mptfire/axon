@@ -146,6 +146,7 @@ var (
 	errHTTPBadRequestEmailVerificationCodeInvalid    = &errHTTP{40051, http.StatusBadRequest, "invalid request: email verification link invalid or expired", "", nil}
 	errHTTPBadRequestEmailAddressNotVerified         = &errHTTP{40052, http.StatusBadRequest, "invalid request: email address not verified", "https://ntfy.sh/docs/publish/#e-mail-notifications", nil}
 	errHTTPBadRequestAnonymousEmailNotAllowed        = &errHTTP{40053, http.StatusBadRequest, "invalid request: anonymous email sending is not allowed", "https://ntfy.sh/docs/publish/#e-mail-notifications", nil}
+	errHTTPBadRequestResetLinkInvalid                = &errHTTP{40054, http.StatusBadRequest, "invalid request: password reset link invalid or expired", "", nil}
 	errHTTPNotFound                                  = &errHTTP{40401, http.StatusNotFound, "page not found", "", nil}
 	errHTTPUnauthorized                              = &errHTTP{40101, http.StatusUnauthorized, "unauthorized", "https://ntfy.sh/docs/publish/#authentication", nil}
 	errHTTPForbidden                                 = &errHTTP{40301, http.StatusForbidden, "forbidden", "https://ntfy.sh/docs/publish/#authentication", nil}

@@ -80,19 +80,20 @@ type handleFunc func(http.ResponseWriter, *http.Request, *visitor) error
 
 var (
 	// If changed, don't forget to update Android App and auth_sqlite.go
-	topicRegex             = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)                  // No /!
-	topicPathRegex         = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}$`)                 // Regex must match JS & Android app!
-	externalTopicPathRegex = regexp.MustCompile(`^/[^/]+\.[^/]+/[-_A-Za-z0-9]{1,64}$`)    // Extended topic path, for web-app, e.g. /example.com/mytopic
-	webAppEmailVerifyRegex = regexp.MustCompile(`^/account/email/verify/[-_A-Za-z0-9]+$`) // Magic-link landing (served by the web app)
-	jsonPathRegex          = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/json$`)
-	ssePathRegex           = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/sse$`)
-	rawPathRegex           = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/raw$`)
-	wsPathRegex            = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/ws$`)
-	authPathRegex          = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/auth$`)
-	publishPathRegex       = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/(publish|send|trigger)$`)
-	updatePathRegex        = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/[-_A-Za-z0-9]{1,64}$`)
-	clearPathRegex         = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/[-_A-Za-z0-9]{1,64}/(read|clear)$`)
-	sequenceIDRegex        = topicRegex
+	topicRegex               = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)                    // No /!
+	topicPathRegex           = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}$`)                   // Regex must match JS & Android app!
+	externalTopicPathRegex   = regexp.MustCompile(`^/[^/]+\.[^/]+/[-_A-Za-z0-9]{1,64}$`)      // Extended topic path, for web-app, e.g. /example.com/mytopic
+	webAppEmailVerifyRegex   = regexp.MustCompile(`^/account/email/verify/[-_A-Za-z0-9]+$`)   // Magic-link landing (served by the web app)
+	webAppPasswordResetRegex = regexp.MustCompile(`^/account/password/reset/[-_A-Za-z0-9]+$`) // Password-reset landing (served by the web app)
+	jsonPathRegex            = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/json$`)
+	ssePathRegex             = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/sse$`)
+	rawPathRegex             = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/raw$`)
+	wsPathRegex              = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/ws$`)
+	authPathRegex            = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/auth$`)
+	publishPathRegex         = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/(publish|send|trigger)$`)
+	updatePathRegex          = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/[-_A-Za-z0-9]{1,64}$`)
+	clearPathRegex           = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/[-_A-Za-z0-9]{1,64}/(read|clear)$`)
+	sequenceIDRegex          = topicRegex
 
 	webConfigPath                                        = "/config.js"
 	webManifestPath                                      = "/manifest.webmanifest"
@@ -119,7 +120,10 @@ var (
 	apiAccountEmailVerifyPath                            = "/v1/account/email/verify"
 	apiAccountEmailPrimaryPath                           = "/v1/account/email/primary"
 	apiAccountEmailResendPath                            = "/v1/account/email/resend"
-	webAppEmailVerifyPathPrefix                          = "/account/email/verify/" // Browser landing route; raw token appended
+	apiAccountPasswordResetRequestPath                   = "/v1/account/password/reset/request"
+	apiAccountPasswordResetPath                          = "/v1/account/password/reset"
+	webAppEmailVerifyPathPrefix                          = "/account/email/verify/"   // Browser landing route; raw token appended
+	webAppPasswordResetPathPrefix                        = "/account/password/reset/" // Browser landing route; raw token appended
 	apiAccountBillingPortalPath                          = "/v1/account/billing/portal"
 	apiAccountBillingWebhookPath                         = "/v1/account/billing/webhook"
 	apiAccountBillingSubscriptionPath                    = "/v1/account/billing/subscription"
@@ -626,6 +630,10 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureUser(s.withAccountSync(s.handleAccountEmailSetPrimary))(w, r, v)
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountEmailResendPath {
 		return s.ensureUser(s.ensureEmailsEnabled(s.handleAccountEmailResend))(w, r, v)
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountPasswordResetRequestPath {
+		return s.ensureEmailsEnabled(s.limitRequests(s.handleAccountPasswordResetRequest))(w, r, v) // Unauthenticated
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountPasswordResetPath {
+		return s.ensureEmailsEnabled(s.limitRequests(s.handleAccountPasswordReset))(w, r, v) // Unauthenticated
 	} else if r.Method == http.MethodPost && apiWebPushPath == r.URL.Path {
 		return s.ensureWebPushEnabled(s.limitRequests(s.handleWebPushUpdate))(w, r, v)
 	} else if r.Method == http.MethodDelete && apiWebPushPath == r.URL.Path {
@@ -668,8 +676,8 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.limitRequests(s.authorizeTopicRead(s.handleSubscribeWS))(w, r, v)
 	} else if r.Method == http.MethodGet && authPathRegex.MatchString(r.URL.Path) {
 		return s.limitRequests(s.authorizeTopicRead(s.handleTopicAuth))(w, r, v)
-	} else if r.Method == http.MethodGet && webAppEmailVerifyRegex.MatchString(r.URL.Path) {
-		return s.ensureWebEnabled(s.handleWebAppIndex)(w, r, v) // Magic-link landing page (client-side route)
+	} else if r.Method == http.MethodGet && (webAppEmailVerifyRegex.MatchString(r.URL.Path) || webAppPasswordResetRegex.MatchString(r.URL.Path)) {
+		return s.ensureWebEnabled(s.handleWebAppIndex)(w, r, v) // Magic-link landing pages (client-side routes)
 	} else if r.Method == http.MethodGet && (topicPathRegex.MatchString(r.URL.Path) || externalTopicPathRegex.MatchString(r.URL.Path)) {
 		return s.ensureWebEnabled(s.handleTopic)(w, r, v)
 	}

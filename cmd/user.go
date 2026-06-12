@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
 	"heckel.io/ntfy/v2/db"
 	"heckel.io/ntfy/v2/db/pg"
+	"heckel.io/ntfy/v2/mail"
 	"heckel.io/ntfy/v2/server"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
@@ -32,6 +34,11 @@ var flagsUser = append(
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "auth-file", Aliases: []string{"auth_file", "H"}, EnvVars: []string{"NTFY_AUTH_FILE"}, Usage: "auth database file used for access control"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "auth-default-access", Aliases: []string{"auth_default_access", "p"}, EnvVars: []string{"NTFY_AUTH_DEFAULT_ACCESS"}, Value: "read-write", Usage: "default permissions if no matching entries in the auth database are found"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "database-url", Aliases: []string{"database_url"}, EnvVars: []string{"NTFY_DATABASE_URL"}, Usage: "PostgreSQL connection string for database-backed stores"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "base-url", Aliases: []string{"base_url", "B"}, EnvVars: []string{"NTFY_BASE_URL"}, Usage: "externally visible base URL for this host (e.g. https://ntfy.sh)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-addr", Aliases: []string{"smtp_sender_addr"}, EnvVars: []string{"NTFY_SMTP_SENDER_ADDR"}, Usage: "SMTP server address (host:port) for outgoing emails"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-user", Aliases: []string{"smtp_sender_user"}, EnvVars: []string{"NTFY_SMTP_SENDER_USER"}, Usage: "SMTP user (if e-mail sending is enabled)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-pass", Aliases: []string{"smtp_sender_pass"}, EnvVars: []string{"NTFY_SMTP_SENDER_PASS"}, Usage: "SMTP password (if e-mail sending is enabled)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-from", Aliases: []string{"smtp_sender_from"}, EnvVars: []string{"NTFY_SMTP_SENDER_FROM"}, Usage: "SMTP sender address (if e-mail sending is enabled)"}),
 )
 
 var cmdUser = &cli.Command{
@@ -98,6 +105,32 @@ Example:
 
 You may set the NTFY_PASSWORD environment variable to pass the new password or NTFY_PASSWORD_HASH to pass
 directly the bcrypt hash. This is useful if you are updating users via scripts.
+`,
+		},
+		{
+			Name:      "password-reset",
+			Aliases:   []string{"reset"},
+			Usage:     "Generates a password reset link for a user",
+			UsageText: "ntfy user password-reset [--send-email] USERNAME",
+			Action:    execUserPasswordReset,
+			Flags: []cli.Flag{
+				&cli.BoolFlag{Name: "send-email", Aliases: []string{"e"}, Usage: "also email the reset link to the user's primary email"},
+			},
+			Description: `Generate a password reset link for the given user and print it to stdout.
+
+The user completes the reset by opening the link in a browser and choosing a new password;
+the admin never learns or chooses the new password. The link is single-use and expires after
+one hour. This is an admin override of the self-service reset flow -- unlike self-service, it
+does not require the user to have a verified primary email (the token is bound to the user).
+
+With --send-email, the link is additionally emailed to the user's primary email address (this
+requires SMTP to be configured and the user to have a verified primary email).
+
+Requires base-url to be configured so an absolute link can be generated.
+
+Example:
+  ntfy user password-reset phil               # Print a reset link for user phil
+  ntfy user password-reset --send-email phil  # Print and email the reset link
 `,
 		},
 		{
@@ -283,6 +316,59 @@ func execUserChangePass(c *cli.Context) error {
 		return err
 	}
 	fmt.Fprintf(c.App.Writer, "changed password for user %s\n", username)
+	return nil
+}
+
+func execUserPasswordReset(c *cli.Context) error {
+	username := c.Args().Get(0)
+	sendEmail := c.Bool("send-email")
+	baseURL := strings.TrimSuffix(c.String("base-url"), "/")
+	if username == "" {
+		return errors.New("username expected, type 'ntfy user password-reset --help' for help")
+	} else if username == userEveryone || username == user.Everyone {
+		return errors.New("username not allowed")
+	} else if baseURL == "" {
+		return errors.New("base-url must be configured to generate a reset link")
+	}
+	manager, err := createUserManager(c)
+	if err != nil {
+		return err
+	}
+	u, err := manager.User(username)
+	if errors.Is(err, user.ErrUserNotFound) {
+		return fmt.Errorf("user %s does not exist", username)
+	} else if err != nil {
+		return err
+	}
+	// Resolve the primary email up front if we need to send -- fail before creating a token
+	var primaryEmail string
+	if sendEmail {
+		primaryEmail, err = manager.PrimaryEmail(u.ID)
+		if err != nil {
+			return err
+		} else if primaryEmail == "" {
+			return fmt.Errorf("user %s has no primary email; cannot send reset link (omit --send-email to just print it)", username)
+		}
+	}
+	// The reset token is bound to the user, not an email -- so this works even with no SMTP
+	token, err := manager.CreateMagicLink(user.MagicLinkKindPasswordReset, u.ID, "", time.Hour)
+	if err != nil {
+		return err
+	}
+	link := baseURL + "/account/password/reset/" + token
+	fmt.Fprintln(c.App.Writer, link)
+	if sendEmail {
+		sender := mail.NewSender(&mail.Config{
+			SMTPAddr: c.String("smtp-sender-addr"),
+			SMTPUser: c.String("smtp-sender-user"),
+			SMTPPass: c.String("smtp-sender-pass"),
+			From:     c.String("smtp-sender-from"),
+		})
+		if err := sender.SendPasswordReset(primaryEmail, link); err != nil {
+			return fmt.Errorf("failed to send reset email to %s: %w", primaryEmail, err)
+		}
+		fmt.Fprintf(c.App.ErrWriter, "reset link emailed to %s\n", primaryEmail)
+	}
 	return nil
 }
 
