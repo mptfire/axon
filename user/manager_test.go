@@ -1847,16 +1847,9 @@ func TestMigrationFrom7(t *testing.T) {
 	require.Equal(t, "", primary)
 
 	// The new magic-link machinery works post-migration
-	raw := generateLinkToken()
-	require.Nil(t, a.AddMagicLink(&MagicLink{
-		TokenHash: hashToken(raw),
-		Kind:      MagicLinkKindEmailVerify,
-		UserID:    "u_phil",
-		Email:     "new@example.com",
-		Expires:   time.Now().Add(24 * time.Hour).Unix(),
-		Created:   time.Now().Unix(),
-	}))
-	m, err := a.VerifyEmail(hashToken(raw))
+	raw, err := a.CreateMagicLink(MagicLinkKindEmailVerify, "u_phil", "new@example.com", 24*time.Hour)
+	require.Nil(t, err)
+	m, err := a.VerifyEmail(raw)
 	require.Nil(t, err)
 	require.Equal(t, "new@example.com", m.Email)
 

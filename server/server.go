@@ -58,7 +58,7 @@ type Server struct {
 	smtpServer        *smtp.Server
 	smtpServerBackend *smtpBackend
 	smtpSender        mailer
-	mailSender        *mail.Sender
+	mailSender        emailVerifier
 	topics            map[string]*topic
 	visitors          map[string]*visitor // ip:<ip> or user:<user>
 	firebaseClient    *firebaseClient
@@ -80,9 +80,10 @@ type handleFunc func(http.ResponseWriter, *http.Request, *visitor) error
 
 var (
 	// If changed, don't forget to update Android App and auth_sqlite.go
-	topicRegex             = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)               // No /!
-	topicPathRegex         = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}$`)              // Regex must match JS & Android app!
-	externalTopicPathRegex = regexp.MustCompile(`^/[^/]+\.[^/]+/[-_A-Za-z0-9]{1,64}$`) // Extended topic path, for web-app, e.g. /example.com/mytopic
+	topicRegex             = regexp.MustCompile(`^[-_A-Za-z0-9]{1,64}$`)                  // No /!
+	topicPathRegex         = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}$`)                 // Regex must match JS & Android app!
+	externalTopicPathRegex = regexp.MustCompile(`^/[^/]+\.[^/]+/[-_A-Za-z0-9]{1,64}$`)    // Extended topic path, for web-app, e.g. /example.com/mytopic
+	webAppEmailVerifyRegex = regexp.MustCompile(`^/account/email/verify/[-_A-Za-z0-9]+$`) // Magic-link landing (served by the web app)
 	jsonPathRegex          = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/json$`)
 	ssePathRegex           = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/sse$`)
 	rawPathRegex           = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}(,[-_A-Za-z0-9]{1,64})*/raw$`)
@@ -116,6 +117,9 @@ var (
 	apiAccountPhoneVerifyPath                            = "/v1/account/phone/verify"
 	apiAccountEmailPath                                  = "/v1/account/email"
 	apiAccountEmailVerifyPath                            = "/v1/account/email/verify"
+	apiAccountEmailPrimaryPath                           = "/v1/account/email/primary"
+	apiAccountEmailResendPath                            = "/v1/account/email/resend"
+	webAppEmailVerifyPathPrefix                          = "/account/email/verify/" // Browser landing route; raw token appended
 	apiAccountBillingPortalPath                          = "/v1/account/billing/portal"
 	apiAccountBillingWebhookPath                         = "/v1/account/billing/webhook"
 	apiAccountBillingSubscriptionPath                    = "/v1/account/billing/subscription"
@@ -177,15 +181,16 @@ const (
 // subscriber (if configured).
 func New(conf *Config) (*Server, error) {
 	var mailer mailer
-	var mailSender *mail.Sender
+	var emailSender emailVerifier // Stays untyped-nil when SMTP is unconfigured, so ensureEmailsEnabled gates correctly
 	if conf.SMTPSenderAddr != "" {
-		mailSender = mail.NewSender(&mail.Config{
+		mailSender := mail.NewSender(&mail.Config{
 			SMTPAddr: conf.SMTPSenderAddr,
 			SMTPUser: conf.SMTPSenderUser,
 			SMTPPass: conf.SMTPSenderPass,
 			From:     conf.SMTPSenderFrom,
 		})
 		mailer = &smtpSender{config: conf, sender: mailSender}
+		emailSender = mailSender
 	}
 	var stripe stripeAPI
 	if payments.Available && conf.StripeSecretKey != "" {
@@ -291,7 +296,7 @@ func New(conf *Config) (*Server, error) {
 		attachment:      attachmentStore,
 		firebaseClient:  firebaseClient,
 		smtpSender:      mailer,
-		mailSender:      mailSender,
+		mailSender:      emailSender,
 		topics:          topics,
 		userManager:     userManager,
 		messages:        messages,
@@ -611,12 +616,16 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureUser(s.ensureCallsEnabled(s.withAccountSync(s.handleAccountPhoneNumberAdd)))(w, r, v)
 	} else if r.Method == http.MethodDelete && r.URL.Path == apiAccountPhonePath {
 		return s.ensureUser(s.ensureCallsEnabled(s.withAccountSync(s.handleAccountPhoneNumberDelete)))(w, r, v)
-	} else if r.Method == http.MethodPut && r.URL.Path == apiAccountEmailVerifyPath {
-		return s.ensureUser(s.ensureEmailsEnabled(s.withAccountSync(s.handleAccountEmailVerify)))(w, r, v)
 	} else if r.Method == http.MethodPut && r.URL.Path == apiAccountEmailPath {
 		return s.ensureUser(s.ensureEmailsEnabled(s.withAccountSync(s.handleAccountEmailAdd)))(w, r, v)
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountEmailVerifyPath {
+		return s.ensureEmailsEnabled(s.limitRequests(s.handleAccountEmailVerify))(w, r, v) // No ensureUser: clicked from a mail client, possibly logged out
 	} else if r.Method == http.MethodDelete && r.URL.Path == apiAccountEmailPath {
 		return s.ensureUser(s.ensureEmailsEnabled(s.withAccountSync(s.handleAccountEmailDelete)))(w, r, v)
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountEmailPrimaryPath {
+		return s.ensureUser(s.withAccountSync(s.handleAccountEmailSetPrimary))(w, r, v)
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountEmailResendPath {
+		return s.ensureUser(s.ensureEmailsEnabled(s.handleAccountEmailResend))(w, r, v)
 	} else if r.Method == http.MethodPost && apiWebPushPath == r.URL.Path {
 		return s.ensureWebPushEnabled(s.limitRequests(s.handleWebPushUpdate))(w, r, v)
 	} else if r.Method == http.MethodDelete && apiWebPushPath == r.URL.Path {
@@ -659,10 +668,23 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.limitRequests(s.authorizeTopicRead(s.handleSubscribeWS))(w, r, v)
 	} else if r.Method == http.MethodGet && authPathRegex.MatchString(r.URL.Path) {
 		return s.limitRequests(s.authorizeTopicRead(s.handleTopicAuth))(w, r, v)
+	} else if r.Method == http.MethodGet && webAppEmailVerifyRegex.MatchString(r.URL.Path) {
+		return s.ensureWebEnabled(s.handleWebAppIndex)(w, r, v) // Magic-link landing page (client-side route)
 	} else if r.Method == http.MethodGet && (topicPathRegex.MatchString(r.URL.Path) || externalTopicPathRegex.MatchString(r.URL.Path)) {
 		return s.ensureWebEnabled(s.handleTopic)(w, r, v)
 	}
 	return errHTTPNotFound
+}
+
+// handleWebAppIndex serves the embedded web app's index for client-side (SPA) routes the
+// browser router resolves, such as the magic-link landing pages. Because these URLs carry a
+// one-time token in the path, the response is marked no-referrer (so the token can't leak to
+// third parties via the Referer header) and noindex (so it never gets indexed).
+func (s *Server) handleWebAppIndex(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("X-Robots-Tag", "noindex")
+	r.URL.Path = webAppIndex
+	return s.handleStatic(w, r, v)
 }
 
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request, v *visitor) error {
@@ -715,21 +737,22 @@ func (s *Server) handleWebConfig(w http.ResponseWriter, _ *http.Request, _ *visi
 
 func (s *Server) configResponse() *apiConfigResponse {
 	return &apiConfigResponse{
-		BaseURL:            "", // Will translate to window.location.origin
-		AppRoot:            s.config.WebRoot,
-		EnableLogin:        s.config.EnableLogin,
-		RequireLogin:       s.config.RequireLogin,
-		EnableSignup:       s.config.EnableSignup,
-		EnablePayments:     s.config.StripeSecretKey != "",
-		EnableCalls:        s.config.TwilioAccount != "",
-		EnableEmails:       s.config.SMTPSenderFrom != "",
-		EnableEmailVerify:  s.config.SMTPSenderVerify,
-		EnableReservations: s.config.EnableReservations,
-		EnableWebPush:      s.config.WebPushPublicKey != "",
-		BillingContact:     s.config.BillingContact,
-		WebPushPublicKey:   s.config.WebPushPublicKey,
-		DisallowedTopics:   s.config.DisallowedTopics,
-		ConfigHash:         s.config.Hash(),
+		BaseURL:             "", // Will translate to window.location.origin
+		AppRoot:             s.config.WebRoot,
+		EnableLogin:         s.config.EnableLogin,
+		RequireLogin:        s.config.RequireLogin,
+		EnableSignup:        s.config.EnableSignup,
+		EnablePayments:      s.config.StripeSecretKey != "",
+		EnableCalls:         s.config.TwilioAccount != "",
+		EnableEmails:        s.config.SMTPSenderFrom != "",
+		EnableEmailVerify:   s.config.SMTPSenderVerify,
+		EnableResetPassword: s.config.SMTPSenderFrom != "" && s.config.BaseURL != "", // Reset links need SMTP + an absolute base-url
+		EnableReservations:  s.config.EnableReservations,
+		EnableWebPush:       s.config.WebPushPublicKey != "",
+		BillingContact:      s.config.BillingContact,
+		WebPushPublicKey:    s.config.WebPushPublicKey,
+		DisallowedTopics:    s.config.DisallowedTopics,
+		ConfigHash:          s.config.Hash(),
 	}
 }
 

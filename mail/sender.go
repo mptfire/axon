@@ -6,17 +6,14 @@ import (
 	"net"
 	"net/smtp"
 	"strings"
-	"sync"
 	"time"
 
 	"heckel.io/ntfy/v2/log"
-	"heckel.io/ntfy/v2/util"
 )
 
 const (
-	verifyCodeExpiry  = 10 * time.Minute
-	verifyCodeLength  = 6
-	verifyCodeSubject = "ntfy email verification"
+	emailVerificationSubject = "Verify your email for ntfy"
+	passwordResetSubject     = "Reset your ntfy password"
 )
 
 // Config holds the SMTP configuration for the mail sender
@@ -27,33 +24,22 @@ type Config struct {
 	From     string // Sender email address
 }
 
-// Sender sends emails and manages email verification codes
+// Sender sends emails via SMTP, including the magic-link emails for email verification and
+// password reset. Pending verification/reset state lives in the database (see user.Manager),
+// not in this struct.
 type Sender struct {
-	config    *Config
-	codes     map[string]verifyCode // Verification codes, keyed by email
-	mu        sync.Mutex
-	closeChan chan struct{}
-}
-
-type verifyCode struct {
-	code    string
-	expires time.Time
+	config *Config
 }
 
 // NewSender creates a new mail Sender with the given SMTP config
 func NewSender(config *Config) *Sender {
-	s := &Sender{
-		config:    config,
-		codes:     make(map[string]verifyCode),
-		closeChan: make(chan struct{}),
-	}
-	go s.expireLoop()
-	return s
+	return &Sender{config: config}
 }
 
-// Close stops the background expiry loop
+// Close is a no-op, kept so callers don't need to special-case the sender. The sender holds
+// no background goroutines (magic-link expiry is swept by the user.Manager reaper).
 func (s *Sender) Close() {
-	close(s.closeChan)
+	// Nothing to do
 }
 
 // Addr returns the SMTP server address
@@ -104,51 +90,24 @@ Content-Type: text/plain; charset="utf-8"
 	return s.SendRaw(to, []byte(message))
 }
 
-// SendVerification generates a random code, stores it in-memory, and sends a verification email
-func (s *Sender) SendVerification(to string) error {
-	code := util.RandomString(verifyCodeLength)
-	s.mu.Lock()
-	s.codes[to] = verifyCode{
-		code:    code,
-		expires: time.Now().Add(verifyCodeExpiry),
-	}
-	s.mu.Unlock()
-	body := fmt.Sprintf("Your ntfy email verification code is: %s\n\nThis code expires in 10 minutes.", code)
-	return s.Send(to, verifyCodeSubject, body)
+// SendEmailVerification sends an email containing a magic link to verify ownership of the
+// recipient address. The link carries a one-time token validated against the database.
+func (s *Sender) SendEmailVerification(to, link string) error {
+	body := fmt.Sprintf(`Click the link below to verify this email address for your ntfy account:
+
+%s
+
+This link expires in 24 hours. If you did not request this, you can safely ignore this email.`, link)
+	return s.Send(to, emailVerificationSubject, body)
 }
 
-// CheckVerification checks if the code matches and hasn't expired. Removes the entry on success.
-func (s *Sender) CheckVerification(email, code string) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	vc, ok := s.codes[email]
-	if !ok || time.Now().After(vc.expires) || vc.code != code {
-		return false
-	}
-	delete(s.codes, email)
-	return true
-}
+// SendPasswordReset sends an email containing a magic link to set a new password. The link
+// carries a one-time token validated against the database.
+func (s *Sender) SendPasswordReset(to, link string) error {
+	body := fmt.Sprintf(`Click the link below to set a new password for your ntfy account:
 
-func (s *Sender) expireLoop() {
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			s.expireVerificationCodes()
-		case <-s.closeChan:
-			return
-		}
-	}
-}
+%s
 
-func (s *Sender) expireVerificationCodes() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	now := time.Now()
-	for email, vc := range s.codes {
-		if now.After(vc.expires) {
-			delete(s.codes, email)
-		}
-	}
+This link expires in 1 hour. If you did not request this, you can safely ignore this email -- your password will not change.`, link)
+	return s.Send(to, passwordResetSubject, body)
 }

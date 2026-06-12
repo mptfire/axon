@@ -1556,6 +1556,37 @@ func (a *Manager) SetPrimaryEmail(userID, email string) error {
 	})
 }
 
+// CreateMagicLink generates a fresh magic-link token of the given kind, stores it (hashed,
+// replacing any existing link in the same scope), and returns the RAW token for use in the
+// emailed link. Only the hash is persisted; the raw token is never stored. email is the
+// address being verified for email_verify, and "" for password_reset.
+func (a *Manager) CreateMagicLink(kind MagicLinkKind, userID, email string, ttl time.Duration) (string, error) {
+	raw := generateLinkToken()
+	now := time.Now()
+	m := &MagicLink{
+		TokenHash: hashToken(raw),
+		Kind:      kind,
+		UserID:    userID,
+		Email:     email,
+		Expires:   now.Add(ttl).Unix(),
+		Created:   now.Unix(),
+	}
+	if err := a.AddMagicLink(m); err != nil {
+		return "", err
+	}
+	return raw, nil
+}
+
+// MagicLinkByToken looks up a magic link by its raw token (hashing it first). See MagicLinkByHash.
+func (a *Manager) MagicLinkByToken(rawToken string) (*MagicLink, error) {
+	return a.MagicLinkByHash(hashToken(rawToken))
+}
+
+// DeleteMagicLinkByToken deletes a magic link identified by its raw token (single-use consume).
+func (a *Manager) DeleteMagicLinkByToken(rawToken string) error {
+	return a.DeleteMagicLink(hashToken(rawToken))
+}
+
 // AddMagicLink stores a pending magic link, replacing any existing link in the same scope:
 // for email_verify that is the (user_id, email) pair (one pending verification per address);
 // for password_reset that is the user_id (one active reset per account). The replace-delete and
@@ -1606,12 +1637,21 @@ func (a *Manager) DeleteMagicLink(tokenHash string) error {
 	return err
 }
 
-// VerifyEmail consumes an email-verification magic link: after validating the token (kind +
-// expiry), it deletes the link, adds the address to the user's verified emails, and -- if the
-// user has no primary email yet and the address is not already primary on another account --
-// promotes the new address to primary. All mutations run in one transaction. A primary
-// collision simply leaves the address verified but non-primary. Returns the consumed link.
-func (a *Manager) VerifyEmail(tokenHash string) (*MagicLink, error) {
+// DeleteEmailVerification removes any pending email verification for (userID, email). Used when
+// an unverified (pending) address is cancelled/deleted from the account.
+func (a *Manager) DeleteEmailVerification(userID, email string) error {
+	_, err := a.db.Exec(a.queries.deleteVerifyScope, userID, email)
+	return err
+}
+
+// VerifyEmail consumes an email-verification magic link, identified by its raw token: after
+// validating the token (kind + expiry), it deletes the link, adds the address to the user's
+// verified emails, and -- if the user has no primary email yet and the address is not already
+// primary on another account -- promotes the new address to primary. All mutations run in one
+// transaction. A primary collision simply leaves the address verified but non-primary. Returns
+// the consumed link.
+func (a *Manager) VerifyEmail(rawToken string) (*MagicLink, error) {
+	tokenHash := hashToken(rawToken)
 	m, err := a.MagicLinkByHash(tokenHash)
 	if err != nil {
 		return nil, err

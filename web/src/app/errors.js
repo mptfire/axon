@@ -51,7 +51,15 @@ export class EmailVerificationCodeInvalidError extends Error {
   static CODE = 40051; // errHTTPBadRequestEmailVerificationCodeInvalid
 
   constructor() {
-    super("Email verification code invalid or expired");
+    super("Email verification link invalid or expired");
+  }
+}
+
+export class EmailPrimaryElsewhereError extends Error {
+  static CODE = 40908; // errHTTPConflictEmailPrimaryElsewhere
+
+  constructor() {
+    super("Email address is the recovery email on another account");
   }
 }
 
@@ -73,6 +81,8 @@ export const throwAppError = async (response) => {
       throw new IncorrectPasswordError();
     } else if (error.code === EmailVerificationCodeInvalidError.CODE) {
       throw new EmailVerificationCodeInvalidError();
+    } else if (error.code === EmailPrimaryElsewhereError.CODE) {
+      throw new EmailPrimaryElsewhereError();
     } else if (error?.error) {
       throw new Error(`Error ${error.code}: ${error.error}`);
     }

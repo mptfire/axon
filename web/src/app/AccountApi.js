@@ -4,6 +4,8 @@ import {
   accountBillingSubscriptionUrl,
   accountEmailUrl,
   accountEmailVerifyUrl,
+  accountEmailPrimaryUrl,
+  accountEmailResendUrl,
   accountPasswordUrl,
   accountPhoneUrl,
   accountPhoneVerifyUrl,
@@ -342,9 +344,11 @@ class AccountApi {
     });
   }
 
-  async verifyEmail(email) {
-    const url = accountEmailVerifyUrl(config.base_url);
-    console.log(`[AccountApi] Sending email verification ${url}`);
+  // startEmailVerification begins adding an email: the server stores a pending verification and
+  // emails a magic link. The address is not verified until the link is clicked.
+  async startEmailVerification(email) {
+    const url = accountEmailUrl(config.base_url);
+    console.log(`[AccountApi] Starting email verification ${url}`);
     await fetchOrThrow(url, {
       method: "PUT",
       headers: withBearerAuth({}, session.token()),
@@ -354,15 +358,41 @@ class AccountApi {
     });
   }
 
-  async addEmail(email, code) {
-    const url = accountEmailUrl(config.base_url);
-    console.log(`[AccountApi] Adding email with verification code ${url}`);
+  // verifyEmailToken performs verification from the magic-link landing page. It is unauthenticated:
+  // the token identifies the account, so this works even when clicked from a logged-out browser.
+  async verifyEmailToken(token) {
+    const url = accountEmailVerifyUrl(config.base_url);
+    console.log(`[AccountApi] Verifying email token ${url}`);
     await fetchOrThrow(url, {
-      method: "PUT",
+      method: "POST",
+      body: JSON.stringify({
+        token,
+      }),
+    });
+  }
+
+  // resendEmailVerification re-sends the magic link for a pending (unverified) address.
+  async resendEmailVerification(email) {
+    const url = accountEmailResendUrl(config.base_url);
+    console.log(`[AccountApi] Resending email verification ${url}`);
+    await fetchOrThrow(url, {
+      method: "POST",
       headers: withBearerAuth({}, session.token()),
       body: JSON.stringify({
         email,
-        code,
+      }),
+    });
+  }
+
+  // setPrimaryEmail marks an already-verified address as the primary (recovery) email.
+  async setPrimaryEmail(email) {
+    const url = accountEmailPrimaryUrl(config.base_url);
+    console.log(`[AccountApi] Setting primary email ${url}`);
+    await fetchOrThrow(url, {
+      method: "POST",
+      headers: withBearerAuth({}, session.token()),
+      body: JSON.stringify({
+        email,
       }),
     });
   }

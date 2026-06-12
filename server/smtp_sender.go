@@ -20,6 +20,14 @@ type mailer interface {
 	Counts() (total int64, success int64, failure int64)
 }
 
+// emailVerifier sends the magic-link emails for email verification and password reset.
+// *mail.Sender implements it; tests inject a fake to capture the generated links.
+type emailVerifier interface {
+	SendEmailVerification(to, link string) error
+	SendPasswordReset(to, link string) error
+	Close()
+}
+
 type smtpSender struct {
 	config  *Config
 	sender  *mail.Sender

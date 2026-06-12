@@ -1706,11 +1706,11 @@ func TestServer_AccountEmailVerify_UserWithoutTier(t *testing.T) {
 		// Create a user without a tier
 		require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser, false))
 
-		// Verify email request should NOT return 401
-		response := request(t, s, "PUT", "/v1/account/email/verify", `{"email":"ben@example.com"}`, map[string]string{
+		// Starting email verification should NOT return 401
+		response := request(t, s, "PUT", "/v1/account/email", `{"email":"ben@example.com"}`, map[string]string{
 			"Authorization": util.BasicAuth("ben", "ben"),
 		})
-		// The request will fail (SMTP not available), but it must NOT be a 401
+		// The request may fail (SMTP not available), but it must NOT be a 401
 		require.NotEqual(t, 401, response.Code)
 	})
 }
@@ -1731,7 +1731,7 @@ func TestServer_AccountEmailVerify_UserWithoutTier_EmailLimitZero(t *testing.T) 
 		require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser, false))
 
 		// Should be rejected with 401 since email sending is disabled
-		response := request(t, s, "PUT", "/v1/account/email/verify", `{"email":"ben@example.com"}`, map[string]string{
+		response := request(t, s, "PUT", "/v1/account/email", `{"email":"ben@example.com"}`, map[string]string{
 			"Authorization": util.BasicAuth("ben", "ben"),
 		})
 		require.Equal(t, 401, response.Code)

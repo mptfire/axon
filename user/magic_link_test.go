@@ -7,18 +7,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// addVerifyLink generates a raw token, stores an email-verification magic link for it, and
-// returns the raw token so the test can "click" it via VerifyEmail.
-func addVerifyLink(t *testing.T, a *Manager, userID, email string, expires int64) string {
-	raw := generateLinkToken()
-	require.Nil(t, a.AddMagicLink(&MagicLink{
-		TokenHash: hashToken(raw),
-		Kind:      MagicLinkKindEmailVerify,
-		UserID:    userID,
-		Email:     email,
-		Expires:   expires,
-		Created:   time.Now().Unix(),
-	}))
+// addVerifyLink stores an email-verification magic link and returns the raw token so the test
+// can "click" it via VerifyEmail.
+func addVerifyLink(t *testing.T, a *Manager, userID, email string, ttl time.Duration) string {
+	raw, err := a.CreateMagicLink(MagicLinkKindEmailVerify, userID, email, ttl)
+	require.Nil(t, err)
 	return raw
 }
 
@@ -29,7 +22,7 @@ func TestUser_MagicLink_VerifyEmail_SetsPrimary(t *testing.T) {
 		phil, err := a.User("phil")
 		require.Nil(t, err)
 
-		raw := addVerifyLink(t, a, phil.ID, "phil@example.com", time.Now().Add(24*time.Hour).Unix())
+		raw := addVerifyLink(t, a, phil.ID, "phil@example.com", 24*time.Hour)
 
 		// Before verifying: pending, not yet verified, no primary
 		pending, err := a.PendingEmails(phil.ID)
@@ -43,7 +36,7 @@ func TestUser_MagicLink_VerifyEmail_SetsPrimary(t *testing.T) {
 		require.Equal(t, "", primary)
 
 		// Verify: the first verified email auto-becomes primary
-		m, err := a.VerifyEmail(hashToken(raw))
+		m, err := a.VerifyEmail(raw)
 		require.Nil(t, err)
 		require.Equal(t, "phil@example.com", m.Email)
 
@@ -71,12 +64,12 @@ func TestUser_MagicLink_VerifyEmail_SecondStaysSecondary(t *testing.T) {
 		phil, err := a.User("phil")
 		require.Nil(t, err)
 
-		raw1 := addVerifyLink(t, a, phil.ID, "first@example.com", time.Now().Add(24*time.Hour).Unix())
-		_, err = a.VerifyEmail(hashToken(raw1))
+		raw1 := addVerifyLink(t, a, phil.ID, "first@example.com", 24*time.Hour)
+		_, err = a.VerifyEmail(raw1)
 		require.Nil(t, err)
 
-		raw2 := addVerifyLink(t, a, phil.ID, "second@example.com", time.Now().Add(24*time.Hour).Unix())
-		_, err = a.VerifyEmail(hashToken(raw2))
+		raw2 := addVerifyLink(t, a, phil.ID, "second@example.com", 24*time.Hour)
+		_, err = a.VerifyEmail(raw2)
 		require.Nil(t, err)
 
 		// Both verified, but primary is still the first
@@ -100,16 +93,14 @@ func TestUser_MagicLink_PrimaryGlobalUniqueness(t *testing.T) {
 		require.Nil(t, err)
 
 		// phil verifies shared@ first -> becomes his primary
-		rawPhil := addVerifyLink(t, a, phil.ID, "shared@example.com", time.Now().Add(24*time.Hour).Unix())
-		_, err = a.VerifyEmail(hashToken(rawPhil))
+		_, err = a.VerifyEmail(addVerifyLink(t, a, phil.ID, "shared@example.com", 24*time.Hour))
 		require.Nil(t, err)
 		primary, err := a.PrimaryEmail(phil.ID)
 		require.Nil(t, err)
 		require.Equal(t, "shared@example.com", primary)
 
 		// ben verifies the same address -> allowed as secondary, but NOT his primary
-		rawBen := addVerifyLink(t, a, ben.ID, "shared@example.com", time.Now().Add(24*time.Hour).Unix())
-		_, err = a.VerifyEmail(hashToken(rawBen))
+		_, err = a.VerifyEmail(addVerifyLink(t, a, ben.ID, "shared@example.com", 24*time.Hour))
 		require.Nil(t, err)
 		emails, err := a.Emails(ben.ID)
 		require.Nil(t, err)
@@ -120,7 +111,7 @@ func TestUser_MagicLink_PrimaryGlobalUniqueness(t *testing.T) {
 
 		// Explicitly promoting ben's copy to primary collides with phil's
 		require.ErrorIs(t, a.SetPrimaryEmail(ben.ID, "shared@example.com"), ErrEmailPrimaryElsewhere)
-		// ...and phil keeps his primary (the failed promotion rolled back ben's clear, which was a no-op anyway)
+		// ...and phil keeps his primary (the failed promotion rolled back ben's clear)
 		primary, err = a.PrimaryEmail(phil.ID)
 		require.Nil(t, err)
 		require.Equal(t, "shared@example.com", primary)
@@ -144,8 +135,8 @@ func TestUser_MagicLink_Expired(t *testing.T) {
 		phil, err := a.User("phil")
 		require.Nil(t, err)
 
-		raw := addVerifyLink(t, a, phil.ID, "phil@example.com", time.Now().Add(-time.Minute).Unix())
-		_, err = a.VerifyEmail(hashToken(raw))
+		raw := addVerifyLink(t, a, phil.ID, "phil@example.com", -time.Minute)
+		_, err = a.VerifyEmail(raw)
 		require.ErrorIs(t, err, ErrMagicLinkNotFound)
 
 		// Nothing got verified
@@ -162,11 +153,11 @@ func TestUser_MagicLink_SingleUse(t *testing.T) {
 		phil, err := a.User("phil")
 		require.Nil(t, err)
 
-		raw := addVerifyLink(t, a, phil.ID, "phil@example.com", time.Now().Add(24*time.Hour).Unix())
-		_, err = a.VerifyEmail(hashToken(raw))
+		raw := addVerifyLink(t, a, phil.ID, "phil@example.com", 24*time.Hour)
+		_, err = a.VerifyEmail(raw)
 		require.Nil(t, err)
 		// Second click: token already consumed
-		_, err = a.VerifyEmail(hashToken(raw))
+		_, err = a.VerifyEmail(raw)
 		require.ErrorIs(t, err, ErrMagicLinkNotFound)
 	})
 }
@@ -178,17 +169,17 @@ func TestUser_MagicLink_ReplaceOnReRequest(t *testing.T) {
 		phil, err := a.User("phil")
 		require.Nil(t, err)
 
-		raw1 := addVerifyLink(t, a, phil.ID, "phil@example.com", time.Now().Add(24*time.Hour).Unix())
-		raw2 := addVerifyLink(t, a, phil.ID, "phil@example.com", time.Now().Add(24*time.Hour).Unix())
+		raw1 := addVerifyLink(t, a, phil.ID, "phil@example.com", 24*time.Hour)
+		raw2 := addVerifyLink(t, a, phil.ID, "phil@example.com", 24*time.Hour)
 
 		// Only one pending row remains; the old token no longer works
 		pending, err := a.PendingEmails(phil.ID)
 		require.Nil(t, err)
 		require.Equal(t, []string{"phil@example.com"}, pending)
-		_, err = a.MagicLinkByHash(hashToken(raw1))
+		_, err = a.MagicLinkByToken(raw1)
 		require.ErrorIs(t, err, ErrMagicLinkNotFound)
 
-		m, err := a.MagicLinkByHash(hashToken(raw2))
+		m, err := a.MagicLinkByToken(raw2)
 		require.Nil(t, err)
 		require.Equal(t, "phil@example.com", m.Email)
 	})
@@ -201,16 +192,10 @@ func TestUser_MagicLink_PasswordReset_RoundTrip(t *testing.T) {
 		phil, err := a.User("phil")
 		require.Nil(t, err)
 
-		raw := generateLinkToken()
-		require.Nil(t, a.AddMagicLink(&MagicLink{
-			TokenHash: hashToken(raw),
-			Kind:      MagicLinkKindPasswordReset,
-			UserID:    phil.ID,
-			Expires:   time.Now().Add(time.Hour).Unix(),
-			Created:   time.Now().Unix(),
-		}))
+		raw, err := a.CreateMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
+		require.Nil(t, err)
 
-		m, err := a.MagicLinkByHash(hashToken(raw))
+		m, err := a.MagicLinkByToken(raw)
 		require.Nil(t, err)
 		require.Equal(t, MagicLinkKindPasswordReset, m.Kind)
 		require.Equal(t, phil.ID, m.UserID)
@@ -222,20 +207,14 @@ func TestUser_MagicLink_PasswordReset_RoundTrip(t *testing.T) {
 		require.Equal(t, 0, len(pending))
 
 		// New request replaces the old token
-		raw2 := generateLinkToken()
-		require.Nil(t, a.AddMagicLink(&MagicLink{
-			TokenHash: hashToken(raw2),
-			Kind:      MagicLinkKindPasswordReset,
-			UserID:    phil.ID,
-			Expires:   time.Now().Add(time.Hour).Unix(),
-			Created:   time.Now().Unix(),
-		}))
-		_, err = a.MagicLinkByHash(hashToken(raw))
+		raw2, err := a.CreateMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
+		require.Nil(t, err)
+		_, err = a.MagicLinkByToken(raw)
 		require.ErrorIs(t, err, ErrMagicLinkNotFound)
 
 		// Single use: deleting consumes it
-		require.Nil(t, a.DeleteMagicLink(hashToken(raw2)))
-		_, err = a.MagicLinkByHash(hashToken(raw2))
+		require.Nil(t, a.DeleteMagicLinkByToken(raw2))
+		_, err = a.MagicLinkByToken(raw2)
 		require.ErrorIs(t, err, ErrMagicLinkNotFound)
 	})
 }
@@ -247,14 +226,14 @@ func TestUser_MagicLink_Reaper(t *testing.T) {
 		phil, err := a.User("phil")
 		require.Nil(t, err)
 
-		expired := addVerifyLink(t, a, phil.ID, "expired@example.com", time.Now().Add(-time.Hour).Unix())
-		valid := addVerifyLink(t, a, phil.ID, "valid@example.com", time.Now().Add(time.Hour).Unix())
+		expired := addVerifyLink(t, a, phil.ID, "expired@example.com", -time.Hour)
+		valid := addVerifyLink(t, a, phil.ID, "valid@example.com", time.Hour)
 
 		require.Nil(t, a.deleteExpiredMagicLinks())
 
-		_, err = a.MagicLinkByHash(hashToken(expired))
+		_, err = a.MagicLinkByToken(expired)
 		require.ErrorIs(t, err, ErrMagicLinkNotFound)
-		m, err := a.MagicLinkByHash(hashToken(valid))
+		m, err := a.MagicLinkByToken(valid)
 		require.Nil(t, err)
 		require.Equal(t, "valid@example.com", m.Email)
 	})

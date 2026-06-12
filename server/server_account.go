@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	syncTopicAccountSyncEvent = "sync"
-	tokenExpiryDuration       = 72 * time.Hour // Extend tokens by this much
+	syncTopicAccountSyncEvent    = "sync"
+	tokenExpiryDuration          = 72 * time.Hour // Extend tokens by this much
+	emailVerificationTokenExpiry = 24 * time.Hour // Magic-link lifetime for email verification
 )
 
 func (s *Server) handleAccountCreate(w http.ResponseWriter, r *http.Request, v *visitor) error {
@@ -167,6 +168,18 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 			}
 			if len(emails) > 0 {
 				response.Emails = emails
+			}
+			primaryEmail, err := s.userManager.PrimaryEmail(u.ID)
+			if err != nil {
+				return err
+			}
+			response.PrimaryEmail = primaryEmail
+			pendingEmails, err := s.userManager.PendingEmails(u.ID)
+			if err != nil {
+				return err
+			}
+			if len(pendingEmails) > 0 {
+				response.PendingEmails = pendingEmails
 			}
 		}
 	} else {
@@ -615,72 +628,147 @@ func (s *Server) handleAccountPhoneNumberDelete(w http.ResponseWriter, r *http.R
 	return s.writeJSON(w, newSuccessResponse())
 }
 
-func (s *Server) handleAccountEmailVerify(w http.ResponseWriter, r *http.Request, v *visitor) error {
+// handleAccountEmailAdd starts email verification (PUT /v1/account/email): it generates a
+// magic-link token, stores a pending verification, and emails the link. The address is NOT
+// added to the verified list until the user clicks the link (handleAccountEmailVerify).
+func (s *Server) handleAccountEmailAdd(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	u := v.User()
-	req, err := readJSONWithLimit[apiAccountEmailVerifyRequest](r.Body, jsonBodyBytesLimit, false)
+	req, err := readJSONWithLimit[apiAccountEmailRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
 	} else if !emailAddressRegex.MatchString(req.Email) {
 		return errHTTPBadRequestEmailAddressInvalid
 	}
-	// Check user is allowed to add emails
-	if u == nil {
-		return errHTTPUnauthorized
-	} else if u.IsUser() && u.Tier != nil && u.Tier.EmailLimit == 0 {
+	// Check user is allowed to add emails (the tier email limit gates the feature)
+	if u.IsUser() && u.Tier != nil && u.Tier.EmailLimit == 0 {
 		return errHTTPUnauthorized
 	} else if u.IsUser() && u.Tier == nil && s.config.VisitorEmailLimitBurst == 0 {
 		return errHTTPUnauthorized
 	}
-	// Check if email already exists
+	// Reject if already verified on this account (pending re-requests are fine -- they replace)
 	emails, err := s.userManager.Emails(u.ID)
 	if err != nil {
 		return err
 	} else if util.Contains(emails, req.Email) {
 		return errHTTPConflictEmailExists
 	}
-	// Check email rate limit (counts against the user's email quota)
+	// Rate limit (counts against the user's email quota)
 	if !v.EmailAllowed() {
 		return errHTTPTooManyRequestsLimitEmails
 	}
-	// Send verification email
-	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Info("Sending email verification")
-	if err := s.mailSender.SendVerification(req.Email); err != nil {
+	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Info("Starting email verification")
+	if err := s.enqueueEmailVerification(u.ID, req.Email); err != nil {
 		return err
 	}
 	return s.writeJSON(w, newSuccessResponse())
 }
 
-func (s *Server) handleAccountEmailAdd(w http.ResponseWriter, r *http.Request, v *visitor) error {
+// handleAccountEmailVerify performs verification from the (unauthenticated) landing page
+// (POST /v1/account/email/verify): it validates the raw token, adds the address to the user's
+// verified emails, and -- if the user has no primary yet -- promotes it. No auth is required;
+// the token binds the action to a user, so the click works from a logged-out mail client.
+func (s *Server) handleAccountEmailVerify(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	req, err := readJSONWithLimit[apiAccountEmailVerifyRequest](r.Body, jsonBodyBytesLimit, false)
+	if err != nil {
+		return err
+	} else if req.Token == "" {
+		return errHTTPBadRequestEmailVerificationCodeInvalid
+	}
+	m, err := s.userManager.VerifyEmail(req.Token)
+	if errors.Is(err, user.ErrMagicLinkNotFound) {
+		return errHTTPBadRequestEmailVerificationCodeInvalid
+	} else if err != nil {
+		return err
+	}
+	logvr(v, r).Tag(tagAccount).Field("email", m.Email).Info("Email verified")
+	// Refresh the verified user's other sessions. The request is unauthenticated (v.User() is
+	// usually nil), so resolve the user from the token row and publish to their sync topic.
+	s.publishSyncEventForUserIDAsync(v, m.UserID)
+	return s.writeJSON(w, newSuccessResponse())
+}
+
+// handleAccountEmailDelete removes an email address, whether verified or still pending
+// (DELETE /v1/account/email). Removing the primary leaves the account with no primary.
+func (s *Server) handleAccountEmailDelete(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	u := v.User()
-	req, err := readJSONWithLimit[apiAccountEmailAddRequest](r.Body, jsonBodyBytesLimit, false)
+	req, err := readJSONWithLimit[apiAccountEmailRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
 	} else if !emailAddressRegex.MatchString(req.Email) {
 		return errHTTPBadRequestEmailAddressInvalid
-	} else if !s.mailSender.CheckVerification(req.Email, req.Code) {
-		return errHTTPBadRequestEmailVerificationCodeInvalid
 	}
-	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Info("Adding email as verified")
-	if err := s.userManager.AddEmail(u.ID, req.Email); err != nil {
+	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Debug("Deleting email (verified or pending)")
+	if err := s.userManager.RemoveEmail(u.ID, req.Email); err != nil {
+		return err
+	}
+	// Also drop any pending verification for the address (no-op if there is none)
+	if err := s.userManager.DeleteEmailVerification(u.ID, req.Email); err != nil {
 		return err
 	}
 	return s.writeJSON(w, newSuccessResponse())
 }
 
-func (s *Server) handleAccountEmailDelete(w http.ResponseWriter, r *http.Request, v *visitor) error {
+// handleAccountEmailSetPrimary marks an already-verified email as the user's primary (recovery)
+// email (POST /v1/account/email/primary).
+func (s *Server) handleAccountEmailSetPrimary(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	u := v.User()
-	req, err := readJSONWithLimit[apiAccountEmailVerifyRequest](r.Body, jsonBodyBytesLimit, false)
+	req, err := readJSONWithLimit[apiAccountEmailRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
-	}
-	if !emailAddressRegex.MatchString(req.Email) {
+	} else if !emailAddressRegex.MatchString(req.Email) {
 		return errHTTPBadRequestEmailAddressInvalid
 	}
-	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Debug("Deleting verified email")
-	if err := s.userManager.RemoveEmail(u.ID, req.Email); err != nil {
+	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Info("Setting primary email")
+	err = s.userManager.SetPrimaryEmail(u.ID, req.Email)
+	if errors.Is(err, user.ErrEmailPrimaryElsewhere) {
+		return errHTTPConflictEmailPrimaryElsewhere
+	} else if errors.Is(err, user.ErrEmailNotFound) {
+		return errHTTPBadRequestEmailAddressNotVerified
+	} else if err != nil {
 		return err
 	}
 	return s.writeJSON(w, newSuccessResponse())
+}
+
+// handleAccountEmailResend re-sends a pending email verification (POST /v1/account/email/resend).
+func (s *Server) handleAccountEmailResend(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	u := v.User()
+	req, err := readJSONWithLimit[apiAccountEmailRequest](r.Body, jsonBodyBytesLimit, false)
+	if err != nil {
+		return err
+	} else if !emailAddressRegex.MatchString(req.Email) {
+		return errHTTPBadRequestEmailAddressInvalid
+	}
+	// Only resend for an address that is actually pending on this account
+	pending, err := s.userManager.PendingEmails(u.ID)
+	if err != nil {
+		return err
+	} else if !util.Contains(pending, req.Email) {
+		return errHTTPBadRequestEmailAddressInvalid
+	}
+	if !v.EmailAllowed() {
+		return errHTTPTooManyRequestsLimitEmails
+	}
+	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Info("Resending email verification")
+	if err := s.enqueueEmailVerification(u.ID, req.Email); err != nil {
+		return err
+	}
+	return s.writeJSON(w, newSuccessResponse())
+}
+
+// enqueueEmailVerification generates a magic-link token for the given address, stores the
+// pending verification (replacing any existing one), and emails the link. Shared by the add,
+// resend, signup, and Stripe paths. Requires base-url to build an absolute link.
+func (s *Server) enqueueEmailVerification(userID, email string) error {
+	if s.config.BaseURL == "" {
+		return errHTTPInternalErrorMissingBaseURL
+	}
+	token, err := s.userManager.CreateMagicLink(user.MagicLinkKindEmailVerify, userID, email, emailVerificationTokenExpiry)
+	if err != nil {
+		return err
+	}
+	link := s.config.BaseURL + webAppEmailVerifyPathPrefix + token
+	return s.mailSender.SendEmailVerification(email, link)
 }
 
 // convertEmailAddress checks the email address against the user's verified email list.
@@ -721,9 +809,30 @@ func (s *Server) publishSyncEventAsync(v *visitor) {
 	}()
 }
 
-// publishSyncEvent publishes a sync message to the user's sync topic
+// publishSyncEvent publishes a sync message to the authenticated user's sync topic
 func (s *Server) publishSyncEvent(v *visitor) error {
-	u := v.User()
+	return s.publishSyncEventForUser(v, v.User())
+}
+
+// publishSyncEventForUserIDAsync publishes a sync event to the sync topic of the user with the
+// given ID, resolving the user first. Used by the unauthenticated email-verify handler, where
+// the request visitor has no associated user but the token identifies the account to refresh.
+func (s *Server) publishSyncEventForUserIDAsync(v *visitor, userID string) {
+	go func() {
+		u, err := s.userManager.UserByID(userID)
+		if err != nil {
+			logv(v).Err(err).Trace("Error loading user for sync event")
+			return
+		}
+		if err := s.publishSyncEventForUser(v, u); err != nil {
+			logv(v).Err(err).Trace("Error publishing to user's sync topic")
+		}
+	}()
+}
+
+// publishSyncEventForUser publishes a sync message to the given user's sync topic, using v as
+// the publishing visitor (for rate-limit accounting). No-op if the user has no sync topic.
+func (s *Server) publishSyncEventForUser(v *visitor, u *user.User) error {
 	if u == nil || u.SyncTopic == "" {
 		return nil
 	}

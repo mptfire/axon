@@ -35,6 +35,8 @@ export const accountPhoneUrl = (baseUrl) => `${baseUrl}/v1/account/phone`;
 export const accountPhoneVerifyUrl = (baseUrl) => `${baseUrl}/v1/account/phone/verify`;
 export const accountEmailUrl = (baseUrl) => `${baseUrl}/v1/account/email`;
 export const accountEmailVerifyUrl = (baseUrl) => `${baseUrl}/v1/account/email/verify`;
+export const accountEmailPrimaryUrl = (baseUrl) => `${baseUrl}/v1/account/email/primary`;
+export const accountEmailResendUrl = (baseUrl) => `${baseUrl}/v1/account/email/resend`;
 
 export const validUrl = (url) => url.match(/^https?:\/\/.+/);
 
