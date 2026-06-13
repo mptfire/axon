@@ -185,6 +185,7 @@ type apiAccessResetRequest struct {
 type apiAccountCreateRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
+	Email    string `json:"email"` // Optional; if set (and SMTP configured), a verification link is sent
 }
 
 type apiAccountPasswordChangeRequest struct {

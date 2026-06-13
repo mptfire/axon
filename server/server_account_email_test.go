@@ -276,6 +276,56 @@ func TestAccount_PasswordReset_NoPrimaryEmailNoSend(t *testing.T) {
 	})
 }
 
+func TestAccount_Signup_WithEmail_SendsVerification(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
+		conf.EnableSignup = true
+		conf.SMTPSenderAddr = "localhost:25"
+		conf.SMTPSenderFrom = "noreply@example.com"
+		conf.BaseURL = "https://ntfy.example.com"
+		s := newTestServer(t, conf)
+		mailer := newCaptureMailer()
+		s.mailSender = mailer
+		defer s.closeDatabases()
+
+		// Sign up with an optional email -> account created and a verification link sent
+		rr := request(t, s, "POST", "/v1/account", `{"username":"emma","password":"emmapass","email":"emma@example.com"}`, nil)
+		require.Equal(t, 200, rr.Code)
+		link := mailer.verifyLinks["emma@example.com"]
+		require.NotEmpty(t, link)
+
+		// Verifying the link makes it the (first) primary email
+		token := tokenFromLink(t, link, "https://ntfy.example.com/account/email/verify/")
+		require.Equal(t, 200, request(t, s, "POST", "/v1/account/email/verify", fmt.Sprintf(`{"token":"%s"}`, token), nil).Code)
+		account := getAccount(t, s, map[string]string{"Authorization": util.BasicAuth("emma", "emmapass")})
+		require.Equal(t, []string{"emma@example.com"}, verifiedAddrs(account))
+		require.Equal(t, "emma@example.com", primaryAddr(account))
+	})
+}
+
+func TestAccount_Signup_WithoutEmail_NoSend(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
+		conf.EnableSignup = true
+		conf.SMTPSenderAddr = "localhost:25"
+		conf.SMTPSenderFrom = "noreply@example.com"
+		conf.BaseURL = "https://ntfy.example.com"
+		s := newTestServer(t, conf)
+		mailer := newCaptureMailer()
+		s.mailSender = mailer
+		defer s.closeDatabases()
+
+		// No email -> account created, nothing sent
+		require.Equal(t, 200, request(t, s, "POST", "/v1/account", `{"username":"emma","password":"emmapass"}`, nil).Code)
+		require.Empty(t, mailer.verifyLinks)
+
+		// Invalid email -> rejected
+		rr := request(t, s, "POST", "/v1/account", `{"username":"otto","password":"ottopass","email":"not-an-email"}`, nil)
+		require.Equal(t, 400, rr.Code)
+		require.Equal(t, 40050, toHTTPError(t, rr.Body.String()).Code)
+	})
+}
+
 func TestAccount_Email_ProvisionedNoPrimary(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		hash, err := user.HashPassword("provpass")

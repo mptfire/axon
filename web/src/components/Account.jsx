@@ -448,7 +448,8 @@ const Emails = () => {
   }
 
   const emails = account?.emails ?? [];
-  const verifiedEmails = emails.filter((e) => !e.pending);
+  // Verified addresses, primary always first
+  const verifiedEmails = emails.filter((e) => !e.pending).sort((a, b) => (b.primary ? 1 : 0) - (a.primary ? 1 : 0));
   const pendingEmails = emails.filter((e) => e.pending);
   const primaryEmail = verifiedEmails.find((e) => e.primary)?.address ?? "";
   // Recovery nudges (skipped for provisioned users -- they can't reset, and the Add-email dialog
@@ -467,7 +468,9 @@ const Emails = () => {
             key={email.address}
             icon={email.primary ? <StarIcon /> : undefined}
             label={
-              <Tooltip title={t("account_basics_emails_chip_actions")}>
+              <Tooltip
+                title={email.primary ? t("account_basics_emails_chip_actions_primary") : t("account_basics_emails_chip_actions_verified")}
+              >
                 <span>{email.address}</span>
               </Tooltip>
             }
@@ -481,7 +484,7 @@ const Emails = () => {
           <Chip
             key={email.address}
             label={
-              <Tooltip title={t("account_basics_emails_chip_actions")}>
+              <Tooltip title={t("account_basics_emails_chip_actions_unverified")}>
                 <span>
                   {email.address} <em>({t("account_basics_emails_unverified")})</em>
                 </span>
@@ -531,6 +534,12 @@ const Emails = () => {
             <ListItemText>{t("account_basics_emails_resend")}</ListItemText>
           </MenuItem>
         )}
+        <MenuItem onClick={() => runMenuAction(handleDelete)}>
+          <ListItemIcon>
+            <DeleteOutlineIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>{t("account_basics_emails_delete")}</ListItemText>
+        </MenuItem>
       </Menu>
       <AddEmailDialog key={`addEmailDialog${dialogKey}`} open={dialogOpen} onClose={handleDialogClose} />
       <Portal>

@@ -69,11 +69,12 @@ class AccountApi {
     });
   }
 
-  async create(username, password) {
+  async create(username, password, email) {
     const url = accountUrl(config.base_url);
     const body = JSON.stringify({
       username,
       password,
+      email: email || "",
     });
     console.log(`[AccountApi] Creating user account ${url}`);
     await fetchOrThrow(url, {

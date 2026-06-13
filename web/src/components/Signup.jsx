@@ -15,6 +15,7 @@ const Signup = () => {
   const { t } = useTranslation();
   const [error, setError] = useState("");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -24,7 +25,7 @@ const Signup = () => {
     event.preventDefault();
     const user = { username, password };
     try {
-      await accountApi.create(user.username, user.password);
+      await accountApi.create(user.username, user.password, email);
       const token = await accountApi.login(user);
       console.log(`[Signup] User signup for user ${user.username} successful, token is ${token}`);
       await session.store(user.username, token);
@@ -64,6 +65,18 @@ const Signup = () => {
           onChange={(ev) => setUsername(ev.target.value.trim())}
           autoFocus
         />
+        {config.enable_emails && (
+          <TextField
+            margin="dense"
+            fullWidth
+            id="email"
+            label={t("signup_form_email")}
+            name="email"
+            type="email"
+            value={email}
+            onChange={(ev) => setEmail(ev.target.value.trim())}
+          />
+        )}
         <TextField
           margin="dense"
           required

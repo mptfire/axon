@@ -37,6 +37,9 @@ func (s *Server) handleAccountCreate(w http.ResponseWriter, r *http.Request, v *
 	if err != nil {
 		return err
 	}
+	if newAccount.Email != "" && !emailAddressRegex.MatchString(newAccount.Email) {
+		return errHTTPBadRequestEmailAddressInvalid
+	}
 	if existingUser, _ := s.userManager.User(newAccount.Username); existingUser != nil {
 		return errHTTPConflictUserExists
 	}
@@ -48,6 +51,16 @@ func (s *Server) handleAccountCreate(w http.ResponseWriter, r *http.Request, v *
 		return err
 	}
 	v.AccountCreated()
+	// If an email was provided and email sending is configured, start verification (best-effort).
+	// The address becomes the primary email on verify (the new account has no primary yet); a
+	// failure to send must not fail signup, so we only log it.
+	if newAccount.Email != "" && s.mailSender != nil {
+		if u, err := s.userManager.User(newAccount.Username); err != nil {
+			logvr(v, r).Tag(tagAccount).Err(err).Warn("Failed to load new user for email verification")
+		} else if err := s.enqueueEmailVerification(u.ID, newAccount.Email); err != nil {
+			logvr(v, r).Tag(tagAccount).Err(err).Warn("Failed to send signup email verification")
+		}
+	}
 	return s.writeJSON(w, newSuccessResponse())
 }
 
