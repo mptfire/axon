@@ -269,22 +269,23 @@ const AccountType = () => {
     }
   };
 
+  // The account type is a base label ("Admin", "Basic", "Free", or the tier name) plus an optional
+  // qualifier chip (admin tier status, or the billing interval).
   let accountType;
+  let qualifierChip;
   if (account.role === Role.ADMIN) {
-    const tierSuffix = account.tier
-      ? t("account_basics_tier_admin_suffix_with_tier", {
-          tier: account.tier.name,
-        })
+    accountType = t("account_basics_tier_admin");
+    qualifierChip = account.tier
+      ? t("account_basics_tier_admin_suffix_with_tier", { tier: account.tier.name })
       : t("account_basics_tier_admin_suffix_no_tier");
-    accountType = `${t("account_basics_tier_admin")} ${tierSuffix}`;
   } else if (!account.tier) {
     accountType = config.enable_payments ? t("account_basics_tier_free") : t("account_basics_tier_basic");
   } else {
     accountType = account.tier.name;
     if (account.billing?.interval === SubscriptionInterval.MONTH) {
-      accountType += ` (${t("account_basics_tier_interval_monthly")})`;
+      qualifierChip = t("account_basics_tier_interval_monthly");
     } else if (account.billing?.interval === SubscriptionInterval.YEAR) {
-      accountType += ` (${t("account_basics_tier_interval_yearly")})`;
+      qualifierChip = t("account_basics_tier_interval_yearly");
     }
   }
 
@@ -296,6 +297,7 @@ const AccountType = () => {
     >
       <div>
         {accountType}
+        {qualifierChip && <Chip size="small" label={qualifierChip} sx={{ ml: 1 }} />}
         {account.provisioned && <Chip size="small" label={t("account_basics_tier_provisioned")} sx={{ ml: 1 }} />}
         {account.billing?.paid_until && !account.billing?.cancel_at && (
           <Tooltip
@@ -449,9 +451,13 @@ const Emails = () => {
   const verifiedEmails = emails.filter((e) => !e.pending);
   const pendingEmails = emails.filter((e) => e.pending);
   const primaryEmail = verifiedEmails.find((e) => e.primary)?.address ?? "";
-  // Provisioned users get their password from the server config and cannot reset it, so they don't
-  // get the "no recovery email" nudge (the Add-email dialog explains the recovery-email limitation).
-  const showNoRecoveryWarning = config.enable_reset_password && primaryEmail === "" && !account?.provisioned;
+  // Recovery nudges (skipped for provisioned users -- they can't reset, and the Add-email dialog
+  // explains the limitation): prompt for a first email when there are none, or for a primary when
+  // there are emails but none is primary.
+  const recoveryRelevant = config.enable_reset_password && !account?.provisioned;
+  const hasNoEmails = verifiedEmails.length === 0 && pendingEmails.length === 0;
+  const showNoEmailWarning = recoveryRelevant && hasNoEmails;
+  const showNoPrimaryWarning = recoveryRelevant && !hasNoEmails && primaryEmail === "";
 
   return (
     <Pref labelId={labelId} alignTop title={t("account_basics_emails_title")} description={t("account_basics_emails_description")}>
@@ -468,7 +474,7 @@ const Emails = () => {
             variant="outlined"
             onClick={(ev) => openMenu(ev, email)}
             onDelete={() => handleDelete(email.address)}
-            sx={email.primary ? { "& .MuiChip-icon": { color: "primary.main" } } : undefined}
+            sx={email.primary ? { "& .MuiChip-icon": { color: "#fbc02d" } } : undefined}
           />
         ))}
         {pendingEmails.map((email) => (
@@ -491,9 +497,14 @@ const Emails = () => {
         <IconButton onClick={handleDialogOpen} aria-label={t("account_basics_emails_dialog_title")}>
           <AddIcon />
         </IconButton>
-        {showNoRecoveryWarning && (
+        {showNoEmailWarning && (
           <Alert severity="warning" sx={{ mt: 1 }}>
             {t("account_basics_emails_no_recovery_warning")}
+          </Alert>
+        )}
+        {showNoPrimaryWarning && (
+          <Alert severity="warning" sx={{ mt: 1 }}>
+            {t("account_basics_emails_no_primary_warning")}
           </Alert>
         )}
       </div>

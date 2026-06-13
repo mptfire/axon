@@ -49,7 +49,7 @@ const EmailVerify = () => {
       {status === "success" && (
         <>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <CheckCircleOutlineIcon color="success" sx={{ fontSize: 32 }} />
+            <CheckCircleOutlineIcon color="success" sx={{ fontSize: 28 }} />
             <Typography sx={{ typography: "h6" }}>{t("email_verify_success_title")}</Typography>
           </Box>
           <Typography sx={{ mt: 1, textAlign: "center" }}>{t("email_verify_success_description")}</Typography>
@@ -61,7 +61,7 @@ const EmailVerify = () => {
       {status === "error" && (
         <>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <ErrorOutlineIcon color="error" sx={{ fontSize: 32 }} />
+            <ErrorOutlineIcon color="error" sx={{ fontSize: 28 }} />
             <Typography sx={{ typography: "h6" }}>{t("email_verify_error_title")}</Typography>
           </Box>
           <Typography sx={{ mt: 1, textAlign: "center" }}>{t("email_verify_error_description")}</Typography>

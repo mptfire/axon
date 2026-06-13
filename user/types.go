@@ -296,7 +296,7 @@ var (
 	ErrPhoneNumberExists      = errors.New("phone number already exists")
 	ErrEmailNotFound          = errors.New("email not found")
 	ErrEmailExists            = errors.New("email already exists")
-	ErrEmailPrimaryElsewhere  = errors.New("email is the recovery email on another account")
+	ErrEmailPrimaryElsewhere  = errors.New("email is the primary email on another account")
 	ErrMagicLinkNotFound      = errors.New("magic link not found")
 	ErrProvisionedUserChange  = errors.New("cannot change or delete provisioned user")
 	ErrProvisionedTokenChange = errors.New("cannot change or delete provisioned token")

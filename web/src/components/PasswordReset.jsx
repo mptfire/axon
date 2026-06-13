@@ -51,7 +51,7 @@ const PasswordReset = () => {
     return (
       <AvatarBox>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <CheckCircleOutlineIcon color="success" sx={{ fontSize: 32 }} />
+          <CheckCircleOutlineIcon color="success" sx={{ fontSize: 28 }} />
           <Typography sx={{ typography: "h6" }}>{t("reset_password_success_title")}</Typography>
         </Box>
         <Typography sx={{ mt: 1, textAlign: "center" }}>{t("reset_password_success_description")}</Typography>
