@@ -2,6 +2,7 @@ import * as React from "react";
 import { useContext, useState } from "react";
 import {
   Alert,
+  Box,
   CardActions,
   CardContent,
   Chip,
@@ -463,43 +464,45 @@ const Emails = () => {
   return (
     <Pref labelId={labelId} alignTop title={t("account_basics_emails_title")} description={t("account_basics_emails_description")}>
       <div aria-labelledby={labelId}>
-        {verifiedEmails.map((email) => (
-          <Chip
-            key={email.address}
-            icon={email.primary ? <StarIcon /> : undefined}
-            label={
-              <Tooltip
-                title={email.primary ? t("account_basics_emails_chip_actions_primary") : t("account_basics_emails_chip_actions_verified")}
-              >
-                <span>{email.address}</span>
-              </Tooltip>
-            }
-            variant="outlined"
-            onClick={(ev) => openMenu(ev, email)}
-            onDelete={() => handleDelete(email.address)}
-            sx={email.primary ? { "& .MuiChip-icon": { color: "#fbc02d" } } : undefined}
-          />
-        ))}
-        {pendingEmails.map((email) => (
-          <Chip
-            key={email.address}
-            label={
-              <Tooltip title={t("account_basics_emails_chip_actions_unverified")}>
-                <span>
-                  {email.address} <em>({t("account_basics_emails_unverified")})</em>
-                </span>
-              </Tooltip>
-            }
-            variant="outlined"
-            onClick={(ev) => openMenu(ev, email)}
-            onDelete={() => handleDelete(email.address)}
-            sx={{ opacity: 0.7 }}
-          />
-        ))}
-        {verifiedEmails.length === 0 && pendingEmails.length === 0 && <em>{t("account_basics_emails_no_emails_yet")}</em>}
-        <IconButton onClick={handleDialogOpen} aria-label={t("account_basics_emails_dialog_title")}>
-          <AddIcon />
-        </IconButton>
+        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0.75 }}>
+          {verifiedEmails.map((email) => (
+            <Chip
+              key={email.address}
+              icon={email.primary ? <StarIcon /> : undefined}
+              label={
+                <Tooltip
+                  title={email.primary ? t("account_basics_emails_chip_actions_primary") : t("account_basics_emails_chip_actions_verified")}
+                >
+                  <span>{email.address}</span>
+                </Tooltip>
+              }
+              variant="outlined"
+              onClick={(ev) => openMenu(ev, email)}
+              onDelete={() => handleDelete(email.address)}
+              sx={email.primary ? { "& .MuiChip-icon": { color: "#fbc02d" } } : undefined}
+            />
+          ))}
+          {pendingEmails.map((email) => (
+            <Chip
+              key={email.address}
+              label={
+                <Tooltip title={t("account_basics_emails_chip_actions_unverified")}>
+                  <span>
+                    {email.address} <em>({t("account_basics_emails_unverified")})</em>
+                  </span>
+                </Tooltip>
+              }
+              variant="outlined"
+              onClick={(ev) => openMenu(ev, email)}
+              onDelete={() => handleDelete(email.address)}
+              sx={{ opacity: 0.7 }}
+            />
+          ))}
+          {verifiedEmails.length === 0 && pendingEmails.length === 0 && <em>{t("account_basics_emails_no_emails_yet")}</em>}
+          <IconButton onClick={handleDialogOpen} aria-label={t("account_basics_emails_dialog_title")}>
+            <AddIcon />
+          </IconButton>
+        </Box>
         {showNoEmailWarning && (
           <Alert severity="warning" sx={{ mt: 1 }}>
             {t("account_basics_emails_no_recovery_warning")}
@@ -680,22 +683,24 @@ const PhoneNumbers = () => {
   return (
     <Pref labelId={labelId} title={t("account_basics_phone_numbers_title")} description={t("account_basics_phone_numbers_description")}>
       <div aria-labelledby={labelId}>
-        {account?.phone_numbers?.map((phoneNumber) => (
-          <Chip
-            label={
-              <Tooltip title={t("common_copy_to_clipboard")}>
-                <span>{phoneNumber}</span>
-              </Tooltip>
-            }
-            variant="outlined"
-            onClick={() => handleCopy(phoneNumber)}
-            onDelete={() => handleDelete(phoneNumber)}
-          />
-        ))}
-        {!account?.phone_numbers && <em>{t("account_basics_phone_numbers_no_phone_numbers_yet")}</em>}
-        <IconButton onClick={handleDialogOpen}>
-          <AddIcon />
-        </IconButton>
+        <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 0.75 }}>
+          {account?.phone_numbers?.map((phoneNumber) => (
+            <Chip
+              label={
+                <Tooltip title={t("common_copy_to_clipboard")}>
+                  <span>{phoneNumber}</span>
+                </Tooltip>
+              }
+              variant="outlined"
+              onClick={() => handleCopy(phoneNumber)}
+              onDelete={() => handleDelete(phoneNumber)}
+            />
+          ))}
+          {!account?.phone_numbers && <em>{t("account_basics_phone_numbers_no_phone_numbers_yet")}</em>}
+          <IconButton onClick={handleDialogOpen}>
+            <AddIcon />
+          </IconButton>
+        </Box>
       </div>
       <AddPhoneNumberDialog key={`addPhoneNumberDialog${dialogKey}`} open={dialogOpen} onClose={handleDialogClose} />
       <Portal>
