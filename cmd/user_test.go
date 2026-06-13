@@ -126,12 +126,12 @@ func TestCLI_User_ResetPass(t *testing.T) {
 	s, conf, port := newTestServerWithAuth(t)
 	defer test.StopServer(t, s, port)
 
-	app, stdin, stdout, _ := newTestApp()
+	app, stdin, _, _ := newTestApp()
 	stdin.WriteString("mypass\nmypass")
 	require.Nil(t, runUserCommand(app, conf, "add", "phil"))
 
 	// Prints a working-looking reset link when base-url is set
-	app, _, stdout, _ = newTestApp()
+	app, _, stdout, _ := newTestApp()
 	require.Nil(t, runUserCommand(app, conf, "--base-url=https://ntfy.example.com", "reset-pass", "phil"))
 	require.Contains(t, stdout.String(), "https://ntfy.example.com/account/password/reset/")
 }

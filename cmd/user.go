@@ -126,8 +126,6 @@ does not require the user to have a verified primary email (the token is bound t
 With --send-email, the link is additionally emailed to the user's primary email address (this
 requires SMTP to be configured and the user to have a verified primary email).
 
-Requires base-url to be configured so an absolute link can be generated.
-
 Example:
   ntfy user reset-pass phil               # Print a reset link for user phil
   ntfy user reset-pass --send-email phil  # Print and email the reset link
@@ -290,7 +288,6 @@ func execUserDel(c *cli.Context) error {
 func execUserChangePass(c *cli.Context) error {
 	username := c.Args().Get(0)
 	password, hashed := os.LookupEnv("NTFY_PASSWORD_HASH")
-
 	if !hashed {
 		password = os.Getenv("NTFY_PASSWORD")
 	}
