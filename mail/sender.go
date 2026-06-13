@@ -36,12 +36,6 @@ func NewSender(config *Config) *Sender {
 	return &Sender{config: config}
 }
 
-// Close is a no-op, kept so callers don't need to special-case the sender. The sender holds
-// no background goroutines (magic-link expiry is swept by the user.Manager reaper).
-func (s *Sender) Close() {
-	// Nothing to do
-}
-
 // Addr returns the SMTP server address
 func (s *Sender) Addr() string {
 	return s.config.SMTPAddr

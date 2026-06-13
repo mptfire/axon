@@ -32,8 +32,6 @@ func (c *captureMailer) SendPasswordReset(to, link string) error {
 	return nil
 }
 
-func (c *captureMailer) Close() {}
-
 // newEmailTestServer creates a server with email sending "enabled" (SMTP + base-url configured)
 // and a capturing mailer injected, plus a tier-less user "ben" logged in via basic auth.
 func newEmailTestServer(t *testing.T, databaseURL string) (*Server, *captureMailer, map[string]string) {

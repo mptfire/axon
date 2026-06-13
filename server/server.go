@@ -452,9 +452,6 @@ func (s *Server) Stop() {
 	if s.smtpServer != nil {
 		s.smtpServer.Close()
 	}
-	if s.mailSender != nil {
-		s.mailSender.Close()
-	}
 	if s.attachment != nil {
 		s.attachment.Close()
 	}

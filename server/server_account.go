@@ -690,11 +690,11 @@ func (s *Server) handleAccountEmailVerify(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return err
 	} else if req.Token == "" {
-		return errHTTPBadRequestEmailVerificationCodeInvalid
+		return errHTTPBadRequestEmailVerificationLinkInvalid
 	}
 	m, err := s.userManager.VerifyEmail(req.Token)
 	if errors.Is(err, user.ErrMagicLinkNotFound) {
-		return errHTTPBadRequestEmailVerificationCodeInvalid
+		return errHTTPBadRequestEmailVerificationLinkInvalid
 	} else if err != nil {
 		return err
 	}

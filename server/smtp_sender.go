@@ -25,7 +25,6 @@ type mailer interface {
 type emailVerifier interface {
 	SendEmailVerification(to, link string) error
 	SendPasswordReset(to, link string) error
-	Close()
 }
 
 type smtpSender struct {
