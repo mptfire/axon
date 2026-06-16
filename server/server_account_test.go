@@ -151,7 +151,7 @@ func TestAccount_Get_Anonymous(t *testing.T) {
 		conf.VisitorAttachmentTotalSizeLimit = 5123
 		conf.AttachmentFileSizeLimit = 512
 		s := newTestServer(t, conf)
-		s.notificationMailer = &testMailer{}
+		s.mailer = &testMailer{}
 		defer s.closeDatabases()
 
 		rr := request(t, s, "GET", "/v1/account", "", nil)

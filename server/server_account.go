@@ -54,7 +54,7 @@ func (s *Server) handleAccountCreate(w http.ResponseWriter, r *http.Request, v *
 	// If an email was provided and email sending is configured, start verification (best-effort).
 	// The address becomes the primary email on verify (the new account has no primary yet); a
 	// failure to send must not fail signup, so we only log it.
-	if newAccount.Email != "" && s.accountMailer != nil {
+	if newAccount.Email != "" && s.mailer != nil {
 		if u, err := s.userManager.User(newAccount.Username); err != nil {
 			logvr(v, r).Tag(tagAccount).Err(err).Warn("Failed to load new user for email verification")
 		} else if err := s.enqueueEmailVerification(u.ID, newAccount.Email); err != nil {
@@ -175,7 +175,7 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 				response.PhoneNumbers = phoneNumbers
 			}
 		}
-		if s.accountMailer != nil {
+		if s.mailer != nil {
 			emails, err := s.userManager.Emails(u.ID)
 			if err != nil {
 				return err
@@ -788,7 +788,7 @@ func (s *Server) enqueueEmailVerification(userID, email string) error {
 		return err
 	}
 	link := s.config.BaseURL + webAppEmailVerifyPathPrefix + token
-	return s.accountMailer.SendEmailVerification(email, link)
+	return s.mailer.SendEmailVerification(email, link)
 }
 
 // handleAccountPasswordResetRequest starts a password reset (POST /v1/account/password/reset/request,
@@ -814,7 +814,7 @@ func (s *Server) handleAccountPasswordResetRequest(w http.ResponseWriter, r *htt
 			} else {
 				link := s.config.BaseURL + webAppPasswordResetPathPrefix + token
 				logvr(v, r).Tag(tagAccount).Field("user_id", userID).Info("Sending password reset link")
-				if err := s.accountMailer.SendPasswordReset(email, link); err != nil {
+				if err := s.mailer.SendPasswordReset(email, link); err != nil {
 					logvr(v, r).Tag(tagAccount).Err(err).Warn("Failed to send password reset email")
 				}
 			}

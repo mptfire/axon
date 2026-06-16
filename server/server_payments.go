@@ -252,7 +252,7 @@ func (s *Server) handleAccountBillingSubscriptionCreateSuccess(w http.ResponseWr
 // collision (or any other skip), the generic "no recovery email set" warning on the account page
 // nudges the user to add one. This is best-effort: failures are logged, never surfaced.
 func (s *Server) maybeEnqueueBillingEmailVerification(r *http.Request, v *visitor, userID, billingEmail string) {
-	if s.accountMailer == nil || s.config.BaseURL == "" || billingEmail == "" || !emailAddressRegex.MatchString(billingEmail) {
+	if s.mailer == nil || s.config.BaseURL == "" || billingEmail == "" || !emailAddressRegex.MatchString(billingEmail) {
 		return
 	}
 	emails, err := s.userManager.Emails(userID)

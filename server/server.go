@@ -48,31 +48,30 @@ import (
 
 // Server is the main server, providing the UI and API for ntfy
 type Server struct {
-	config             *Config
-	db                 *db.DB // Shared PostgreSQL connection pool (with optional replicas), nil when using SQLite
-	httpServer         *http.Server
-	httpsServer        *http.Server
-	httpMetricsServer  *http.Server
-	httpProfileServer  *http.Server
-	unixListener       net.Listener
-	smtpServer         *smtp.Server
-	smtpServerBackend  *smtpBackend
-	notificationMailer messageMailer
-	accountMailer      magicLinkMailer
-	topics             map[string]*topic
-	visitors           map[string]*visitor // ip:<ip> or user:<user>
-	firebaseClient     *firebaseClient
-	messages           int64                               // Total number of messages (persisted if messageCache enabled)
-	messagesHistory    []int64                             // Last n values of the messages counter, used to determine rate
-	userManager        *user.Manager                       // Might be nil!
-	messageCache       *message.Cache                      // Database that stores the messages
-	webPush            *webpush.Store                      // Database that stores web push subscriptions
-	attachment         *attachment.Store                   // Attachment store (file system or S3)
-	stripe             stripeAPI                           // Stripe API, can be replaced with a mock
-	priceCache         *util.LookupCache[map[string]int64] // Stripe price ID -> price as cents (USD implied!)
-	metricsHandler     http.Handler                        // Handles /metrics if enable-metrics set, and listen-metrics-http not set
-	closeChan          chan bool
-	mu                 sync.RWMutex
+	config            *Config
+	db                *db.DB // Shared PostgreSQL connection pool (with optional replicas), nil when using SQLite
+	httpServer        *http.Server
+	httpsServer       *http.Server
+	httpMetricsServer *http.Server
+	httpProfileServer *http.Server
+	unixListener      net.Listener
+	smtpServer        *smtp.Server
+	smtpServerBackend *smtpBackend
+	mailer            mail.Sender
+	topics            map[string]*topic
+	visitors          map[string]*visitor // ip:<ip> or user:<user>
+	firebaseClient    *firebaseClient
+	messages          int64                               // Total number of messages (persisted if messageCache enabled)
+	messagesHistory   []int64                             // Last n values of the messages counter, used to determine rate
+	userManager       *user.Manager                       // Might be nil!
+	messageCache      *message.Cache                      // Database that stores the messages
+	webPush           *webpush.Store                      // Database that stores web push subscriptions
+	attachment        *attachment.Store                   // Attachment store (file system or S3)
+	stripe            stripeAPI                           // Stripe API, can be replaced with a mock
+	priceCache        *util.LookupCache[map[string]int64] // Stripe price ID -> price as cents (USD implied!)
+	metricsHandler    http.Handler                        // Handles /metrics if enable-metrics set, and listen-metrics-http not set
+	closeChan         chan bool
+	mu                sync.RWMutex
 }
 
 // handleFunc extends the normal http.HandlerFunc to be able to easily return errors
@@ -184,17 +183,15 @@ const (
 // New instantiates a new Server. It creates the cache and adds a Firebase
 // subscriber (if configured).
 func New(conf *Config) (*Server, error) {
-	var notificationMailer messageMailer
-	var accountEmailer magicLinkMailer // Stays untyped-nil when SMTP is unconfigured, so ensureEmailsEnabled gates correctly
+	var sender mail.Sender
 	if conf.SMTPSenderAddr != "" {
-		sender := mail.NewSender(&mail.Config{
+		sender = mail.NewSender(&mail.Config{
+			BaseURL:  conf.BaseURL,
 			SMTPAddr: conf.SMTPSenderAddr,
 			SMTPUser: conf.SMTPSenderUser,
 			SMTPPass: conf.SMTPSenderPass,
 			From:     conf.SMTPSenderFrom,
 		})
-		notificationMailer = &notificationSender{config: conf, sender: sender}
-		accountEmailer = sender
 	}
 	var stripe stripeAPI
 	if payments.Available && conf.StripeSecretKey != "" {
@@ -293,20 +290,19 @@ func New(conf *Config) (*Server, error) {
 		firebaseClient = newFirebaseClient(sender, auther)
 	}
 	s := &Server{
-		config:             conf,
-		db:                 pool,
-		messageCache:       messageCache,
-		webPush:            wp,
-		attachment:         attachmentStore,
-		firebaseClient:     firebaseClient,
-		notificationMailer: notificationMailer,
-		accountMailer:      accountEmailer,
-		topics:             topics,
-		userManager:        userManager,
-		messages:           messages,
-		messagesHistory:    []int64{messages},
-		visitors:           make(map[string]*visitor),
-		stripe:             stripe,
+		config:          conf,
+		db:              pool,
+		messageCache:    messageCache,
+		webPush:         wp,
+		attachment:      attachmentStore,
+		firebaseClient:  firebaseClient,
+		mailer:          sender,
+		topics:          topics,
+		userManager:     userManager,
+		messages:        messages,
+		messagesHistory: []int64{messages},
+		visitors:        make(map[string]*visitor),
+		stripe:          stripe,
 	}
 	s.priceCache = util.NewLookupCache(s.fetchStripePrices, conf.StripePriceCacheDuration)
 	return s, nil
@@ -974,7 +970,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 		if s.firebaseClient != nil && firebase {
 			go s.sendToFirebase(v, m)
 		}
-		if s.notificationMailer != nil && email != "" {
+		if s.mailer != nil && email != "" {
 			go s.sendEmail(v, m, email)
 		}
 		if s.config.TwilioAccount != "" && call != "" {
@@ -1136,7 +1132,7 @@ func (s *Server) sendToFirebase(v *visitor, m *model.Message) {
 
 func (s *Server) sendEmail(v *visitor, m *model.Message, email string) {
 	logvm(v, m).Tag(tagEmail).Field("email", email).Info("Sending email to %s", email)
-	if err := s.notificationMailer.Send(v, m, email); err != nil {
+	if err := s.mailer.SendNotification(email, m, v.ip.String()); err != nil {
 		logvm(v, m).Tag(tagEmail).Field("email", email).Err(err).Warn("Unable to send email to %s: %v", email, err.Error())
 		minc(metricEmailsPublishedFailure)
 		return
@@ -1236,7 +1232,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 	if email != "" && !emailAddressRegex.MatchString(email) && !toBool(email) {
 		return false, false, "", "", "", false, "", errHTTPBadRequestEmailAddressInvalid
 	}
-	if s.notificationMailer == nil && email != "" {
+	if s.mailer == nil && email != "" {
 		return false, false, "", "", "", false, "", errHTTPBadRequestEmailDisabled
 	}
 	call = readParam(r, "x-call", "call")

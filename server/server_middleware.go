@@ -105,7 +105,7 @@ func (s *Server) ensureCallsEnabled(next handleFunc) handleFunc {
 
 func (s *Server) ensureEmailsEnabled(next handleFunc) handleFunc {
 	return func(w http.ResponseWriter, r *http.Request, v *visitor) error {
-		if s.accountMailer == nil || s.userManager == nil {
+		if s.mailer == nil || s.userManager == nil {
 			return errHTTPNotFound
 		}
 		return next(w, r, v)

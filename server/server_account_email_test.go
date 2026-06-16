@@ -7,12 +7,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 )
 
-// captureMailer is a fake magicLinkMailer that records the magic links it is asked to send, so
-// tests can "click" them without a real SMTP server.
+// captureMailer is a fake mailer that records the magic links it is asked to send, so tests can
+// "click" them without a real SMTP server. The notification side is a no-op.
 type captureMailer struct {
 	verifyLinks map[string]string // email -> verification link
 	resetLinks  map[string]string // email -> reset link
@@ -32,6 +33,14 @@ func (c *captureMailer) SendPasswordReset(to, link string) error {
 	return nil
 }
 
+func (c *captureMailer) SendNotification(to string, m *model.Message, senderIP string) error {
+	return nil
+}
+
+func (c *captureMailer) Counts() (total int64, success int64, failure int64) {
+	return 0, 0, 0
+}
+
 // newEmailTestServer creates a server with email sending "enabled" (SMTP + base-url configured)
 // and a capturing mailer injected, plus a tier-less user "ben" logged in via basic auth.
 func newEmailTestServer(t *testing.T, databaseURL string) (*Server, *captureMailer, map[string]string) {
@@ -41,7 +50,7 @@ func newEmailTestServer(t *testing.T, databaseURL string) (*Server, *captureMail
 	conf.BaseURL = "https://ntfy.example.com"
 	s := newTestServer(t, conf)
 	mailer := newCaptureMailer()
-	s.accountMailer = mailer
+	s.mailer = mailer
 	require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser, false))
 	auth := map[string]string{"Authorization": util.BasicAuth("ben", "ben")}
 	return s, mailer, auth
@@ -283,7 +292,7 @@ func TestAccount_Signup_WithEmail_SendsVerification(t *testing.T) {
 		conf.BaseURL = "https://ntfy.example.com"
 		s := newTestServer(t, conf)
 		mailer := newCaptureMailer()
-		s.accountMailer = mailer
+		s.mailer = mailer
 		defer s.closeDatabases()
 
 		// Sign up with an optional email -> account created and a verification link sent
@@ -310,7 +319,7 @@ func TestAccount_Signup_WithoutEmail_NoSend(t *testing.T) {
 		conf.BaseURL = "https://ntfy.example.com"
 		s := newTestServer(t, conf)
 		mailer := newCaptureMailer()
-		s.accountMailer = mailer
+		s.mailer = mailer
 		defer s.closeDatabases()
 
 		// No email -> account created, nothing sent
@@ -335,7 +344,7 @@ func TestAccount_Email_ProvisionedNoPrimary(t *testing.T) {
 		conf.AuthUsers = []*user.User{{Name: "prov", Hash: hash, Role: user.RoleUser}}
 		s := newTestServer(t, conf)
 		mailer := newCaptureMailer()
-		s.accountMailer = mailer
+		s.mailer = mailer
 		defer s.closeDatabases()
 		auth := map[string]string{"Authorization": util.BasicAuth("prov", "provpass")}
 
@@ -364,7 +373,7 @@ func TestAccount_PasswordReset_ProvisionedUserNoSend(t *testing.T) {
 		}
 		s := newTestServer(t, conf)
 		mailer := newCaptureMailer()
-		s.accountMailer = mailer
+		s.mailer = mailer
 		defer s.closeDatabases()
 
 		// Give the provisioned user a verified primary email anyway
