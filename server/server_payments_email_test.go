@@ -45,7 +45,7 @@ func newCheckoutEmailTestServer(t *testing.T, databaseURL string) (*Server, *cap
 	c.SMTPSenderFrom = "noreply@example.com"
 	s := newTestServer(t, c)
 	mailer := newCaptureMailer()
-	s.mailSender = mailer
+	s.accountMailer = mailer
 	require.Nil(t, s.userManager.AddTier(&user.Tier{
 		ID: "ti_123", Code: "starter", StripeMonthlyPriceID: "price_1234", MessageLimit: 100, MessageExpiryDuration: time.Hour,
 	}))

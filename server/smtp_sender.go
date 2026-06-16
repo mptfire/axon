@@ -15,19 +15,23 @@ import (
 	"heckel.io/ntfy/v2/util"
 )
 
-type mailer interface {
+// messageMailer sends notification emails (the email-on-publish feature). It formats a ntfy
+// message into an email. Implemented by *notificationSender; tests inject testMailer.
+type messageMailer interface {
 	Send(v *visitor, m *model.Message, to string) error
 	Counts() (total int64, success int64, failure int64)
 }
 
-// emailVerifier sends the magic-link emails for email verification and password reset.
+// magicLinkMailer sends the magic-link emails for email verification and password reset.
 // *mail.Sender implements it; tests inject a fake to capture the generated links.
-type emailVerifier interface {
+type magicLinkMailer interface {
 	SendEmailVerification(to, link string) error
 	SendPasswordReset(to, link string) error
 }
 
-type smtpSender struct {
+// notificationSender adapts a *mail.Sender for notification emails: it formats a model.Message
+// into an email and tracks success/failure counts.
+type notificationSender struct {
 	config  *Config
 	sender  *mail.Sender
 	success int64
@@ -35,7 +39,7 @@ type smtpSender struct {
 	mu      sync.Mutex
 }
 
-func (s *smtpSender) Send(v *visitor, m *model.Message, to string) error {
+func (s *notificationSender) Send(v *visitor, m *model.Message, to string) error {
 	return s.withCount(v, m, func() error {
 		message, err := formatMail(s.config.BaseURL, v.ip.String(), s.sender.From(), to, m)
 		if err != nil {
@@ -56,13 +60,13 @@ func (s *smtpSender) Send(v *visitor, m *model.Message, to string) error {
 	})
 }
 
-func (s *smtpSender) Counts() (total int64, success int64, failure int64) {
+func (s *notificationSender) Counts() (total int64, success int64, failure int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.success + s.failure, s.success, s.failure
 }
 
-func (s *smtpSender) withCount(v *visitor, m *model.Message, fn func() error) error {
+func (s *notificationSender) withCount(v *visitor, m *model.Message, fn func() error) error {
 	err := fn()
 	s.mu.Lock()
 	defer s.mu.Unlock()

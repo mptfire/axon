@@ -740,7 +740,7 @@ func TestServer_PublishMessageInHeaderWithNewlines(t *testing.T) {
 func TestServer_PublishInvalidTopic(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		s := newTestServer(t, newTestConfig(t, databaseURL))
-		s.smtpSender = &testMailer{}
+		s.notificationMailer = &testMailer{}
 		response := request(t, s, "PUT", "/docs", "fail", nil)
 		require.Equal(t, 40010, toHTTPError(t, response.Body.String()).Code)
 	})
@@ -1231,7 +1231,7 @@ func TestServer_StatsResetter_MessageLimiter_EmailsLimiter(t *testing.T) {
 
 		c := newTestConfigWithAuthFile(t, databaseURL)
 		s := newTestServer(t, c)
-		s.smtpSender = &testMailer{}
+		s.notificationMailer = &testMailer{}
 
 		// Publish some messages, and check stats
 		for i := 0; i < 3; i++ {
@@ -1461,7 +1461,7 @@ func TestServer_PublishTooManyRequests_ShortReplenish(t *testing.T) {
 func TestServer_PublishTooManyEmails_Defaults(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		s := newTestServer(t, newTestConfig(t, databaseURL))
-		s.smtpSender = &testMailer{}
+		s.notificationMailer = &testMailer{}
 		for i := 0; i < 16; i++ {
 			response := request(t, s, "PUT", "/mytopic", fmt.Sprintf("message %d", i), map[string]string{
 				"E-Mail": "test@example.com",
@@ -1481,7 +1481,7 @@ func TestServer_PublishTooManyEmails_Replenish(t *testing.T) {
 		c := newTestConfig(t, databaseURL)
 		c.VisitorEmailLimitReplenish = 500 * time.Millisecond
 		s := newTestServer(t, c)
-		s.smtpSender = &testMailer{}
+		s.notificationMailer = &testMailer{}
 		for i := 0; i < 16; i++ {
 			response := request(t, s, "PUT", "/mytopic", fmt.Sprintf("message %d", i), map[string]string{
 				"E-Mail": "test@example.com",
@@ -1509,7 +1509,7 @@ func TestServer_PublishTooManyEmails_Replenish(t *testing.T) {
 func TestServer_PublishDelayedEmail_Fail(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		s := newTestServer(t, newTestConfig(t, databaseURL))
-		s.smtpSender = &testMailer{}
+		s.notificationMailer = &testMailer{}
 		response := request(t, s, "PUT", "/mytopic", "fail", map[string]string{
 			"E-Mail": "test@example.com",
 			"Delay":  "20 min",
@@ -1546,7 +1546,7 @@ func TestServer_PublishEmailNoMailer_Fail(t *testing.T) {
 func TestServer_PublishEmailAddressInvalid(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		s := newTestServer(t, newTestConfig(t, databaseURL))
-		s.smtpSender = &testMailer{}
+		s.notificationMailer = &testMailer{}
 		addresses := []string{
 			"test@example.com, other@example.com",
 			"invalidaddress",
@@ -1572,7 +1572,7 @@ func TestServer_PublishEmailVerify_VerifiedAddress(t *testing.T) {
 		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.SMTPSenderVerify = true
 		s := newTestServer(t, conf)
-		s.smtpSender = &testMailer{}
+		s.notificationMailer = &testMailer{}
 		defer s.closeDatabases()
 
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
@@ -1602,7 +1602,7 @@ func TestServer_PublishEmailVerify_BoolValue(t *testing.T) {
 		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.SMTPSenderVerify = true
 		s := newTestServer(t, conf)
-		s.smtpSender = &testMailer{}
+		s.notificationMailer = &testMailer{}
 		defer s.closeDatabases()
 
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
@@ -1631,7 +1631,7 @@ func TestServer_PublishEmailVerify_BoolValue(t *testing.T) {
 func TestServer_PublishEmailVerify_BoolValue_NoVerify(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		s := newTestServer(t, newTestConfig(t, databaseURL))
-		s.smtpSender = &testMailer{}
+		s.notificationMailer = &testMailer{}
 
 		// "yes" without smtp-sender-verify should fail with invalid address
 		response := request(t, s, "PUT", "/mytopic", "hi", map[string]string{
@@ -1647,7 +1647,7 @@ func TestServer_PublishEmailVerify_Anonymous(t *testing.T) {
 		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.SMTPSenderVerify = true
 		s := newTestServer(t, conf)
-		s.smtpSender = &testMailer{}
+		s.notificationMailer = &testMailer{}
 		defer s.closeDatabases()
 
 		// Anonymous user should be rejected
@@ -1664,7 +1664,7 @@ func TestServer_PublishEmailVerify_NoVerifiedEmails(t *testing.T) {
 		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.SMTPSenderVerify = true
 		s := newTestServer(t, conf)
-		s.smtpSender = &testMailer{}
+		s.notificationMailer = &testMailer{}
 		defer s.closeDatabases()
 
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
@@ -1682,7 +1682,7 @@ func TestServer_PublishEmailVerify_NoVerifiedEmails(t *testing.T) {
 func TestServer_PublishEmailVerify_Disabled_Backwards_Compatible(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		s := newTestServer(t, newTestConfig(t, databaseURL))
-		s.smtpSender = &testMailer{}
+		s.notificationMailer = &testMailer{}
 
 		// Without smtp-sender-verify, any email address should work (backwards compatible)
 		response := request(t, s, "PUT", "/mytopic", "hi", map[string]string{
@@ -2139,7 +2139,7 @@ func TestServer_PublishAsJSON_WithEmail(t *testing.T) {
 		t.Parallel()
 		mailer := &testMailer{}
 		s := newTestServer(t, newTestConfig(t, databaseURL))
-		s.smtpSender = mailer
+		s.notificationMailer = mailer
 		body := `{"topic":"mytopic","message":"A message","email":"phil@example.com"}`
 		response := request(t, s, "PUT", "/", body, nil)
 		require.Equal(t, 200, response.Code)

@@ -11,7 +11,7 @@ import (
 	"heckel.io/ntfy/v2/util"
 )
 
-// captureMailer is a fake emailVerifier that records the magic links it is asked to send, so
+// captureMailer is a fake magicLinkMailer that records the magic links it is asked to send, so
 // tests can "click" them without a real SMTP server.
 type captureMailer struct {
 	verifyLinks map[string]string // email -> verification link
@@ -41,7 +41,7 @@ func newEmailTestServer(t *testing.T, databaseURL string) (*Server, *captureMail
 	conf.BaseURL = "https://ntfy.example.com"
 	s := newTestServer(t, conf)
 	mailer := newCaptureMailer()
-	s.mailSender = mailer
+	s.accountMailer = mailer
 	require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser, false))
 	auth := map[string]string{"Authorization": util.BasicAuth("ben", "ben")}
 	return s, mailer, auth
@@ -283,7 +283,7 @@ func TestAccount_Signup_WithEmail_SendsVerification(t *testing.T) {
 		conf.BaseURL = "https://ntfy.example.com"
 		s := newTestServer(t, conf)
 		mailer := newCaptureMailer()
-		s.mailSender = mailer
+		s.accountMailer = mailer
 		defer s.closeDatabases()
 
 		// Sign up with an optional email -> account created and a verification link sent
@@ -310,7 +310,7 @@ func TestAccount_Signup_WithoutEmail_NoSend(t *testing.T) {
 		conf.BaseURL = "https://ntfy.example.com"
 		s := newTestServer(t, conf)
 		mailer := newCaptureMailer()
-		s.mailSender = mailer
+		s.accountMailer = mailer
 		defer s.closeDatabases()
 
 		// No email -> account created, nothing sent
@@ -335,7 +335,7 @@ func TestAccount_Email_ProvisionedNoPrimary(t *testing.T) {
 		conf.AuthUsers = []*user.User{{Name: "prov", Hash: hash, Role: user.RoleUser}}
 		s := newTestServer(t, conf)
 		mailer := newCaptureMailer()
-		s.mailSender = mailer
+		s.accountMailer = mailer
 		defer s.closeDatabases()
 		auth := map[string]string{"Authorization": util.BasicAuth("prov", "provpass")}
 
@@ -364,7 +364,7 @@ func TestAccount_PasswordReset_ProvisionedUserNoSend(t *testing.T) {
 		}
 		s := newTestServer(t, conf)
 		mailer := newCaptureMailer()
-		s.mailSender = mailer
+		s.accountMailer = mailer
 		defer s.closeDatabases()
 
 		// Give the provisioned user a verified primary email anyway
