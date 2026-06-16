@@ -1326,7 +1326,7 @@ func (t *testMailer) SendNotification(to string, m *model.Message, senderIP stri
 	return nil
 }
 
-func (t *testMailer) Counts() (total int64, success int64, failure int64) {
+func (t *testMailer) NotificationCounts() (total int64, success int64, failure int64) {
 	return 0, 0, 0
 }
 

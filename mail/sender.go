@@ -34,7 +34,7 @@ type Config struct {
 // SMTP-backed implementation; tests inject a fake.
 type Sender interface {
 	SendNotification(to string, m *model.Message, senderIP string) error
-	Counts() (total int64, success int64, failure int64)
+	NotificationCounts() (total int64, success int64, failure int64)
 	SendEmailVerification(to, link string) error
 	SendPasswordReset(to, link string) error
 }
@@ -67,8 +67,8 @@ func (s *realSender) SendNotification(to string, m *model.Message, senderIP stri
 	return err
 }
 
-// Counts returns the number of notification emails sent, broken down into total, success and failure
-func (s *realSender) Counts() (total int64, success int64, failure int64) {
+// NotificationCounts returns the number of notification emails sent, broken down into total, success and failure
+func (s *realSender) NotificationCounts() (total int64, success int64, failure int64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.success + s.failure, s.success, s.failure

@@ -37,7 +37,7 @@ func (c *captureMailer) SendNotification(to string, m *model.Message, senderIP s
 	return nil
 }
 
-func (c *captureMailer) Counts() (total int64, success int64, failure int64) {
+func (c *captureMailer) NotificationCounts() (total int64, success int64, failure int64) {
 	return 0, 0, 0
 }
 
