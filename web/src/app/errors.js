@@ -31,11 +31,11 @@ export class TopicReservedError extends Error {
   }
 }
 
-export class AccountCreateLimitReachedError extends Error {
-  static CODE = 42906; // errHTTPTooManyRequestsLimitAccountCreation
+export class AccountActionLimitReachedError extends Error {
+  static CODE = 42906; // errHTTPTooManyRequestsLimitAccountActions
 
   constructor() {
-    super("Account creation limit reached");
+    super("Account action limit reached");
   }
 }
 
@@ -75,8 +75,8 @@ export const throwAppError = async (response) => {
       throw new UserExistsError();
     } else if (error.code === TopicReservedError.CODE) {
       throw new TopicReservedError();
-    } else if (error.code === AccountCreateLimitReachedError.CODE) {
-      throw new AccountCreateLimitReachedError();
+    } else if (error.code === AccountActionLimitReachedError.CODE) {
+      throw new AccountActionLimitReachedError();
     } else if (error.code === IncorrectPasswordError.CODE) {
       throw new IncorrectPasswordError();
     } else if (error.code === EmailVerificationCodeInvalidError.CODE) {

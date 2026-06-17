@@ -28,7 +28,7 @@
   "login_title": "Sign in to your ntfy account",
   "login_form_button_submit": "Sign in",
   "login_link_signup": "Sign up",
-  "login_link_forgot_password": "Forgot password?",
+  "login_link_forgot_password": "Forgot password",
   "reset_password_request_title": "Reset password",
   "reset_password_request_description": "Enter your username or email address. If an account exists, a link to reset your password will be emailed. This only works if you already added a primary email address and verified it.",
   "reset_password_request_identifier_label": "Username or email",

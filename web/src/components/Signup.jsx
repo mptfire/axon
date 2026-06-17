@@ -9,7 +9,7 @@ import accountApi from "../app/AccountApi";
 import AvatarBox from "./AvatarBox";
 import session from "../app/Session";
 import routes from "./routes";
-import { AccountCreateLimitReachedError, UserExistsError } from "../app/errors";
+import { AccountActionLimitReachedError, UserExistsError } from "../app/errors";
 
 const Signup = () => {
   const { t } = useTranslation();
@@ -34,7 +34,7 @@ const Signup = () => {
       console.log(`[Signup] Signup for user ${user.username} failed`, e);
       if (e instanceof UserExistsError) {
         setError(t("signup_error_username_taken", { username: e.username }));
-      } else if (e instanceof AccountCreateLimitReachedError) {
+      } else if (e instanceof AccountActionLimitReachedError) {
         setError(t("signup_error_creation_limit_reached"));
       } else {
         setError(e.message);

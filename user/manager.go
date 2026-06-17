@@ -1561,10 +1561,10 @@ func (a *Manager) SetPrimaryEmail(userID, email string) error {
 // emailed link. Only the hash is persisted; the raw token is never stored. email is the
 // address being verified for email_verify, and "" for password_reset.
 func (a *Manager) CreateMagicLink(kind MagicLinkKind, userID, email string, ttl time.Duration) (string, error) {
-	raw := generateLinkToken()
+	token := generateLinkToken()
 	now := time.Now()
 	m := &MagicLink{
-		TokenHash: hashToken(raw),
+		TokenHash: hashToken(token),
 		Kind:      kind,
 		UserID:    userID,
 		Email:     email,
@@ -1574,7 +1574,7 @@ func (a *Manager) CreateMagicLink(kind MagicLinkKind, userID, email string, ttl 
 	if err := a.AddMagicLink(m); err != nil {
 		return "", err
 	}
-	return raw, nil
+	return token, nil
 }
 
 // MagicLinkByToken looks up a magic link by its raw token (hashing it first). See MagicLinkByHash.
