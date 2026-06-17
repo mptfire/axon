@@ -70,21 +70,29 @@ func ParseURL(s3URL string) (*Config, error) {
 		return nil, fmt.Errorf("s3: region query parameter is required")
 	}
 	endpointParam := u.Query().Get("endpoint")
+	var scheme string
 	var endpoint string
 	var pathStyle bool
 	if endpointParam != "" {
 		// Custom endpoint: strip scheme prefix to extract host[:port]
+		uep, err := url.Parse(endpointParam)
+		if err != nil {
+			return nil, fmt.Errorf("s3: invalid endpoint URL: %w", err)
+		}
+		scheme = uep.Scheme
 		ep := strings.TrimRight(endpointParam, "/")
 		ep = strings.TrimPrefix(ep, "https://")
 		ep = strings.TrimPrefix(ep, "http://")
 		endpoint = ep
 		pathStyle = true
 	} else {
+		scheme = "https"
 		endpoint = fmt.Sprintf("s3.%s.amazonaws.com", region)
 		pathStyle = false
 	}
 	disableHTTP2, _ := strconv.ParseBool(u.Query().Get("disable_http2"))
 	return &Config{
+		Scheme:       scheme,
 		Endpoint:     endpoint,
 		PathStyle:    pathStyle,
 		Bucket:       bucket,
