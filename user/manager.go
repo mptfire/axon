@@ -639,6 +639,13 @@ func (a *Manager) Authorize(user *User, topic string, perm Permission) error {
 	if user != nil && user.Role == RoleAdmin {
 		return nil // Admin can do everything
 	}
+	// A user always has full access to their own sync topic, which the apps use
+	// to sync subscriptions/settings across devices. Without this, an
+	// auth-default-access of "deny-all" locks the user out of their own sync
+	// topic (no ACL entry is created for it at user creation). See #733.
+	if user != nil && user.SyncTopic != "" && topic == user.SyncTopic {
+		return nil
+	}
 	username := Everyone
 	if user != nil {
 		username = user.Name
