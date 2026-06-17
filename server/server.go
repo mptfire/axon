@@ -545,7 +545,7 @@ func (s *Server) handleError(w http.ResponseWriter, r *http.Request, v *visitor,
 
 func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	if r.Method == http.MethodGet && r.URL.Path == "/" && s.config.WebRoot == "/" {
-		return s.ensureWebEnabled(s.handleRoot)(w, r, v)
+		return s.ensureWebEnabled(s.handleWebApp)(w, r, v)
 	} else if r.Method == http.MethodHead && r.URL.Path == "/" {
 		return s.ensureWebEnabled(s.handleEmpty)(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == apiHealthPath {
@@ -671,27 +671,27 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 	} else if r.Method == http.MethodGet && authPathRegex.MatchString(r.URL.Path) {
 		return s.limitRequests(s.authorizeTopicRead(s.handleTopicAuth))(w, r, v)
 	} else if r.Method == http.MethodGet && (webAppEmailVerifyRegex.MatchString(r.URL.Path) || webAppPasswordResetRegex.MatchString(r.URL.Path)) {
-		return s.ensureWebEnabled(s.handleWebAppIndex)(w, r, v) // Magic-link landing pages (client-side routes)
+		return s.ensureWebEnabled(s.handleWebAppNoIndex)(w, r, v) // Magic-link landing pages (client-side routes)
 	} else if r.Method == http.MethodGet && (topicPathRegex.MatchString(r.URL.Path) || externalTopicPathRegex.MatchString(r.URL.Path)) {
 		return s.ensureWebEnabled(s.handleTopic)(w, r, v)
 	}
 	return errHTTPNotFound
 }
 
-// handleWebAppIndex serves the embedded web app's index for client-side (SPA) routes the
-// browser router resolves, such as the magic-link landing pages. Because these URLs carry a
-// one-time token in the path, the response is marked no-referrer (so the token can't leak to
-// third parties via the Referer header) and noindex (so it never gets indexed).
-func (s *Server) handleWebAppIndex(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	w.Header().Set("Referrer-Policy", "no-referrer")
-	w.Header().Set("X-Robots-Tag", "noindex")
+// handleWebApp serves the embedded web app's index for client-side (SPA) routes that the
+// browser router resolves, so the app shell loads and the client-side router takes over.
+func (s *Server) handleWebApp(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	r.URL.Path = webAppIndex
 	return s.handleStatic(w, r, v)
 }
 
-func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	r.URL.Path = webAppIndex
-	return s.handleStatic(w, r, v)
+// handleWebAppNoIndex serves the web app index for the magic-link landing pages, whose path
+// carries a one-time token. The response is marked no-referrer (so the token can't leak to third
+// parties via the Referer header) and noindex (so it never gets indexed).
+func (s *Server) handleWebAppNoIndex(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("X-Robots-Tag", "noindex")
+	return s.handleWebApp(w, r, v)
 }
 
 func (s *Server) handleTopic(w http.ResponseWriter, r *http.Request, v *visitor) error {
@@ -702,8 +702,7 @@ func (s *Server) handleTopic(w http.ResponseWriter, r *http.Request, v *visitor)
 		_, err := io.WriteString(w, `{"unifiedpush":{"version":1}}`+"\n")
 		return err
 	}
-	r.URL.Path = webAppIndex
-	return s.handleStatic(w, r, v)
+	return s.handleWebApp(w, r, v)
 }
 
 func (s *Server) handleEmpty(_ http.ResponseWriter, _ *http.Request, _ *visitor) error {

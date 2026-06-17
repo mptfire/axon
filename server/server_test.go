@@ -264,6 +264,27 @@ func TestServer_StaticSites(t *testing.T) {
 	})
 }
 
+func TestServer_WebApp_MagicLinkLandingPagesNoIndexHeaders(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+
+		// Magic-link landing pages carry a one-time token in the path, so the response must not
+		// leak the token via the Referer header and must not be indexed
+		for _, path := range []string{"/account/email/verify/sometoken", "/account/password/reset/sometoken"} {
+			rr := request(t, s, "GET", path, "", nil)
+			require.Equal(t, 200, rr.Code, path)
+			require.Equal(t, "no-referrer", rr.Header().Get("Referrer-Policy"), path)
+			require.Equal(t, "noindex", rr.Header().Get("X-Robots-Tag"), path)
+		}
+
+		// Ordinary web app routes do not set these headers
+		rr := request(t, s, "GET", "/", "", nil)
+		require.Equal(t, 200, rr.Code)
+		require.Empty(t, rr.Header().Get("Referrer-Policy"))
+		require.Empty(t, rr.Header().Get("X-Robots-Tag"))
+	})
+}
+
 func TestServer_WebEnabled(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		conf := newTestConfig(t, databaseURL)
