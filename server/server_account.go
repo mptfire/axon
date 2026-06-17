@@ -825,21 +825,20 @@ func (s *Server) handleAccountPasswordResetRequest(w http.ResponseWriter, r *htt
 	return s.writeJSON(w, newSuccessResponse())
 }
 
-// resolveResetTarget resolves a reset identifier to a single account and its primary email.
-// The identifier is tried first as a username, then as a primary email address. It returns
-// ok=false if no account with a primary email matches (reset requires a verified primary email).
+// resolveResetTarget resolves a reset identifier (username or primary email) to a single account
+// and its primary email. It applies the reset policy on top of the lookup: provisioned users are
+// excluded, and ok=false is returned unless the account has a verified primary email (reset
+// requires one, and that is where the link is sent).
 func (s *Server) resolveResetTarget(identifier string) (userID string, email string, ok bool) {
-	if u, err := s.userManager.User(identifier); err == nil && u != nil && !u.Provisioned {
-		if primary, perr := s.userManager.PrimaryEmail(u.ID); perr == nil && primary != "" {
-			return u.ID, primary, true
-		}
+	u, err := s.userManager.UserByEmailOrUsername(identifier)
+	if err != nil || u == nil || u.Provisioned {
+		return "", "", false
 	}
-	if uid, err := s.userManager.UserIDByPrimaryEmail(identifier); err == nil {
-		if u, uerr := s.userManager.UserByID(uid); uerr == nil && !u.Provisioned {
-			return uid, identifier, true
-		}
+	primary, err := s.userManager.PrimaryEmail(u.ID)
+	if err != nil || primary == "" {
+		return "", "", false
 	}
-	return "", "", false
+	return u.ID, primary, true
 }
 
 // handleAccountPasswordReset performs the reset (POST /v1/account/password/reset, unauthenticated):

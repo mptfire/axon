@@ -515,6 +515,19 @@ func (a *Manager) UserByID(id string) (*User, error) {
 	return a.readUser(rows)
 }
 
+// UserByEmailOrUsername resolves an identifier to a single user, trying it first as a primary
+// email address and then as a username. A verified, owned email takes precedence over a
+// freely-chosen username, so a look-alike username cannot shadow the email's real owner. Returns
+// ErrUserNotFound if neither matches.
+func (a *Manager) UserByEmailOrUsername(identifier string) (*User, error) {
+	if userID, err := a.UserIDByPrimaryEmail(identifier); err == nil {
+		if u, err := a.UserByID(userID); err == nil {
+			return u, nil
+		}
+	}
+	return a.User(identifier)
+}
+
 // userByToken returns the user with the given token if it exists and is not expired, or ErrUserNotFound otherwise
 func (a *Manager) userByToken(token string) (*User, error) {
 	rows, err := a.db.Query(a.queries.selectUserByToken, token, time.Now().Unix())

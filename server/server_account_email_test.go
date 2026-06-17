@@ -259,6 +259,37 @@ func TestAccount_PasswordReset_ByEmail(t *testing.T) {
 	})
 }
 
+func TestAccount_PasswordReset_EmailLookalikeUsernameDoesNotShadow(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s, mailer, auth := newEmailTestServer(t, databaseURL)
+		defer s.closeDatabases()
+
+		// Account A (the email owner): user "ben" with verified primary email "phil@example.com"
+		verifyEmailFor(t, s, mailer, auth, "phil@example.com")
+
+		// Account B (the squatter): a different account whose USERNAME looks like A's email, with
+		// its own, different verified primary email
+		require.Nil(t, s.userManager.AddUser("phil@example.com", "squatterpass", user.RoleUser, false))
+		squatter, err := s.userManager.User("phil@example.com")
+		require.Nil(t, err)
+		require.Nil(t, s.userManager.AddEmail(squatter.ID, "squatter@example.com"))
+		require.Nil(t, s.userManager.SetPrimaryEmail(squatter.ID, "squatter@example.com"))
+
+		// Reset by the ambiguous identifier: the verified email must win over the look-alike username
+		rr := request(t, s, "POST", "/v1/account/password/reset/request", `{"identifier":"phil@example.com"}`, nil)
+		require.Equal(t, 200, rr.Code)
+		require.NotEmpty(t, mailer.resetLinks["phil@example.com"])  // sent to the email owner (account A)
+		require.Empty(t, mailer.resetLinks["squatter@example.com"]) // NOT the username squatter (account B)
+
+		// The token resets account A (ben); the squatter's password is untouched
+		token := tokenFromLink(t, mailer.resetLinks["phil@example.com"], "https://ntfy.example.com/account/password/reset/")
+		rr = request(t, s, "POST", "/v1/account/password/reset", fmt.Sprintf(`{"token":"%s","password":"brandnew"}`, token), nil)
+		require.Equal(t, 200, rr.Code)
+		require.True(t, canLogin(t, s, "ben", "brandnew"))                  // account A was reset
+		require.True(t, canLogin(t, s, "phil@example.com", "squatterpass")) // account B unaffected
+	})
+}
+
 func TestAccount_PasswordReset_UnknownIdentifierUniform(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		s, mailer, _ := newEmailTestServer(t, databaseURL)
