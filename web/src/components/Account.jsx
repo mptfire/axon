@@ -567,6 +567,7 @@ const AddEmailDialog = (props) => {
   const handleSubmit = async () => {
     try {
       setSending(true);
+      setError(""); // Clear any error from a previous attempt
       await accountApi.startEmailVerification(email);
       await accountApi.sync(); // Refresh so the new "(unverified)" address shows up immediately
       setSent(true);

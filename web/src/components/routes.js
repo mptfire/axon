@@ -4,12 +4,12 @@ import { shortUrl } from "../app/utils";
 const routes = {
   login: "/login",
   signup: "/signup",
-  resetPassword: "/reset-password",
   app: config.app_root,
   account: "/account",
   settings: "/settings",
-  emailVerify: "/account/email/verify/:token",
+  passwordResetRequest: "/reset-password",
   passwordReset: "/account/password/reset/:token",
+  emailVerify: "/account/email/verify/:token",
   subscription: "/:topic",
   subscriptionExternal: "/:baseUrl/:topic",
   forSubscription: (subscription) => {
@@ -17,7 +17,7 @@ const routes = {
       return `/${shortUrl(subscription.baseUrl)}/${subscription.topic}`;
     }
     return `/${subscription.topic}`;
-  },
+  }
 };
 
 export default routes;

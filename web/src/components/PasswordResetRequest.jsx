@@ -8,11 +8,11 @@ import accountApi from "../app/AccountApi";
 import AvatarBox from "./AvatarBox";
 import routes from "./routes";
 
-// ResetPassword is the standalone "request a password reset" page, reached from the login page.
+// PasswordResetRequest is the standalone "request a password reset" page, reached from the login page.
 // It collects a username/email and asks the server to email a reset link. The response is uniform,
 // so the page always shows the same confirmation. Completing the reset happens on the separate
 // PasswordReset landing page that the emailed link points to.
-const ResetPassword = () => {
+const PasswordResetRequest = () => {
   const { t } = useTranslation();
   const [identifier, setIdentifier] = useState("");
   const [sending, setSending] = useState(false);
@@ -24,7 +24,7 @@ const ResetPassword = () => {
       setSending(true);
       await accountApi.requestPasswordReset(identifier);
     } catch (e) {
-      console.log(`[ResetPassword] Request failed`, e);
+      console.log(`[PasswordResetRequest] Request failed`, e);
     } finally {
       setSending(false);
       setSent(true); // Uniform outcome regardless of success/failure (enumeration-safe)
@@ -92,4 +92,4 @@ const ResetPassword = () => {
   );
 };
 
-export default ResetPassword;
+export default PasswordResetRequest;
