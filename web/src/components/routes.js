@@ -17,7 +17,7 @@ const routes = {
       return `/${shortUrl(subscription.baseUrl)}/${subscription.topic}`;
     }
     return `/${subscription.topic}`;
-  }
+  },
 };
 
 export default routes;
