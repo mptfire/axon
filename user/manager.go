@@ -1523,7 +1523,7 @@ func (a *Manager) UserIDByPrimaryEmail(email string) (string, error) {
 // PendingEmails returns the user's unverified (pending) email addresses, i.e. addresses with
 // an outstanding email-verification magic link.
 func (a *Manager) PendingEmails(userID string) ([]string, error) {
-	rows, err := a.db.ReadOnly().Query(a.queries.selectPendingEmails, userID)
+	rows, err := a.db.ReadOnly().Query(a.queries.selectPendingEmails, string(MagicLinkKindEmailVerify), userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1608,11 +1608,11 @@ func (a *Manager) AddMagicLink(m *MagicLink) error {
 	return db.ExecTx(a.db, func(tx *sql.Tx) error {
 		switch m.Kind {
 		case MagicLinkKindEmailVerify:
-			if _, err := tx.Exec(a.queries.deleteVerifyScope, m.UserID, m.Email); err != nil {
+			if _, err := tx.Exec(a.queries.deleteVerifyScope, string(MagicLinkKindEmailVerify), m.UserID, m.Email); err != nil {
 				return err
 			}
 		case MagicLinkKindPasswordReset:
-			if _, err := tx.Exec(a.queries.deleteResetScope, m.UserID); err != nil {
+			if _, err := tx.Exec(a.queries.deleteResetScope, string(MagicLinkKindPasswordReset), m.UserID); err != nil {
 				return err
 			}
 		default:
@@ -1653,7 +1653,7 @@ func (a *Manager) DeleteMagicLink(tokenHash string) error {
 // DeleteEmailVerification removes any pending email verification for (userID, email). Used when
 // an unverified (pending) address is cancelled/deleted from the account.
 func (a *Manager) DeleteEmailVerification(userID, email string) error {
-	_, err := a.db.Exec(a.queries.deleteVerifyScope, userID, email)
+	_, err := a.db.Exec(a.queries.deleteVerifyScope, string(MagicLinkKindEmailVerify), userID, email)
 	return err
 }
 

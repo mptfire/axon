@@ -230,9 +230,9 @@ const (
 	postgresInsertMagicLinkQuery         = `INSERT INTO user_magic_link (token_hash, kind, user_id, email, expires, created) VALUES ($1, $2, $3, $4, $5, $6)`
 	postgresSelectMagicLinkByHashQuery   = `SELECT token_hash, kind, user_id, email, expires, created FROM user_magic_link WHERE token_hash = $1`
 	postgresDeleteMagicLinkByHashQuery   = `DELETE FROM user_magic_link WHERE token_hash = $1`
-	postgresDeleteVerifyScopeQuery       = `DELETE FROM user_magic_link WHERE kind = 'email_verify' AND user_id = $1 AND email = $2`
-	postgresDeleteResetScopeQuery        = `DELETE FROM user_magic_link WHERE kind = 'password_reset' AND user_id = $1`
-	postgresSelectPendingEmailsQuery     = `SELECT email FROM user_magic_link WHERE kind = 'email_verify' AND user_id = $1 ORDER BY email`
+	postgresDeleteVerifyScopeQuery       = `DELETE FROM user_magic_link WHERE kind = $1 AND user_id = $2 AND email = $3`
+	postgresDeleteResetScopeQuery        = `DELETE FROM user_magic_link WHERE kind = $1 AND user_id = $2`
+	postgresSelectPendingEmailsQuery     = `SELECT email FROM user_magic_link WHERE kind = $1 AND user_id = $2 ORDER BY email`
 	postgresDeleteExpiredMagicLinksQuery = `DELETE FROM user_magic_link WHERE expires < $1`
 
 	// Billing queries

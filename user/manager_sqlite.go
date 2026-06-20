@@ -227,9 +227,9 @@ const (
 	sqliteInsertMagicLinkQuery         = `INSERT INTO user_magic_link (token_hash, kind, user_id, email, expires, created) VALUES (?, ?, ?, ?, ?, ?)`
 	sqliteSelectMagicLinkByHashQuery   = `SELECT token_hash, kind, user_id, email, expires, created FROM user_magic_link WHERE token_hash = ?`
 	sqliteDeleteMagicLinkByHashQuery   = `DELETE FROM user_magic_link WHERE token_hash = ?`
-	sqliteDeleteVerifyScopeQuery       = `DELETE FROM user_magic_link WHERE kind = 'email_verify' AND user_id = ? AND email = ?`
-	sqliteDeleteResetScopeQuery        = `DELETE FROM user_magic_link WHERE kind = 'password_reset' AND user_id = ?`
-	sqliteSelectPendingEmailsQuery     = `SELECT email FROM user_magic_link WHERE kind = 'email_verify' AND user_id = ? ORDER BY email`
+	sqliteDeleteVerifyScopeQuery       = `DELETE FROM user_magic_link WHERE kind = ? AND user_id = ? AND email = ?`
+	sqliteDeleteResetScopeQuery        = `DELETE FROM user_magic_link WHERE kind = ? AND user_id = ?`
+	sqliteSelectPendingEmailsQuery     = `SELECT email FROM user_magic_link WHERE kind = ? AND user_id = ? ORDER BY email`
 	sqliteDeleteExpiredMagicLinksQuery = `DELETE FROM user_magic_link WHERE expires < ?`
 
 	// Billing queries
