@@ -866,7 +866,8 @@ func (s *Server) handleAccountPasswordReset(w http.ResponseWriter, r *http.Reque
 // convertEmailAddress checks the email address against the user's verified email list.
 // If smtp-sender-verify is false (default), the email is passed through as-is for
 // backwards compatibility. If true, the user must be authenticated and the email must be
-// in their verified list. "yes"/"true"/"1" resolves to the first verified email.
+// in their verified list. "yes"/"true"/"1" resolves to the user's primary email (falling
+// back to the first verified email if no primary is designated).
 func (s *Server) convertEmailAddress(u *user.User, email string) (string, *errHTTP) {
 	if !s.config.SMTPSenderVerify {
 		if toBool(email) {
@@ -885,7 +886,13 @@ func (s *Server) convertEmailAddress(u *user.User, email string) (string, *errHT
 		return "", errHTTPBadRequestEmailAddressNotVerified
 	}
 	if toBool(email) {
-		return emails[0], nil
+		primary, err := s.userManager.PrimaryEmail(u.ID)
+		if err != nil {
+			return "", errHTTPInternalError
+		} else if primary != "" {
+			return primary, nil
+		}
+		return emails[0], nil // No primary designated (e.g. provisioned user); fall back to first verified
 	} else if util.Contains(emails, email) {
 		return email, nil
 	}

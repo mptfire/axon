@@ -1336,14 +1336,16 @@ func TestServer_DailyMessageQuotaFromDatabase(t *testing.T) {
 }
 
 type testMailer struct {
-	count int
-	mu    sync.Mutex
+	count  int
+	lastTo string
+	mu     sync.Mutex
 }
 
 func (t *testMailer) SendNotification(to string, m *model.Message, senderIP string) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.count++
+	t.lastTo = to
 	return nil
 }
 
@@ -1355,6 +1357,12 @@ func (t *testMailer) Count() int {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return t.count
+}
+
+func (t *testMailer) LastTo() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.lastTo
 }
 
 func (t *testMailer) SendEmailVerification(to, link string) error { return nil }
@@ -1650,6 +1658,33 @@ func TestServer_PublishEmailVerify_BoolValue(t *testing.T) {
 			})
 			require.Equal(t, 200, response.Code, "expected 200 for email: %s", val)
 		}
+	})
+}
+
+func TestServer_PublishEmailVerify_BoolValueUsesPrimary(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
+		conf.SMTPSenderVerify = true
+		s := newTestServer(t, conf)
+		mailer := &testMailer{}
+		s.mailer = mailer
+		defer s.closeDatabases()
+
+		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
+		u, err := s.userManager.User("phil")
+		require.Nil(t, err)
+		// Two verified emails; the primary is NOT the alphabetically-first one
+		require.Nil(t, s.userManager.AddEmail(u.ID, "aaa@example.com"))
+		require.Nil(t, s.userManager.AddEmail(u.ID, "zzz@example.com"))
+		require.Nil(t, s.userManager.SetPrimaryEmail(u.ID, "zzz@example.com"))
+
+		// "yes" must resolve to the primary email, not emails[0] (alphabetically first)
+		response := request(t, s, "PUT", "/mytopic", "hi", map[string]string{
+			"Email":         "yes",
+			"Authorization": util.BasicAuth("phil", "phil"),
+		})
+		require.Equal(t, 200, response.Code)
+		require.Equal(t, "zzz@example.com", mailer.LastTo())
 	})
 }
 

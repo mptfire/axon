@@ -3252,7 +3252,8 @@ you'd like to persist longer, or to blast-notify yourself on all possible channe
 
 Usage is easy: Simply pass the `X-Email` header (or any of its aliases: `X-E-mail`, `Email`, `E-mail`, `Mail`, or `e`).
 Only one e-mail address is supported. If the server has [`smtp-sender-verify`](config.md#e-mail-notifications) enabled (ntfy.sh has this enabled),
-you can also pass `yes`, `true`, or `1` to send to your first verified email address.
+you can also pass `yes`, `true`, or `1` to send to your **primary email address** (the one marked primary in the web app's
+[Account section](https://ntfy.sh/account)). If you haven't designated a primary address, it falls back to your first verified address.
 
 ntfy allows anonymous email sending (if enabled), so the rate limiting is pretty strict (see [limitations](#limitations)). In the
 default configuration, you get **16 e-mails per visitor** (IP address) and then after that one per hour. On top of
@@ -3702,7 +3703,7 @@ all the supported fields:
 | `icon`        | -        | *string*                         | `https://example.com/icon.png`            | URL to use as notification [icon](#icons)                                                 |
 | `filename`    | -        | *string*                         | `file.jpg`                                | File name of the attachment                                                               |
 | `delay`       | -        | *string*                         | `30min`, `9am`                            | Timestamp or duration for delayed delivery                                                |
-| `email`       | -        | *e-mail address or 'yes'*        | `phil@example.com` or `yes`               | E-mail address for e-mail notifications, or `yes` to use first verified address           |
+| `email`       | -        | *e-mail address or 'yes'*        | `phil@example.com` or `yes`               | E-mail address for e-mail notifications, or `yes` to use your primary verified address    |
 | `call`        | -        | *phone number or 'yes'*          | `+1222334444` or `yes`                    | Phone number to use for [voice call](#phone-calls)                                        |
 | `sequence_id` | -        | *string*                         | `my-sequence-123`                         | Sequence ID for [updating/deleting notifications](#updating-deleting-notifications)   |
 

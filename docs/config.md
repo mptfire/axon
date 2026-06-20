@@ -1049,7 +1049,8 @@ configured for `ntfy.sh`):
 By default, any user (including anonymous users) can send email notifications to any address. To require email
 address verification, set `smtp-sender-verify` to `true`. When enabled, anonymous users cannot send emails,
 and authenticated users can only send to email addresses they have verified in their account settings. Users can
-also use `yes`/`true`/`1` as the `X-Email` value to send to their first verified address.
+also use `yes`/`true`/`1` as the `X-Email` value to send to their primary verified address (falling back to their
+first verified address if no primary is designated).
 
 Please also refer to the [rate limiting](#rate-limiting) settings below, specifically `visitor-email-limit-burst`
 and `visitor-email-limit-burst`. Setting these conservatively is necessary to avoid abuse.
