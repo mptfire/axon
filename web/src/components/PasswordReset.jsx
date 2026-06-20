@@ -56,7 +56,7 @@ const PasswordReset = () => {
         </Box>
         <Typography sx={{ mt: 1, textAlign: "center" }}>{t("reset_password_success_description")}</Typography>
         <Button onClick={() => navigate(routes.login)} variant="contained" sx={{ mt: 2 }}>
-          {t("reset_password_button_login")}
+          {t("login_form_button_submit")}
         </Button>
       </AvatarBox>
     );

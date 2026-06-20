@@ -45,7 +45,6 @@
   "reset_password_form_error_invalid": "This reset link is invalid or has expired. Please request a new one.",
   "reset_password_success_title": "Password changed",
   "reset_password_success_description": "Your password has been changed. You can now sign in with your new password.",
-  "reset_password_button_login": "Sign in",
   "login_disabled": "Login is disabled",
   "action_bar_show_menu": "Show menu",
   "action_bar_logo_alt": "ntfy logo",
