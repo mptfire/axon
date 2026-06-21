@@ -2,9 +2,9 @@ import config from "../app/config";
 import { shortUrl } from "../app/utils";
 
 const routes = {
+  app: config.app_root,
   login: "/login",
   signup: "/signup",
-  app: config.app_root,
   account: "/account",
   settings: "/settings",
   passwordResetRequest: "/reset-password",
@@ -17,7 +17,7 @@ const routes = {
       return `/${shortUrl(subscription.baseUrl)}/${subscription.topic}`;
     }
     return `/${subscription.topic}`;
-  },
+  }
 };
 
 export default routes;

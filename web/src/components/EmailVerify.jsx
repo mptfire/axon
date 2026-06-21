@@ -9,6 +9,11 @@ import accountApi from "../app/AccountApi";
 import AvatarBox from "./AvatarBox";
 import routes from "./routes";
 
+// Verification states for the email-verify landing page
+const STATUS_VERIFYING = "verifying";
+const STATUS_SUCCESS = "success";
+const STATUS_ERROR = "error";
+
 // EmailVerify is the magic-link landing page for email verification. It performs the verification
 // via a POST (the GET that loads this page has no side effects, so link prefetchers / scanners
 // cannot consume the single-use token). The raw token is stripped from the URL on load to keep
@@ -17,7 +22,7 @@ const EmailVerify = () => {
   const { t } = useTranslation();
   const { token } = useParams();
   const navigate = useNavigate();
-  const [status, setStatus] = useState("verifying"); // "verifying" | "success" | "error"
+  const [status, setStatus] = useState(STATUS_VERIFYING);
   const ran = useRef(false);
 
   useEffect(() => {
@@ -30,23 +35,23 @@ const EmailVerify = () => {
     (async () => {
       try {
         await accountApi.verifyEmailToken(token);
-        setStatus("success");
+        setStatus(STATUS_SUCCESS);
       } catch (e) {
         console.log(`[EmailVerify] Verification failed`, e);
-        setStatus("error");
+        setStatus(STATUS_ERROR);
       }
     })();
   }, [token]);
 
   return (
     <AvatarBox>
-      {status === "verifying" && (
+      {status === STATUS_VERIFYING && (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <CircularProgress size={24} />
           <Typography sx={{ typography: "h6" }}>{t("email_verify_progress_title")}</Typography>
         </Box>
       )}
-      {status === "success" && (
+      {status === STATUS_SUCCESS && (
         <>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <CheckCircleOutlineIcon color="success" sx={{ fontSize: 28 }} />
@@ -58,7 +63,7 @@ const EmailVerify = () => {
           </Button>
         </>
       )}
-      {status === "error" && (
+      {status === STATUS_ERROR && (
         <>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <ErrorOutlineIcon color="error" sx={{ fontSize: 28 }} />

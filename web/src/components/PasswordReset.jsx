@@ -30,10 +30,6 @@ const PasswordReset = () => {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (password !== confirm) {
-      setError(t("reset_password_form_passwords_no_match"));
-      return;
-    }
     try {
       setSending(true);
       setError("");
@@ -91,7 +87,13 @@ const PasswordReset = () => {
           onChange={(ev) => setConfirm(ev.target.value.trim())}
           autoComplete="new-password"
         />
-        <Button type="submit" fullWidth variant="contained" disabled={sending || password === "" || confirm === ""} sx={{ mt: 2, mb: 2 }}>
+        <Button
+          type="submit"
+          fullWidth
+          variant="contained"
+          disabled={sending || password === "" || confirm === "" || password !== confirm}
+          sx={{ mt: 2, mb: 2 }}
+        >
           {t("reset_password_form_button_submit")}
         </Button>
         {error && (

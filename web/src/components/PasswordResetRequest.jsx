@@ -65,7 +65,8 @@ const PasswordResetRequest = () => {
     <AvatarBox>
       <Typography sx={{ typography: "h6" }}>{t("reset_password_request_title")}</Typography>
       <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
-        <Typography sx={{ mt: 1, mb: 1.5 }}>{t("reset_password_request_description")}</Typography>
+        <Typography sx={{ mt: 1 }}>{t("reset_password_request_description")}</Typography>
+        <Typography sx={{ mt: 1, mb: 1.5, fontWeight: "bold" }}>{t("reset_password_request_primary_required")}</Typography>
         <TextField
           margin="dense"
           required
