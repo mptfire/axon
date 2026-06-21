@@ -37,7 +37,7 @@
   "reset_password_sent_title": "Check your inbox",
   "reset_password_sent_description": "If an account exists, a link to reset your password has been emailed.",
   "reset_password_back_to_login": "Back to sign-in",
-  "reset_password_disabled": "Password reset is not enabled on this server.",
+  "reset_password_disabled": "Password reset is disabled",
   "reset_password_title": "Set a new password",
   "reset_password_form_password": "New password",
   "reset_password_form_confirm": "Confirm new password",
