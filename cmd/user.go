@@ -350,7 +350,7 @@ func execUserResetPass(c *cli.Context) error {
 		}
 	}
 	// The reset token is bound to the user, not an email -- so this works even with no SMTP
-	token, err := manager.CreateMagicLink(user.MagicLinkKindPasswordReset, u.ID, "", time.Hour)
+	token, err := manager.AddMagicLink(user.MagicLinkKindPasswordReset, u.ID, "", time.Hour)
 	if err != nil {
 		return err
 	}
@@ -398,7 +398,7 @@ func execUserHash(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	hash, err := user.HashPassword(password)
+	hash, err := user.HashPassword(password, user.DefaultUserPasswordBcryptCost)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}

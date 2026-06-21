@@ -2,6 +2,7 @@ package user
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/netip"
 	"path/filepath"
@@ -1847,7 +1848,7 @@ func TestMigrationFrom7(t *testing.T) {
 	require.Equal(t, "", primary)
 
 	// The new magic-link machinery works post-migration
-	raw, err := a.CreateMagicLink(MagicLinkKindEmailVerify, "u_phil", "new@example.com", 24*time.Hour)
+	raw, err := a.AddMagicLink(MagicLinkKindEmailVerify, "u_phil", "new@example.com", 24*time.Hour)
 	require.Nil(t, err)
 	m, err := a.VerifyEmail(raw)
 	require.Nil(t, err)
@@ -2901,7 +2902,7 @@ func TestStoreOtherAccessCount(t *testing.T) {
 // addVerifyLink stores an email-verification magic link and returns the raw token so the test
 // can "click" it via VerifyEmail.
 func addVerifyLink(t *testing.T, a *Manager, userID, email string, ttl time.Duration) string {
-	raw, err := a.CreateMagicLink(MagicLinkKindEmailVerify, userID, email, ttl)
+	raw, err := a.AddMagicLink(MagicLinkKindEmailVerify, userID, email, ttl)
 	require.Nil(t, err)
 	return raw
 }
@@ -3083,7 +3084,7 @@ func TestUser_MagicLink_PasswordReset_RoundTrip(t *testing.T) {
 		phil, err := a.User("phil")
 		require.Nil(t, err)
 
-		raw, err := a.CreateMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
+		raw, err := a.AddMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
 		require.Nil(t, err)
 
 		m, err := a.MagicLinkByToken(raw)
@@ -3098,7 +3099,7 @@ func TestUser_MagicLink_PasswordReset_RoundTrip(t *testing.T) {
 		require.Equal(t, 0, len(pending))
 
 		// New request replaces the old token
-		raw2, err := a.CreateMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
+		raw2, err := a.AddMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
 		require.Nil(t, err)
 		_, err = a.MagicLinkByToken(raw)
 		require.ErrorIs(t, err, ErrMagicLinkNotFound)
@@ -3130,6 +3131,37 @@ func TestUser_MagicLink_Reaper(t *testing.T) {
 	})
 }
 
+// TestUser_MagicLink_ReaperLoop proves the background reap goroutine actually runs on its
+// configured interval: an expired link inserted into a manager with a tiny reap interval is
+// deleted without anyone calling deleteExpiredMagicLinks directly. Mirrors the loop-coverage
+// pattern of TestAccessCacheReloadInterval_PicksUpExternalWrite.
+func TestUser_MagicLink_ReaperLoop(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManagerFromConfig(t, newManager, &Config{
+			DefaultAccess:                PermissionDenyAll,
+			BcryptCost:                   bcrypt.MinCost,
+			ExpiredMagicLinkReapInterval: 25 * time.Millisecond,
+		})
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		expired := addVerifyLink(t, a, phil.ID, "expired@example.com", -time.Hour)
+		valid := addVerifyLink(t, a, phil.ID, "valid@example.com", time.Hour)
+
+		// The background loop (not a direct call) must reap the expired link within a few intervals
+		require.Eventually(t, func() bool {
+			_, err := a.MagicLinkByToken(expired)
+			return errors.Is(err, ErrMagicLinkNotFound)
+		}, 2*time.Second, 10*time.Millisecond, "reaper loop never deleted the expired magic link")
+
+		// The unexpired link must survive
+		m, err := a.MagicLinkByToken(valid)
+		require.Nil(t, err)
+		require.Equal(t, "valid@example.com", m.Email)
+	})
+}
+
 func TestUser_MagicLink_ResetPassword(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		a := newTestManager(t, newManager, PermissionDenyAll)
@@ -3137,7 +3169,7 @@ func TestUser_MagicLink_ResetPassword(t *testing.T) {
 		phil, err := a.User("phil")
 		require.Nil(t, err)
 
-		raw, err := a.CreateMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
+		raw, err := a.AddMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
 		require.Nil(t, err)
 
 		// Old password works before reset
@@ -3169,7 +3201,7 @@ func TestUser_MagicLink_ResetPassword_WrongKindRejected(t *testing.T) {
 		require.ErrorIs(t, a.ResetPassword(verifyToken, "newpass"), ErrMagicLinkNotFound)
 
 		// ...and a reset token must not be usable for email verification
-		resetToken, err := a.CreateMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
+		resetToken, err := a.AddMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
 		require.Nil(t, err)
 		_, err = a.VerifyEmail(resetToken)
 		require.ErrorIs(t, err, ErrMagicLinkNotFound)
@@ -3221,7 +3253,7 @@ func TestUser_MagicLink_ResetPassword_ProvisionedRejected(t *testing.T) {
 
 		// A reset token can be created, but consuming it must be rejected for a provisioned user
 		// (their password comes from the config file, like change-pass).
-		raw, err := a.CreateMagicLink(MagicLinkKindPasswordReset, prov.ID, "", time.Hour)
+		raw, err := a.AddMagicLink(MagicLinkKindPasswordReset, prov.ID, "", time.Hour)
 		require.Nil(t, err)
 		require.ErrorIs(t, a.ResetPassword(raw, "newpass"), ErrProvisionedUserChange)
 	})
@@ -3234,7 +3266,7 @@ func TestUser_MagicLink_ResetPassword_Expired(t *testing.T) {
 		phil, err := a.User("phil")
 		require.Nil(t, err)
 
-		raw, err := a.CreateMagicLink(MagicLinkKindPasswordReset, phil.ID, "", -time.Minute)
+		raw, err := a.AddMagicLink(MagicLinkKindPasswordReset, phil.ID, "", -time.Minute)
 		require.Nil(t, err)
 		require.ErrorIs(t, a.ResetPassword(raw, "newpass"), ErrMagicLinkNotFound)
 		_, err = a.Authenticate("phil", "oldpass")

@@ -176,7 +176,7 @@ func TestHashPassword(t *testing.T) {
 	password := "test-password-123"
 
 	// Hash the password
-	hash, err := HashPassword(password)
+	hash, err := HashPassword(password, DefaultUserPasswordBcryptCost)
 	require.Nil(t, err)
 	require.NotEmpty(t, hash)
 
@@ -187,12 +187,12 @@ func TestHashPassword(t *testing.T) {
 	require.True(t, strings.HasPrefix(hash, "$2a$"))
 
 	// Hash the same password again - should produce different hash
-	hash2, err := HashPassword(password)
+	hash2, err := HashPassword(password, DefaultUserPasswordBcryptCost)
 	require.Nil(t, err)
 	require.NotEqual(t, hash, hash2, "Same password should produce different hashes (salt)")
 
 	// Empty password should still work
-	emptyHash, err := HashPassword("")
+	emptyHash, err := HashPassword("", DefaultUserPasswordBcryptCost)
 	require.Nil(t, err)
 	require.NotEmpty(t, emptyHash)
 	require.Nil(t, ValidPasswordHash(emptyHash, DefaultUserPasswordBcryptCost))
@@ -202,15 +202,15 @@ func TestHashPassword_WithCost(t *testing.T) {
 	password := "test-password"
 
 	// Test with different costs
-	hash4, err := hashPassword(password, 4)
+	hash4, err := HashPassword(password, 4)
 	require.Nil(t, err)
 	require.True(t, strings.HasPrefix(hash4, "$2a$04$"))
 
-	hash10, err := hashPassword(password, 10)
+	hash10, err := HashPassword(password, 10)
 	require.Nil(t, err)
 	require.True(t, strings.HasPrefix(hash10, "$2a$10$"))
 
-	hash12, err := hashPassword(password, 12)
+	hash12, err := HashPassword(password, 12)
 	require.Nil(t, err)
 	require.True(t, strings.HasPrefix(hash12, "$2a$12$"))
 

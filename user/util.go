@@ -89,12 +89,8 @@ func hashToken(raw string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// HashPassword hashes the given password using bcrypt with the configured cost
-func HashPassword(password string) (string, error) {
-	return hashPassword(password, DefaultUserPasswordBcryptCost)
-}
-
-func hashPassword(password string, cost int) (string, error) {
+// HashPassword hashes the given password using bcrypt with the given cost
+func HashPassword(password string, cost int) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), cost)
 	if err != nil {
 		return "", err

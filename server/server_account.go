@@ -783,7 +783,7 @@ func (s *Server) enqueueEmailVerification(userID, email string) error {
 	if s.config.BaseURL == "" {
 		return errHTTPInternalErrorMissingBaseURL
 	}
-	token, err := s.userManager.CreateMagicLink(user.MagicLinkKindEmailVerify, userID, email, emailVerificationTokenExpiry)
+	token, err := s.userManager.AddMagicLink(user.MagicLinkKindEmailVerify, userID, email, emailVerificationTokenExpiry)
 	if err != nil {
 		return err
 	}
@@ -808,7 +808,7 @@ func (s *Server) handleAccountPasswordResetRequest(w http.ResponseWriter, r *htt
 	identifier := strings.TrimSpace(req.Identifier)
 	if identifier != "" && s.config.BaseURL != "" {
 		if userID, email, ok := s.resolveResetTarget(identifier); ok {
-			token, err := s.userManager.CreateMagicLink(user.MagicLinkKindPasswordReset, userID, "", passwordResetTokenExpiry)
+			token, err := s.userManager.AddMagicLink(user.MagicLinkKindPasswordReset, userID, "", passwordResetTokenExpiry)
 			if err != nil {
 				logvr(v, r).Tag(tagAccount).Err(err).Warn("Failed to create password reset token")
 			} else {

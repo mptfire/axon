@@ -266,18 +266,19 @@ const (
 
 // Config holds the configuration for the user Manager
 type Config struct {
-	Filename                  string              // Database filename, e.g. "/var/lib/ntfy/user.db" (SQLite)
-	DatabaseURL               string              // Database connection string (PostgreSQL)
-	StartupQueries            string              // Queries to run on startup, e.g. to create initial users or tiers (SQLite only)
-	DefaultAccess             Permission          // Default permission if no ACL matches
-	ProvisionEnabled          bool                // Hack: Enable auto-provisioning of users and access grants, disabled for "ntfy user" commands
-	Users                     []*User             // Predefined users to create on startup
-	Access                    map[string][]*Grant // Predefined access grants to create on startup (username -> []*Grant)
-	Tokens                    map[string][]*Token // Predefined users to create on startup (username -> []*Token)
-	QueueWriterInterval       time.Duration       // Interval for the async queue writer to flush stats and token updates to the database
-	BcryptCost                int                 // Cost of generated passwords; lowering makes testing faster
-	AccessCacheEnabled        bool                // Enables the in-memory ACL cache (high volume servers only)
-	AccessCacheReloadInterval time.Duration       // Reload interval for access cache, relevant for ACL writes from CLI
+	Filename                     string              // Database filename, e.g. "/var/lib/ntfy/user.db" (SQLite)
+	DatabaseURL                  string              // Database connection string (PostgreSQL)
+	StartupQueries               string              // Queries to run on startup, e.g. to create initial users or tiers (SQLite only)
+	DefaultAccess                Permission          // Default permission if no ACL matches
+	ProvisionEnabled             bool                // Hack: Enable auto-provisioning of users and access grants, disabled for "ntfy user" commands
+	Users                        []*User             // Predefined users to create on startup
+	Access                       map[string][]*Grant // Predefined access grants to create on startup (username -> []*Grant)
+	Tokens                       map[string][]*Token // Predefined users to create on startup (username -> []*Token)
+	QueueWriterInterval          time.Duration       // Interval for the async queue writer to flush stats and token updates to the database
+	BcryptCost                   int                 // Cost of generated passwords; lowering makes testing faster
+	AccessCacheEnabled           bool                // Enables the in-memory ACL cache (high volume servers only)
+	AccessCacheReloadInterval    time.Duration       // Reload interval for access cache, relevant for ACL writes from CLI
+	ExpiredMagicLinkReapInterval time.Duration       // Interval for sweeping expired email-verify/password-reset links
 }
 
 // Error constants used by the package
@@ -383,13 +384,13 @@ type queries struct {
 	updateEmailClearPrimary string
 
 	// Magic link queries (email verification + password reset)
-	insertMagicLink         string
-	selectMagicLinkByHash   string
-	deleteMagicLinkByHash   string
-	deleteVerifyScope       string // Delete pending email_verify rows for (user_id, email)
-	deleteResetScope        string // Delete the active password_reset row for user_id
-	selectPendingEmails     string // Pending (unverified) email addresses for a user
-	deleteExpiredMagicLinks string
+	insertMagicLink              string
+	selectMagicLinkByHash        string
+	deleteMagicLinkByHash        string
+	deleteMagicLinkEmailVerify   string // Delete pending email_verify rows for (user_id, email)
+	deleteMagicLinkResetPassword string // Delete the active password_reset row for user_id
+	selectPendingEmails          string // Pending (unverified) email addresses for a user
+	deleteExpiredMagicLinks      string
 
 	// Billing queries
 	updateBilling string

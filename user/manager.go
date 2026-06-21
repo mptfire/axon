@@ -73,6 +73,9 @@ func newManager(d *db.DB, queries queries, config *Config) (*Manager, error) {
 	if config.AccessCacheReloadInterval <= 0 {
 		config.AccessCacheReloadInterval = DefaultAccessCacheReloadInterval
 	}
+	if config.ExpiredMagicLinkReapInterval <= 0 {
+		config.ExpiredMagicLinkReapInterval = DefaultExpiredMagicLinkReapInterval
+	}
 	manager := &Manager{
 		config:     config,
 		db:         d,
@@ -92,7 +95,7 @@ func newManager(d *db.DB, queries queries, config *Config) (*Manager, error) {
 		go manager.asyncAccessCacheReloadLoop(manager.config.AccessCacheReloadInterval)
 	}
 	go manager.asyncQueueWriteLoop(manager.config.QueueWriterInterval)
-	go manager.asyncExpiredMagicLinkReapLoop(DefaultExpiredMagicLinkReapInterval)
+	go manager.asyncExpiredMagicLinkReapLoop(manager.config.ExpiredMagicLinkReapInterval)
 	return manager, nil
 }
 
@@ -664,7 +667,7 @@ func (a *Manager) maybeHashPassword(password string, hashed bool) (string, error
 		}
 		return password, nil
 	}
-	return hashPassword(password, a.config.BcryptCost)
+	return HashPassword(password, a.config.BcryptCost)
 }
 
 // Authorize returns nil if the given user has access to the given topic using the desired
@@ -1569,11 +1572,15 @@ func (a *Manager) SetPrimaryEmail(userID, email string) error {
 	})
 }
 
-// CreateMagicLink generates a fresh magic-link token of the given kind, stores it (hashed,
-// replacing any existing link in the same scope), and returns the RAW token for use in the
-// emailed link. Only the hash is persisted; the raw token is never stored. email is the
-// address being verified for email_verify, and "" for password_reset.
-func (a *Manager) CreateMagicLink(kind MagicLinkKind, userID, email string, ttl time.Duration) (string, error) {
+// AddMagicLink generates a fresh magic-link token of the given kind, stores it (hashed, replacing
+// any existing link in the same scope), and returns the RAW token for use in the emailed link.
+// Only the hash is persisted; the raw token is never stored. email is the address being verified
+// for email_verify, and "" for password_reset.
+//
+// The scope replaced is, for email_verify, the (user_id, email) pair (one pending verification per
+// address); for password_reset, the user_id (one active reset per account). The replace-delete and
+// the insert run in one transaction so a re-request atomically supersedes the old token.
+func (a *Manager) AddMagicLink(kind MagicLinkKind, userID, email string, ttl time.Duration) (string, error) {
 	token := generateLinkToken()
 	now := time.Now()
 	m := &MagicLink{
@@ -1584,35 +1591,14 @@ func (a *Manager) CreateMagicLink(kind MagicLinkKind, userID, email string, ttl 
 		Expires:   now.Add(ttl).Unix(),
 		Created:   now.Unix(),
 	}
-	if err := a.AddMagicLink(m); err != nil {
-		return "", err
-	}
-	return token, nil
-}
-
-// MagicLinkByToken looks up a magic link by its raw token (hashing it first). See MagicLinkByHash.
-func (a *Manager) MagicLinkByToken(rawToken string) (*MagicLink, error) {
-	return a.MagicLinkByHash(hashToken(rawToken))
-}
-
-// DeleteMagicLinkByToken deletes a magic link identified by its raw token (single-use consume).
-func (a *Manager) DeleteMagicLinkByToken(rawToken string) error {
-	return a.DeleteMagicLink(hashToken(rawToken))
-}
-
-// AddMagicLink stores a pending magic link, replacing any existing link in the same scope:
-// for email_verify that is the (user_id, email) pair (one pending verification per address);
-// for password_reset that is the user_id (one active reset per account). The replace-delete and
-// the insert run in one transaction so a re-request atomically supersedes the old token.
-func (a *Manager) AddMagicLink(m *MagicLink) error {
-	return db.ExecTx(a.db, func(tx *sql.Tx) error {
+	err := db.ExecTx(a.db, func(tx *sql.Tx) error {
 		switch m.Kind {
 		case MagicLinkKindEmailVerify:
-			if _, err := tx.Exec(a.queries.deleteVerifyScope, string(MagicLinkKindEmailVerify), m.UserID, m.Email); err != nil {
+			if _, err := tx.Exec(a.queries.deleteMagicLinkEmailVerify, string(MagicLinkKindEmailVerify), m.UserID, m.Email); err != nil {
 				return err
 			}
 		case MagicLinkKindPasswordReset:
-			if _, err := tx.Exec(a.queries.deleteResetScope, string(MagicLinkKindPasswordReset), m.UserID); err != nil {
+			if _, err := tx.Exec(a.queries.deleteMagicLinkResetPassword, string(MagicLinkKindPasswordReset), m.UserID); err != nil {
 				return err
 			}
 		default:
@@ -1623,6 +1609,15 @@ func (a *Manager) AddMagicLink(m *MagicLink) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// MagicLinkByToken looks up a magic link by its raw token (hashing it first). See MagicLinkByHash.
+func (a *Manager) MagicLinkByToken(rawToken string) (*MagicLink, error) {
+	return a.MagicLinkByHash(hashToken(rawToken))
 }
 
 // MagicLinkByHash looks up a magic link by the hex SHA-256 of its raw token, returning
@@ -1643,17 +1638,18 @@ func (a *Manager) MagicLinkByHash(tokenHash string) (*MagicLink, error) {
 	return &m, nil
 }
 
-// DeleteMagicLink deletes a magic link by its token hash. Used to enforce single use after a
-// reset is performed (email verification deletes the row inside VerifyEmail's transaction).
-func (a *Manager) DeleteMagicLink(tokenHash string) error {
-	_, err := a.db.Exec(a.queries.deleteMagicLinkByHash, tokenHash)
+// DeleteMagicLinkByToken deletes a magic link identified by its raw token (single-use consume).
+// Used to enforce single use after a reset is performed (email verification deletes the row
+// inside VerifyEmail's transaction).
+func (a *Manager) DeleteMagicLinkByToken(rawToken string) error {
+	_, err := a.db.Exec(a.queries.deleteMagicLinkByHash, hashToken(rawToken))
 	return err
 }
 
 // DeleteEmailVerification removes any pending email verification for (userID, email). Used when
 // an unverified (pending) address is cancelled/deleted from the account.
 func (a *Manager) DeleteEmailVerification(userID, email string) error {
-	_, err := a.db.Exec(a.queries.deleteVerifyScope, string(MagicLinkKindEmailVerify), userID, email)
+	_, err := a.db.Exec(a.queries.deleteMagicLinkEmailVerify, string(MagicLinkKindEmailVerify), userID, email)
 	return err
 }
 
@@ -1736,7 +1732,7 @@ func (a *Manager) ResetPassword(rawToken, password string) error {
 	if u.Provisioned {
 		return ErrProvisionedUserChange // Provisioned users get their password from the config file, not reset
 	}
-	hash, err := a.maybeHashPassword(password, false)
+	hash, err := HashPassword(password, a.config.BcryptCost)
 	if err != nil {
 		return err
 	}

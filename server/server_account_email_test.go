@@ -366,7 +366,7 @@ func TestAccount_Signup_WithoutEmail_NoSend(t *testing.T) {
 
 func TestAccount_Email_ProvisionedNoPrimary(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
-		hash, err := user.HashPassword("provpass")
+		hash, err := user.HashPassword("provpass", user.DefaultUserPasswordBcryptCost)
 		require.Nil(t, err)
 		conf := newTestConfigWithAuthFile(t, databaseURL)
 		conf.SMTPSenderAddr = "localhost:25"
