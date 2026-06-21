@@ -1719,7 +1719,7 @@ func (a *Manager) VerifyEmail(rawToken string) (*MagicLink, error) {
 // validating the token (kind + expiry), it sets the user's password and deletes the link in one
 // transaction. Existing access tokens are intentionally left valid (only the password changes).
 // Returns ErrMagicLinkNotFound if the token is invalid, expired, or not a reset token.
-func (a *Manager) ResetPassword(rawToken, password string) error {
+func (a *Manager) ResetPassword(rawToken, newPassword string) error {
 	m, err := a.MagicLinkByHash(hashToken(rawToken))
 	if err != nil {
 		return err
@@ -1734,7 +1734,7 @@ func (a *Manager) ResetPassword(rawToken, password string) error {
 	if u.Provisioned {
 		return ErrProvisionedUserChange // Provisioned users get their password from the config file, not reset
 	}
-	hash, err := HashPassword(password, a.config.BcryptCost)
+	hash, err := HashPassword(newPassword, a.config.BcryptCost)
 	if err != nil {
 		return err
 	}
