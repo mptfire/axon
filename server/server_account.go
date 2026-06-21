@@ -807,7 +807,7 @@ func (s *Server) handleAccountPasswordResetRequest(w http.ResponseWriter, r *htt
 	v.AccountActionPerformed() // Consume a token on every request (including no-match), to throttle probing
 	identifier := strings.TrimSpace(req.Identifier)
 	if identifier != "" && s.config.BaseURL != "" {
-		if userID, email, ok := s.resolveResetTarget(identifier); ok {
+		if userID, email, ok := s.resolveResetPasswordTarget(identifier); ok {
 			token, err := s.userManager.AddMagicLink(user.MagicLinkKindPasswordReset, userID, "", passwordResetTokenExpiry)
 			if err != nil {
 				logvr(v, r).Tag(tagAccount).Err(err).Warn("Failed to create password reset token")
@@ -825,11 +825,11 @@ func (s *Server) handleAccountPasswordResetRequest(w http.ResponseWriter, r *htt
 	return s.writeJSON(w, newSuccessResponse())
 }
 
-// resolveResetTarget resolves a reset identifier (username or primary email) to a single account
+// resolveResetPasswordTarget resolves a reset identifier (username or primary email) to a single account
 // and its primary email. It applies the reset policy on top of the lookup: provisioned users are
 // excluded, and ok=false is returned unless the account has a verified primary email (reset
 // requires one, and that is where the link is sent).
-func (s *Server) resolveResetTarget(identifier string) (userID string, email string, ok bool) {
+func (s *Server) resolveResetPasswordTarget(identifier string) (userID string, email string, ok bool) {
 	u, err := s.userManager.UserByEmailOrUsername(identifier)
 	if err != nil || u == nil || u.Provisioned {
 		return "", "", false
