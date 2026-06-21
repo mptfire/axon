@@ -1681,6 +1681,7 @@ func (a *Manager) VerifyEmail(rawToken string) (*MagicLink, error) {
 		if _, err := tx.Exec(a.queries.insertEmailIgnore, m.UserID, m.Email); err != nil {
 			return err
 		}
+		// Must stay before the promotion block; covered by TestUser_MagicLink_VerifyEmail_ProvisionedNoPrimary
 		if u.Provisioned {
 			return nil // Provisioned users don't get a primary (recovery) email
 		}
@@ -1695,16 +1696,17 @@ func (a *Manager) VerifyEmail(rawToken string) (*MagicLink, error) {
 		if primary.String != "" {
 			return nil // User already has a primary -- leave it
 		}
-		var owner string
-		err = tx.QueryRow(a.queries.selectUserIDByPrimary, m.Email).Scan(&owner)
-		if errors.Is(err, sql.ErrNoRows) {
-			if _, err := tx.Exec(a.queries.updateEmailSetPrimary, m.UserID, m.Email); err != nil {
-				return err
-			}
-		} else if err != nil {
+		// If the address is already another account's primary, leave it a verified secondary here
+		var ownerUserID string
+		if err = tx.QueryRow(a.queries.selectUserIDByPrimary, m.Email).Scan(&ownerUserID); err == nil {
+			return nil // Address is primary elsewhere -> not promoted
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return err // Real query error
+		}
+		// Address is globally free -> promote it to this user's primary
+		if _, err := tx.Exec(a.queries.updateEmailSetPrimary, m.UserID, m.Email); err != nil {
 			return err
 		}
-		// owner found -> address is primary elsewhere -> stays a verified secondary
 		return nil
 	})
 	if err != nil {
