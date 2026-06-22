@@ -735,8 +735,6 @@ func (s *Server) handleAccountEmailSetPrimary(w http.ResponseWriter, r *http.Req
 		return err
 	} else if !emailAddressRegex.MatchString(req.Email) {
 		return errHTTPBadRequestEmailAddressInvalid
-	} else if u.Provisioned {
-		return errHTTPConflictProvisionedUserChange // Provisioned users can't reset, so a recovery email is meaningless
 	}
 	logvr(v, r).Tag(tagAccount).Field("email", req.Email).Info("Setting primary email")
 	err = s.userManager.SetPrimaryEmail(u.ID, req.Email)

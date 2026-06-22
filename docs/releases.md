@@ -1958,7 +1958,7 @@ email. All of this rides on the existing SMTP configuration -- no new config fla
 **Features:**
 
 * Add password reset via emailed magic link, with a "Forgot password?" link on the login page and a `ntfy user reset-pass` CLI command for admins
-* Rework email verification to use durable, single-use, expiring magic links instead of in-memory 6-digit codes, and add a "primary" (recovery) email with verified/unverified state in the account UI
+* Rework email verification to use durable, single-use, expiring magic links instead of in-memory 6-digit codes, and add a "primary" email (used for account recovery and as the `X-Email: yes` target) with verified/unverified state in the account UI
 * Auto-send a verification link to the billing email after a Stripe checkout, so paying users can set up password recovery
 
 **Bug fixes + maintenance:**

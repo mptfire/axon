@@ -364,7 +364,7 @@ func TestAccount_Signup_WithoutEmail_NoSend(t *testing.T) {
 	})
 }
 
-func TestAccount_Email_ProvisionedNoPrimary(t *testing.T) {
+func TestAccount_Email_ProvisionedPrimary(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		hash, err := user.HashPassword("provpass", user.DefaultUserPasswordBcryptCost)
 		require.Nil(t, err)
@@ -379,16 +379,19 @@ func TestAccount_Email_ProvisionedNoPrimary(t *testing.T) {
 		defer s.closeDatabases()
 		auth := map[string]string{"Authorization": util.BasicAuth("prov", "provpass")}
 
-		// A provisioned user can verify an email, but it must NOT become their primary
+		// A provisioned user's first verified email becomes their primary (used by X-Email: yes;
+		// password reset stays blocked separately for provisioned users)
 		verifyEmailFor(t, s, mailer, auth, "prov@example.com")
 		account := getAccount(t, s, auth)
 		require.Equal(t, []string{"prov@example.com"}, verifiedAddrs(account))
-		require.Equal(t, "", primaryAddr(account))
+		require.Equal(t, "prov@example.com", primaryAddr(account))
 
-		// Explicitly setting it primary is rejected
-		rr := request(t, s, "POST", "/v1/account/email/primary", `{"email":"prov@example.com"}`, auth)
-		require.Equal(t, 409, rr.Code)
-		require.Equal(t, 40905, toHTTPError(t, rr.Body.String()).Code)
+		// Verify a second address and explicitly set it primary -> allowed, star moves
+		verifyEmailFor(t, s, mailer, auth, "prov2@example.com")
+		rr := request(t, s, "POST", "/v1/account/email/primary", `{"email":"prov2@example.com"}`, auth)
+		require.Equal(t, 200, rr.Code)
+		account = getAccount(t, s, auth)
+		require.Equal(t, "prov2@example.com", primaryAddr(account))
 	})
 }
 

@@ -1728,6 +1728,33 @@ func TestServer_PublishEmailVerify_BoolValueAnonymousRejected(t *testing.T) {
 	})
 }
 
+func TestServer_PublishEmailVerify_BoolValueProvisionedUsesPrimary(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		hash, err := user.HashPassword("provpass", user.DefaultUserPasswordBcryptCost)
+		require.Nil(t, err)
+		conf := newTestConfigWithAuthFile(t, databaseURL)
+		conf.AuthUsers = []*user.User{{Name: "prov", Hash: hash, Role: user.RoleUser}}
+		s := newTestServer(t, conf)
+		mailer := &testMailer{}
+		s.mailer = mailer
+		defer s.closeDatabases()
+
+		prov, err := s.userManager.User("prov")
+		require.Nil(t, err)
+		require.Nil(t, s.userManager.AddEmail(prov.ID, "aaa@example.com"))
+		require.Nil(t, s.userManager.AddEmail(prov.ID, "zzz@example.com"))
+		require.Nil(t, s.userManager.SetPrimaryEmail(prov.ID, "zzz@example.com"))
+
+		// A provisioned user's "yes" resolves to their chosen primary, not the alphabetically-first
+		response := request(t, s, "PUT", "/mytopic", "hi", map[string]string{
+			"Email":         "yes",
+			"Authorization": util.BasicAuth("prov", "provpass"),
+		})
+		require.Equal(t, 200, response.Code)
+		require.Equal(t, "zzz@example.com", mailer.LastTo())
+	})
+}
+
 func TestServer_PublishEmailVerify_Anonymous(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		conf := newTestConfigWithAuthFile(t, databaseURL)

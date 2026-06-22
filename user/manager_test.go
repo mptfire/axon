@@ -3212,7 +3212,7 @@ func TestUser_MagicLink_ResetPassword_WrongKindRejected(t *testing.T) {
 	})
 }
 
-func TestUser_MagicLink_VerifyEmail_ProvisionedNoPrimary(t *testing.T) {
+func TestUser_MagicLink_VerifyEmail_ProvisionedGetsPrimary(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		a := newTestManagerFromConfig(t, newManager, &Config{
 			DefaultAccess:    PermissionDenyAll,
@@ -3224,7 +3224,8 @@ func TestUser_MagicLink_VerifyEmail_ProvisionedNoPrimary(t *testing.T) {
 		prov, err := a.User("prov")
 		require.Nil(t, err)
 
-		// A provisioned user can verify an email (for notifications), but it must NOT become primary
+		// A provisioned user's first verified email becomes their primary, just like a regular user
+		// (the primary is also the X-Email: yes target; password reset stays blocked separately).
 		_, err = a.VerifyEmail(addVerifyLink(t, a, prov.ID, "prov@example.com", time.Hour))
 		require.Nil(t, err)
 
@@ -3233,7 +3234,7 @@ func TestUser_MagicLink_VerifyEmail_ProvisionedNoPrimary(t *testing.T) {
 		require.Equal(t, []string{"prov@example.com"}, emails)
 		primary, err := a.PrimaryEmail(prov.ID)
 		require.Nil(t, err)
-		require.Equal(t, "", primary)
+		require.Equal(t, "prov@example.com", primary)
 	})
 }
 

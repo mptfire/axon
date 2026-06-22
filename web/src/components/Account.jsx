@@ -521,7 +521,7 @@ const Emails = () => {
           </ListItemIcon>
           <ListItemText>{t("common_copy_to_clipboard")}</ListItemText>
         </MenuItem>
-        {menuEmail && !menuEmail.pending && !menuEmail.primary && !account?.provisioned && (
+        {menuEmail && !menuEmail.pending && !menuEmail.primary && (
           <MenuItem onClick={() => runMenuAction(handleSetPrimary)}>
             <ListItemIcon>
               <StarBorderIcon fontSize="small" />
@@ -555,7 +555,6 @@ const Emails = () => {
 const AddEmailDialog = (props) => {
   const theme = useTheme();
   const { t } = useTranslation();
-  const { account } = useContext(AccountContext);
   const [error, setError] = useState("");
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
@@ -592,11 +591,6 @@ const AddEmailDialog = (props) => {
         ) : (
           <>
             <DialogContentText>{t("account_basics_emails_dialog_description")}</DialogContentText>
-            {config.enable_reset_password && account?.provisioned && (
-              <Alert severity="info" sx={{ mt: 1 }}>
-                {t("account_basics_emails_provisioned_info")}
-              </Alert>
-            )}
             <TextField
               autoFocus
               margin="dense"

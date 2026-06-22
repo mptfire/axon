@@ -1669,10 +1669,6 @@ func (a *Manager) VerifyEmail(rawToken string) (*MagicLink, error) {
 	if m.Kind != MagicLinkKindEmailVerify || time.Now().Unix() > m.Expires {
 		return nil, ErrMagicLinkNotFound
 	}
-	u, err := a.UserByID(m.UserID)
-	if err != nil {
-		return nil, err
-	}
 	err = db.ExecTx(a.db, func(tx *sql.Tx) error {
 		// Single use: delete the link, then add the (idempotent) verified address
 		if _, err := tx.Exec(a.queries.deleteMagicLinkByHash, tokenHash); err != nil {
@@ -1680,10 +1676,6 @@ func (a *Manager) VerifyEmail(rawToken string) (*MagicLink, error) {
 		}
 		if _, err := tx.Exec(a.queries.insertEmailIgnore, m.UserID, m.Email); err != nil {
 			return err
-		}
-		// Must stay before the promotion block; covered by TestUser_MagicLink_VerifyEmail_ProvisionedNoPrimary
-		if u.Provisioned {
-			return nil // Provisioned users don't get a primary (recovery) email
 		}
 		// Promote to primary only if the user has none yet and the address is globally free.
 		// We check with SELECTs rather than catching a unique violation, because Postgres aborts
