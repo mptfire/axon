@@ -746,7 +746,6 @@ func (s *Server) configResponse() *apiConfigResponse {
 		EnablePayments:      s.config.StripeSecretKey != "",
 		EnableCalls:         s.config.TwilioAccount != "",
 		EnableEmails:        s.config.SMTPSenderFrom != "",
-		EnableEmailVerify:   s.config.SMTPSenderVerify,
 		EnableResetPassword: s.config.SMTPSenderFrom != "" && s.config.BaseURL != "", // Reset links need SMTP + an absolute base-url
 		EnableReservations:  s.config.EnableReservations,
 		EnableWebPush:       s.config.WebPushPublicKey != "",

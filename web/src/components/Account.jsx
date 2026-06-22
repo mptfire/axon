@@ -428,7 +428,7 @@ const Emails = () => {
       setSnack(t("account_basics_emails_resent"));
     });
 
-  if (!config.enable_email_verify) {
+  if (!config.enable_emails) {
     return null;
   }
 

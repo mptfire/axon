@@ -863,16 +863,39 @@ func (s *Server) handleAccountPasswordReset(w http.ResponseWriter, r *http.Reque
 	return s.writeJSON(w, newSuccessResponse())
 }
 
-// convertEmailAddress checks the email address against the user's verified email list.
-// If smtp-sender-verify is false (default), the email is passed through as-is for
-// backwards compatibility. If true, the user must be authenticated and the email must be
-// in their verified list. "yes"/"true"/"1" resolves to the user's primary email (falling
-// back to the first verified email if no primary is designated).
+// convertEmailAddress resolves the X-Email value to the address ntfy should send to.
+//
+// "yes"/"true"/"1" resolves to the user's primary verified address -- or, if no primary is
+// designated (e.g. a provisioned user), the first verified address (alphabetically). This is
+// independent of smtp-sender-verify: it only requires an authenticated user with a verified
+// address, since it means "send to my own email".
+//
+// A literal address is sent as-is when smtp-sender-verify is false (the default, backwards
+// compatible); when true, the address must be one the user has verified.
 func (s *Server) convertEmailAddress(u *user.User, email string) (string, *errHTTP) {
-	if !s.config.SMTPSenderVerify {
-		if toBool(email) {
-			return "", errHTTPBadRequestEmailAddressInvalid
+	if toBool(email) {
+		if u == nil {
+			return "", errHTTPBadRequestAnonymousEmailNotAllowed
+		} else if s.userManager == nil {
+			return "", errHTTPBadRequestEmailAddressNotVerified
 		}
+		primary, err := s.userManager.PrimaryEmail(u.ID)
+		if err != nil {
+			return "", errHTTPInternalError
+		} else if primary != "" {
+			return primary, nil
+		}
+		// No primary designated -> fall back to the first verified address, if any
+		emails, err := s.userManager.Emails(u.ID)
+		if err != nil {
+			return "", errHTTPInternalError
+		} else if len(emails) > 0 {
+			return emails[0], nil
+		}
+		return "", errHTTPBadRequestEmailAddressNotVerified
+	}
+	// A literal address
+	if !s.config.SMTPSenderVerify {
 		return email, nil
 	} else if u == nil {
 		return "", errHTTPBadRequestAnonymousEmailNotAllowed
@@ -882,17 +905,6 @@ func (s *Server) convertEmailAddress(u *user.User, email string) (string, *errHT
 	emails, err := s.userManager.Emails(u.ID)
 	if err != nil {
 		return "", errHTTPInternalError
-	} else if len(emails) == 0 {
-		return "", errHTTPBadRequestEmailAddressNotVerified
-	}
-	if toBool(email) {
-		primary, err := s.userManager.PrimaryEmail(u.ID)
-		if err != nil {
-			return "", errHTTPInternalError
-		} else if primary != "" {
-			return primary, nil
-		}
-		return emails[0], nil // No primary designated (e.g. provisioned user); fall back to first verified
 	} else if util.Contains(emails, email) {
 		return email, nil
 	}

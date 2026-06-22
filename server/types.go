@@ -338,7 +338,6 @@ type apiConfigResponse struct {
 	EnablePayments      bool     `json:"enable_payments"`
 	EnableCalls         bool     `json:"enable_calls"`
 	EnableEmails        bool     `json:"enable_emails"`
-	EnableEmailVerify   bool     `json:"enable_email_verify"`
 	EnableResetPassword bool     `json:"enable_reset_password"`
 	EnableReservations  bool     `json:"enable_reservations"`
 	EnableWebPush       bool     `json:"enable_web_push"`

@@ -1688,17 +1688,43 @@ func TestServer_PublishEmailVerify_BoolValueUsesPrimary(t *testing.T) {
 	})
 }
 
-func TestServer_PublishEmailVerify_BoolValue_NoVerify(t *testing.T) {
+func TestServer_PublishEmailVerify_BoolValueNoVerifyUsesPrimary(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfigWithAuthFile(t, databaseURL)
+		// smtp-sender-verify intentionally left false (the default)
+		s := newTestServer(t, conf)
+		mailer := &testMailer{}
+		s.mailer = mailer
+		defer s.closeDatabases()
+
+		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
+		u, err := s.userManager.User("phil")
+		require.Nil(t, err)
+		require.Nil(t, s.userManager.AddEmail(u.ID, "aaa@example.com"))
+		require.Nil(t, s.userManager.AddEmail(u.ID, "zzz@example.com"))
+		require.Nil(t, s.userManager.SetPrimaryEmail(u.ID, "zzz@example.com"))
+
+		// Even with smtp-sender-verify off, "yes" resolves to the user's primary verified address
+		response := request(t, s, "PUT", "/mytopic", "hi", map[string]string{
+			"Email":         "yes",
+			"Authorization": util.BasicAuth("phil", "phil"),
+		})
+		require.Equal(t, 200, response.Code)
+		require.Equal(t, "zzz@example.com", mailer.LastTo())
+	})
+}
+
+func TestServer_PublishEmailVerify_BoolValueAnonymousRejected(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		s := newTestServer(t, newTestConfig(t, databaseURL))
 		s.mailer = &testMailer{}
 
-		// "yes" without smtp-sender-verify should fail with invalid address
+		// "yes" requires an authenticated user (it means "my primary"); anonymous is rejected
 		response := request(t, s, "PUT", "/mytopic", "hi", map[string]string{
 			"Email": "yes",
 		})
 		require.Equal(t, 400, response.Code)
-		require.Equal(t, 40050, toHTTPError(t, response.Body.String()).Code)
+		require.Equal(t, 40053, toHTTPError(t, response.Body.String()).Code)
 	})
 }
 
