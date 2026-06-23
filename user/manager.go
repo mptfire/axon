@@ -2,6 +2,7 @@
 package user
 
 import (
+	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -680,7 +681,7 @@ func (a *Manager) Authorize(user *User, topic string, perm Permission) error {
 	// to sync subscriptions/settings across devices. Without this, an
 	// auth-default-access of "deny-all" locks the user out of their own sync
 	// topic (no ACL entry is created for it at user creation). See #733.
-	if user != nil && user.SyncTopic != "" && topic == user.SyncTopic {
+	if user != nil && user.SyncTopic != "" && subtle.ConstantTimeCompare([]byte(topic), []byte(user.SyncTopic)) == 1 {
 		return nil
 	}
 	username := Everyone
