@@ -74,12 +74,13 @@ func ParseURL(s3URL string) (*Config, error) {
 	var endpoint string
 	var pathStyle bool
 	if endpointParam != "" {
-		// Custom endpoint: strip scheme prefix to extract host[:port]
-		uep, err := url.Parse(endpointParam)
-		if err != nil {
-			return nil, fmt.Errorf("s3: invalid endpoint URL: %w", err)
+		// Custom endpoint: derive the scheme from the prefix and strip it to extract host[:port].
+		// Default to https for backward compatibility, including bare "host:port" endpoints (no
+		// scheme) -- url.Parse would otherwise misread the host before the port colon as the scheme.
+		scheme = "https"
+		if strings.HasPrefix(endpointParam, "http://") {
+			scheme = "http"
 		}
-		scheme = uep.Scheme
 		ep := strings.TrimRight(endpointParam, "/")
 		ep = strings.TrimPrefix(ep, "https://")
 		ep = strings.TrimPrefix(ep, "http://")

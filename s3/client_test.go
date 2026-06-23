@@ -52,6 +52,27 @@ func TestParseURL_EndpointHTTP(t *testing.T) {
 	require.True(t, cfg.PathStyle)
 }
 
+func TestParseURL_EndpointNoScheme(t *testing.T) {
+	// A bare host:port endpoint (no scheme) must default to https for backward compatibility.
+	// Without this, url.Parse treats the host as the scheme ("localhost:9000" -> scheme "localhost").
+	cfg, err := ParseURL("s3://AKID:SECRET@my-bucket?region=us-east-1&endpoint=localhost:9000")
+	require.Nil(t, err)
+	require.Equal(t, "https", cfg.Scheme)
+	require.Equal(t, "localhost:9000", cfg.Endpoint)
+	require.True(t, cfg.PathStyle)
+	require.Equal(t, "https://localhost:9000/my-bucket", cfg.BucketURL())
+}
+
+func TestParseURL_EndpointNoSchemeHostname(t *testing.T) {
+	// A dotted hostname with a port and no scheme must also default to https
+	// ("minio.example.com:9000" must not become scheme "minio.example.com").
+	cfg, err := ParseURL("s3://AKID:SECRET@my-bucket?region=us-east-1&endpoint=minio.example.com:9000")
+	require.Nil(t, err)
+	require.Equal(t, "https", cfg.Scheme)
+	require.Equal(t, "minio.example.com:9000", cfg.Endpoint)
+	require.Equal(t, "https://minio.example.com:9000/my-bucket", cfg.BucketURL())
+}
+
 func TestParseURL_EndpointTrailingSlash(t *testing.T) {
 	cfg, err := ParseURL("s3://AKID:SECRET@my-bucket?region=us-east-1&endpoint=https://s3.example.com/")
 	require.Nil(t, err)
