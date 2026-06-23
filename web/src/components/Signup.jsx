@@ -87,7 +87,7 @@ const Signup = () => {
           id="password"
           autoComplete="new-password"
           value={password}
-          onChange={(ev) => setPassword(ev.target.value.trim())}
+          onChange={(ev) => setPassword(ev.target.value)}
           InputProps={{
             endAdornment: (
               <InputAdornment position="end">
@@ -113,7 +113,7 @@ const Signup = () => {
           id="confirm"
           autoComplete="new-password"
           value={confirm}
-          onChange={(ev) => setConfirm(ev.target.value.trim())}
+          onChange={(ev) => setConfirm(ev.target.value)}
           InputProps={{
             endAdornment: (
               <InputAdornment position="end">

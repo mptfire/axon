@@ -1970,6 +1970,7 @@ since I do have to reset emails on a regular basis.
 * `X-Email: yes` (also `true`/`1`) now sends to your primary verified email regardless of the `smtp-sender-verify` setting (previously it was rejected unless verification was enabled); it requires being logged in with a verified address
 * Grant users full access to their own sync topic (`st_...`) so cross-device subscription sync works under `auth-default-access: deny-all` ([#733](https://github.com/binwiederhier/ntfy/issues/733), [#1795](https://github.com/binwiederhier/ntfy/pull/1795), thanks to [@lmorchard](https://github.com/lmorchard) for the contribution)
 * Support HTTP (non-TLS) S3-compatible endpoints by preserving the endpoint scheme, e.g. for a local MinIO instance ([#1794](https://github.com/binwiederhier/ntfy/pull/1794), [#1734](https://github.com/binwiederhier/ntfy/issues/1734), thanks to [@sskender](https://github.com/sskender) for the contribution, and [@Kernald](https://github.com/Kernald) for reporting)
+* Stop silently stripping spaces from passwords while typing in the web app's login, signup, and password-reset forms ([#1246](https://github.com/binwiederhier/ntfy/issues/1246), thanks to [@aldem](https://github.com/aldem) for reporting)
 
 ### ntfy Android v1.25.x (UNRELEASED)
 

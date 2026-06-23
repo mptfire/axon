@@ -66,7 +66,7 @@ const Login = () => {
           type={showPassword ? "text" : "password"}
           id="password"
           value={password}
-          onChange={(ev) => setPassword(ev.target.value.trim())}
+          onChange={(ev) => setPassword(ev.target.value)}
           autoComplete="current-password"
           InputProps={{
             endAdornment: (

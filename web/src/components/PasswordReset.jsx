@@ -71,7 +71,7 @@ const PasswordReset = () => {
           type="password"
           id="password"
           value={password}
-          onChange={(ev) => setPassword(ev.target.value.trim())}
+          onChange={(ev) => setPassword(ev.target.value)}
           autoComplete="new-password"
           autoFocus
         />
@@ -84,7 +84,7 @@ const PasswordReset = () => {
           type="password"
           id="confirm"
           value={confirm}
-          onChange={(ev) => setConfirm(ev.target.value.trim())}
+          onChange={(ev) => setConfirm(ev.target.value)}
           autoComplete="new-password"
         />
         <Button
