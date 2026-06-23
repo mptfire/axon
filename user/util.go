@@ -1,13 +1,20 @@
 package user
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"regexp"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 	"heckel.io/ntfy/v2/util"
 )
+
+// linkTokenLength is the length of a raw magic-link token. At 48 base62 characters
+// it carries ~285 bits of entropy, well above the ~256-bit target, so the tokens
+// need no brute-force cap -- just expiry and single-use.
+const linkTokenLength = 48
 
 var (
 	allowedUsernameRegex     = regexp.MustCompile(`^[-_.+@a-zA-Z0-9]+$`)    // Does not include Everyone (*)
@@ -67,12 +74,23 @@ func GenerateToken() string {
 	return util.RandomLowerStringPrefix(tokenPrefix, tokenLength)
 }
 
-// HashPassword hashes the given password using bcrypt with the configured cost
-func HashPassword(password string) (string, error) {
-	return hashPassword(password, DefaultUserPasswordBcryptCost)
+// generateLinkToken returns a fresh high-entropy raw token for a magic link
+// (email verification or password reset). The raw token is carried in the emailed
+// link; only its hashToken digest is persisted.
+func generateLinkToken() string {
+	return util.RandomString(linkTokenLength)
 }
 
-func hashPassword(password string, cost int) (string, error) {
+// hashToken returns the hex-encoded SHA-256 digest of a raw magic-link token.
+// Tokens are stored hashed so a database read cannot yield working links; a high-entropy
+// token makes a fast (unsalted) hash sufficient, unlike a password.
+func hashToken(raw string) string {
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
+}
+
+// HashPassword hashes the given password using bcrypt with the given cost
+func HashPassword(password string, cost int) (string, error) {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), cost)
 	if err != nil {
 		return "", err

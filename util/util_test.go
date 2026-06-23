@@ -25,6 +25,30 @@ func TestRandomString(t *testing.T) {
 	require.NotEqual(t, s1, s2)
 }
 
+// TestRandomString_CSPRNG guards the crypto/rand-backed generator: every character must come
+// from the expected charset (rejection sampling correctness) and a large batch must be unique
+// (no clock-seeded PRNG collapsing to a predictable stream).
+func TestRandomString_CSPRNG(t *testing.T) {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	seen := make(map[string]bool)
+	charCounts := make(map[rune]int)
+	for i := 0; i < 5000; i++ {
+		s := RandomString(48)
+		require.Equal(t, 48, len(s))
+		require.False(t, seen[s], "duplicate random string generated")
+		seen[s] = true
+		for _, c := range s {
+			require.Contains(t, charset, string(c))
+			charCounts[c]++
+		}
+	}
+	// Every charset character should appear at least once across 5000*48 draws; a heavily
+	// biased or broken generator would leave gaps.
+	for _, c := range charset {
+		require.Greater(t, charCounts[c], 0, "character %q never appeared", string(c))
+	}
+}
+
 func TestFileExists(t *testing.T) {
 	filename := filepath.Join(t.TempDir(), "somefile.txt")
 	require.Nil(t, os.WriteFile(filename, []byte{0x25, 0x86}, 0600))

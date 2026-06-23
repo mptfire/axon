@@ -31,11 +31,11 @@ export class TopicReservedError extends Error {
   }
 }
 
-export class AccountCreateLimitReachedError extends Error {
-  static CODE = 42906; // errHTTPTooManyRequestsLimitAccountCreation
+export class AccountActionLimitReachedError extends Error {
+  static CODE = 42906; // errHTTPTooManyRequestsLimitAccountActions
 
   constructor() {
-    super("Account creation limit reached");
+    super("Account action limit reached");
   }
 }
 
@@ -51,7 +51,15 @@ export class EmailVerificationCodeInvalidError extends Error {
   static CODE = 40051; // errHTTPBadRequestEmailVerificationCodeInvalid
 
   constructor() {
-    super("Email verification code invalid or expired");
+    super("Email verification link invalid or expired");
+  }
+}
+
+export class EmailPrimaryElsewhereError extends Error {
+  static CODE = 40908; // errHTTPConflictEmailPrimaryElsewhere
+
+  constructor() {
+    super("Email address is the recovery email on another account");
   }
 }
 
@@ -67,12 +75,14 @@ export const throwAppError = async (response) => {
       throw new UserExistsError();
     } else if (error.code === TopicReservedError.CODE) {
       throw new TopicReservedError();
-    } else if (error.code === AccountCreateLimitReachedError.CODE) {
-      throw new AccountCreateLimitReachedError();
+    } else if (error.code === AccountActionLimitReachedError.CODE) {
+      throw new AccountActionLimitReachedError();
     } else if (error.code === IncorrectPasswordError.CODE) {
       throw new IncorrectPasswordError();
     } else if (error.code === EmailVerificationCodeInvalidError.CODE) {
       throw new EmailVerificationCodeInvalidError();
+    } else if (error.code === EmailPrimaryElsewhereError.CODE) {
+      throw new EmailPrimaryElsewhereError();
     } else if (error?.error) {
       throw new Error(`Error ${error.code}: ${error.error}`);
     }

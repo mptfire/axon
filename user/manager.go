@@ -40,6 +40,7 @@ const (
 	DefaultUserPasswordBcryptCost       = 10
 	DefaultAccessCacheEnabled           = false
 	DefaultAccessCacheReloadInterval    = 87 * time.Second
+	DefaultExpiredMagicLinkReapInterval = time.Hour // How often expired email-verify/password-reset links are swept
 )
 
 var (
@@ -72,6 +73,9 @@ func newManager(d *db.DB, queries queries, config *Config) (*Manager, error) {
 	if config.AccessCacheReloadInterval <= 0 {
 		config.AccessCacheReloadInterval = DefaultAccessCacheReloadInterval
 	}
+	if config.ExpiredMagicLinkReapInterval <= 0 {
+		config.ExpiredMagicLinkReapInterval = DefaultExpiredMagicLinkReapInterval
+	}
 	manager := &Manager{
 		config:     config,
 		db:         d,
@@ -91,6 +95,7 @@ func newManager(d *db.DB, queries queries, config *Config) (*Manager, error) {
 		go manager.asyncAccessCacheReloadLoop(manager.config.AccessCacheReloadInterval)
 	}
 	go manager.asyncQueueWriteLoop(manager.config.QueueWriterInterval)
+	go manager.asyncExpiredMagicLinkReapLoop(manager.config.ExpiredMagicLinkReapInterval)
 	return manager, nil
 }
 
@@ -123,6 +128,25 @@ func (a *Manager) asyncAccessCacheReloadLoop(interval time.Duration) {
 		case <-ticker.C:
 			if err := a.maybeReloadAccessCache(); err != nil {
 				log.Tag(tag).Err(err).Warn("Reloading ACL cache failed")
+			}
+		}
+	}
+}
+
+// asyncExpiredMagicLinkReapLoop periodically deletes expired email-verification and
+// password-reset links so the user_magic_link table does not accumulate dead rows. Expiry is
+// already enforced on read, so this is housekeeping only; it replaces the old in-memory
+// expireLoop that lived in mail.Sender.
+func (a *Manager) asyncExpiredMagicLinkReapLoop(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-a.quit:
+			return
+		case <-ticker.C:
+			if err := a.deleteExpiredMagicLinks(); err != nil {
+				log.Tag(tag).Err(err).Warn("Reaping expired magic links failed")
 			}
 		}
 	}
@@ -494,6 +518,19 @@ func (a *Manager) UserByID(id string) (*User, error) {
 	return a.readUser(rows)
 }
 
+// UserByEmailOrUsername resolves an identifier to a single user, trying it first as a primary
+// email address and then as a username. A verified, owned email takes precedence over a
+// freely-chosen username, so a look-alike username cannot shadow the email's real owner. Returns
+// ErrUserNotFound if neither matches.
+func (a *Manager) UserByEmailOrUsername(identifier string) (*User, error) {
+	if userID, err := a.UserIDByPrimaryEmail(identifier); err == nil {
+		if u, err := a.UserByID(userID); err == nil {
+			return u, nil
+		}
+	}
+	return a.User(identifier)
+}
+
 // userByToken returns the user with the given token if it exists and is not expired, or ErrUserNotFound otherwise
 func (a *Manager) userByToken(token string) (*User, error) {
 	rows, err := a.db.Query(a.queries.selectUserByToken, token, time.Now().Unix())
@@ -630,7 +667,7 @@ func (a *Manager) maybeHashPassword(password string, hashed bool) (string, error
 		}
 		return password, nil
 	}
-	return hashPassword(password, a.config.BcryptCost)
+	return HashPassword(password, a.config.BcryptCost)
 }
 
 // Authorize returns nil if the given user has access to the given topic using the desired
@@ -1451,9 +1488,263 @@ func (a *Manager) AddEmail(userID, email string) error {
 	return nil
 }
 
-// RemoveEmail deletes a verified email address from the user with the given user ID
+// RemoveEmail deletes a verified email address from the user with the given user ID.
+// Removing the primary email leaves the account with no primary -- there is deliberately
+// no auto-promotion of another verified address; the user is nudged to pick a new one.
 func (a *Manager) RemoveEmail(userID, email string) error {
 	_, err := a.db.Exec(a.queries.deleteEmail, userID, email)
+	return err
+}
+
+// PrimaryEmail returns the user's primary (recovery) email address, or an empty string if
+// the user has not designated one.
+func (a *Manager) PrimaryEmail(userID string) (string, error) {
+	var email sql.NullString
+	err := a.db.ReadOnly().QueryRow(a.queries.selectPrimaryEmail, userID).Scan(&email)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	} else if err != nil {
+		return "", err
+	}
+	return email.String, nil
+}
+
+// UserIDByPrimaryEmail returns the ID of the (at most one) account for which the given address
+// is the primary email. Returns ErrUserNotFound if no account claims it as primary. Used by the
+// password-reset request flow to resolve an email identifier to a single account.
+func (a *Manager) UserIDByPrimaryEmail(email string) (string, error) {
+	var userID string
+	err := a.db.ReadOnly().QueryRow(a.queries.selectUserIDByPrimary, email).Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrUserNotFound
+	} else if err != nil {
+		return "", err
+	}
+	return userID, nil
+}
+
+// PendingEmails returns the user's unverified (pending) email addresses, i.e. addresses with
+// an outstanding email-verification magic link.
+func (a *Manager) PendingEmails(userID string) ([]string, error) {
+	rows, err := a.db.ReadOnly().Query(a.queries.selectPendingEmails, string(MagicLinkKindEmailVerify), userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	emails := make([]string, 0)
+	for rows.Next() {
+		var email string
+		if err := rows.Scan(&email); err != nil {
+			return nil, err
+		}
+		emails = append(emails, email)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return emails, nil
+}
+
+// SetPrimaryEmail marks a verified email address as the user's primary (recovery) email,
+// clearing any previous primary in the same transaction. Returns ErrEmailNotFound if the
+// address is not verified on the account, or ErrEmailPrimaryElsewhere if it is already the
+// primary email on another account (enforced by the global partial unique index).
+func (a *Manager) SetPrimaryEmail(userID, email string) error {
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(a.queries.updateEmailClearPrimary, userID); err != nil {
+			return err
+		}
+		res, err := tx.Exec(a.queries.updateEmailSetPrimary, userID, email)
+		if err != nil {
+			if isUniqueConstraintError(err) {
+				return ErrEmailPrimaryElsewhere
+			}
+			return err
+		}
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if affected == 0 {
+			return ErrEmailNotFound // Address not verified on this account
+		}
+		return nil
+	})
+}
+
+// AddMagicLink generates a fresh magic-link token of the given kind, stores it (hashed, replacing
+// any existing link in the same scope), and returns the RAW token for use in the emailed link.
+// Only the hash is persisted; the raw token is never stored. email is the address being verified
+// for email_verify, and "" for password_reset.
+//
+// The scope replaced is, for email_verify, the (user_id, email) pair (one pending verification per
+// address); for password_reset, the user_id (one active reset per account). The replace-delete and
+// the insert run in one transaction so a re-request atomically supersedes the old token.
+func (a *Manager) AddMagicLink(kind MagicLinkKind, userID, email string, ttl time.Duration) (string, error) {
+	token := generateLinkToken()
+	now := time.Now()
+	m := &MagicLink{
+		TokenHash: hashToken(token),
+		Kind:      kind,
+		UserID:    userID,
+		Email:     email,
+		Expires:   now.Add(ttl).Unix(),
+		Created:   now.Unix(),
+	}
+	err := db.ExecTx(a.db, func(tx *sql.Tx) error {
+		switch m.Kind {
+		case MagicLinkKindEmailVerify:
+			if _, err := tx.Exec(a.queries.deleteMagicLinkEmailVerify, string(MagicLinkKindEmailVerify), m.UserID, m.Email); err != nil {
+				return err
+			}
+		case MagicLinkKindPasswordReset:
+			if _, err := tx.Exec(a.queries.deleteMagicLinkResetPassword, string(MagicLinkKindPasswordReset), m.UserID); err != nil {
+				return err
+			}
+		default:
+			return ErrInvalidArgument
+		}
+		if _, err := tx.Exec(a.queries.insertMagicLink, m.TokenHash, string(m.Kind), m.UserID, nullString(m.Email), m.Expires, m.Created); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// MagicLinkByToken looks up a magic link by its raw token (hashing it first). See MagicLinkByHash.
+func (a *Manager) MagicLinkByToken(rawToken string) (*MagicLink, error) {
+	return a.MagicLinkByHash(hashToken(rawToken))
+}
+
+// MagicLinkByHash looks up a magic link by the hex SHA-256 of its raw token, returning
+// ErrMagicLinkNotFound if none exists. Callers must assert the returned Kind matches the flow
+// they serve and check Expires themselves.
+func (a *Manager) MagicLinkByHash(tokenHash string) (*MagicLink, error) {
+	var m MagicLink
+	var kind string
+	var email sql.NullString
+	err := a.db.ReadOnly().QueryRow(a.queries.selectMagicLinkByHash, tokenHash).Scan(&m.TokenHash, &kind, &m.UserID, &email, &m.Expires, &m.Created)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrMagicLinkNotFound
+	} else if err != nil {
+		return nil, err
+	}
+	m.Kind = MagicLinkKind(kind)
+	m.Email = email.String
+	return &m, nil
+}
+
+// DeleteMagicLinkByToken deletes a magic link identified by its raw token (single-use consume).
+// Used to enforce single use after a reset is performed (email verification deletes the row
+// inside VerifyEmail's transaction).
+func (a *Manager) DeleteMagicLinkByToken(rawToken string) error {
+	_, err := a.db.Exec(a.queries.deleteMagicLinkByHash, hashToken(rawToken))
+	return err
+}
+
+// DeleteEmailVerification removes any pending email verification for (userID, email). Used when
+// an unverified (pending) address is cancelled/deleted from the account.
+func (a *Manager) DeleteEmailVerification(userID, email string) error {
+	_, err := a.db.Exec(a.queries.deleteMagicLinkEmailVerify, string(MagicLinkKindEmailVerify), userID, email)
+	return err
+}
+
+// VerifyEmail consumes an email-verification magic link, identified by its raw token: after
+// validating the token (kind + expiry), it deletes the link, adds the address to the user's
+// verified emails, and -- if the user has no primary email yet and the address is not already
+// primary on another account -- promotes the new address to primary. All mutations run in one
+// transaction. A primary collision simply leaves the address verified but non-primary. Provisioned
+// users never get a primary (the recovery email is meaningless for them -- they can't reset).
+// Returns the consumed link.
+func (a *Manager) VerifyEmail(rawToken string) (*MagicLink, error) {
+	tokenHash := hashToken(rawToken)
+	m, err := a.MagicLinkByHash(tokenHash)
+	if err != nil {
+		return nil, err
+	}
+	if m.Kind != MagicLinkKindEmailVerify || time.Now().Unix() > m.Expires {
+		return nil, ErrMagicLinkNotFound
+	}
+	err = db.ExecTx(a.db, func(tx *sql.Tx) error {
+		// Single use: delete the link, then add the (idempotent) verified address
+		if _, err := tx.Exec(a.queries.deleteMagicLinkByHash, tokenHash); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(a.queries.insertEmailIgnore, m.UserID, m.Email); err != nil {
+			return err
+		}
+		// Promote to primary only if the user has none yet and the address is globally free.
+		// We check with SELECTs rather than catching a unique violation, because Postgres aborts
+		// the whole transaction on any constraint error (which would undo the verified-email add).
+		var primary sql.NullString
+		err := tx.QueryRow(a.queries.selectPrimaryEmail, m.UserID).Scan(&primary)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if primary.String != "" {
+			return nil // User already has a primary -- leave it
+		}
+		// If the address is already another account's primary, leave it a verified secondary here
+		var ownerUserID string
+		if err = tx.QueryRow(a.queries.selectUserIDByPrimary, m.Email).Scan(&ownerUserID); err == nil {
+			return nil // Address is primary elsewhere -> not promoted
+		} else if !errors.Is(err, sql.ErrNoRows) {
+			return err // Real query error
+		}
+		// Address is globally free -> promote it to this user's primary
+		if _, err := tx.Exec(a.queries.updateEmailSetPrimary, m.UserID, m.Email); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// ResetPassword consumes a password-reset magic link, identified by its raw token: after
+// validating the token (kind + expiry), it sets the user's password and deletes the link in one
+// transaction. Existing access tokens are intentionally left valid (only the password changes).
+// Returns ErrMagicLinkNotFound if the token is invalid, expired, or not a reset token.
+func (a *Manager) ResetPassword(rawToken, newPassword string) error {
+	m, err := a.MagicLinkByHash(hashToken(rawToken))
+	if err != nil {
+		return err
+	}
+	if m.Kind != MagicLinkKindPasswordReset || time.Now().Unix() > m.Expires {
+		return ErrMagicLinkNotFound
+	}
+	u, err := a.UserByID(m.UserID)
+	if err != nil {
+		return err
+	}
+	if u.Provisioned {
+		return ErrProvisionedUserChange // Provisioned users get their password from the config file, not reset
+	}
+	hash, err := HashPassword(newPassword, a.config.BcryptCost)
+	if err != nil {
+		return err
+	}
+	return db.ExecTx(a.db, func(tx *sql.Tx) error {
+		if err := a.changePasswordHashTx(tx, u.Name, hash); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(a.queries.deleteMagicLinkByHash, m.TokenHash); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// deleteExpiredMagicLinks removes magic links whose expiry has passed. Expiry is also enforced
+// on read, so this is purely housekeeping to bound table growth; it runs from the reaper loop.
+func (a *Manager) deleteExpiredMagicLinks() error {
+	_, err := a.db.Exec(a.queries.deleteExpiredMagicLinks, time.Now().Unix())
 	return err
 }
 

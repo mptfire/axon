@@ -122,6 +122,69 @@ func TestCLI_User_Delete(t *testing.T) {
 	require.Contains(t, err.Error(), "user phil does not exist")
 }
 
+func TestCLI_User_ResetPass(t *testing.T) {
+	s, conf, port := newTestServerWithAuth(t)
+	defer test.StopServer(t, s, port)
+
+	app, stdin, _, _ := newTestApp()
+	stdin.WriteString("mypass\nmypass")
+	require.Nil(t, runUserCommand(app, conf, "add", "phil"))
+
+	// Prints a working-looking reset link when base-url is set
+	app, _, stdout, _ := newTestApp()
+	require.Nil(t, runUserCommand(app, conf, "--base-url=https://ntfy.example.com", "reset-pass", "phil"))
+	require.Contains(t, stdout.String(), "https://ntfy.example.com/account/password/reset/")
+}
+
+func TestCLI_User_ResetPass_NoBaseURL(t *testing.T) {
+	s, conf, port := newTestServerWithAuth(t)
+	defer test.StopServer(t, s, port)
+
+	app, stdin, _, _ := newTestApp()
+	stdin.WriteString("mypass\nmypass")
+	require.Nil(t, runUserCommand(app, conf, "add", "phil"))
+
+	app, _, _, _ = newTestApp()
+	err := runUserCommand(app, conf, "reset-pass", "phil")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "base-url")
+}
+
+func TestCLI_User_ResetPass_SendEmailNoPrimary(t *testing.T) {
+	s, conf, port := newTestServerWithAuth(t)
+	defer test.StopServer(t, s, port)
+
+	app, stdin, _, _ := newTestApp()
+	stdin.WriteString("mypass\nmypass")
+	require.Nil(t, runUserCommand(app, conf, "add", "phil"))
+
+	// --send-email requires a primary email; phil has none
+	app, _, _, _ = newTestApp()
+	err := runUserCommand(app, conf, "--base-url=https://ntfy.example.com", "reset-pass", "--send-email", "phil")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no primary email")
+}
+
+func TestCLI_User_ResetPass_ProvisionedRejected(t *testing.T) {
+	s, conf, port := newTestServerWithAuth(t)
+	defer test.StopServer(t, s, port)
+
+	// Seed a provisioned user into the auth database via config provisioning
+	m, err := user.NewSQLiteManager(conf.AuthFile, "", &user.Config{
+		ProvisionEnabled: true,
+		Users: []*user.User{
+			{Name: "provuser", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: user.RoleUser},
+		},
+	})
+	require.Nil(t, err)
+	require.Nil(t, m.Close())
+
+	app, _, _, _ := newTestApp()
+	err = runUserCommand(app, conf, "--base-url=https://ntfy.example.com", "reset-pass", "provuser")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "provisioned")
+}
+
 func newTestServerWithAuth(t *testing.T) (s *server.Server, conf *server.Config, port int) {
 	configFile := filepath.Join(t.TempDir(), "server-dummy.yml")
 	require.Nil(t, os.WriteFile(configFile, []byte(""), 0600)) // Dummy config file to avoid lookup of real server.yml
