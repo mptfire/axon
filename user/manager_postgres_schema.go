@@ -75,8 +75,21 @@ const (
 		CREATE TABLE IF NOT EXISTS user_email (
 			user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
 			email TEXT NOT NULL,
+			is_primary BOOLEAN NOT NULL DEFAULT FALSE,
 			PRIMARY KEY (user_id, email)
 		);
+		CREATE UNIQUE INDEX idx_user_email_primary_user ON user_email (user_id) WHERE is_primary;
+		CREATE UNIQUE INDEX idx_user_email_primary_addr ON user_email (email) WHERE is_primary;
+		CREATE TABLE IF NOT EXISTS user_magic_link (
+			token_hash TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+			email TEXT,
+			expires BIGINT NOT NULL,
+			created BIGINT NOT NULL,
+			PRIMARY KEY (token_hash)
+		);
+		CREATE INDEX idx_magic_link_user_kind ON user_magic_link (user_id, kind);
 		CREATE TABLE IF NOT EXISTS schema_version (
 			store TEXT PRIMARY KEY,
 			version INT NOT NULL
@@ -89,7 +102,7 @@ const (
 
 // Schema table management queries for Postgres
 const (
-	postgresCurrentSchemaVersion     = 7
+	postgresCurrentSchemaVersion     = 8
 	postgresSelectSchemaVersionQuery = `SELECT version FROM schema_version WHERE store = 'user'`
 	postgresInsertSchemaVersionQuery = `INSERT INTO schema_version (store, version) VALUES ('user', $1)`
 )
@@ -102,11 +115,30 @@ const (
 			PRIMARY KEY (user_id, email)
 		);
 	`
+
+	// 7 -> 8: primary (recovery) email + magic-link table for verification/reset.
+	// No backfill -- existing verified emails stay non-primary.
+	postgresMigrate7To8UpdateQueries = `
+		ALTER TABLE user_email ADD COLUMN is_primary BOOLEAN NOT NULL DEFAULT FALSE;
+		CREATE UNIQUE INDEX idx_user_email_primary_user ON user_email (user_id) WHERE is_primary;
+		CREATE UNIQUE INDEX idx_user_email_primary_addr ON user_email (email) WHERE is_primary;
+		CREATE TABLE IF NOT EXISTS user_magic_link (
+			token_hash TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			user_id TEXT NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+			email TEXT,
+			expires BIGINT NOT NULL,
+			created BIGINT NOT NULL,
+			PRIMARY KEY (token_hash)
+		);
+		CREATE INDEX idx_magic_link_user_kind ON user_magic_link (user_id, kind);
+	`
 	postgresUpdateSchemaVersionQuery = `UPDATE schema_version SET version = $1 WHERE store = 'user'`
 )
 
 var postgresMigrations = map[int]func(db *sql.DB) error{
 	6: postgresMigrateFrom6,
+	7: postgresMigrateFrom7,
 }
 
 func setupPostgres(db *sql.DB) error {
@@ -136,6 +168,16 @@ func postgresMigrateFrom6(db *sql.DB) error {
 		return err
 	}
 	if _, err := db.Exec(postgresUpdateSchemaVersionQuery, 7); err != nil {
+		return err
+	}
+	return nil
+}
+
+func postgresMigrateFrom7(db *sql.DB) error {
+	if _, err := db.Exec(postgresMigrate7To8UpdateQueries); err != nil {
+		return err
+	}
+	if _, err := db.Exec(postgresUpdateSchemaVersionQuery, 8); err != nil {
 		return err
 	}
 	return nil

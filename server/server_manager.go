@@ -54,8 +54,8 @@ func (s *Server) execManager() {
 		receivedMailTotal, receivedMailSuccess, receivedMailFailure = s.smtpServerBackend.Counts()
 	}
 	var sentMailTotal, sentMailSuccess, sentMailFailure int64
-	if s.smtpSender != nil {
-		sentMailTotal, sentMailSuccess, sentMailFailure = s.smtpSender.Counts()
+	if s.mailer != nil {
+		sentMailTotal, sentMailSuccess, sentMailFailure = s.mailer.NotificationCounts()
 	}
 
 	// Users

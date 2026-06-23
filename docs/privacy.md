@@ -1,6 +1,6 @@
 # Privacy policy
 
-**Last updated:** March 31, 2026
+**Last updated:** June 15, 2026
 
 This privacy policy describes how ntfy ("we", "us", or "our") collects, uses, and handles your information
 when you use the ntfy.sh service, web app, and mobile applications (Android and iOS).
@@ -19,8 +19,9 @@ If you create an account on ntfy.sh, we collect:
 
 - **Username** - A unique identifier you choose
 - **Password** - Stored as a secure bcrypt hash (we never store your plaintext password)
-- **Email address** - If you subscribe to a paid plan (for billing purposes via Stripe), or if you add a verified
-  email address for use with the email notification feature
+- **Email address** - If you add an email address to your account for account recovery and password resets, for use
+  with the email notification feature, or if you subscribe to a paid plan (for billing purposes via Stripe). Email
+  addresses you add to your account are verified by sending a confirmation link.
 - **Phone number** - Only if you enable the phone call notification feature (verified via SMS/call)
 
 You can use ntfy without creating an account. Anonymous usage is fully supported.
@@ -77,9 +78,10 @@ Your phone number is shared with Twilio to deliver these services. Twilio's
 
 ### Amazon SES (email delivery)
 
-If you use the email notification feature (`X-Email` header), we use Amazon Simple Email Service (SES) to 
-deliver emails. The recipient email address and message content are transmitted through Amazon's infrastructure. 
-Amazon's [privacy policy](https://aws.amazon.com/privacy/) applies.
+If you use the email notification feature (`X-Email` header), or when ntfy sends account-related emails (email 
+address verification and password reset links), we use Amazon Simple Email Service (SES) to deliver emails. The 
+recipient email address and message content are transmitted through Amazon's infrastructure. Amazon's 
+[privacy policy](https://aws.amazon.com/privacy/) applies.
 
 ### Stripe (payments)
 

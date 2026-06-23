@@ -78,7 +78,8 @@ func TestAccount_Signup_LimitReached(t *testing.T) {
 		s := newTestServer(t, conf)
 		defer s.closeDatabases()
 
-		for i := 0; i < 3; i++ {
+		// Burst is DefaultVisitorAccountCreationLimitBurst (shared with password-reset requests)
+		for i := 0; i < 6; i++ {
 			rr := request(t, s, "POST", "/v1/account", fmt.Sprintf(`{"username":"phil%d", "password":"mypass"}`, i), nil)
 			require.Equal(t, 200, rr.Code)
 		}
@@ -131,7 +132,8 @@ func TestAccount_Signup_Rate_Limit(t *testing.T) {
 		conf.EnableSignup = true
 		s := newTestServer(t, conf)
 
-		for i := 0; i < 3; i++ {
+		// Burst is DefaultVisitorAccountCreationLimitBurst (shared with password-reset requests)
+		for i := 0; i < 6; i++ {
 			rr := request(t, s, "POST", "/v1/account", fmt.Sprintf(`{"username":"phil%d", "password":"mypass"}`, i), nil)
 			require.Equal(t, 200, rr.Code, "failed on iteration %d", i)
 		}
@@ -149,7 +151,7 @@ func TestAccount_Get_Anonymous(t *testing.T) {
 		conf.VisitorAttachmentTotalSizeLimit = 5123
 		conf.AttachmentFileSizeLimit = 512
 		s := newTestServer(t, conf)
-		s.smtpSender = &testMailer{}
+		s.mailer = &testMailer{}
 		defer s.closeDatabases()
 
 		rr := request(t, s, "GET", "/v1/account", "", nil)

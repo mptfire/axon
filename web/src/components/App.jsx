@@ -20,6 +20,9 @@ import Messaging from "./Messaging";
 import Login from "./Login";
 import Signup from "./Signup";
 import Account from "./Account";
+import EmailVerify from "./EmailVerify";
+import PasswordReset from "./PasswordReset";
+import PasswordResetRequest from "./PasswordResetRequest";
 import initI18n from "../app/i18n"; // Translations!
 import prefs from "../app/Prefs";
 import RTLCacheProvider from "./RTLCacheProvider";
@@ -63,6 +66,9 @@ const App = () => {
                 <Routes>
                   <Route path={routes.login} element={<Login />} />
                   <Route path={routes.signup} element={<Signup />} />
+                  <Route path={routes.passwordResetRequest} element={<PasswordResetRequest />} />
+                  <Route path={routes.passwordReset} element={<PasswordReset />} />
+                  <Route path={routes.emailVerify} element={<EmailVerify />} />
                   <Route element={<Layout />}>
                     <Route path={routes.app} element={<AllSubscriptions />} />
                     <Route path={routes.account} element={<Account />} />

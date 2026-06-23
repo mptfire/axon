@@ -2,6 +2,7 @@ package user
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/netip"
 	"path/filepath"
@@ -128,6 +129,13 @@ func TestManager_FullScenario_Default_DenyAll(t *testing.T) {
 		require.Equal(t, ErrUnauthorized, a.Authorize(ben, "everyonewrite", PermissionWrite))
 		require.Nil(t, a.Authorize(ben, "announcements", PermissionRead))
 		require.Equal(t, ErrUnauthorized, a.Authorize(ben, "announcements", PermissionWrite))
+
+		// User has full access to their own sync topic, even under deny-all,
+		// but not to another user's sync topic (#733)
+		require.Nil(t, a.Authorize(ben, ben.SyncTopic, PermissionRead))
+		require.Nil(t, a.Authorize(ben, ben.SyncTopic, PermissionWrite))
+		require.Equal(t, ErrUnauthorized, a.Authorize(ben, john.SyncTopic, PermissionRead))
+		require.Equal(t, ErrUnauthorized, a.Authorize(ben, john.SyncTopic, PermissionWrite))
 
 		// User john should have
 		//  "deny" to mytopic_deny*,
@@ -2825,5 +2833,389 @@ func TestStoreOtherAccessCount(t *testing.T) {
 		count, err := manager.otherAccessCount("phil", "mytopic")
 		require.Nil(t, err)
 		require.Equal(t, 2, count) // ben's owner entry + everyone entry
+	})
+}
+
+// addVerifyLink stores an email-verification magic link and returns the raw token so the test
+// can "click" it via VerifyEmail.
+func addVerifyLink(t *testing.T, a *Manager, userID, email string, ttl time.Duration) string {
+	raw, err := a.AddMagicLink(MagicLinkKindEmailVerify, userID, email, ttl)
+	require.Nil(t, err)
+	return raw
+}
+
+func TestUser_MagicLink_VerifyEmail_SetsPrimary(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		raw := addVerifyLink(t, a, phil.ID, "phil@example.com", 24*time.Hour)
+
+		// Before verifying: pending, not yet verified, no primary
+		pending, err := a.PendingEmails(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, []string{"phil@example.com"}, pending)
+		emails, err := a.Emails(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, 0, len(emails))
+		primary, err := a.PrimaryEmail(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, "", primary)
+
+		// Verify: the first verified email auto-becomes primary
+		m, err := a.VerifyEmail(raw)
+		require.Nil(t, err)
+		require.Equal(t, "phil@example.com", m.Email)
+
+		emails, err = a.Emails(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, []string{"phil@example.com"}, emails)
+		primary, err = a.PrimaryEmail(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, "phil@example.com", primary)
+		pending, err = a.PendingEmails(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, 0, len(pending))
+
+		// Reset-by-email lookup resolves to the account
+		userID, err := a.UserIDByPrimaryEmail("phil@example.com")
+		require.Nil(t, err)
+		require.Equal(t, phil.ID, userID)
+	})
+}
+
+func TestUser_MagicLink_VerifyEmail_SecondStaysSecondary(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		raw1 := addVerifyLink(t, a, phil.ID, "first@example.com", 24*time.Hour)
+		_, err = a.VerifyEmail(raw1)
+		require.Nil(t, err)
+
+		raw2 := addVerifyLink(t, a, phil.ID, "second@example.com", 24*time.Hour)
+		_, err = a.VerifyEmail(raw2)
+		require.Nil(t, err)
+
+		// Both verified, but primary is still the first
+		emails, err := a.Emails(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, []string{"first@example.com", "second@example.com"}, emails)
+		primary, err := a.PrimaryEmail(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, "first@example.com", primary)
+	})
+}
+
+func TestUser_MagicLink_PrimaryGlobalUniqueness(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+		ben, err := a.User("ben")
+		require.Nil(t, err)
+
+		// phil verifies shared@ first -> becomes his primary
+		_, err = a.VerifyEmail(addVerifyLink(t, a, phil.ID, "shared@example.com", 24*time.Hour))
+		require.Nil(t, err)
+		primary, err := a.PrimaryEmail(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, "shared@example.com", primary)
+
+		// ben verifies the same address -> allowed as secondary, but NOT his primary
+		_, err = a.VerifyEmail(addVerifyLink(t, a, ben.ID, "shared@example.com", 24*time.Hour))
+		require.Nil(t, err)
+		emails, err := a.Emails(ben.ID)
+		require.Nil(t, err)
+		require.Equal(t, []string{"shared@example.com"}, emails)
+		primary, err = a.PrimaryEmail(ben.ID)
+		require.Nil(t, err)
+		require.Equal(t, "", primary)
+
+		// Explicitly promoting ben's copy to primary collides with phil's
+		require.ErrorIs(t, a.SetPrimaryEmail(ben.ID, "shared@example.com"), ErrEmailPrimaryElsewhere)
+		// ...and phil keeps his primary (the failed promotion rolled back ben's clear)
+		primary, err = a.PrimaryEmail(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, "shared@example.com", primary)
+	})
+}
+
+func TestUser_MagicLink_SetPrimary_NotVerified(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+		require.ErrorIs(t, a.SetPrimaryEmail(phil.ID, "nope@example.com"), ErrEmailNotFound)
+	})
+}
+
+func TestUser_MagicLink_Expired(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		raw := addVerifyLink(t, a, phil.ID, "phil@example.com", -time.Minute)
+		_, err = a.VerifyEmail(raw)
+		require.ErrorIs(t, err, ErrMagicLinkNotFound)
+
+		// Nothing got verified
+		emails, err := a.Emails(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, 0, len(emails))
+	})
+}
+
+func TestUser_MagicLink_SingleUse(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		raw := addVerifyLink(t, a, phil.ID, "phil@example.com", 24*time.Hour)
+		_, err = a.VerifyEmail(raw)
+		require.Nil(t, err)
+		// Second click: token already consumed
+		_, err = a.VerifyEmail(raw)
+		require.ErrorIs(t, err, ErrMagicLinkNotFound)
+	})
+}
+
+func TestUser_MagicLink_ReplaceOnReRequest(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		raw1 := addVerifyLink(t, a, phil.ID, "phil@example.com", 24*time.Hour)
+		raw2 := addVerifyLink(t, a, phil.ID, "phil@example.com", 24*time.Hour)
+
+		// Only one pending row remains; the old token no longer works
+		pending, err := a.PendingEmails(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, []string{"phil@example.com"}, pending)
+		_, err = a.MagicLinkByToken(raw1)
+		require.ErrorIs(t, err, ErrMagicLinkNotFound)
+
+		m, err := a.MagicLinkByToken(raw2)
+		require.Nil(t, err)
+		require.Equal(t, "phil@example.com", m.Email)
+	})
+}
+
+func TestUser_MagicLink_PasswordReset_RoundTrip(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		raw, err := a.AddMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
+		require.Nil(t, err)
+
+		m, err := a.MagicLinkByToken(raw)
+		require.Nil(t, err)
+		require.Equal(t, MagicLinkKindPasswordReset, m.Kind)
+		require.Equal(t, phil.ID, m.UserID)
+		require.Equal(t, "", m.Email) // reset rows carry no email
+
+		// Reset rows do not appear as pending emails
+		pending, err := a.PendingEmails(phil.ID)
+		require.Nil(t, err)
+		require.Equal(t, 0, len(pending))
+
+		// New request replaces the old token
+		raw2, err := a.AddMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
+		require.Nil(t, err)
+		_, err = a.MagicLinkByToken(raw)
+		require.ErrorIs(t, err, ErrMagicLinkNotFound)
+
+		// Single use: deleting consumes it
+		require.Nil(t, a.DeleteMagicLinkByToken(raw2))
+		_, err = a.MagicLinkByToken(raw2)
+		require.ErrorIs(t, err, ErrMagicLinkNotFound)
+	})
+}
+
+func TestUser_MagicLink_Reaper(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		expired := addVerifyLink(t, a, phil.ID, "expired@example.com", -time.Hour)
+		valid := addVerifyLink(t, a, phil.ID, "valid@example.com", time.Hour)
+
+		require.Nil(t, a.deleteExpiredMagicLinks())
+
+		_, err = a.MagicLinkByToken(expired)
+		require.ErrorIs(t, err, ErrMagicLinkNotFound)
+		m, err := a.MagicLinkByToken(valid)
+		require.Nil(t, err)
+		require.Equal(t, "valid@example.com", m.Email)
+	})
+}
+
+// TestUser_MagicLink_ReaperLoop proves the background reap goroutine actually runs on its
+// configured interval: an expired link inserted into a manager with a tiny reap interval is
+// deleted without anyone calling deleteExpiredMagicLinks directly. Mirrors the loop-coverage
+// pattern of TestAccessCacheReloadInterval_PicksUpExternalWrite.
+func TestUser_MagicLink_ReaperLoop(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManagerFromConfig(t, newManager, &Config{
+			DefaultAccess:                PermissionDenyAll,
+			BcryptCost:                   bcrypt.MinCost,
+			ExpiredMagicLinkReapInterval: 25 * time.Millisecond,
+		})
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		expired := addVerifyLink(t, a, phil.ID, "expired@example.com", -time.Hour)
+		valid := addVerifyLink(t, a, phil.ID, "valid@example.com", time.Hour)
+
+		// The background loop (not a direct call) must reap the expired link within a few intervals
+		require.Eventually(t, func() bool {
+			_, err := a.MagicLinkByToken(expired)
+			return errors.Is(err, ErrMagicLinkNotFound)
+		}, 2*time.Second, 10*time.Millisecond, "reaper loop never deleted the expired magic link")
+
+		// The unexpired link must survive
+		m, err := a.MagicLinkByToken(valid)
+		require.Nil(t, err)
+		require.Equal(t, "valid@example.com", m.Email)
+	})
+}
+
+func TestUser_MagicLink_ResetPassword(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "oldpass", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		raw, err := a.AddMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
+		require.Nil(t, err)
+
+		// Old password works before reset
+		_, err = a.Authenticate("phil", "oldpass")
+		require.Nil(t, err)
+
+		require.Nil(t, a.ResetPassword(raw, "newpass"))
+
+		// New password works, old does not
+		_, err = a.Authenticate("phil", "newpass")
+		require.Nil(t, err)
+		_, err = a.Authenticate("phil", "oldpass")
+		require.ErrorIs(t, err, ErrUnauthenticated)
+
+		// Token is single-use
+		require.ErrorIs(t, a.ResetPassword(raw, "againpass"), ErrMagicLinkNotFound)
+	})
+}
+
+func TestUser_MagicLink_ResetPassword_WrongKindRejected(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "oldpass", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		// An email-verification token must not be usable for password reset...
+		verifyToken := addVerifyLink(t, a, phil.ID, "phil@example.com", time.Hour)
+		require.ErrorIs(t, a.ResetPassword(verifyToken, "newpass"), ErrMagicLinkNotFound)
+
+		// ...and a reset token must not be usable for email verification
+		resetToken, err := a.AddMagicLink(MagicLinkKindPasswordReset, phil.ID, "", time.Hour)
+		require.Nil(t, err)
+		_, err = a.VerifyEmail(resetToken)
+		require.ErrorIs(t, err, ErrMagicLinkNotFound)
+
+		// Old password unchanged
+		_, err = a.Authenticate("phil", "oldpass")
+		require.Nil(t, err)
+	})
+}
+
+func TestUser_MagicLink_VerifyEmail_ProvisionedGetsPrimary(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManagerFromConfig(t, newManager, &Config{
+			DefaultAccess:    PermissionDenyAll,
+			ProvisionEnabled: true,
+			Users: []*User{
+				{Name: "prov", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
+			},
+		})
+		prov, err := a.User("prov")
+		require.Nil(t, err)
+
+		// A provisioned user's first verified email becomes their primary, just like a regular user
+		// (the primary is also the X-Email: yes target; password reset stays blocked separately).
+		_, err = a.VerifyEmail(addVerifyLink(t, a, prov.ID, "prov@example.com", time.Hour))
+		require.Nil(t, err)
+
+		emails, err := a.Emails(prov.ID)
+		require.Nil(t, err)
+		require.Equal(t, []string{"prov@example.com"}, emails)
+		primary, err := a.PrimaryEmail(prov.ID)
+		require.Nil(t, err)
+		require.Equal(t, "prov@example.com", primary)
+	})
+}
+
+func TestUser_MagicLink_ResetPassword_ProvisionedRejected(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		// Provisioned users come from the config file (ProvisionEnabled), not AddUser
+		a := newTestManagerFromConfig(t, newManager, &Config{
+			DefaultAccess:    PermissionDenyAll,
+			ProvisionEnabled: true,
+			Users: []*User{
+				{Name: "prov", Hash: "$2a$10$YLiO8U21sX1uhZamTLJXHuxgVC0Z/GKISibrKCLohPgtG7yIxSk4C", Role: RoleUser},
+			},
+		})
+		prov, err := a.User("prov")
+		require.Nil(t, err)
+		require.True(t, prov.Provisioned)
+
+		// A reset token can be created, but consuming it must be rejected for a provisioned user
+		// (their password comes from the config file, like change-pass).
+		raw, err := a.AddMagicLink(MagicLinkKindPasswordReset, prov.ID, "", time.Hour)
+		require.Nil(t, err)
+		require.ErrorIs(t, a.ResetPassword(raw, "newpass"), ErrProvisionedUserChange)
+	})
+}
+
+func TestUser_MagicLink_ResetPassword_Expired(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "oldpass", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		raw, err := a.AddMagicLink(MagicLinkKindPasswordReset, phil.ID, "", -time.Minute)
+		require.Nil(t, err)
+		require.ErrorIs(t, a.ResetPassword(raw, "newpass"), ErrMagicLinkNotFound)
+		_, err = a.Authenticate("phil", "oldpass")
+		require.Nil(t, err)
+	})
+}
+
+func TestUser_MagicLink_UserIDByPrimaryEmail_NotFound(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		_, err := a.UserIDByPrimaryEmail("ghost@example.com")
+		require.ErrorIs(t, err, ErrUserNotFound)
 	})
 }
