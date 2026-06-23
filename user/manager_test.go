@@ -130,6 +130,13 @@ func TestManager_FullScenario_Default_DenyAll(t *testing.T) {
 		require.Nil(t, a.Authorize(ben, "announcements", PermissionRead))
 		require.Equal(t, ErrUnauthorized, a.Authorize(ben, "announcements", PermissionWrite))
 
+		// User has full access to their own sync topic, even under deny-all,
+		// but not to another user's sync topic (#733)
+		require.Nil(t, a.Authorize(ben, ben.SyncTopic, PermissionRead))
+		require.Nil(t, a.Authorize(ben, ben.SyncTopic, PermissionWrite))
+		require.Equal(t, ErrUnauthorized, a.Authorize(ben, john.SyncTopic, PermissionRead))
+		require.Equal(t, ErrUnauthorized, a.Authorize(ben, john.SyncTopic, PermissionWrite))
+
 		// User john should have
 		//  "deny" to mytopic_deny*,
 		//    "ro" to mytopic_ro*,
