@@ -2815,16 +2815,20 @@ Here's an example of a dead man's switch that sends an alert if the script stops
 ### Canceling scheduled notifications
 
 You can cancel a scheduled message before it is delivered by sending a DELETE request to the 
-`/<topic>/<sequence_id>` endpoint, just like [deleting notifications](#deleting-notifications). This will remove the 
-scheduled message from the server so it will never be delivered, and emit a `message_delete` event to any subscribers.
+`/<topic>/<sequence_id>` endpoint, just like [deleting notifications](#deleting-notifications). Alternatively, you can send a `GET`
+request to `/<topic>/<sequence_id>/delete`. This will remove the scheduled message from the server so it will never be delivered,
+and emit a `message_delete` event to any subscribers.
 
 === "Command line (curl)"
     ```bash
     # Schedule a reminder for 2 hours from now
     curl -H "In: 2h" -d "Take a break!" ntfy.sh/mytopic/break-reminder
 
-    # Changed your mind? Cancel the scheduled message
+    # Changed your mind? Cancel the scheduled message via DELETE
     curl -X DELETE ntfy.sh/mytopic/break-reminder
+
+    # Or cancel it via GET
+    curl ntfy.sh/mytopic/break-reminder/delete
     ```
 
 === "ntfy CLI"
@@ -4143,26 +4147,41 @@ field the response. A sequence of updates may look like this (first example from
 ### Clearing notifications
 Clearing a notification means **marking it as read and dismissing it from the notification drawer**. 
 
-To do this, send a PUT request to the `/<topic>/<sequence_id>/clear` endpoint (or `/<topic>/<sequence_id>/read` as an alias). 
+To do this, send a `PUT` request to the `/<topic>/<sequence_id>/clear` endpoint (or `/<topic>/<sequence_id>/read` as an alias).
 This will then emit a `message_clear` event that is used by the clients (web app and Android app) to update the read status
 and dismiss the notification.
 
+Alternatively, if your client has limited HTTP support, you can send a `GET` request to the same endpoints:
+`GET /<topic>/<sequence_id>/clear` or `GET /<topic>/<sequence_id>/read`.
+
 === "Command line (curl)"
     ```bash
+    # Via PUT method
     curl -X PUT ntfy.sh/mytopic/my-download-123/clear
+
+    # Via GET method
+    curl ntfy.sh/mytopic/my-download-123/clear
     ```
 
 === "HTTP"
     ``` http
     PUT /mytopic/my-download-123/clear HTTP/1.1
     Host: ntfy.sh
+
+    # Or using GET
+    GET /mytopic/my-download-123/clear HTTP/1.1
+    Host: ntfy.sh
     ```
 
 === "JavaScript"
     ``` javascript
+    // Via PUT method
     await fetch('https://ntfy.sh/mytopic/my-download-123/clear', {
       method: 'PUT'
     });
+
+    // Via GET method
+    await fetch('https://ntfy.sh/mytopic/my-download-123/clear');
     ```
 
 === "Go"
@@ -4197,25 +4216,40 @@ An example response from the server with the `message_clear` event may look like
 ### Deleting notifications
 Deleting a notification means **removing it from the notification drawer and from the client's database**.
 
-To do this, send a DELETE request to the `/<topic>/<sequence_id>` endpoint. This will emit a `message_delete` event
+To do this, send a `DELETE` request to the `/<topic>/<sequence_id>` endpoint. This will emit a `message_delete` event
 that is used by the clients (web app and Android app) to remove the notification entirely.
+
+Alternatively, if your client has limited HTTP support (e.g. webhooks or IoT devices), you can also delete a message by sending
+a `GET` request to `/<topic>/<sequence_id>/delete`.
 
 === "Command line (curl)"
     ```bash
+    # Via DELETE method
     curl -X DELETE ntfy.sh/mytopic/my-download-123
+
+    # Via GET method
+    curl ntfy.sh/mytopic/my-download-123/delete
     ```
 
 === "HTTP"
     ``` http
     DELETE /mytopic/my-download-123 HTTP/1.1
     Host: ntfy.sh
+
+    # Or using GET
+    GET /mytopic/my-download-123/delete HTTP/1.1
+    Host: ntfy.sh
     ```
 
 === "JavaScript"
     ``` javascript
+    // Via DELETE method
     await fetch('https://ntfy.sh/mytopic/my-download-123', {
       method: 'DELETE'
     });
+
+    // Via GET method
+    await fetch('https://ntfy.sh/mytopic/my-download-123/delete');
     ```
 
 === "Go"
