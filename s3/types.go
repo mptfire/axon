@@ -11,6 +11,7 @@ import (
 
 // Config holds the parsed fields from an S3 URL. Use ParseURL to create one from a URL string.
 type Config struct {
+	Scheme       string // URL scheme, e.g. "https" or "http"
 	Endpoint     string // host[:port] only, e.g. "s3.us-east-1.amazonaws.com"
 	PathStyle    bool
 	Bucket       string
@@ -24,10 +25,14 @@ type Config struct {
 
 // BucketURL returns the base URL for bucket-level operations.
 func (c *Config) BucketURL() string {
-	if c.PathStyle {
-		return fmt.Sprintf("https://%s/%s", c.Endpoint, c.Bucket)
+	scheme := "https"
+	if c.Scheme != "" {
+		scheme = c.Scheme
 	}
-	return fmt.Sprintf("https://%s.%s", c.Bucket, c.Endpoint)
+	if c.PathStyle {
+		return fmt.Sprintf("%s://%s/%s", scheme, c.Endpoint, c.Bucket)
+	}
+	return fmt.Sprintf("%s://%s.%s", scheme, c.Bucket, c.Endpoint)
 }
 
 // HostHeader returns the value for the Host header.

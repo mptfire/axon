@@ -22,6 +22,7 @@ func TestParseURL_Success(t *testing.T) {
 	require.Equal(t, "us-east-1", cfg.Region)
 	require.Equal(t, "AKID", cfg.AccessKey)
 	require.Equal(t, "SECRET", cfg.SecretKey)
+	require.Equal(t, "https", cfg.Scheme)
 	require.Equal(t, "s3.us-east-1.amazonaws.com", cfg.Endpoint)
 	require.False(t, cfg.PathStyle)
 }
@@ -38,6 +39,7 @@ func TestParseURL_WithEndpoint(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, "my-bucket", cfg.Bucket)
 	require.Equal(t, "prefix", cfg.Prefix)
+	require.Equal(t, "https", cfg.Scheme)
 	require.Equal(t, "s3.example.com", cfg.Endpoint)
 	require.True(t, cfg.PathStyle)
 }
@@ -45,8 +47,30 @@ func TestParseURL_WithEndpoint(t *testing.T) {
 func TestParseURL_EndpointHTTP(t *testing.T) {
 	cfg, err := ParseURL("s3://AKID:SECRET@my-bucket?region=us-east-1&endpoint=http://localhost:9000")
 	require.Nil(t, err)
+	require.Equal(t, "http", cfg.Scheme)
 	require.Equal(t, "localhost:9000", cfg.Endpoint)
 	require.True(t, cfg.PathStyle)
+}
+
+func TestParseURL_EndpointNoScheme(t *testing.T) {
+	// A bare host:port endpoint (no scheme) must default to https for backward compatibility.
+	// Without this, url.Parse treats the host as the scheme ("localhost:9000" -> scheme "localhost").
+	cfg, err := ParseURL("s3://AKID:SECRET@my-bucket?region=us-east-1&endpoint=localhost:9000")
+	require.Nil(t, err)
+	require.Equal(t, "https", cfg.Scheme)
+	require.Equal(t, "localhost:9000", cfg.Endpoint)
+	require.True(t, cfg.PathStyle)
+	require.Equal(t, "https://localhost:9000/my-bucket", cfg.BucketURL())
+}
+
+func TestParseURL_EndpointNoSchemeHostname(t *testing.T) {
+	// A dotted hostname with a port and no scheme must also default to https
+	// ("minio.example.com:9000" must not become scheme "minio.example.com").
+	cfg, err := ParseURL("s3://AKID:SECRET@my-bucket?region=us-east-1&endpoint=minio.example.com:9000")
+	require.Nil(t, err)
+	require.Equal(t, "https", cfg.Scheme)
+	require.Equal(t, "minio.example.com:9000", cfg.Endpoint)
+	require.Equal(t, "https://minio.example.com:9000/my-bucket", cfg.BucketURL())
 }
 
 func TestParseURL_EndpointTrailingSlash(t *testing.T) {
@@ -109,6 +133,11 @@ func TestParseURL_DisableHTTP2_NotSet(t *testing.T) {
 func TestConfig_BucketURL_PathStyle(t *testing.T) {
 	c := &Config{Endpoint: "s3.example.com", Bucket: "my-bucket", PathStyle: true}
 	require.Equal(t, "https://s3.example.com/my-bucket", c.BucketURL())
+}
+
+func TestConfig_BucketURL_PathStyle_EndpointHTTP(t *testing.T) {
+	c := &Config{Scheme: "http", Endpoint: "localhost:9000", Bucket: "b", PathStyle: true}
+	require.Equal(t, "http://localhost:9000/b", c.BucketURL())
 }
 
 func TestConfig_BucketURL_VirtualHosted(t *testing.T) {

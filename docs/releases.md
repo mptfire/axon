@@ -1950,9 +1950,26 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ### ntfy server v2.25.0 (UNRELEASED)
 
+This release adds **password reset** via email, and reworks email verification to use durable,
+link-based magic links (replacing the old in-memory 6-digit codes). Email stays optional at
+signup; a user can reset their password only once they have a verified "primary" (recovery)
+email.
+
+All of this work is probably not useful for self-hosters, but it hopefully will be useful for me,
+since I do have to reset emails on a regular basis.
+
 **Features:**
 
+* Add password reset via emailed magic link, with a "Forgot password" link on the login page and a `ntfy user reset-pass` CLI command for admins
+* Rework email verification to use durable, single-use, expiring magic links instead of in-memory 6-digit codes, and add a "primary" email (used for account recovery and as the `X-Email: yes` target) with verified/unverified state in the account UI
 * You can how clear/read messages and delete messages with a GET request ([#1771](https://github.com/binwiederhier/ntfy/issues/1771), thanks to [@lemmi](https://github.com/lemmi) for reporting and to [@wunter8](https://github.com/wunter8) for implementing)
+
+**Bug fixes + maintenance:**
+
+* Generate access tokens, IDs, and magic-link tokens with a cryptographically secure RNG (`crypto/rand`) instead of a clock-seeded PRNG
+* `X-Email: yes` (also `true`/`1`) now sends to your primary verified email regardless of the `smtp-sender-verify` setting (previously it was rejected unless verification was enabled); it requires being logged in with a verified address
+* Grant users full access to their own sync topic (`st_...`) so cross-device subscription sync works under `auth-default-access: deny-all` ([#733](https://github.com/binwiederhier/ntfy/issues/733), [#1795](https://github.com/binwiederhier/ntfy/pull/1795), thanks to [@lmorchard](https://github.com/lmorchard) for the contribution)
+* Support HTTP (non-TLS) S3-compatible endpoints by preserving the endpoint scheme, e.g. for a local MinIO instance ([#1794](https://github.com/binwiederhier/ntfy/pull/1794), [#1734](https://github.com/binwiederhier/ntfy/issues/1734), thanks to [@sskender](https://github.com/sskender) for the contribution)
 
 ### ntfy Android v1.25.x (UNRELEASED)
 

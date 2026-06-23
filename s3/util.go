@@ -70,21 +70,30 @@ func ParseURL(s3URL string) (*Config, error) {
 		return nil, fmt.Errorf("s3: region query parameter is required")
 	}
 	endpointParam := u.Query().Get("endpoint")
+	var scheme string
 	var endpoint string
 	var pathStyle bool
 	if endpointParam != "" {
-		// Custom endpoint: strip scheme prefix to extract host[:port]
+		// Custom endpoint: derive the scheme from the prefix and strip it to extract host[:port].
+		// Default to https for backward compatibility, including bare "host:port" endpoints (no
+		// scheme) -- url.Parse would otherwise misread the host before the port colon as the scheme.
+		scheme = "https"
+		if strings.HasPrefix(endpointParam, "http://") {
+			scheme = "http"
+		}
 		ep := strings.TrimRight(endpointParam, "/")
 		ep = strings.TrimPrefix(ep, "https://")
 		ep = strings.TrimPrefix(ep, "http://")
 		endpoint = ep
 		pathStyle = true
 	} else {
+		scheme = "https"
 		endpoint = fmt.Sprintf("s3.%s.amazonaws.com", region)
 		pathStyle = false
 	}
 	disableHTTP2, _ := strconv.ParseBool(u.Query().Get("disable_http2"))
 	return &Config{
+		Scheme:       scheme,
 		Endpoint:     endpoint,
 		PathStyle:    pathStyle,
 		Bucket:       bucket,

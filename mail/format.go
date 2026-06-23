@@ -1,4 +1,4 @@
-package server
+package mail
 
 import (
 	_ "embed" // required by go:embed
@@ -6,66 +6,24 @@ import (
 	"fmt"
 	"mime"
 	"strings"
-	"sync"
 	"time"
 
-	"heckel.io/ntfy/v2/log"
-	"heckel.io/ntfy/v2/mail"
 	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/util"
 )
 
-type mailer interface {
-	Send(v *visitor, m *model.Message, to string) error
-	Counts() (total int64, success int64, failure int64)
-}
+var (
+	//go:embed "mailer_emoji_map.json"
+	emojisJSON string
 
-type smtpSender struct {
-	config  *Config
-	sender  *mail.Sender
-	success int64
-	failure int64
-	mu      sync.Mutex
-}
+	// emojiMap maps ntfy tag names to emoji, parsed once from the embedded JSON in init
+	emojiMap map[string]string
+)
 
-func (s *smtpSender) Send(v *visitor, m *model.Message, to string) error {
-	return s.withCount(v, m, func() error {
-		message, err := formatMail(s.config.BaseURL, v.ip.String(), s.sender.From(), to, m)
-		if err != nil {
-			return err
-		}
-		ev := logvm(v, m).
-			Tag(tagEmail).
-			Fields(log.Context{
-				"email_via":  s.sender.Addr(),
-				"email_user": s.sender.User(),
-				"email_to":   to,
-			})
-		if ev.IsTrace() {
-			ev.Field("email_body", message).Trace("Sending email")
-		}
-		ev.Info("Sending email")
-		return s.sender.SendRaw(to, []byte(message))
-	})
-}
-
-func (s *smtpSender) Counts() (total int64, success int64, failure int64) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.success + s.failure, s.success, s.failure
-}
-
-func (s *smtpSender) withCount(v *visitor, m *model.Message, fn func() error) error {
-	err := fn()
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err != nil {
-		logvm(v, m).Err(err).Debug("Sending mail failed")
-		s.failure++
-	} else {
-		s.success++
+func init() {
+	if err := json.Unmarshal([]byte(emojisJSON), &emojiMap); err != nil {
+		panic("mail: invalid embedded emoji map: " + err.Error())
 	}
-	return err
 }
 
 func formatMail(baseURL, senderIP, from, to string, m *model.Message) (string, error) {
@@ -78,10 +36,7 @@ func formatMail(baseURL, senderIP, from, to string, m *model.Message) (string, e
 	message := m.Message
 	trailer := ""
 	if len(m.Tags) > 0 {
-		emojis, tags, err := toEmojis(m.Tags)
-		if err != nil {
-			return "", err
-		}
+		emojis, tags := toEmojis(m.Tags)
 		if len(emojis) > 0 {
 			subject = strings.Join(emojis, " ") + " " + subject
 		}
@@ -126,16 +81,7 @@ This message was sent by {ip} at {time} via {topicURL}`
 	return body, nil
 }
 
-var (
-	//go:embed "mailer_emoji_map.json"
-	emojisJSON string
-)
-
-func toEmojis(tags []string) (emojisOut []string, tagsOut []string, err error) {
-	var emojiMap map[string]string
-	if err = json.Unmarshal([]byte(emojisJSON), &emojiMap); err != nil {
-		return nil, nil, err
-	}
+func toEmojis(tags []string) (emojisOut []string, tagsOut []string) {
 	tagsOut = make([]string, 0)
 	emojisOut = make([]string, 0)
 	for _, t := range tags {

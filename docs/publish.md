@@ -1,7 +1,7 @@
 # Publishing
 Publishing messages can be done via HTTP PUT/POST or via the [ntfy CLI](subscribe/cli.md#publish-messages) ([install instructions](install.md)).
 Topics are created on the fly by subscribing or publishing to them. Because there is no sign-up, **the topic is essentially a password**, so pick 
-something that's not easily guessable.
+something that's not easily guessable (see [picking a topic](#picking-a-topic) for a handy topic name generator).
 
 Here's an example showing how to publish a simple message using a POST request:
 
@@ -307,6 +307,44 @@ an [external image attachment](#attach-file-from-a-url) and [email publishing](#
   ![priority notification](static/img/android-screenshot-notification-multiline.jpg){ width=500 }
   <figcaption>Notification using a click action, a user action, with an external image attachment and forwarded via email</figcaption>
 </figure>
+
+## Picking a topic
+Since there is no sign-up, **the topic is essentially a password**, so pick something that's not easily guessable. Topic names may
+only contain letters, numbers, underscores and dashes (`[-_A-Za-z0-9]`), and may be up to 64 characters long.
+
+Not sure what to pick? Type a name below and the generator will add a random, hard-to-guess suffix for you. Everything happens locally in your browser:
+
+<div id="tg-widget" class="tg-generator">
+<div class="tg-header">
+<span class="tg-title">Topic name generator</span>
+<button type="button" id="tg-reroll" class="tg-reset" title="Generate a new random suffix">Regenerate suffix</button>
+</div>
+<div class="tg-body">
+<div class="tg-left">
+<div class="tg-field">
+<label for="tg-input">Type a topic name</label>
+<input type="text" id="tg-input" placeholder="e.g. backups, alerts, phil-home" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+</div>
+<div class="tg-note">Spaces and characters other than letters, numbers, <code>-</code> and <code>_</code> are removed automatically as you type. Names are capped at 64 characters.</div>
+</div>
+<div class="tg-right">
+<div class="tg-output-row">
+<span class="tg-output-label">Your topic:</span>
+<div class="tg-output-line">
+<pre class="tg-output" id="tg-output-name"></pre>
+<button type="button" class="tg-btn-copy" data-copy="tg-output-name" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+</div>
+</div>
+<div class="tg-output-row">
+<span class="tg-output-label">Your topic URL:</span>
+<div class="tg-output-line">
+<pre class="tg-output" id="tg-output-url">https://ntfy.sh/</pre>
+<button type="button" class="tg-btn-copy" data-copy="tg-output-url" title="Copy to clipboard"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
+</div>
+</div>
+</div>
+</div>
+</div>
 
 ## Message title
 _Supported on:_ :material-android: :material-apple: :material-firefox:
@@ -3217,8 +3255,13 @@ You can forward messages to e-mail by specifying an address in the header. This 
 you'd like to persist longer, or to blast-notify yourself on all possible channels. 
 
 Usage is easy: Simply pass the `X-Email` header (or any of its aliases: `X-E-mail`, `Email`, `E-mail`, `Mail`, or `e`).
-Only one e-mail address is supported. If the server has [`smtp-sender-verify`](config.md#e-mail-notifications) enabled (ntfy.sh has this enabled),
-you can also pass `yes`, `true`, or `1` to send to your first verified email address.
+Only one e-mail address is supported.
+
+If you are logged in and have a verified email address on your account, you can pass `yes`, `true`, or `1` instead of an
+address to send to your **primary email address** (the one marked primary in the web app's
+[Account section](https://ntfy.sh/account)); if you haven't designated a primary, it falls back to your first verified
+address. This works regardless of the [`smtp-sender-verify`](config.md#e-mail-notifications) setting -- that setting only
+controls whether *literal* addresses must already be verified on your account.
 
 ntfy allows anonymous email sending (if enabled), so the rate limiting is pretty strict (see [limitations](#limitations)). In the
 default configuration, you get **16 e-mails per visitor** (IP address) and then after that one per hour. On top of
@@ -3668,7 +3711,7 @@ all the supported fields:
 | `icon`        | -        | *string*                         | `https://example.com/icon.png`            | URL to use as notification [icon](#icons)                                                 |
 | `filename`    | -        | *string*                         | `file.jpg`                                | File name of the attachment                                                               |
 | `delay`       | -        | *string*                         | `30min`, `9am`                            | Timestamp or duration for delayed delivery                                                |
-| `email`       | -        | *e-mail address or 'yes'*        | `phil@example.com` or `yes`               | E-mail address for e-mail notifications, or `yes` to use first verified address           |
+| `email`       | -        | *e-mail address or 'yes'*        | `phil@example.com` or `yes`               | E-mail address for e-mail notifications, or `yes` to use your primary verified address    |
 | `call`        | -        | *phone number or 'yes'*          | `+1222334444` or `yes`                    | Phone number to use for [voice call](#phone-calls)                                        |
 | `sequence_id` | -        | *string*                         | `my-sequence-123`                         | Sequence ID for [updating/deleting notifications](#updating-deleting-notifications)   |
 

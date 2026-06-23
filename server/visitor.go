@@ -66,7 +66,7 @@ type visitor struct {
 	subscriptionLimiter  *util.FixedLimiter // Fixed limiter for active subscriptions (ongoing connections)
 	topicCreationLimiter *rate.Limiter      // Rate limiter for inserting new topics into the in-memory topic map
 	bandwidthLimiter     *util.RateLimiter  // Limiter for attachment bandwidth downloads
-	accountLimiter       *rate.Limiter      // Rate limiter for account creation, may be nil
+	accountLimiter       *rate.Limiter      // Rate limiter for account actions (signup, password-reset requests), may be nil
 	authLimiter          *rate.Limiter      // Limiter for incorrect login attempts, may be nil
 	firebase             time.Time          // Next allowed Firebase message
 	seen                 time.Time          // Last seen time of this visitor (needed for removal of stale visitors)
@@ -280,8 +280,9 @@ func (v *visitor) AuthFailed() {
 	}
 }
 
-// AccountCreationAllowed returns true if a new account can be created
-func (v *visitor) AccountCreationAllowed() bool {
+// AccountActionAllowed returns true if a rate-limited account action (signup or password-reset
+// request) is currently allowed for this visitor
+func (v *visitor) AccountActionAllowed() bool {
 	v.mu.RLock() // limiters could be replaced!
 	defer v.mu.RUnlock()
 	if v.accountLimiter == nil || (v.accountLimiter != nil && v.accountLimiter.Tokens() < 1) {
@@ -290,8 +291,9 @@ func (v *visitor) AccountCreationAllowed() bool {
 	return true
 }
 
-// AccountCreated decreases the account limiter. This is to be called after an account was created.
-func (v *visitor) AccountCreated() {
+// AccountActionPerformed decreases the account limiter. This is to be called after a rate-limited
+// account action (signup or password-reset request).
+func (v *visitor) AccountActionPerformed() {
 	v.mu.RLock() // limiters could be replaced!
 	defer v.mu.RUnlock()
 	if v.accountLimiter != nil {

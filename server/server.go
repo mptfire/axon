@@ -57,8 +57,7 @@ type Server struct {
 	unixListener      net.Listener
 	smtpServer        *smtp.Server
 	smtpServerBackend *smtpBackend
-	smtpSender        mailer
-	mailSender        *mail.Sender
+	mailer            mail.Sender
 	topics            map[string]*topic
 	visitors          map[string]*visitor // ip:<ip> or user:<user>
 	firebaseClient    *firebaseClient
@@ -94,8 +93,13 @@ var (
 	deletePathRegex        = regexp.MustCompile(`^/[-_A-Za-z0-9]{1,64}/[-_A-Za-z0-9]{1,64}/delete$`)
 	sequenceIDRegex        = topicRegex
 
-	webConfigPath                                        = "/config.js"
-	webManifestPath                                      = "/manifest.webmanifest"
+	webAppConfigPath              = "/config.js"
+	webAppManifestPath            = "/manifest.webmanifest"
+	webAppEmailVerifyPathPrefix   = "/account/email/verify/"                                       // Browser landing route; raw token appended
+	webAppEmailVerifyRegex        = regexp.MustCompile(`^/account/email/verify/[-_A-Za-z0-9]+$`)   // Magic-link landing (served by the web app)
+	webAppPasswordResetPathPrefix = "/account/password/reset/"                                     // Browser landing route; raw token appended
+	webAppPasswordResetRegex      = regexp.MustCompile(`^/account/password/reset/[-_A-Za-z0-9]+$`) // Password-reset landing (served by the web app)
+
 	accountPath                                          = "/account"
 	matrixPushPath                                       = "/_matrix/push/v1/notify"
 	metricsPath                                          = "/metrics"
@@ -117,6 +121,10 @@ var (
 	apiAccountPhoneVerifyPath                            = "/v1/account/phone/verify"
 	apiAccountEmailPath                                  = "/v1/account/email"
 	apiAccountEmailVerifyPath                            = "/v1/account/email/verify"
+	apiAccountEmailPrimaryPath                           = "/v1/account/email/primary"
+	apiAccountEmailResendPath                            = "/v1/account/email/resend"
+	apiAccountPasswordResetRequestPath                   = "/v1/account/password/reset/request"
+	apiAccountPasswordResetPath                          = "/v1/account/password/reset"
 	apiAccountBillingPortalPath                          = "/v1/account/billing/portal"
 	apiAccountBillingWebhookPath                         = "/v1/account/billing/webhook"
 	apiAccountBillingSubscriptionPath                    = "/v1/account/billing/subscription"
@@ -177,16 +185,15 @@ const (
 // New instantiates a new Server. It creates the cache and adds a Firebase
 // subscriber (if configured).
 func New(conf *Config) (*Server, error) {
-	var mailer mailer
-	var mailSender *mail.Sender
+	var sender mail.Sender
 	if conf.SMTPSenderAddr != "" {
-		mailSender = mail.NewSender(&mail.Config{
+		sender = mail.NewSender(&mail.Config{
+			BaseURL:  conf.BaseURL,
 			SMTPAddr: conf.SMTPSenderAddr,
 			SMTPUser: conf.SMTPSenderUser,
 			SMTPPass: conf.SMTPSenderPass,
 			From:     conf.SMTPSenderFrom,
 		})
-		mailer = &smtpSender{config: conf, sender: mailSender}
 	}
 	var stripe stripeAPI
 	if payments.Available && conf.StripeSecretKey != "" {
@@ -291,8 +298,7 @@ func New(conf *Config) (*Server, error) {
 		webPush:         wp,
 		attachment:      attachmentStore,
 		firebaseClient:  firebaseClient,
-		smtpSender:      mailer,
-		mailSender:      mailSender,
+		mailer:          sender,
 		topics:          topics,
 		userManager:     userManager,
 		messages:        messages,
@@ -444,9 +450,6 @@ func (s *Server) Stop() {
 	if s.smtpServer != nil {
 		s.smtpServer.Close()
 	}
-	if s.mailSender != nil {
-		s.mailSender.Close()
-	}
 	if s.attachment != nil {
 		s.attachment.Close()
 	}
@@ -543,7 +546,7 @@ func (s *Server) handleError(w http.ResponseWriter, r *http.Request, v *visitor,
 
 func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	if r.Method == http.MethodGet && r.URL.Path == "/" && s.config.WebRoot == "/" {
-		return s.ensureWebEnabled(s.handleRoot)(w, r, v)
+		return s.ensureWebEnabled(s.handleWebApp)(w, r, v)
 	} else if r.Method == http.MethodHead && r.URL.Path == "/" {
 		return s.ensureWebEnabled(s.handleEmpty)(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == apiHealthPath {
@@ -552,9 +555,9 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureAdmin(s.handleVersion)(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == apiConfigPath {
 		return s.handleConfig(w, r, v)
-	} else if r.Method == http.MethodGet && r.URL.Path == webConfigPath {
+	} else if r.Method == http.MethodGet && r.URL.Path == webAppConfigPath {
 		return s.ensureWebEnabled(s.handleWebConfig)(w, r, v)
-	} else if r.Method == http.MethodGet && r.URL.Path == webManifestPath {
+	} else if r.Method == http.MethodGet && r.URL.Path == webAppManifestPath {
 		return s.ensureWebPushEnabled(s.handleWebManifest)(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == apiUsersPath {
 		return s.ensureAdmin(s.handleUsersGet)(w, r, v)
@@ -612,12 +615,20 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureUser(s.ensureCallsEnabled(s.withAccountSync(s.handleAccountPhoneNumberAdd)))(w, r, v)
 	} else if r.Method == http.MethodDelete && r.URL.Path == apiAccountPhonePath {
 		return s.ensureUser(s.ensureCallsEnabled(s.withAccountSync(s.handleAccountPhoneNumberDelete)))(w, r, v)
-	} else if r.Method == http.MethodPut && r.URL.Path == apiAccountEmailVerifyPath {
-		return s.ensureUser(s.ensureEmailsEnabled(s.withAccountSync(s.handleAccountEmailVerify)))(w, r, v)
 	} else if r.Method == http.MethodPut && r.URL.Path == apiAccountEmailPath {
 		return s.ensureUser(s.ensureEmailsEnabled(s.withAccountSync(s.handleAccountEmailAdd)))(w, r, v)
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountEmailVerifyPath {
+		return s.ensureEmailsEnabled(s.limitRequests(s.handleAccountEmailVerify))(w, r, v) // No ensureUser: clicked from a mail client, possibly logged out
 	} else if r.Method == http.MethodDelete && r.URL.Path == apiAccountEmailPath {
 		return s.ensureUser(s.ensureEmailsEnabled(s.withAccountSync(s.handleAccountEmailDelete)))(w, r, v)
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountEmailPrimaryPath {
+		return s.ensureUser(s.withAccountSync(s.handleAccountEmailSetPrimary))(w, r, v)
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountEmailResendPath {
+		return s.ensureUser(s.ensureEmailsEnabled(s.handleAccountEmailResend))(w, r, v)
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountPasswordResetRequestPath {
+		return s.ensureEmailsEnabled(s.limitRequests(s.handleAccountPasswordResetRequest))(w, r, v) // Unauthenticated
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountPasswordResetPath {
+		return s.ensureEmailsEnabled(s.limitRequests(s.handleAccountPasswordReset))(w, r, v) // Unauthenticated
 	} else if r.Method == http.MethodPost && apiWebPushPath == r.URL.Path {
 		return s.ensureWebPushEnabled(s.limitRequests(s.handleWebPushUpdate))(w, r, v)
 	} else if r.Method == http.MethodDelete && apiWebPushPath == r.URL.Path {
@@ -644,9 +655,7 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.transformMatrixJSON(s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublishMatrix)))(w, r, v)
 	} else if (r.Method == http.MethodPut || r.Method == http.MethodPost) && (topicPathRegex.MatchString(r.URL.Path) || updatePathRegex.MatchString(r.URL.Path)) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)
-	} else if r.Method == http.MethodDelete && updatePathRegex.MatchString(r.URL.Path) {
-		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handleDelete))(w, r, v)
-	} else if r.Method == http.MethodGet && deletePathRegex.MatchString(r.URL.Path) {
+	} else if (r.Method == http.MethodDelete && updatePathRegex.MatchString(r.URL.Path)) || (r.Method == http.MethodGet && deletePathRegex.MatchString(r.URL.Path)) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handleDelete))(w, r, v)
 	} else if (r.Method == http.MethodGet || r.Method == http.MethodPut) && clearPathRegex.MatchString(r.URL.Path) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handleClear))(w, r, v)
@@ -662,15 +671,28 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.limitRequests(s.authorizeTopicRead(s.handleSubscribeWS))(w, r, v)
 	} else if r.Method == http.MethodGet && authPathRegex.MatchString(r.URL.Path) {
 		return s.limitRequests(s.authorizeTopicRead(s.handleTopicAuth))(w, r, v)
+	} else if r.Method == http.MethodGet && (webAppEmailVerifyRegex.MatchString(r.URL.Path) || webAppPasswordResetRegex.MatchString(r.URL.Path)) {
+		return s.ensureWebEnabled(s.handleWebAppNoIndex)(w, r, v) // Magic-link landing pages (client-side routes)
 	} else if r.Method == http.MethodGet && (topicPathRegex.MatchString(r.URL.Path) || externalTopicPathRegex.MatchString(r.URL.Path)) {
 		return s.ensureWebEnabled(s.handleTopic)(w, r, v)
 	}
 	return errHTTPNotFound
 }
 
-func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request, v *visitor) error {
+// handleWebApp serves the embedded web app's index for client-side (SPA) routes that the
+// browser router resolves, so the app shell loads and the client-side router takes over.
+func (s *Server) handleWebApp(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	r.URL.Path = webAppIndex
 	return s.handleStatic(w, r, v)
+}
+
+// handleWebAppNoIndex serves the web app index for the magic-link landing pages, whose path
+// carries a one-time token. The response is marked no-referrer (so the token can't leak to third
+// parties via the Referer header) and noindex (so it never gets indexed).
+func (s *Server) handleWebAppNoIndex(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	w.Header().Set("X-Robots-Tag", "noindex")
+	return s.handleWebApp(w, r, v)
 }
 
 func (s *Server) handleTopic(w http.ResponseWriter, r *http.Request, v *visitor) error {
@@ -681,8 +703,7 @@ func (s *Server) handleTopic(w http.ResponseWriter, r *http.Request, v *visitor)
 		_, err := io.WriteString(w, `{"unifiedpush":{"version":1}}`+"\n")
 		return err
 	}
-	r.URL.Path = webAppIndex
-	return s.handleStatic(w, r, v)
+	return s.handleWebApp(w, r, v)
 }
 
 func (s *Server) handleEmpty(_ http.ResponseWriter, _ *http.Request, _ *visitor) error {
@@ -718,21 +739,21 @@ func (s *Server) handleWebConfig(w http.ResponseWriter, _ *http.Request, _ *visi
 
 func (s *Server) configResponse() *apiConfigResponse {
 	return &apiConfigResponse{
-		BaseURL:            "", // Will translate to window.location.origin
-		AppRoot:            s.config.WebRoot,
-		EnableLogin:        s.config.EnableLogin,
-		RequireLogin:       s.config.RequireLogin,
-		EnableSignup:       s.config.EnableSignup,
-		EnablePayments:     s.config.StripeSecretKey != "",
-		EnableCalls:        s.config.TwilioAccount != "",
-		EnableEmails:       s.config.SMTPSenderFrom != "",
-		EnableEmailVerify:  s.config.SMTPSenderVerify,
-		EnableReservations: s.config.EnableReservations,
-		EnableWebPush:      s.config.WebPushPublicKey != "",
-		BillingContact:     s.config.BillingContact,
-		WebPushPublicKey:   s.config.WebPushPublicKey,
-		DisallowedTopics:   s.config.DisallowedTopics,
-		ConfigHash:         s.config.Hash(),
+		BaseURL:             "", // Will translate to window.location.origin
+		AppRoot:             s.config.WebRoot,
+		EnableLogin:         s.config.EnableLogin,
+		RequireLogin:        s.config.RequireLogin,
+		EnableSignup:        s.config.EnableSignup,
+		EnablePayments:      s.config.StripeSecretKey != "",
+		EnableCalls:         s.config.TwilioAccount != "",
+		EnableEmails:        s.config.SMTPSenderFrom != "",
+		EnableResetPassword: s.config.SMTPSenderFrom != "" && s.config.BaseURL != "", // Reset links need SMTP + an absolute base-url
+		EnableReservations:  s.config.EnableReservations,
+		EnableWebPush:       s.config.WebPushPublicKey != "",
+		BillingContact:      s.config.BillingContact,
+		WebPushPublicKey:    s.config.WebPushPublicKey,
+		DisallowedTopics:    s.config.DisallowedTopics,
+		ConfigHash:          s.config.Hash(),
 	}
 }
 
@@ -949,7 +970,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 		if s.firebaseClient != nil && firebase {
 			go s.sendToFirebase(v, m)
 		}
-		if s.smtpSender != nil && email != "" {
+		if s.mailer != nil && email != "" {
 			go s.sendEmail(v, m, email)
 		}
 		if s.config.TwilioAccount != "" && call != "" {
@@ -1111,7 +1132,7 @@ func (s *Server) sendToFirebase(v *visitor, m *model.Message) {
 
 func (s *Server) sendEmail(v *visitor, m *model.Message, email string) {
 	logvm(v, m).Tag(tagEmail).Field("email", email).Info("Sending email to %s", email)
-	if err := s.smtpSender.Send(v, m, email); err != nil {
+	if err := s.mailer.SendNotification(email, m, v.ip.String()); err != nil {
 		logvm(v, m).Tag(tagEmail).Field("email", email).Err(err).Warn("Unable to send email to %s: %v", email, err.Error())
 		minc(metricEmailsPublishedFailure)
 		return
@@ -1211,7 +1232,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 	if email != "" && !emailAddressRegex.MatchString(email) && !toBool(email) {
 		return false, false, "", "", "", false, "", errHTTPBadRequestEmailAddressInvalid
 	}
-	if s.smtpSender == nil && email != "" {
+	if s.mailer == nil && email != "" {
 		return false, false, "", "", "", false, "", errHTTPBadRequestEmailDisabled
 	}
 	call = readParam(r, "x-call", "call")

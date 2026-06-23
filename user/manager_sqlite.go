@@ -214,9 +214,23 @@ const (
 	sqliteDeletePhoneNumberQuery  = `DELETE FROM user_phone WHERE user_id = ? AND phone_number = ?`
 
 	// Email queries
-	sqliteSelectEmailsQuery = `SELECT email FROM user_email WHERE user_id = ? ORDER BY email`
-	sqliteInsertEmailQuery  = `INSERT INTO user_email (user_id, email) VALUES (?, ?)`
-	sqliteDeleteEmailQuery  = `DELETE FROM user_email WHERE user_id = ? AND email = ?`
+	sqliteSelectEmailsQuery            = `SELECT email FROM user_email WHERE user_id = ? ORDER BY email`
+	sqliteInsertEmailQuery             = `INSERT INTO user_email (user_id, email) VALUES (?, ?)`
+	sqliteInsertEmailIgnoreQuery       = `INSERT INTO user_email (user_id, email) VALUES (?, ?) ON CONFLICT (user_id, email) DO NOTHING`
+	sqliteDeleteEmailQuery             = `DELETE FROM user_email WHERE user_id = ? AND email = ?`
+	sqliteSelectPrimaryEmailQuery      = `SELECT email FROM user_email WHERE user_id = ? AND is_primary = 1`
+	sqliteSelectUserIDByPrimaryQuery   = `SELECT user_id FROM user_email WHERE email = ? AND is_primary = 1`
+	sqliteUpdateEmailSetPrimaryQuery   = `UPDATE user_email SET is_primary = 1 WHERE user_id = ? AND email = ?`
+	sqliteUpdateEmailClearPrimaryQuery = `UPDATE user_email SET is_primary = 0 WHERE user_id = ? AND is_primary = 1`
+
+	// Magic link queries (email verification + password reset)
+	sqliteInsertMagicLinkQuery         = `INSERT INTO user_magic_link (token_hash, kind, user_id, email, expires, created) VALUES (?, ?, ?, ?, ?, ?)`
+	sqliteSelectMagicLinkByHashQuery   = `SELECT token_hash, kind, user_id, email, expires, created FROM user_magic_link WHERE token_hash = ?`
+	sqliteDeleteMagicLinkByHashQuery   = `DELETE FROM user_magic_link WHERE token_hash = ?`
+	sqliteDeleteVerifyScopeQuery       = `DELETE FROM user_magic_link WHERE kind = ? AND user_id = ? AND email = ?`
+	sqliteDeleteResetScopeQuery        = `DELETE FROM user_magic_link WHERE kind = ? AND user_id = ?`
+	sqliteSelectPendingEmailsQuery     = `SELECT email FROM user_magic_link WHERE kind = ? AND user_id = ? ORDER BY email`
+	sqliteDeleteExpiredMagicLinksQuery = `DELETE FROM user_magic_link WHERE expires < ?`
 
 	// Billing queries
 	sqliteUpdateBillingQuery = `
@@ -302,7 +316,19 @@ var sqliteQueries = queries{
 	deletePhoneNumber:            sqliteDeletePhoneNumberQuery,
 	selectEmails:                 sqliteSelectEmailsQuery,
 	insertEmail:                  sqliteInsertEmailQuery,
+	insertEmailIgnore:            sqliteInsertEmailIgnoreQuery,
 	deleteEmail:                  sqliteDeleteEmailQuery,
+	selectPrimaryEmail:           sqliteSelectPrimaryEmailQuery,
+	selectUserIDByPrimary:        sqliteSelectUserIDByPrimaryQuery,
+	updateEmailSetPrimary:        sqliteUpdateEmailSetPrimaryQuery,
+	updateEmailClearPrimary:      sqliteUpdateEmailClearPrimaryQuery,
+	insertMagicLink:              sqliteInsertMagicLinkQuery,
+	selectMagicLinkByHash:        sqliteSelectMagicLinkByHashQuery,
+	deleteMagicLinkByHash:        sqliteDeleteMagicLinkByHashQuery,
+	deleteMagicLinkEmailVerify:   sqliteDeleteVerifyScopeQuery,
+	deleteMagicLinkResetPassword: sqliteDeleteResetScopeQuery,
+	selectPendingEmails:          sqliteSelectPendingEmailsQuery,
+	deleteExpiredMagicLinks:      sqliteDeleteExpiredMagicLinksQuery,
 	updateBilling:                sqliteUpdateBillingQuery,
 }
 

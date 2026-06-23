@@ -237,8 +237,39 @@ func (s *Server) handleAccountBillingSubscriptionCreateSuccess(w http.ResponseWr
 	if err := s.updateSubscriptionAndTier(r, v, u, tier, sess.Customer.ID, sub.ID, string(sub.Status), string(interval), sub.CurrentPeriodEnd, sub.CancelAt); err != nil {
 		return err
 	}
+	// Offer email recovery: auto-send a verification link to the billing email (best-effort).
+	// Provisioned users can't reset their password, so recovery setup doesn't apply to them.
+	if sess.CustomerDetails != nil && !u.Provisioned {
+		s.maybeEnqueueBillingEmailVerification(r, v, u.ID, sess.CustomerDetails.Email)
+	}
 	http.Redirect(w, r, s.config.BaseURL+accountPath, http.StatusSeeOther)
 	return nil
+}
+
+// maybeEnqueueBillingEmailVerification sends an email-verification link to a paying user's
+// billing email, so they can use it for password recovery -- but only if they have no verified
+// email yet and the billing email is not already the recovery email on another account. On a
+// collision (or any other skip), the generic "no recovery email set" warning on the account page
+// nudges the user to add one. This is best-effort: failures are logged, never surfaced.
+func (s *Server) maybeEnqueueBillingEmailVerification(r *http.Request, v *visitor, userID, billingEmail string) {
+	if s.mailer == nil || s.config.BaseURL == "" || billingEmail == "" || !emailAddressRegex.MatchString(billingEmail) {
+		return
+	}
+	emails, err := s.userManager.Emails(userID)
+	if err != nil {
+		logvr(v, r).Tag(tagStripe).Err(err).Warn("Failed to load emails for billing verification")
+		return
+	} else if len(emails) > 0 {
+		return // User already has a verified email -- don't nag
+	}
+	if _, err := s.userManager.UserIDByPrimaryEmail(billingEmail); err == nil {
+		logvr(v, r).Tag(tagStripe).Debug("Billing email is primary on another account, skipping auto-verification")
+		return // Collision: skip + let the generic no-recovery-email warning nudge instead
+	}
+	logvr(v, r).Tag(tagStripe).Field("email", billingEmail).Info("Sending verification link to billing email")
+	if err := s.enqueueEmailVerification(userID, billingEmail); err != nil {
+		logvr(v, r).Tag(tagStripe).Err(err).Warn("Failed to enqueue billing email verification")
+	}
 }
 
 // handleAccountBillingSubscriptionUpdate updates an existing Stripe subscription to a new price, and updates
