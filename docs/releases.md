@@ -1967,6 +1967,8 @@ since I do have to reset accounts on a regular basis.
 * Add password reset via emailed magic link, with a "Forgot password" link on the login page and a `ntfy user reset-pass` CLI command for admins
 * Rework email verification to use durable, single-use, expiring magic links instead of in-memory 6-digit codes, and add a "primary" email (used for account recovery and as the `X-Email: yes` target) with verified/unverified state in the account UI
 * You can now clear/read messages and delete messages with a GET request ([#1771](https://github.com/binwiederhier/ntfy/issues/1771), thanks to [@lemmi](https://github.com/lemmi) for reporting and to [@wunter8](https://github.com/wunter8) for implementing)
+* Add a reload button to the web app's action bar when running as an installed PWA, which clears the service worker caches and hard-refreshes the app
+* Add a "Back to app" link to the web app's login, signup, and password-reset pages (alongside the existing links), which previously had no way back to the app
 
 **Bug fixes + maintenance:**
 
@@ -1978,6 +1980,7 @@ since I do have to reset accounts on a regular basis.
 * Play notification sounds in the web app even when the Notification API is unavailable, e.g. over plain HTTP or in browsers without notification support ([#1772](https://github.com/binwiederhier/ntfy/pull/1772), thanks to [@mitya12342](https://github.com/mitya12342) for the contribution)
 * Stop escaping `<`, `>`, and `&` as `\u003c`/`\u003e`/`\u0026` in JSON responses ([#1511](https://github.com/binwiederhier/ntfy/issues/1511), [#1512](https://github.com/binwiederhier/ntfy/pull/1512), thanks to [@wunter8](https://github.com/wunter8) for the contribution)
 * Fix the web app navbar not reflecting a topic reservation (lock icon, and "Reserve topic" -> "Change reservation"/"Remove reservation" menu) until a page reload, by persisting reservation and display-name changes onto already-subscribed topics during account sync
+* Reduce the web app's initial bundle size by ~300 KB (~50 KB gzipped) by lazy-loading the emoji picker dataset and the Markdown renderer, and by importing Material UI icons individually
 
 ### ntfy Android v1.25.x (UNRELEASED)
 
