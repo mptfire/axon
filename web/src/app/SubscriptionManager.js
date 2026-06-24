@@ -6,7 +6,7 @@ import { topicUrl } from "./utils";
 import { messageWithSequenceId } from "./notificationUtils";
 import { EVENT_MESSAGE, EVENT_MESSAGE_CLEAR, EVENT_MESSAGE_DELETE } from "./events";
 
-class SubscriptionManager {
+export class SubscriptionManager {
   constructor(dbImpl) {
     this.db = dbImpl;
   }
@@ -65,23 +65,36 @@ class SubscriptionManager {
   }
 
   /**
+   * Upsert a subscription: create it if it doesn't exist yet, or merge the given fields into the
+   * existing one. Merging matters for account sync, which passes the remote display name and
+   * reservation -- without it, reserving/unreserving a topic you're already subscribed to would
+   * never be reflected locally until the database is recreated (e.g. a fresh login). Local-only
+   * state such as mutedUntil and last is preserved on merge.
+   *
    * @param {string} baseUrl
    * @param {string} topic
    * @param {object} opts
    * @param {boolean} opts.internal
    * @returns
    */
-  async add(baseUrl, topic, opts = {}) {
+  async upsert(baseUrl, topic, opts = {}) {
     const id = topicUrl(baseUrl, topic);
 
     const existingSubscription = await this.get(id);
     if (existingSubscription) {
-      return existingSubscription;
+      // Avoid a needless write (and the resulting Dexie live-query churn) when nothing changed.
+      const changed = Object.keys(opts).some((key) => existingSubscription[key] !== opts[key]);
+      if (!changed) {
+        return existingSubscription;
+      }
+      const updatedSubscription = { ...existingSubscription, ...opts };
+      await this.db.subscriptions.put(updatedSubscription);
+      return updatedSubscription;
     }
 
     const subscription = {
       ...opts,
-      id: topicUrl(baseUrl, topic),
+      id,
       baseUrl,
       topic,
       mutedUntil: 0,
@@ -101,7 +114,9 @@ class SubscriptionManager {
       remoteSubscriptions.map(async (remote) => {
         const reservation = remoteReservations?.find((r) => remote.base_url === config.base_url && remote.topic === r.topic) || null;
 
-        const local = await this.add(remote.base_url, remote.topic, {
+        // upsert(): for topics that already exist locally this merges in the latest remote
+        // display name and reservation (see upsert() for why this matters).
+        const local = await this.upsert(remote.base_url, remote.topic, {
           displayName: remote.display_name, // May be undefined
           reservation, // May be null!
         });

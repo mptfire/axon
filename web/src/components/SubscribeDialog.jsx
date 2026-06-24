@@ -34,7 +34,7 @@ import prefs from "../app/Prefs";
 const publicBaseUrl = "https://ntfy.sh";
 
 export const subscribeTopic = async (baseUrl, topic, opts) => {
-  const subscription = await subscriptionManager.add(baseUrl, topic, opts);
+  const subscription = await subscriptionManager.upsert(baseUrl, topic, opts);
   if (session.exists()) {
     try {
       await accountApi.addSubscription(baseUrl, topic);

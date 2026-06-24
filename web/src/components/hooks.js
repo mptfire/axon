@@ -111,7 +111,7 @@ export const useConnectionListeners = (account, subscriptions, users, webPushTop
     if (!account || !account.sync_topic) {
       return;
     }
-    subscriptionManager.add(config.base_url, account.sync_topic, { internal: true }); // Dangle!
+    subscriptionManager.upsert(config.base_url, account.sync_topic, { internal: true }); // Dangle!
   }, [account]);
 
   // When subscriptions or users change, refresh the connections
@@ -139,7 +139,7 @@ export const useAutoSubscribe = (subscriptions, selected) => {
       const baseUrl = params.baseUrl ? expandSecureUrl(params.baseUrl) : config.base_url;
       console.log(`[Hooks] Auto-subscribing to ${topicUrl(baseUrl, params.topic)}`);
       (async () => {
-        const subscription = await subscriptionManager.add(baseUrl, params.topic);
+        const subscription = await subscriptionManager.upsert(baseUrl, params.topic);
         if (session.exists()) {
           try {
             await accountApi.addSubscription(baseUrl, params.topic);

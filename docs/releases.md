@@ -1974,6 +1974,7 @@ since I do have to reset emails on a regular basis.
 * Update web app dependencies, including major-version upgrades to Vite (6 -> 8, now Rolldown-based), Material UI (5 -> 9), and Dexie (3 -> 4) ([#1800](https://github.com/binwiederhier/ntfy/pull/1800), [#1764](https://github.com/binwiederhier/ntfy/pull/1764), [#1767](https://github.com/binwiederhier/ntfy/pull/1767), [#1762](https://github.com/binwiederhier/ntfy/pull/1762), [#1766](https://github.com/binwiederhier/ntfy/pull/1766), [#1765](https://github.com/binwiederhier/ntfy/pull/1765), thanks Dependabot)
 * Play notification sounds in the web app even when the Notification API is unavailable, e.g. over plain HTTP or in browsers without notification support ([#1772](https://github.com/binwiederhier/ntfy/pull/1772), thanks to [@mitya12342](https://github.com/mitya12342) for the contribution)
 * Stop escaping `<`, `>`, and `&` as `\u003c`/`\u003e`/`\u0026` in JSON responses ([#1511](https://github.com/binwiederhier/ntfy/issues/1511), [#1512](https://github.com/binwiederhier/ntfy/pull/1512), thanks to [@wunter8](https://github.com/wunter8) for the contribution)
+* Fix the web app navbar not reflecting a topic reservation (lock icon, and "Reserve topic" -> "Change reservation"/"Remove reservation" menu) until a page reload, by persisting reservation and display-name changes onto already-subscribed topics during account sync
 
 ### ntfy Android v1.25.x (UNRELEASED)
 
