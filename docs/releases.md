@@ -12,7 +12,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
 
-### ntfy server v2.24.0
+## ntfy server v2.24.0
 Released June 4, 2026
 
 The main feature for this release is an in-memory ACL cache (`auth-access-cache`) that can help bring down the read load
@@ -1956,7 +1956,11 @@ signup; a user can reset their password only once they have a verified "primary"
 email.
 
 All of this work is probably not useful for self-hosters, but it hopefully will be useful for me,
-since I do have to reset emails on a regular basis.
+since I do have to reset accounts on a regular basis.
+
+**Security issues:**
+
+* Generate access tokens, IDs, and magic-link tokens with a cryptographically secure RNG (`crypto/rand`) instead of a clock-seeded PRNG
 
 **Features:**
 
@@ -1966,7 +1970,6 @@ since I do have to reset emails on a regular basis.
 
 **Bug fixes + maintenance:**
 
-* Generate access tokens, IDs, and magic-link tokens with a cryptographically secure RNG (`crypto/rand`) instead of a clock-seeded PRNG
 * `X-Email: yes` (also `true`/`1`) now sends to your primary verified email regardless of the `smtp-sender-verify` setting (previously it was rejected unless verification was enabled); it requires being logged in with a verified address
 * Grant users full access to their own sync topic (`st_...`) so cross-device subscription sync works under `auth-default-access: deny-all` ([#733](https://github.com/binwiederhier/ntfy/issues/733), [#1795](https://github.com/binwiederhier/ntfy/pull/1795), thanks to [@lmorchard](https://github.com/lmorchard) for the contribution)
 * Support HTTP (non-TLS) S3-compatible endpoints by preserving the endpoint scheme, e.g. for a local MinIO instance ([#1794](https://github.com/binwiederhier/ntfy/pull/1794), [#1734](https://github.com/binwiederhier/ntfy/issues/1734), thanks to [@sskender](https://github.com/sskender) for the contribution, and [@Kernald](https://github.com/Kernald) for reporting)
