@@ -49,7 +49,7 @@ export const isImage = (attachment) => {
 };
 
 export const icon = "/static/images/ntfy.png";
-export const badge = "/static/images/mask-icon.svg";
+export const badge = "/static/images/ntfy-mask.svg";
 
 /**
  * Computes a unique notification tag scoped by baseUrl, topic, and sequence ID.

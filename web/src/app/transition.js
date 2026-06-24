@@ -14,20 +14,32 @@ const fadeOutRoot = () => {
   return node;
 };
 
+// Fade #root back in, then remove the inline styles we added so nothing is left behind on the
+// element -- otherwise the lingering `transition` would silently animate any future opacity change
+// to #root. Uses setTimeout (not requestAnimationFrame) so a backgrounded tab can't strand #root
+// at opacity 0; rAF can be paused entirely in background tabs, while timers still fire.
+const fadeInRoot = () => {
+  const node = document.getElementById("root");
+  if (!node) {
+    return;
+  }
+  node.style.opacity = "1";
+  setTimeout(() => {
+    node.style.transition = "";
+    node.style.opacity = "";
+  }, FADE_MS);
+};
+
 // Fade the app out, run a client-side navigation, then fade the new page back in. Used for
 // app -> login/signup, which stay within the same document (no reload).
 export const fadeNavigate = (navigate, to) => {
-  const node = fadeOutRoot();
-  if (!node) {
+  if (!fadeOutRoot()) {
     navigate(to);
     return;
   }
   setTimeout(() => {
     navigate(to);
-    // Fade back in on the next frame, once the new page has rendered.
-    requestAnimationFrame(() => {
-      node.style.opacity = "1";
-    });
+    fadeInRoot();
   }, FADE_MS);
 };
 

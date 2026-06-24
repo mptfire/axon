@@ -35,7 +35,7 @@ const fadeOutAndRemove = () => {
 
   // Phase 2: once the logo is gone, lift the background to fade the app in, then remove the node.
   setTimeout(() => {
-    splash.classList.add("ntfy-splash-hidden");
+    splash.classList.add("splash-hidden");
     const remove = () => splash.remove();
     // Only react to the background's own opacity transition -- the logo's transitionend bubbles up
     // here too, and would otherwise remove the splash before the app has finished fading in.

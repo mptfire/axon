@@ -54,7 +54,7 @@ const App = () => {
     if (themePreference === undefined) {
       return;
     }
-    document.documentElement.classList.toggle("ntfy-dark", isDark);
+    document.documentElement.classList.toggle("dark", isDark);
   }, [isDark, themePreference]);
 
   // Safety net: never let the splash trap the UI if no route hides it (e.g. an unmatched path).
