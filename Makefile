@@ -5,7 +5,9 @@ PIP := pip3
 VERSION := $(shell git describe --tag)
 COMMIT := $(shell git rev-parse --short HEAD)
 
-.PHONY:
+# FORCE is an always-out-of-date target with no recipe; listing it as a prerequisite
+# forces that target's recipe to run every time (the classic "FORCE target" idiom).
+FORCE:
 
 help:
 	@echo "Typical commands (more see below):"
@@ -43,6 +45,7 @@ help:
 	@echo "  make web-deps                   - Install web app dependencies (npm install the universe)"
 	@echo "  make web-build                  - Actually build the web app"
 	@echo "  make web-lint                   - Run eslint on the web app"
+	@echo "  make web-test                   - Run vitest unit tests for the web app"
 	@echo "  make web-fmt                    - Run prettier on the web app"
 	@echo "  make web-fmt-check              - Run prettier on the web app, but don't change anything"
 	@echo
@@ -52,7 +55,9 @@ help:
 	@echo "  make docs-build                 - Actually build the documentation"
 	@echo
 	@echo "Test/check:"
-	@echo "  make test                       - Run tests"
+	@echo "  make test                       - Run all tests (Go + web)"
+	@echo "  make cli-test                   - Run Go tests only"
+	@echo "  make web-test                   - Run web app tests only"
 	@echo "  make race                       - Run tests with -race flag"
 	@echo "  make coverage                   - Run tests and show coverage"
 	@echo "  make coverage-html              - Run tests and show coverage (as HTML)"
@@ -82,7 +87,7 @@ help:
 
 # Building everything
 
-clean: .PHONY
+clean: FORCE
 	rm -rf dist build server/docs server/site
 
 build: web docs cli
@@ -119,7 +124,7 @@ build-deps-ubuntu:
 
 docs: docs-deps docs-build
 
-docs-venv: .PHONY
+docs-venv: FORCE
 	$(PYTHON) -m venv ./venv
 
 docs-build: docs-venv
@@ -128,7 +133,7 @@ docs-build: docs-venv
 docs-deps: docs-venv
 	(. venv/bin/activate && $(PIP) install -r requirements.txt)
 
-docs-deps-update: .PHONY
+docs-deps-update: FORCE
 	(. venv/bin/activate && $(PIP) install -r requirements.txt --upgrade)
 
 
@@ -162,6 +167,9 @@ web-fmt-check:
 
 web-lint:
 	cd web && $(NPM) run lint
+
+web-test:
+	cd web && $(NPM) run test
 
 # Main server/client build
 
@@ -269,13 +277,17 @@ check: test web-fmt-check fmt-check vet web-lint lint staticcheck
 
 checkv: testv web-fmt-check fmt-check vet web-lint lint staticcheck
 
-test: .PHONY
+test: cli-test web-test
+
+testv: cli-testv web-test
+
+cli-test: FORCE
 	go test $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/v2/(test|examples|tools)')
 
-testv: .PHONY
+cli-testv: FORCE
 	go test -v $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/v2/(test|examples|tools)')
 
-race: .PHONY
+race: FORCE
 	go test -v -race $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/v2/(test|examples|tools)')
 
 coverage:
@@ -307,7 +319,7 @@ lint:
 	which golint || go install golang.org/x/lint/golint@latest
 	go list ./... | grep -v /vendor/ | xargs -L1 golint -set_exit_status
 
-staticcheck: .PHONY
+staticcheck: FORCE
 	rm -rf build/staticcheck
 	which staticcheck || go install honnef.co/go/tools/cmd/staticcheck@latest
 	mkdir -p build/staticcheck
