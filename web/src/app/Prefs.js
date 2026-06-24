@@ -6,6 +6,19 @@ export const THEME = {
   SYSTEM: "system",
 };
 
+// Key under which the theme preference is mirrored to localStorage. The inline script in
+// index.html reads it synchronously to pick the splash background before first paint.
+export const THEME_LOCALSTORAGE_KEY = "theme";
+
+const mirrorThemeToLocalStorage = (value) => {
+  try {
+    localStorage.setItem(THEME_LOCALSTORAGE_KEY, value);
+  } catch (e) {
+    // localStorage may be unavailable (private mode, disabled cookies); the splash just falls
+    // back to the system color scheme in that case.
+  }
+};
+
 class Prefs {
   constructor(dbImpl) {
     this.db = dbImpl;
@@ -49,11 +62,17 @@ class Prefs {
 
   async theme() {
     const theme = await this.db.prefs.get("theme");
-    return theme?.value ?? THEME.SYSTEM;
+    const value = theme?.value ?? THEME.SYSTEM;
+    // Mirror to localStorage so the inline script in index.html can pick the splash background
+    // synchronously before first paint. Self-heals for users who set their theme before the
+    // mirror existed.
+    mirrorThemeToLocalStorage(value);
+    return value;
   }
 
   async setTheme(mode) {
     await this.db.prefs.put({ key: "theme", value: mode });
+    mirrorThemeToLocalStorage(mode);
   }
 }
 

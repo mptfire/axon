@@ -17,10 +17,9 @@ import {
   Button,
 } from "@mui/material";
 import * as React from "react";
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
-import { useLiveQuery } from "dexie-react-hooks";
 import InfiniteScroll from "react-infinite-scroll-component";
 import { Trans, useTranslation } from "react-i18next";
 import { useOutletContext } from "react-router-dom";
@@ -55,28 +54,26 @@ const priorityFiles = {
 };
 
 export const AllSubscriptions = () => {
-  const { subscriptions } = useOutletContext();
-  if (!subscriptions) {
-    return <Loading />;
+  // allNotifications is preloaded in Layout (App.jsx) so this view has its data ready on mount and
+  // doesn't flash an empty frame when switching to it from a topic.
+  const { subscriptions, allNotifications } = useOutletContext();
+  if (!subscriptions || allNotifications === null || allNotifications === undefined) {
+    return <DeferredLoading />;
   }
-  return <AllSubscriptionsList subscriptions={subscriptions} />;
+  return <AllSubscriptionsList subscriptions={subscriptions} notifications={allNotifications} />;
 };
 
 export const SingleSubscription = () => {
-  const { subscriptions, selected } = useOutletContext();
+  const { subscriptions, selected, allNotifications } = useOutletContext();
   useAutoSubscribe(subscriptions, selected);
-  if (!selected) {
-    return <Loading />;
+  if (!selected || allNotifications === null || allNotifications === undefined) {
+    return <DeferredLoading />;
   }
-  return <SingleSubscriptionList subscription={selected} />;
+  return <SingleSubscriptionList subscription={selected} allNotifications={allNotifications} />;
 };
 
 const AllSubscriptionsList = (props) => {
-  const { subscriptions } = props;
-  const notifications = useLiveQuery(() => subscriptionManager.getAllNotifications(), []);
-  if (notifications === null || notifications === undefined) {
-    return <Loading />;
-  }
+  const { subscriptions, notifications } = props;
   if (subscriptions.length === 0) {
     return <NoSubscriptions />;
   }
@@ -87,11 +84,14 @@ const AllSubscriptionsList = (props) => {
 };
 
 const SingleSubscriptionList = (props) => {
-  const { subscription } = props;
-  const notifications = useLiveQuery(() => subscriptionManager.getNotifications(subscription.id), [subscription]);
-  if (notifications === null || notifications === undefined) {
-    return <Loading />;
-  }
+  const { subscription, allNotifications } = props;
+  // Derived from the preloaded allNotifications by filtering -- getNotifications(id) is exactly
+  // getAllNotifications() filtered by subscriptionId, so this is the same data with no per-topic
+  // IndexedDB query, making switches to/between topics instant (no empty frame on mount).
+  const notifications = useMemo(
+    () => allNotifications.filter((notification) => notification.subscriptionId === subscription.id),
+    [allNotifications, subscription.id]
+  );
   if (notifications.length === 0) {
     return <NoNotifications subscription={subscription} />;
   }
@@ -668,4 +668,18 @@ const Loading = () => {
       </Typography>
     </VerticallyCenteredContainer>
   );
+};
+
+// Reading notifications from IndexedDB takes only tens of milliseconds, but switching topics (or
+// going from "All notifications" to a single topic) remounts the list and briefly re-runs the
+// query, which would flash the centered Loading spinner each time. Render nothing until the load
+// has taken at least `delayMs`, so the spinner only appears for genuinely slow loads (large DB,
+// slow device) and normal switches just swap content directly.
+const DeferredLoading = ({ delayMs = 250 }) => {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setShow(true), delayMs);
+    return () => clearTimeout(timer);
+  }, [delayMs]);
+  return show ? <Loading /> : null;
 };

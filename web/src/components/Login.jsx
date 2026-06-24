@@ -11,6 +11,7 @@ import AvatarBox from "./AvatarBox";
 import session from "../app/Session";
 import routes from "./routes";
 import { UnauthorizedError } from "../app/errors";
+import { fadeReload } from "../app/transition";
 
 const Login = () => {
   const { t } = useTranslation();
@@ -26,7 +27,7 @@ const Login = () => {
       const token = await accountApi.login(user);
       console.log(`[Login] User auth for user ${user.username} successful, token is ${token}`);
       await session.store(user.username, token);
-      window.location.href = routes.app;
+      fadeReload(routes.app);
     } catch (e) {
       console.log(`[Login] User auth for user ${user.username} failed`, e);
       if (e instanceof UnauthorizedError) {

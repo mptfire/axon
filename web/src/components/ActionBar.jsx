@@ -18,6 +18,7 @@ import subscriptionManager from "../app/SubscriptionManager";
 import routes from "./routes";
 import db from "../app/db";
 import { topicDisplayName } from "../app/utils";
+import { fadeNavigate } from "../app/transition";
 import Navigation from "./Navigation";
 import accountApi from "../app/AccountApi";
 import PopupMenu from "./PopupMenu";
@@ -184,12 +185,23 @@ const ProfileIcon = () => {
         </IconButton>
       )}
       {!session.exists() && config.enable_login && (
-        <Button color="inherit" variant="text" onClick={() => navigate(routes.login)} sx={{ m: 1 }} aria-label={t("action_bar_sign_in")}>
+        <Button
+          color="inherit"
+          variant="text"
+          onClick={() => fadeNavigate(navigate, routes.login)}
+          sx={{ m: 1 }}
+          aria-label={t("action_bar_sign_in")}
+        >
           {t("action_bar_sign_in")}
         </Button>
       )}
       {!session.exists() && config.enable_signup && (
-        <Button color="inherit" variant="outlined" onClick={() => navigate(routes.signup)} aria-label={t("action_bar_sign_up")}>
+        <Button
+          color="inherit"
+          variant="outlined"
+          onClick={() => fadeNavigate(navigate, routes.signup)}
+          aria-label={t("action_bar_sign_up")}
+        >
           {t("action_bar_sign_up")}
         </Button>
       )}

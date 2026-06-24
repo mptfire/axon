@@ -28,6 +28,7 @@ import prefs from "../app/Prefs";
 import RTLCacheProvider from "./RTLCacheProvider";
 import session from "../app/Session";
 import AccountContext from "./AccountContext";
+import hideSplash from "../app/splash";
 
 initI18n();
 
@@ -38,15 +39,29 @@ const App = () => {
   const accountMemo = useMemo(() => ({ account, setAccount }), [account, setAccount]);
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
   const themePreference = useLiveQuery(() => prefs.theme());
-  const theme = React.useMemo(
-    () => createTheme({ ...(darkModeEnabled(prefersDarkMode, themePreference) ? darkTheme : lightTheme), direction: languageDir }),
-    [prefersDarkMode, themePreference, languageDir]
-  );
+  const isDark = darkModeEnabled(prefersDarkMode, themePreference);
+  const theme = React.useMemo(() => createTheme({ ...(isDark ? darkTheme : lightTheme), direction: languageDir }), [isDark, languageDir]);
 
   useEffect(() => {
     document.documentElement.setAttribute("lang", getKebabCaseLangStr(i18n.language));
     document.dir = languageDir;
   }, [i18n.language, languageDir]);
+
+  // Keep the <html> background (visible behind the app, e.g. overscroll) in sync with the resolved
+  // theme once the stored preference has loaded. The inline script in index.html sets the initial
+  // class before first paint; don't override it while the preference is still loading (undefined).
+  useEffect(() => {
+    if (themePreference === undefined) {
+      return;
+    }
+    document.documentElement.classList.toggle("ntfy-dark", isDark);
+  }, [isDark, themePreference]);
+
+  // Safety net: never let the splash trap the UI if no route hides it (e.g. an unmatched path).
+  useEffect(() => {
+    const timer = setTimeout(() => hideSplash(), 3000);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!session.exists() && config.require_login && window.location.pathname !== routes.login) {
@@ -63,11 +78,13 @@ const App = () => {
               <CssBaseline />
               <ErrorBoundary>
                 <Routes>
-                  <Route path={routes.login} element={<Login />} />
-                  <Route path={routes.signup} element={<Signup />} />
-                  <Route path={routes.passwordResetRequest} element={<PasswordResetRequest />} />
-                  <Route path={routes.passwordReset} element={<PasswordReset />} />
-                  <Route path={routes.emailVerify} element={<EmailVerify />} />
+                  <Route element={<AuthLayout />}>
+                    <Route path={routes.login} element={<Login />} />
+                    <Route path={routes.signup} element={<Signup />} />
+                    <Route path={routes.passwordResetRequest} element={<PasswordResetRequest />} />
+                    <Route path={routes.passwordReset} element={<PasswordReset />} />
+                    <Route path={routes.emailVerify} element={<EmailVerify />} />
+                  </Route>
                   <Route element={<Layout />}>
                     <Route path={routes.app} element={<AllSubscriptions />} />
                     <Route path={routes.account} element={<Account />} />
@@ -91,6 +108,13 @@ const updateTitle = (newNotificationsCount) => {
   updateFavicon(newNotificationsCount);
 };
 
+// Wraps the auth pages (login, signup, ...). They render synchronously with no async data, so the
+// splash can be removed as soon as the page mounts.
+const AuthLayout = () => {
+  useEffect(() => hideSplash(), []);
+  return <Outlet />;
+};
+
 const Layout = () => {
   const params = useParams();
   const { account, setAccount } = useContext(AccountContext);
@@ -98,6 +122,9 @@ const Layout = () => {
   const [sendDialogOpenMode, setSendDialogOpenMode] = useState("");
   const users = useLiveQuery(() => userManager.all());
   const subscriptions = useLiveQuery(() => subscriptionManager.all());
+  // Preloaded here (not in AllSubscriptions) so the "All notifications" view has its data ready on
+  // mount -- otherwise switching from a topic to All flashes an empty frame while the query runs.
+  const allNotifications = useLiveQuery(() => subscriptionManager.getAllNotifications());
   const webPushTopics = useWebPushTopics();
   const subscriptionsWithoutInternal = subscriptions?.filter((s) => !s.internal);
   const newNotificationsCount = subscriptionsWithoutInternal?.reduce((prev, cur) => prev + cur.new, 0) || 0;
@@ -111,6 +138,14 @@ const Layout = () => {
   useAccountListener(setAccount);
   useBackgroundProcesses();
   useEffect(() => updateTitle(newNotificationsCount), [newNotificationsCount]);
+
+  // Reveal the app only once the subscriptions have loaded from IndexedDB, so the navigation and
+  // message list don't pop in empty-then-filled behind the splash.
+  useEffect(() => {
+    if (subscriptions !== undefined) {
+      hideSplash();
+    }
+  }, [subscriptions]);
 
   return (
     <Box sx={{ display: "flex" }}>
@@ -128,6 +163,7 @@ const Layout = () => {
           context={{
             subscriptions: subscriptionsWithoutInternal,
             selected,
+            allNotifications,
           }}
         />
       </Main>

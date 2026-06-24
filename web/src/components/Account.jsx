@@ -191,7 +191,7 @@ const ChangePasswordDialog = (props) => {
   };
 
   return (
-    <Dialog open={props.open} onClose={props.onCancel} fullScreen={fullScreen}>
+    <Dialog open={props.open} onClose={props.onClose} fullScreen={fullScreen}>
       <DialogTitle>{t("account_basics_password_dialog_title")}</DialogTitle>
       <DialogContent>
         <TextField
@@ -774,7 +774,7 @@ const AddPhoneNumberDialog = (props) => {
   };
 
   return (
-    <Dialog open={props.open} onClose={props.onCancel} fullScreen={fullScreen}>
+    <Dialog open={props.open} onClose={props.onClose} fullScreen={fullScreen}>
       <DialogTitle>{t("account_basics_phone_numbers_dialog_title")}</DialogTitle>
       <DialogContent>
         <DialogContentText>{t("account_basics_phone_numbers_dialog_description")}</DialogContentText>

@@ -44,6 +44,86 @@
 
     <!-- PWA -->
     <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- Splash screen: painted instantly (before the JS bundle loads) and faded out by the app
+       once the initial data is ready (see src/app/splash.js). Avoids the white flash + spinner
+       flicker on first load. Background colors match MUI's grey[100]/grey[900] (the app's main
+       background) so the handoff to the app is seamless. -->
+    <style>
+      html {
+        background-color: #f5f5f5;
+      }
+
+      html.ntfy-dark {
+        background-color: #212121;
+      }
+
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 200000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #f5f5f5;
+        opacity: 1;
+        /* Background fade = the app fading in once the logo is gone (see src/app/splash.js). */
+        transition: opacity 0.1s ease-out;
+      }
+
+      html.ntfy-dark #splash {
+        background-color: #212121;
+      }
+
+      #splash.ntfy-splash-hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      #splash img {
+        width: 112px;
+        height: 112px;
+        /* Gently pulse while loading; src/app/splash.js stops this and fades the logo out. */
+        animation: ntfy-splash-pulse 1.4s ease-in-out infinite;
+      }
+
+      @keyframes ntfy-splash-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.35;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #splash {
+          transition: none;
+        }
+
+        #splash img {
+          animation: none;
+        }
+      }
+    </style>
+
+    <!-- Decide light/dark before first paint, reading the theme preference mirrored to
+       localStorage by Prefs.js. Avoids the light/dark flash caused by the async IndexedDB read. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("theme");
+          var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          var dark = stored === "dark" || ((!stored || stored === "system") && prefersDark);
+          if (dark) {
+            document.documentElement.classList.add("ntfy-dark");
+          }
+        } catch (e) {
+          /* localStorage/matchMedia unavailable -- fall back to the default light splash */
+        }
+      })();
+    </script>
   </head>
   <body>
     <noscript>
@@ -51,6 +131,12 @@
       <a href="https://ntfy.sh/docs/subscribe/cli/">CLI</a> or <a href="https://ntfy.sh/docs/subscribe/phone/">Android/iOS app</a> to
       subscribe.
     </noscript>
+
+    <!-- Static splash, removed by src/app/splash.js once the app is ready. The logo is a same-origin
+     SVG precached by the service worker, so it paints right after the (instant) background. -->
+    <div id="splash" aria-hidden="true">
+      <img src="/static/images/main_list_icon.svg" alt="" />
+    </div>
     <div id="root"></div>
     <script src="/config.js"></script>
     <script type="module" src="/src/index.jsx"></script>
