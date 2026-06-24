@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	"strings"
 
 	"github.com/SherClockHolmes/webpush-go"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/user"
+	wpush "heckel.io/ntfy/v2/webpush"
 )
 
 const (
@@ -22,37 +23,40 @@ const (
 	webPushTopicSubscribeLimit = 50
 )
 
-var (
-	webPushAllowedEndpointsPatterns = []string{
-		"https://*.google.com/",
-		"https://*.googleapis.com/",
-		"https://*.mozilla.com/",
-		"https://*.mozaws.net/",
-		"https://*.windows.com/",
-		"https://*.microsoft.com/",
-		"https://*.apple.com/",
-	}
-	webPushAllowedEndpointsRegex *regexp.Regexp
-)
+// webPushAllowedEndpointsRegexes is the host-level allow-list of web push services ntfy
+// will deliver to. Each regex anchors the scheme and matches the stable service host,
+// followed by the authority/path boundary "/". Instance-specific labels (e.g. the
+// "wns2-<region>" prefix on Windows Notification Service hosts) are wildcarded with
+// a single-label pattern ([^/]+) that cannot span into the path.
+// See GHSA-w9hq-5jg7-q4j7 for why wildcarding the entire host is insufficient.
+var webPushAllowedEndpointsRegexes = []*regexp.Regexp{
+	regexp.MustCompile(`^https://fcm\.googleapis\.com/`),
+	regexp.MustCompile(`^https://jmt17\.google\.com/`),
+	regexp.MustCompile(`^https://updates\.push\.services\.mozilla\.com/`),
+	regexp.MustCompile(`^https://[^/]+\.mozaws\.net/`),
+	regexp.MustCompile(`^https://web\.push\.apple\.com/`),
+	regexp.MustCompile(`^https://[^/]+\.notify\.windows\.com/`),
+}
 
-func init() {
-	for i, pattern := range webPushAllowedEndpointsPatterns {
-		webPushAllowedEndpointsPatterns[i] = strings.ReplaceAll(strings.ReplaceAll(pattern, ".", "\\."), "*", ".+")
+func webPushEndpointAllowed(endpoint string) bool {
+	for _, re := range webPushAllowedEndpointsRegexes {
+		if re.MatchString(endpoint) {
+			return true
+		}
 	}
-	allPatterns := fmt.Sprintf("^(%s)", strings.Join(webPushAllowedEndpointsPatterns, "|"))
-	webPushAllowedEndpointsRegex = regexp.MustCompile(allPatterns)
+	return false
 }
 
 func (s *Server) handleWebPushUpdate(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	req, err := readJSONWithLimit[apiWebPushUpdateSubscriptionRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil || req.Endpoint == "" || req.P256dh == "" || req.Auth == "" {
 		return errHTTPBadRequestWebPushSubscriptionInvalid
-	} else if !webPushAllowedEndpointsRegex.MatchString(req.Endpoint) {
+	} else if !webPushEndpointAllowed(req.Endpoint) {
 		return errHTTPBadRequestWebPushEndpointUnknown
 	} else if len(req.Topics) > webPushTopicSubscribeLimit {
 		return errHTTPBadRequestWebPushTopicCountTooHigh
 	}
-	topics, err := s.topicsFromIDs(req.Topics...)
+	topics, err := s.topicsFromIDs(v, req.Topics...)
 	if err != nil {
 		return err
 	}
@@ -82,14 +86,14 @@ func (s *Server) handleWebPushDelete(w http.ResponseWriter, r *http.Request, _ *
 	return s.writeJSON(w, newSuccessResponse())
 }
 
-func (s *Server) publishToWebPushEndpoints(v *visitor, m *message) {
+func (s *Server) publishToWebPushEndpoints(v *visitor, m *model.Message) {
 	subscriptions, err := s.webPush.SubscriptionsForTopic(m.Topic)
 	if err != nil {
 		logvm(v, m).Err(err).With(v, m).Warn("Unable to publish web push messages")
 		return
 	}
 	log.Tag(tagWebPush).With(v, m).Debug("Publishing web push message to %d subscribers", len(subscriptions))
-	payload, err := json.Marshal(newWebPushPayload(fmt.Sprintf("%s/%s", s.config.BaseURL, m.Topic), m))
+	payload, err := json.Marshal(newWebPushPayload(fmt.Sprintf("%s/%s", s.config.BaseURL, m.Topic), m.ForJSON()))
 	if err != nil {
 		log.Tag(tagWebPush).Err(err).With(v, m).Warn("Unable to marshal expiring payload")
 		return
@@ -128,7 +132,7 @@ func (s *Server) pruneAndNotifyWebPushSubscriptionsInternal() error {
 	if err != nil {
 		return err
 	}
-	warningSent := make([]*webPushSubscription, 0)
+	warningSent := make([]*wpush.Subscription, 0)
 	for _, subscription := range subscriptions {
 		if err := s.sendWebPushNotification(subscription, payload); err != nil {
 			log.Tag(tagWebPush).Err(err).With(subscription).Warn("Unable to publish expiry imminent warning")
@@ -143,7 +147,7 @@ func (s *Server) pruneAndNotifyWebPushSubscriptionsInternal() error {
 	return nil
 }
 
-func (s *Server) sendWebPushNotification(sub *webPushSubscription, message []byte, contexters ...log.Contexter) error {
+func (s *Server) sendWebPushNotification(sub *wpush.Subscription, message []byte, contexters ...log.Contexter) error {
 	log.Tag(tagWebPush).With(sub).With(contexters...).Debug("Sending web push message")
 	payload := &webpush.Subscription{
 		Endpoint: sub.Endpoint,

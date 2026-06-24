@@ -9,12 +9,13 @@ import accountApi from "../app/AccountApi";
 import AvatarBox from "./AvatarBox";
 import session from "../app/Session";
 import routes from "./routes";
-import { AccountCreateLimitReachedError, UserExistsError } from "../app/errors";
+import { AccountActionLimitReachedError, UserExistsError } from "../app/errors";
 
 const Signup = () => {
   const { t } = useTranslation();
   const [error, setError] = useState("");
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -24,7 +25,7 @@ const Signup = () => {
     event.preventDefault();
     const user = { username, password };
     try {
-      await accountApi.create(user.username, user.password);
+      await accountApi.create(user.username, user.password, email);
       const token = await accountApi.login(user);
       console.log(`[Signup] User signup for user ${user.username} successful, token is ${token}`);
       await session.store(user.username, token);
@@ -33,7 +34,7 @@ const Signup = () => {
       console.log(`[Signup] Signup for user ${user.username} failed`, e);
       if (e instanceof UserExistsError) {
         setError(t("signup_error_username_taken", { username: e.username }));
-      } else if (e instanceof AccountCreateLimitReachedError) {
+      } else if (e instanceof AccountActionLimitReachedError) {
         setError(t("signup_error_creation_limit_reached"));
       } else {
         setError(e.message);
@@ -64,6 +65,18 @@ const Signup = () => {
           onChange={(ev) => setUsername(ev.target.value.trim())}
           autoFocus
         />
+        {config.enable_emails && (
+          <TextField
+            margin="dense"
+            fullWidth
+            id="email"
+            label={t("signup_form_email")}
+            name="email"
+            type="email"
+            value={email}
+            onChange={(ev) => setEmail(ev.target.value.trim())}
+          />
+        )}
         <TextField
           margin="dense"
           required
@@ -74,20 +87,22 @@ const Signup = () => {
           id="password"
           autoComplete="new-password"
           value={password}
-          onChange={(ev) => setPassword(ev.target.value.trim())}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton
-                  aria-label={t("signup_form_toggle_password_visibility")}
-                  onClick={() => setShowPassword(!showPassword)}
-                  onMouseDown={(ev) => ev.preventDefault()}
-                  edge="end"
-                >
-                  {showPassword ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              </InputAdornment>
-            ),
+          onChange={(ev) => setPassword(ev.target.value)}
+          slotProps={{
+            input: {
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label={t("signup_form_toggle_password_visibility")}
+                    onClick={() => setShowPassword(!showPassword)}
+                    onMouseDown={(ev) => ev.preventDefault()}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
           }}
         />
         <TextField
@@ -100,20 +115,22 @@ const Signup = () => {
           id="confirm"
           autoComplete="new-password"
           value={confirm}
-          onChange={(ev) => setConfirm(ev.target.value.trim())}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton
-                  aria-label={t("signup_form_toggle_password_visibility")}
-                  onClick={() => setShowConfirm(!showConfirm)}
-                  onMouseDown={(ev) => ev.preventDefault()}
-                  edge="end"
-                >
-                  {showConfirm ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              </InputAdornment>
-            ),
+          onChange={(ev) => setConfirm(ev.target.value)}
+          slotProps={{
+            input: {
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label={t("signup_form_toggle_password_visibility")}
+                    onClick={() => setShowConfirm(!showConfirm)}
+                    onMouseDown={(ev) => ev.preventDefault()}
+                    edge="end"
+                  >
+                    {showConfirm ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
           }}
         />
         <Button

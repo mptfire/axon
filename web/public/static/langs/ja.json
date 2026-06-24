@@ -14,7 +14,7 @@
     "publish_dialog_title_no_topic": "通知を送信",
     "publish_dialog_progress_uploading": "アップロード中…",
     "publish_dialog_progress_uploading_detail": "アップロード中 {{loaded}}/{{total}} ({{percent}}%) …",
-    "publish_dialog_message_published": "通知を送信しました",
+    "publish_dialog_message_published": "通知送信済み",
     "publish_dialog_title_label": "タイトル",
     "publish_dialog_filename_label": "ファイル名",
     "subscribe_dialog_login_description": "このトピックはログインする必要があります。ユーザー名とパスワードを入力してください。",
@@ -69,10 +69,10 @@
     "publish_dialog_attachment_limits_quota_reached": "クォータを超過しました、残り{{remainingBytes}}",
     "publish_dialog_priority_high": "優先度 高",
     "publish_dialog_topic_placeholder": "トピック名の例 phil_alerts",
-    "publish_dialog_title_placeholder": "通知タイトル 例: ディスクスペース警告",
+    "publish_dialog_title_placeholder": "通知タイトル、例: ディスクスペース警告",
     "publish_dialog_message_placeholder": "メッセージ本文を入力してください",
     "publish_dialog_tags_label": "タグ",
-    "publish_dialog_tags_placeholder": "コンマ区切りでタグを列挙してください 例: warning, srv1-backup",
+    "publish_dialog_tags_placeholder": "コンマ区切りでタグを列挙してください、例: warning, srv1-backup",
     "publish_dialog_topic_label": "トピック名",
     "publish_dialog_delay_label": "遅延",
     "publish_dialog_click_placeholder": "通知をクリックしたときに開くURL",
@@ -403,5 +403,7 @@
     "prefs_appearance_theme_system": "システム (既定)",
     "prefs_appearance_theme_dark": "ダークモード",
     "web_push_unknown_notification_title": "不明な通知を受信しました",
-    "web_push_unknown_notification_body": "ウェブアプリを開いてntfyをアップデートする必要があります"
+    "web_push_unknown_notification_body": "ウェブアプリを開いてntfyをアップデートする必要があります",
+    "account_basics_cannot_edit_or_delete_provisioned_user": "自動作成されたユーザーの編集や削除はできません",
+    "account_tokens_table_cannot_delete_or_edit_provisioned_token": "自動作成されたトークンは編集や削除はできません"
 }

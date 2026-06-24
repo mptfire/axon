@@ -165,10 +165,5 @@ func writeMatrixResponse(w http.ResponseWriter, rejectedPushKey string) error {
 		Rejected: rejected,
 	}
 	w.Header().Set("Content-Type", "application/json")
-	encoder := json.NewEncoder(w)
-	encoder.SetEscapeHTML(false)
-	if err := encoder.Encode(response); err != nil {
-		return err
-	}
-	return nil
+	return util.EncodeJSON(w, response)
 }

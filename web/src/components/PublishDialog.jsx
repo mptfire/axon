@@ -30,6 +30,7 @@ import priority3 from "../img/priority-3.svg";
 import priority4 from "../img/priority-4.svg";
 import priority5 from "../img/priority-5.svg";
 import { formatBytes, maybeWithAuth, topicShortUrl, topicUrl, validTopic, validUrl } from "../app/utils";
+import { imageRegex } from "../app/notificationUtils";
 import AttachmentIcon from "./AttachmentIcon";
 import DialogFooter from "./DialogFooter";
 import api from "../app/Api";
@@ -319,8 +320,10 @@ const PublishDialog = (props) => {
                 type="url"
                 variant="standard"
                 sx={{ flexGrow: 1, marginRight: 1 }}
-                inputProps={{
-                  "aria-label": t("publish_dialog_base_url_label"),
+                slotProps={{
+                  htmlInput: {
+                    "aria-label": t("publish_dialog_base_url_label"),
+                  },
                 }}
               />
               <TextField
@@ -334,8 +337,10 @@ const PublishDialog = (props) => {
                 variant="standard"
                 autoFocus={!messageFocused}
                 sx={{ flexGrow: 1 }}
-                inputProps={{
-                  "aria-label": t("publish_dialog_topic_label"),
+                slotProps={{
+                  htmlInput: {
+                    "aria-label": t("publish_dialog_topic_label"),
+                  },
                 }}
               />
             </ClosableRow>
@@ -350,8 +355,10 @@ const PublishDialog = (props) => {
             type="text"
             fullWidth
             variant="standard"
-            inputProps={{
-              "aria-label": t("publish_dialog_title_label"),
+            slotProps={{
+              htmlInput: {
+                "aria-label": t("publish_dialog_title_label"),
+              },
             }}
           />
           <TextField
@@ -367,8 +374,10 @@ const PublishDialog = (props) => {
             autoFocus={messageFocused}
             fullWidth
             multiline
-            inputProps={{
-              "aria-label": t("publish_dialog_message_label"),
+            slotProps={{
+              htmlInput: {
+                "aria-label": t("publish_dialog_message_label"),
+              },
             }}
             onPaste={handlePaste}
           />
@@ -380,8 +389,10 @@ const PublishDialog = (props) => {
                 size="small"
                 checked={markdownEnabled}
                 onChange={(ev) => setMarkdownEnabled(ev.target.checked)}
-                inputProps={{
-                  "aria-label": t("publish_dialog_checkbox_markdown"),
+                slotProps={{
+                  input: {
+                    "aria-label": t("publish_dialog_checkbox_markdown"),
+                  },
                 }}
               />
             }
@@ -401,8 +412,10 @@ const PublishDialog = (props) => {
               type="text"
               variant="standard"
               sx={{ flexGrow: 1, marginRight: 1 }}
-              inputProps={{
-                "aria-label": t("publish_dialog_tags_label"),
+              slotProps={{
+                htmlInput: {
+                  "aria-label": t("publish_dialog_tags_label"),
+                },
               }}
             />
             <FormControl variant="standard" margin="dense" sx={{ minWidth: 170, maxWidth: 300, flexGrow: 1 }}>
@@ -459,8 +472,10 @@ const PublishDialog = (props) => {
                 type="url"
                 fullWidth
                 variant="standard"
-                inputProps={{
-                  "aria-label": t("publish_dialog_click_label"),
+                slotProps={{
+                  htmlInput: {
+                    "aria-label": t("publish_dialog_click_label"),
+                  },
                 }}
               />
             </ClosableRow>
@@ -484,8 +499,10 @@ const PublishDialog = (props) => {
                 type="email"
                 variant="standard"
                 fullWidth
-                inputProps={{
-                  "aria-label": t("publish_dialog_email_label"),
+                slotProps={{
+                  htmlInput: {
+                    "aria-label": t("publish_dialog_email_label"),
+                  },
                 }}
               />
             </ClosableRow>
@@ -555,8 +572,10 @@ const PublishDialog = (props) => {
                 type="url"
                 variant="standard"
                 sx={{ flexGrow: 5, marginRight: 1 }}
-                inputProps={{
-                  "aria-label": t("publish_dialog_attach_label"),
+                slotProps={{
+                  htmlInput: {
+                    "aria-label": t("publish_dialog_attach_label"),
+                  },
                 }}
               />
               <TextField
@@ -572,8 +591,10 @@ const PublishDialog = (props) => {
                 type="text"
                 variant="standard"
                 sx={{ flexGrow: 1 }}
-                inputProps={{
-                  "aria-label": t("publish_dialog_filename_label"),
+                slotProps={{
+                  htmlInput: {
+                    "aria-label": t("publish_dialog_filename_label"),
+                  },
                 }}
               />
             </ClosableRow>
@@ -616,8 +637,10 @@ const PublishDialog = (props) => {
                 type="text"
                 variant="standard"
                 fullWidth
-                inputProps={{
-                  "aria-label": t("publish_dialog_delay_label"),
+                slotProps={{
+                  htmlInput: {
+                    "aria-label": t("publish_dialog_delay_label"),
+                  },
                 }}
               />
             </ClosableRow>
@@ -734,8 +757,10 @@ const PublishDialog = (props) => {
                     size="small"
                     checked={publishAnother}
                     onChange={(ev) => setPublishAnother(ev.target.checked)}
-                    inputProps={{
-                      "aria-label": t("publish_dialog_checkbox_publish_another"),
+                    slotProps={{
+                      input: {
+                        "aria-label": t("publish_dialog_checkbox_publish_another"),
+                      },
                     }}
                   />
                 }
@@ -805,7 +830,7 @@ const AttachmentBox = (props) => {
           borderRadius: "4px",
         }}
       >
-        <AttachmentIcon type={file.type} href={URL.createObjectURL(file)} />
+        <AttachmentIcon type={file.type} href={imageRegex.test(file.name) ? URL.createObjectURL(file) : undefined} />
         <Box sx={{ marginLeft: 1, textAlign: "left" }}>
           <ExpandingTextField
             minWidth={140}
@@ -866,12 +891,14 @@ const ExpandingTextField = (props) => {
         type="text"
         variant="standard"
         sx={{ width: `${textWidth}px`, borderBottom: "none" }}
-        InputProps={{
-          style: { fontSize: theme.typography[props.variant].fontSize },
-        }}
-        inputProps={{
-          style: { paddingBottom: 0, paddingTop: 0 },
-          "aria-label": props.placeholder,
+        slotProps={{
+          input: {
+            style: { fontSize: theme.typography[props.variant].fontSize },
+          },
+          htmlInput: {
+            style: { paddingBottom: 0, paddingTop: 0 },
+            "aria-label": props.placeholder,
+          },
         }}
         disabled={props.disabled}
       />

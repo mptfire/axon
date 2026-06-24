@@ -6,13 +6,17 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
-	"heckel.io/ntfy/v2/server"
-	"heckel.io/ntfy/v2/user"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
+	"heckel.io/ntfy/v2/db"
+	"heckel.io/ntfy/v2/db/pg"
+	"heckel.io/ntfy/v2/mail"
+	"heckel.io/ntfy/v2/server"
+	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 )
 
@@ -29,12 +33,18 @@ var flagsUser = append(
 	&cli.StringFlag{Name: "config", Aliases: []string{"c"}, EnvVars: []string{"NTFY_CONFIG_FILE"}, Value: server.DefaultConfigFile, DefaultText: server.DefaultConfigFile, Usage: "config file"},
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "auth-file", Aliases: []string{"auth_file", "H"}, EnvVars: []string{"NTFY_AUTH_FILE"}, Usage: "auth database file used for access control"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "auth-default-access", Aliases: []string{"auth_default_access", "p"}, EnvVars: []string{"NTFY_AUTH_DEFAULT_ACCESS"}, Value: "read-write", Usage: "default permissions if no matching entries in the auth database are found"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "database-url", Aliases: []string{"database_url"}, EnvVars: []string{"NTFY_DATABASE_URL"}, Usage: "PostgreSQL connection string for database-backed stores"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "base-url", Aliases: []string{"base_url", "B"}, EnvVars: []string{"NTFY_BASE_URL"}, Usage: "externally visible base URL for this host (e.g. https://ntfy.sh)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-addr", Aliases: []string{"smtp_sender_addr"}, EnvVars: []string{"NTFY_SMTP_SENDER_ADDR"}, Usage: "SMTP server address (host:port) for outgoing emails"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-user", Aliases: []string{"smtp_sender_user"}, EnvVars: []string{"NTFY_SMTP_SENDER_USER"}, Usage: "SMTP user (if e-mail sending is enabled)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-pass", Aliases: []string{"smtp_sender_pass"}, EnvVars: []string{"NTFY_SMTP_SENDER_PASS"}, Usage: "SMTP password (if e-mail sending is enabled)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "smtp-sender-from", Aliases: []string{"smtp_sender_from"}, EnvVars: []string{"NTFY_SMTP_SENDER_FROM"}, Usage: "SMTP sender address (if e-mail sending is enabled)"}),
 )
 
 var cmdUser = &cli.Command{
 	Name:      "user",
 	Usage:     "Manage/show users",
-	UsageText: "ntfy user [list|add|remove|change-pass|change-role] ...",
+	UsageText: "ntfy user [list|add|remove|change-pass|reset-pass|change-role] ...",
 	Flags:     flagsUser,
 	Before:    initConfigFileInputSourceFunc("config", flagsUser, initLogFunc),
 	Category:  categoryServer,
@@ -95,6 +105,30 @@ Example:
 
 You may set the NTFY_PASSWORD environment variable to pass the new password or NTFY_PASSWORD_HASH to pass
 directly the bcrypt hash. This is useful if you are updating users via scripts.
+`,
+		},
+		{
+			Name:      "reset-pass",
+			Aliases:   []string{"rp"},
+			Usage:     "Generates a password reset link for a user",
+			UsageText: "ntfy user reset-pass [--send-email] USERNAME",
+			Action:    execUserResetPass,
+			Flags: []cli.Flag{
+				&cli.BoolFlag{Name: "send-email", Aliases: []string{"e"}, Usage: "also email the reset link to the user's primary email"},
+			},
+			Description: `Generate a password reset link for the given user and print it to stdout.
+
+The user completes the reset by opening the link in a browser and choosing a new password;
+the admin never learns or chooses the new password. The link is single-use and expires after
+one hour. This is an admin override of the self-service reset flow -- unlike self-service, it
+does not require the user to have a verified primary email (the token is bound to the user).
+
+With --send-email, the link is additionally emailed to the user's primary email address (this
+requires SMTP to be configured and the user to have a verified primary email).
+
+Example:
+  ntfy user reset-pass phil               # Print a reset link for user phil
+  ntfy user reset-pass --send-email phil  # Print and email the reset link
 `,
 		},
 		{
@@ -254,7 +288,6 @@ func execUserDel(c *cli.Context) error {
 func execUserChangePass(c *cli.Context) error {
 	username := c.Args().Get(0)
 	password, hashed := os.LookupEnv("NTFY_PASSWORD_HASH")
-
 	if !hashed {
 		password = os.Getenv("NTFY_PASSWORD")
 	}
@@ -280,6 +313,61 @@ func execUserChangePass(c *cli.Context) error {
 		return err
 	}
 	fmt.Fprintf(c.App.Writer, "changed password for user %s\n", username)
+	return nil
+}
+
+func execUserResetPass(c *cli.Context) error {
+	username := c.Args().Get(0)
+	sendEmail := c.Bool("send-email")
+	baseURL := strings.TrimSuffix(c.String("base-url"), "/")
+	if username == "" {
+		return errors.New("username expected, type 'ntfy user reset-pass --help' for help")
+	} else if username == userEveryone || username == user.Everyone {
+		return errors.New("username not allowed")
+	} else if baseURL == "" {
+		return errors.New("base-url must be configured to generate a reset link")
+	}
+	manager, err := createUserManager(c)
+	if err != nil {
+		return err
+	}
+	u, err := manager.User(username)
+	if errors.Is(err, user.ErrUserNotFound) {
+		return fmt.Errorf("user %s does not exist", username)
+	} else if err != nil {
+		return err
+	} else if u.Provisioned {
+		return fmt.Errorf("user %s is provisioned in the config file; its password cannot be reset", username)
+	}
+	// Resolve the primary email up front if we need to send -- fail before creating a token
+	var primaryEmail string
+	if sendEmail {
+		primaryEmail, err = manager.PrimaryEmail(u.ID)
+		if err != nil {
+			return err
+		} else if primaryEmail == "" {
+			return fmt.Errorf("user %s has no primary email; cannot send reset link (omit --send-email to just print it)", username)
+		}
+	}
+	// The reset token is bound to the user, not an email -- so this works even with no SMTP
+	token, err := manager.AddMagicLink(user.MagicLinkKindPasswordReset, u.ID, "", time.Hour)
+	if err != nil {
+		return err
+	}
+	link := baseURL + "/account/password/reset/" + token
+	fmt.Fprintln(c.App.Writer, link)
+	if sendEmail {
+		sender := mail.NewSender(&mail.Config{
+			SMTPAddr: c.String("smtp-sender-addr"),
+			SMTPUser: c.String("smtp-sender-user"),
+			SMTPPass: c.String("smtp-sender-pass"),
+			From:     c.String("smtp-sender-from"),
+		})
+		if err := sender.SendPasswordReset(primaryEmail, link); err != nil {
+			return fmt.Errorf("failed to send reset email to %s: %w", primaryEmail, err)
+		}
+		fmt.Fprintf(c.App.ErrWriter, "reset link emailed to %s\n", primaryEmail)
+	}
 	return nil
 }
 
@@ -310,7 +398,7 @@ func execUserHash(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	hash, err := user.HashPassword(password)
+	hash, err := user.HashPassword(password, user.DefaultUserPasswordBcryptCost)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
@@ -365,24 +453,31 @@ func createUserManager(c *cli.Context) (*user.Manager, error) {
 	authFile := c.String("auth-file")
 	authStartupQueries := c.String("auth-startup-queries")
 	authDefaultAccess := c.String("auth-default-access")
-	if authFile == "" {
-		return nil, errors.New("option auth-file not set; auth is unconfigured for this server")
-	} else if !util.FileExists(authFile) {
-		return nil, errors.New("auth-file does not exist; please start the server at least once to create it")
-	}
+	databaseURL := c.String("database-url")
 	authDefault, err := user.ParsePermission(authDefaultAccess)
 	if err != nil {
 		return nil, errors.New("if set, auth-default-access must start set to 'read-write', 'read-only', 'write-only' or 'deny-all'")
 	}
 	authConfig := &user.Config{
-		Filename:            authFile,
-		StartupQueries:      authStartupQueries,
 		DefaultAccess:       authDefault,
 		ProvisionEnabled:    false, // Hack: Do not re-provision users on manager initialization
 		BcryptCost:          user.DefaultUserPasswordBcryptCost,
 		QueueWriterInterval: user.DefaultUserStatsQueueWriterInterval,
+		AccessCacheEnabled:  false, // Do not cache for CLI commands
 	}
-	return user.NewManager(authConfig)
+	if databaseURL != "" {
+		host, dbErr := pg.Open(databaseURL)
+		if dbErr != nil {
+			return nil, dbErr
+		}
+		return user.NewPostgresManager(db.New(host, nil), authConfig)
+	} else if authFile != "" {
+		if !util.FileExists(authFile) {
+			return nil, errors.New("auth-file does not exist; please start the server at least once to create it")
+		}
+		return user.NewSQLiteManager(authFile, authStartupQueries, authConfig)
+	}
+	return nil, errors.New("option database-url or auth-file not set; auth is unconfigured for this server")
 }
 
 func readPasswordAndConfirm(c *cli.Context) (string, error) {

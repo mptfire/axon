@@ -1,4 +1,3 @@
-import { Base64 } from "js-base64";
 import beep from "../sounds/beep.mp3";
 import juntos from "../sounds/juntos.mp3";
 import pristine from "../sounds/pristine.mp3";
@@ -8,6 +7,7 @@ import pop from "../sounds/pop.mp3";
 import popSwoosh from "../sounds/pop-swoosh.mp3";
 import config from "./config";
 import emojisMapped from "./emojisMapped";
+import { THEME } from "./Prefs";
 
 export const tiersUrl = (baseUrl) => `${baseUrl}/v1/tiers`;
 export const shortUrl = (url) => url.replaceAll(/https?:\/\//g, "");
@@ -33,6 +33,12 @@ export const accountBillingSubscriptionUrl = (baseUrl) => `${baseUrl}/v1/account
 export const accountBillingPortalUrl = (baseUrl) => `${baseUrl}/v1/account/billing/portal`;
 export const accountPhoneUrl = (baseUrl) => `${baseUrl}/v1/account/phone`;
 export const accountPhoneVerifyUrl = (baseUrl) => `${baseUrl}/v1/account/phone/verify`;
+export const accountEmailUrl = (baseUrl) => `${baseUrl}/v1/account/email`;
+export const accountEmailVerifyUrl = (baseUrl) => `${baseUrl}/v1/account/email/verify`;
+export const accountEmailPrimaryUrl = (baseUrl) => `${baseUrl}/v1/account/email/primary`;
+export const accountEmailResendUrl = (baseUrl) => `${baseUrl}/v1/account/email/resend`;
+export const accountPasswordResetRequestUrl = (baseUrl) => `${baseUrl}/v1/account/password/reset/request`;
+export const accountPasswordResetUrl = (baseUrl) => `${baseUrl}/v1/account/password/reset`;
 
 export const validUrl = (url) => url.match(/^https?:\/\/.+/);
 
@@ -60,9 +66,14 @@ export const unmatchedTags = (tags) => {
   return tags.filter((tag) => !(tag in emojisMapped));
 };
 
-export const encodeBase64 = (s) => Base64.encode(s);
+export const encodeBase64 = (s) => {
+  const bytes = new TextEncoder().encode(s);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+};
 
-export const encodeBase64Url = (s) => Base64.encodeURI(s);
+export const encodeBase64Url = (s) => encodeBase64(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
 export const bearerAuth = (token) => `Bearer ${token}`;
 
@@ -135,9 +146,10 @@ export const hashCode = (s) => {
 
 /**
  * convert `i18n.language` style str (e.g.: `en_US`) to kebab-case (e.g.: `en-US`),
- * which is expected by `<html lang>` and `Intl.DateTimeFormat`
+ * which is expected by `<html lang>` and `Intl.DateTimeFormat`. Falls back to "en"
+ * if the input is missing or not a string.
  */
-export const getKebabCaseLangStr = (language) => language.replace(/_/g, "-");
+export const getKebabCaseLangStr = (language) => (typeof language === "string" && language.length > 0 ? language.replace(/_/g, "-") : "en");
 
 export const formatShortDateTime = (timestamp, language) =>
   new Intl.DateTimeFormat(getKebabCaseLangStr(language), {
@@ -147,6 +159,32 @@ export const formatShortDateTime = (timestamp, language) =>
 
 export const formatShortDate = (timestamp, language) =>
   new Intl.DateTimeFormat(getKebabCaseLangStr(language), { dateStyle: "short" }).format(new Date(timestamp * 1000));
+
+export const formatShortDuration = (ms, language) => {
+  const seconds = Math.round(ms / 1000);
+  const units = [
+    { unit: "year", s: 31536000 },
+    { unit: "month", s: 2592000 },
+    { unit: "week", s: 604800 },
+    { unit: "day", s: 86400 },
+    { unit: "hour", s: 3600 },
+    { unit: "minute", s: 60 },
+    { unit: "second", s: 1 },
+  ];
+  const match = units.find((u) => seconds >= u.s) ?? units[units.length - 1];
+  const value = Math.round(seconds / match.s);
+  // [lang, "en"] makes Intl fall back to English for well-formed-but-unsupported tags;
+  // the try/catch covers malformed tags (RangeError) so the web app never crashes here.
+  try {
+    return new Intl.NumberFormat([getKebabCaseLangStr(language), "en"], {
+      style: "unit",
+      unit: match.unit,
+      unitDisplay: "long",
+    }).format(value);
+  } catch {
+    return new Intl.NumberFormat("en", { style: "unit", unit: match.unit, unitDisplay: "long" }).format(value);
+  }
+};
 
 export const formatBytes = (bytes, decimals = 2) => {
   if (bytes === 0) return "0 bytes";
@@ -175,7 +213,7 @@ export const formatPrice = (n) => {
 };
 
 export const openUrl = (url) => {
-  window.open(url, "_blank", "noopener,noreferrer");
+  window.open(url, "_blank", "noreferrer");
 };
 
 export const sounds = {
@@ -272,6 +310,84 @@ export const urlB64ToUint8Array = (base64String) => {
     outputArray[i] = rawData.charCodeAt(i);
   }
   return outputArray;
+};
+
+export const darkModeEnabled = (prefersDarkMode, themePreference) => {
+  switch (themePreference) {
+    case THEME.DARK:
+      return true;
+
+    case THEME.LIGHT:
+      return false;
+
+    case THEME.SYSTEM:
+    default:
+      return prefersDarkMode;
+  }
+};
+
+// Canvas-based favicon with a red notification dot when there are unread messages
+let faviconCanvas;
+let faviconOriginalIcon;
+
+const loadFaviconIcon = () =>
+  new Promise((resolve) => {
+    if (faviconOriginalIcon) {
+      resolve(faviconOriginalIcon);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      faviconOriginalIcon = img;
+      resolve(img);
+    };
+    img.onerror = () => resolve(null);
+    // Use PNG instead of ICO — .ico files can't be reliably drawn to canvas in all browsers
+    img.src = "/static/images/ntfy.png";
+  });
+
+export const updateFavicon = async (count) => {
+  const size = 32;
+  const img = await loadFaviconIcon();
+  if (!img) {
+    return;
+  }
+
+  if (!faviconCanvas) {
+    faviconCanvas = document.createElement("canvas");
+    faviconCanvas.width = size;
+    faviconCanvas.height = size;
+  }
+
+  const ctx = faviconCanvas.getContext("2d");
+  ctx.clearRect(0, 0, size, size);
+  ctx.drawImage(img, 0, 0, size, size);
+
+  if (count > 0) {
+    const dotRadius = 5;
+    const borderWidth = 2;
+    const dotX = size - dotRadius - borderWidth + 1;
+    const dotY = size - dotRadius - borderWidth + 1;
+
+    // Transparent border: erase a ring around the dot so the icon doesn't bleed into it
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, dotRadius + borderWidth, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.restore();
+
+    // Red dot
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, dotRadius, 0, 2 * Math.PI);
+    ctx.fillStyle = "#dc3545";
+    ctx.fill();
+  }
+
+  const link = document.querySelector("link[rel='icon']");
+  if (link) {
+    link.href = faviconCanvas.toDataURL("image/png");
+  }
 };
 
 export const copyToClipboard = (text) => {

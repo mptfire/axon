@@ -28,7 +28,7 @@ func (s *Server) limitRequests(next handleFunc) handleFunc {
 // limitRequestsWithTopic limits requests with a topic and stores the rate-limiting-subscriber and topic into request.Context
 func (s *Server) limitRequestsWithTopic(next handleFunc) handleFunc {
 	return func(w http.ResponseWriter, r *http.Request, v *visitor) error {
-		t, err := s.topicFromPath(r.URL.Path)
+		t, err := s.topicFromPath(v, r.URL.Path)
 		if err != nil {
 			return err
 		}
@@ -97,6 +97,15 @@ func (s *Server) ensureAdmin(next handleFunc) handleFunc {
 func (s *Server) ensureCallsEnabled(next handleFunc) handleFunc {
 	return func(w http.ResponseWriter, r *http.Request, v *visitor) error {
 		if s.config.TwilioAccount == "" || s.userManager == nil {
+			return errHTTPNotFound
+		}
+		return next(w, r, v)
+	}
+}
+
+func (s *Server) ensureEmailsEnabled(next handleFunc) handleFunc {
+	return func(w http.ResponseWriter, r *http.Request, v *visitor) error {
+		if s.mailer == nil || s.userManager == nil {
 			return errHTTPNotFound
 		}
 		return next(w, r, v)

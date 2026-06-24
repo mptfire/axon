@@ -2,6 +2,12 @@ import i18n from "i18next";
 import {
   accountBillingPortalUrl,
   accountBillingSubscriptionUrl,
+  accountEmailUrl,
+  accountEmailVerifyUrl,
+  accountEmailPrimaryUrl,
+  accountEmailResendUrl,
+  accountPasswordResetRequestUrl,
+  accountPasswordResetUrl,
   accountPasswordUrl,
   accountPhoneUrl,
   accountPhoneVerifyUrl,
@@ -63,11 +69,12 @@ class AccountApi {
     });
   }
 
-  async create(username, password) {
+  async create(username, password, email) {
     const url = accountUrl(config.base_url);
     const body = JSON.stringify({
       username,
       password,
+      email: email || "",
     });
     console.log(`[AccountApi] Creating user account ${url}`);
     await fetchOrThrow(url, {
@@ -135,8 +142,8 @@ class AccountApi {
       token,
       label,
     };
-    if (expires > 0) {
-      body.expires = Math.floor(Date.now() / 1000) + expires;
+    if (expires >= 0) {
+      body.expires = expires > 0 ? Math.floor(Date.now() / 1000) + expires : 0;
     }
     console.log(`[AccountApi] Creating user access token ${url}`);
     await fetchOrThrow(url, {
@@ -153,6 +160,7 @@ class AccountApi {
       method: "PATCH",
       headers: withBearerAuth({}, session.token()),
     });
+    await session.setLastExtendedAtAsync();
   }
 
   async deleteToken(token) {
@@ -335,6 +343,97 @@ class AccountApi {
       headers: withBearerAuth({}, session.token()),
       body: JSON.stringify({
         number: phoneNumber,
+      }),
+    });
+  }
+
+  // startEmailVerification begins adding an email: the server stores a pending verification and
+  // emails a magic link. The address is not verified until the link is clicked.
+  async startEmailVerification(email) {
+    const url = accountEmailUrl(config.base_url);
+    console.log(`[AccountApi] Starting email verification ${url}`);
+    await fetchOrThrow(url, {
+      method: "PUT",
+      headers: withBearerAuth({}, session.token()),
+      body: JSON.stringify({
+        email,
+      }),
+    });
+  }
+
+  // verifyEmailToken performs verification from the magic-link landing page. It is unauthenticated:
+  // the token identifies the account, so this works even when clicked from a logged-out browser.
+  async verifyEmailToken(token) {
+    const url = accountEmailVerifyUrl(config.base_url);
+    console.log(`[AccountApi] Verifying email token ${url}`);
+    await fetchOrThrow(url, {
+      method: "POST",
+      body: JSON.stringify({
+        token,
+      }),
+    });
+  }
+
+  // resendEmailVerification re-sends the magic link for a pending (unverified) address.
+  async resendEmailVerification(email) {
+    const url = accountEmailResendUrl(config.base_url);
+    console.log(`[AccountApi] Resending email verification ${url}`);
+    await fetchOrThrow(url, {
+      method: "POST",
+      headers: withBearerAuth({}, session.token()),
+      body: JSON.stringify({
+        email,
+      }),
+    });
+  }
+
+  // setPrimaryEmail marks an already-verified address as the primary (recovery) email.
+  async setPrimaryEmail(email) {
+    const url = accountEmailPrimaryUrl(config.base_url);
+    console.log(`[AccountApi] Setting primary email ${url}`);
+    await fetchOrThrow(url, {
+      method: "POST",
+      headers: withBearerAuth({}, session.token()),
+      body: JSON.stringify({
+        email,
+      }),
+    });
+  }
+
+  // requestPasswordReset starts the (unauthenticated) reset flow. The identifier is a username or
+  // primary email. The server always responds uniformly, regardless of whether an account matched.
+  async requestPasswordReset(identifier) {
+    const url = accountPasswordResetRequestUrl(config.base_url);
+    console.log(`[AccountApi] Requesting password reset ${url}`);
+    await fetchOrThrow(url, {
+      method: "POST",
+      body: JSON.stringify({
+        identifier,
+      }),
+    });
+  }
+
+  // resetPassword performs the (unauthenticated) reset from the set-new-password landing page.
+  async resetPassword(token, password) {
+    const url = accountPasswordResetUrl(config.base_url);
+    console.log(`[AccountApi] Resetting password ${url}`);
+    await fetchOrThrow(url, {
+      method: "POST",
+      body: JSON.stringify({
+        token,
+        password,
+      }),
+    });
+  }
+
+  async deleteEmail(email) {
+    const url = accountEmailUrl(config.base_url);
+    console.log(`[AccountApi] Deleting email ${url}`);
+    await fetchOrThrow(url, {
+      method: "DELETE",
+      headers: withBearerAuth({}, session.token()),
+      body: JSON.stringify({
+        email,
       }),
     });
   }

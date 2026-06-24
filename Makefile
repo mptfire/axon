@@ -1,10 +1,13 @@
 MAKEFLAGS := --jobs=1
+NPM := npm
 PYTHON := python3
 PIP := pip3
 VERSION := $(shell git describe --tag)
 COMMIT := $(shell git rev-parse --short HEAD)
 
-.PHONY:
+# FORCE is an always-out-of-date target with no recipe; listing it as a prerequisite
+# forces that target's recipe to run every time (the classic "FORCE target" idiom).
+FORCE:
 
 help:
 	@echo "Typical commands (more see below):"
@@ -31,6 +34,7 @@ help:
 	@echo "Build server & client (without GoReleaser):"
 	@echo "  make cli-linux-server           - Build client & server (no GoReleaser, current arch, Linux)"
 	@echo "  make cli-darwin-server          - Build client & server (no GoReleaser, current arch, macOS)"
+	@echo "  make cli-windows-server         - Build client & server (no GoReleaser, amd64 only, Windows)"
 	@echo "  make cli-client                 - Build client only (no GoReleaser, current arch, Linux/macOS/Windows)"
 	@echo
 	@echo "Build dev Docker:"
@@ -41,6 +45,7 @@ help:
 	@echo "  make web-deps                   - Install web app dependencies (npm install the universe)"
 	@echo "  make web-build                  - Actually build the web app"
 	@echo "  make web-lint                   - Run eslint on the web app"
+	@echo "  make web-test                   - Run vitest unit tests for the web app"
 	@echo "  make web-fmt                    - Run prettier on the web app"
 	@echo "  make web-fmt-check              - Run prettier on the web app, but don't change anything"
 	@echo
@@ -50,7 +55,9 @@ help:
 	@echo "  make docs-build                 - Actually build the documentation"
 	@echo
 	@echo "Test/check:"
-	@echo "  make test                       - Run tests"
+	@echo "  make test                       - Run all tests (Go + web)"
+	@echo "  make cli-test                   - Run Go tests only"
+	@echo "  make web-test                   - Run web app tests only"
 	@echo "  make race                       - Run tests with -race flag"
 	@echo "  make coverage                   - Run tests and show coverage"
 	@echo "  make coverage-html              - Run tests and show coverage (as HTML)"
@@ -80,7 +87,7 @@ help:
 
 # Building everything
 
-clean: .PHONY
+clean: FORCE
 	rm -rf dist build server/docs server/site
 
 build: web docs cli
@@ -106,6 +113,7 @@ build-deps-ubuntu:
 		curl \
 		gcc-aarch64-linux-gnu \
 		gcc-arm-linux-gnueabi \
+		gcc-mingw-w64-x86-64 \
 		python3 \
 		python3-venv \
 		jq
@@ -116,7 +124,7 @@ build-deps-ubuntu:
 
 docs: docs-deps docs-build
 
-docs-venv: .PHONY
+docs-venv: FORCE
 	$(PYTHON) -m venv ./venv
 
 docs-build: docs-venv
@@ -125,7 +133,7 @@ docs-build: docs-venv
 docs-deps: docs-venv
 	(. venv/bin/activate && $(PIP) install -r requirements.txt)
 
-docs-deps-update: .PHONY
+docs-deps-update: FORCE
 	(. venv/bin/activate && $(PIP) install -r requirements.txt --upgrade)
 
 
@@ -135,7 +143,7 @@ web: web-deps web-build
 
 web-build:
 	cd web \
-		&& npm run build \
+		&& $(NPM) run build \
 		&& mv build/index.html build/app.html \
 		&& rm -rf ../server/site \
 		&& mv build ../server/site \
@@ -143,20 +151,25 @@ web-build:
 			../server/site/config.js
 
 web-deps:
-	cd web && npm install
+	cd web && $(NPM) ci
+	# Use "npm ci" so that we don't change the package lock file
 	# If this fails for .svg files, optimize them with svgo
 
 web-deps-update:
-	cd web && npm update
+	cd web && $(NPM) update --before="$(shell date -d '7 days ago' +%Y-%m-%d)"
+	cd web && $(NPM) install
 
 web-fmt:
-	cd web && npm run format
+	cd web && $(NPM) run format
 
 web-fmt-check:
-	cd web && npm run format:check
+	cd web && $(NPM) run format:check
 
 web-lint:
-	cd web && npm run lint
+	cd web && $(NPM) run lint
+
+web-test:
+	cd web && $(NPM) run test
 
 # Main server/client build
 
@@ -201,6 +214,16 @@ cli-darwin-server: cli-deps-static-sites
 		-ldflags \
 		"-linkmode=external -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(shell date +%s)"
 
+cli-windows-server: cli-deps-static-sites
+	# This is a target to build the CLI (including the server) for Windows.
+	# Use this for Windows development, if you really don't want to install GoReleaser ...
+	mkdir -p dist/ntfy_windows_server server/docs
+	CC=x86_64-w64-mingw32-gcc GOOS=windows GOARCH=amd64 CGO_ENABLED=1 go build \
+		-o dist/ntfy_windows_server/ntfy.exe \
+		-tags sqlite_omit_load_extension,osusergo,netgo \
+		-ldflags \
+		"-s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(shell date +%s)"
+
 cli-client: cli-deps-static-sites
 	# This is a target to build the CLI (excluding the server) manually. This should work on Linux/macOS/Windows.
 	# Use this for development, if you really don't want to install GoReleaser ...
@@ -213,7 +236,7 @@ cli-client: cli-deps-static-sites
 
 cli-deps: cli-deps-static-sites cli-deps-all cli-deps-gcc
 
-cli-deps-gcc: cli-deps-gcc-armv6-armv7 cli-deps-gcc-arm64
+cli-deps-gcc: cli-deps-gcc-armv6-armv7 cli-deps-gcc-arm64 cli-deps-gcc-windows
 
 cli-deps-static-sites:
 	mkdir -p server/docs server/site
@@ -228,8 +251,12 @@ cli-deps-gcc-armv6-armv7:
 cli-deps-gcc-arm64:
 	which aarch64-linux-gnu-gcc || { echo "ERROR: ARM64 cross compiler not installed. On Ubuntu, run: apt install gcc-aarch64-linux-gnu"; exit 1; }
 
+cli-deps-gcc-windows:
+	which x86_64-w64-mingw32-gcc || { echo "ERROR: Windows cross compiler not installed. On Ubuntu, run: apt install gcc-mingw-w64-x86-64"; exit 1; }
+
 cli-deps-update:
 	go get -u
+	go mod tidy
 	go install honnef.co/go/tools/cmd/staticcheck@latest
 	go install golang.org/x/lint/golint@latest
 	go install github.com/goreleaser/goreleaser/v2@latest
@@ -248,23 +275,29 @@ cli-build-results:
 
 check: test web-fmt-check fmt-check vet web-lint lint staticcheck
 
-test: .PHONY
-	go test $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
+checkv: testv web-fmt-check fmt-check vet web-lint lint staticcheck
 
-testv: .PHONY
-	go test -v $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
+test: cli-test web-test
 
-race: .PHONY
-	go test -v -race $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
+testv: cli-testv web-test
+
+cli-test: FORCE
+	go test $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/v2/(test|examples|tools)')
+
+cli-testv: FORCE
+	go test -v $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/v2/(test|examples|tools)')
+
+race: FORCE
+	go test -v -race $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/v2/(test|examples|tools)')
 
 coverage:
 	mkdir -p build/coverage
-	go test -v -race -coverprofile=build/coverage/coverage.txt -covermode=atomic $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
+	go test -v -race -coverprofile=build/coverage/coverage.txt -covermode=atomic $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/v2/(test|examples|tools|web)')
 	go tool cover -func build/coverage/coverage.txt
 
 coverage-html:
 	mkdir -p build/coverage
-	go test -race -coverprofile=build/coverage/coverage.txt -covermode=atomic $(shell go list ./... | grep -vE 'ntfy/(test|examples|tools)')
+	go test -race -coverprofile=build/coverage/coverage.txt -covermode=atomic $(shell go list -f '{{if .TestGoFiles}}{{.ImportPath}}{{end}}' ./... | grep -vE 'ntfy/v2/(test|examples|tools)')
 	go tool cover -html build/coverage/coverage.txt
 
 coverage-upload:
@@ -286,7 +319,7 @@ lint:
 	which golint || go install golang.org/x/lint/golint@latest
 	go list ./... | grep -v /vendor/ | xargs -L1 golint -set_exit_status
 
-staticcheck: .PHONY
+staticcheck: FORCE
 	rm -rf build/staticcheck
 	which staticcheck || go install honnef.co/go/tools/cmd/staticcheck@latest
 	mkdir -p build/staticcheck

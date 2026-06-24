@@ -42,6 +42,7 @@ I've added a ⭐ to projects or posts that have a significant following, or had 
 - [Monibot](https://monibot.io/) - Monibot monitors your websites, servers and applications and notifies you if something goes wrong.
 - [Miniflux](https://miniflux.app/docs/ntfy.html) - Minimalist and opinionated feed reader
 - [Beszel](https://beszel.dev/guide/notifications/ntfy) - Server monitoring platform
+- [Simple Observability](https://simpleobservability.com/docs/alerts/ntfy) - Server monitoring and observability platform
 
 ## Integration via HTTP/SMTP/etc.
 
@@ -88,8 +89,9 @@ I've added a ⭐ to projects or posts that have a significant following, or had 
 - [ntfy-desktop](https://codeberg.org/zvava/ntfy-desktop) - Cross-platform desktop application for ntfy
 - [ntfy-desktop](https://github.com/Aetherinox/ntfy-desktop) - Desktop client for Windows, Linux, and MacOS with push notifications
 - [ntfy svelte front-end](https://github.com/novatorem/Ntfy) - Front-end built with svelte
+- [ntfy Desktop (Windows)](https://github.com/simoneferrari/ntfy-desktop) - Native Windows desktop client with multi-server support, toast notifications and message history, built with WPF and .NET (C#)
 - [wio-ntfy-ticker](https://github.com/nachotp/wio-ntfy-ticker) - Ticker display for a ntfy.sh topic
-- [ntfysh-windows](https://github.com/lucas-bortoli/ntfysh-windows) - A ntfy client for Windows Desktop
+- [ntfysh-windows](https://github.com/mshafer1/ntfysh-windows) - A ntfy client for Windows Desktop
 - [ntfyr](https://github.com/haxwithaxe/ntfyr) - A simple commandline tool to send notifications to ntfy
 - [ntfy.py](https://github.com/ioqy/ntfy-client-python) - ntfy.py is a simple nfty.sh client for sending notifications
 - [wlzntfy](https://github.com/Walzen-Group/ntfy-toaster) - A minimalistic, receive-only toast notification client for Windows 11
@@ -97,6 +99,7 @@ I've added a ⭐ to projects or posts that have a significant following, or had 
 - [Daily Fact Ntfy](https://github.com/thiswillbeyourgithub/Daily_Fact_Ntfy) - Generate [llm](https://github.com/simonw/llm) generated fact every day about any topic you're interested in.
 - [ntfyexec](https://github.com/alecthomas/ntfyexec) - Send a notification through ntfy.sh if a command fails
 - [Ntfy Desktop](https://github.com/emmaexe/ntfyDesktop) - Fully featured desktop client for Linux, built with Qt and C++.
+- [Ntfy App](https://github.com/rubix-studios-pty-ltd/ntfy-app) - Tauri/Rust desktop client for Windows, Linux and MacOS with push notifications.
 
 ## Projects + scripts 
 
@@ -106,6 +109,7 @@ I've added a ⭐ to projects or posts that have a significant following, or had 
 - [ntfy-long-zsh-command](https://github.com/robfox92/ntfy-long-zsh-command) - Notifies you once a long-running command completes (zsh)
 - [ntfy-shellscripts](https://github.com/nickexyz/ntfy-shellscripts) - A few scripts for the ntfy project (Shell)
 - [alertmanager-ntfy-relay](https://github.com/therobbielee/alertmanager-ntfy-relay) - ntfy.sh relay for Alertmanager (Go)
+- [oci-notifications-ntfy-relay](https://github.com/Ryan02I5/oci-notifications-ntfy-relay) - Minimal OCI Notifications / Oracle Functions relay to ntfy topics (Python)
 - [QuickStatus](https://github.com/corneliusroot/QuickStatus) - A shell script to alert to any immediate problems upon login (Shell)
 - [ntfy.el](https://github.com/shombando/ntfy) - Send notifications from Emacs (Emacs)
 - [backup-projects](https://gist.github.com/anthonyaxenov/826ba65abbabd5b00196bc3e6af76002) - Stupidly simple backup script for own projects (Shell)
@@ -180,9 +184,16 @@ I've added a ⭐ to projects or posts that have a significant following, or had 
 - [ntfy-heartbeat-monitor](https://codeberg.org/RockWolf/ntfy-heartbeat-monitor) - Application for implementing heartbeat monitoring/alerting by utilizing ntfy
 - [ntfy-bridge](https://github.com/AlexGaudon/ntfy-bridge) - An application to bridge Discord messages (or webhooks) to ntfy.
 - [ntailfy](https://github.com/leukosaima/ntailfy) - ntfy notifications when Tailscale devices connect/disconnect (Go)
+- [BRun](https://github.com/cbrake/brun) - Native Linux automation platform connecting triggers to actions without containers (Go)
+- [Uptime Monitor](https://uptime-monitor.org) - Self-hosted, enterprise-grade uptime monitoring and alerting system (TS)
+- [send_to_ntfy_extension](https://github.com/TheDuffman85/send_to_ntfy_extension/) ⭐ - A browser extension to send the notifications to ntfy (JS)
+- [SIA-Server](https://github.com/ZebMcKayhan/SIA-Server) - A light weight, self-hosted notification Server for Honywell Galaxy Flex alarm systems (Python)
+- [zabbix-ntfy](https://github.com/torgrimt/zabbix-ntfy) - Zabbix server Mediatype to add support for ntfy.sh services
+- [Rubix Notify](https://wordpress.org/plugins/rubix-notify) - WordPress Integration with ntfy (PHP + React).
 
 ## Blog + forum posts
 
+- [Push alerts for WHM using ntfy](https://rubixstudios.com.au/insights/push-alerts-for-whm-using-ntfy) - rubixstudios.com.au - 5/2026
 - [Device notifications via HTTP with ntfy](https://alistairshepherd.uk/writing/ntfy/) - alistairshepherd.uk - 6/2025
 - [Notifications about (almost) anything with ntfy.sh](https://hamatti.org/posts/notifications-about-almost-anything-with-ntfy-sh/) - hamatti.org - 6/2025
 - [I set up a self-hosted notification service for everything, and I'll never look back](https://www.xda-developers.com/set-up-self-hosted-notification-service/) ⭐ - xda-developers.com - 5/2025
@@ -300,7 +311,7 @@ ntfy community. Thanks to everyone running a public server. **You guys rock!**
 | URL                                               | Country            |
 |---------------------------------------------------|--------------------|
 | [ntfy.sh](https://ntfy.sh/) (*Official*)          | 🇺🇸 United States |
-| [ntfy.tedomum.net](https://ntfy.tedomum.net/)     | 🇫🇷 France        |
+| [ntfy.tedomum.fr](https://ntfy.tedomum.fr/)     | 🇫🇷 France        |
 | [ntfy.jae.fi](https://ntfy.jae.fi/)               | 🇫🇮 Finland       |
 | [ntfy.adminforge.de](https://ntfy.adminforge.de/) | 🇩🇪 Germany       |
 | [ntfy.envs.net](https://ntfy.envs.net)            | 🇩🇪 Germany       |

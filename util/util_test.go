@@ -1,6 +1,7 @@
 package util
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"net/netip"
@@ -23,6 +24,30 @@ func TestRandomString(t *testing.T) {
 	require.Equal(t, 10, len(s2))
 	require.Equal(t, 12, len(s3))
 	require.NotEqual(t, s1, s2)
+}
+
+// TestRandomString_CSPRNG guards the crypto/rand-backed generator: every character must come
+// from the expected charset (rejection sampling correctness) and a large batch must be unique
+// (no clock-seeded PRNG collapsing to a predictable stream).
+func TestRandomString_CSPRNG(t *testing.T) {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	seen := make(map[string]bool)
+	charCounts := make(map[rune]int)
+	for i := 0; i < 5000; i++ {
+		s := RandomString(48)
+		require.Equal(t, 48, len(s))
+		require.False(t, seen[s], "duplicate random string generated")
+		seen[s] = true
+		for _, c := range s {
+			require.Contains(t, charset, string(c))
+			charCounts[c]++
+		}
+	}
+	// Every charset character should appear at least once across 5000*48 draws; a heavily
+	// biased or broken generator would leave gaps.
+	for _, c := range charset {
+		require.Greater(t, charCounts[c], 0, "character %q never appeared", string(c))
+	}
 }
 
 func TestFileExists(t *testing.T) {
@@ -274,4 +299,11 @@ func TestMaybeMarshalJSON(t *testing.T) {
 	require.Equal(t, "<cannot serialize>", MaybeMarshalJSON(func() {}))
 	require.Equal(t, `"`+strings.Repeat("x", 4999), MaybeMarshalJSON(strings.Repeat("x", 6000)))
 
+}
+
+func TestEncodeJSON(t *testing.T) {
+	// HTML-significant characters (<, >, &) must NOT be escaped, see #1511
+	var buf bytes.Buffer
+	require.Nil(t, EncodeJSON(&buf, map[string]string{"message": "<b>a&b</b>"}))
+	require.Equal(t, `{"message":"<b>a&b</b>"}`+"\n", buf.String())
 }

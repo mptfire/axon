@@ -73,7 +73,7 @@
     "publish_dialog_tags_placeholder": "Komma-getrennte Liste von Tags, z.B. Warnung, srv1-Backup",
     "publish_dialog_priority_label": "Priorität",
     "publish_dialog_filename_label": "Dateiname",
-    "publish_dialog_title_placeholder": "Benachrichtigungs-Titel, z.B. CPU-Last-Warnung",
+    "publish_dialog_title_placeholder": "Benachrichtigungstitel, z. B. Speicherplatzwarnung",
     "publish_dialog_tags_label": "Tags",
     "publish_dialog_click_label": "Klick-URL",
     "publish_dialog_click_placeholder": "URL die geöffnet werden soll, wenn die Benachrichtigung angeklickt wird",
@@ -403,5 +403,7 @@
     "web_push_subscription_expiring_body": "Öffne ntfy um weiterhin Benachrichtigungen zu erhalten",
     "web_push_unknown_notification_title": "Unbekannte Benachrichtigung vom Server empfangen",
     "web_push_unknown_notification_body": "Du musst möglicherweise ntfy aktualisieren, indem du die Web App öffnest",
-    "prefs_notifications_web_push_enabled_description": "Benachrichtigungen werden empfangen, auch wenn die Web App nicht geöffnet ist (via Web Push)"
+    "prefs_notifications_web_push_enabled_description": "Benachrichtigungen werden empfangen, auch wenn die Web App nicht geöffnet ist (via Web Push)",
+    "account_tokens_table_cannot_delete_or_edit_provisioned_token": "Bereitgestelltes Token kann nicht bearbeitet oder gelöscht werden",
+    "account_basics_cannot_edit_or_delete_provisioned_user": "Ein bereitgestellter Benutzer kann nicht bearbeitet oder gelöscht werden"
 }

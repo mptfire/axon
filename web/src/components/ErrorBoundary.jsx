@@ -1,6 +1,5 @@
 import * as React from "react";
-import StackTrace from "stacktrace-js";
-import { CircularProgress, Link, Button } from "@mui/material";
+import { Link, Button } from "@mui/material";
 import { Trans, withTranslation } from "react-i18next";
 import { copyToClipboard } from "../app/utils";
 
@@ -9,8 +8,7 @@ class ErrorBoundaryImpl extends React.Component {
     super(props);
     this.state = {
       error: false,
-      originalStack: null,
-      niceStack: null,
+      stack: null,
       unsupportedIndexedDB: false,
     };
   }
@@ -32,23 +30,17 @@ class ErrorBoundaryImpl extends React.Component {
   }
 
   handleError(error, info) {
-    // Immediately render original stack trace
-    const prettierOriginalStack = info.componentStack
+    const componentStack = info.componentStack
       .trim()
       .split("\n")
       .map((line) => `  at ${line}`)
       .join("\n");
+    const parts = [error.toString()];
+    if (error.stack) parts.push(error.stack);
+    parts.push(componentStack);
     this.setState({
       error: true,
-      originalStack: `${error.toString()}\n${prettierOriginalStack}`,
-    });
-
-    // Fetch additional info and a better stack trace
-    StackTrace.fromError(error).then((stack) => {
-      console.error("[ErrorBoundary] Stacktrace fetched", stack);
-      const stackString = stack.map((el) => `  at ${el.functionName} (${el.fileName}:${el.columnNumber}:${el.lineNumber})`).join("\n");
-      const niceStack = `${error.toString()}\n${stackString}`;
-      this.setState({ niceStack });
+      stack: parts.join("\n"),
     });
   }
 
@@ -60,12 +52,7 @@ class ErrorBoundaryImpl extends React.Component {
   }
 
   copyStack() {
-    let stack = "";
-    if (this.state.niceStack) {
-      stack += `${this.state.niceStack}\n\n`;
-    }
-    stack += `${this.state.originalStack}\n`;
-    copyToClipboard(stack);
+    copyToClipboard(`${this.state.stack}\n`);
   }
 
   renderUnsupportedIndexedDB() {
@@ -112,14 +99,7 @@ class ErrorBoundaryImpl extends React.Component {
           </Button>
         </div>
         <h3>{t("error_boundary_stack_trace")}</h3>
-        {this.state.niceStack ? (
-          <pre>{this.state.niceStack}</pre>
-        ) : (
-          <>
-            <CircularProgress size="20px" sx={{ verticalAlign: "text-bottom" }} /> {t("error_boundary_gathering_info")}
-          </>
-        )}
-        <pre>{this.state.originalStack}</pre>
+        <pre>{this.state.stack}</pre>
       </div>
     );
   }
