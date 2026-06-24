@@ -28,7 +28,7 @@ import { Check, Close } from "@mui/icons-material";
 import { NavLink } from "react-router-dom";
 import { UnauthorizedError } from "../app/errors";
 import { formatBytes, formatNumber, formatPrice, formatShortDate } from "../app/utils";
-import { AccountContext } from "./App";
+import AccountContext from "./AccountContext";
 import routes from "./routes";
 import session from "../app/Session";
 import accountApi, { SubscriptionInterval } from "../app/AccountApi";

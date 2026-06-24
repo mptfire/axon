@@ -41,7 +41,7 @@ import session from "../app/Session";
 import routes from "./routes";
 import accountApi, { Permission, Role } from "../app/AccountApi";
 import { Pref, PrefGroup } from "./Pref";
-import { AccountContext } from "./App";
+import AccountContext from "./AccountContext";
 import { Paragraph } from "./styles";
 import prefs, { THEME } from "../app/Prefs";
 import { PermissionDenyAll, PermissionRead, PermissionReadWrite, PermissionWrite } from "./ReserveIcons";

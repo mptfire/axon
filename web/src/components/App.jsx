@@ -1,5 +1,5 @@
 import * as React from "react";
-import { createContext, Suspense, useContext, useEffect, useState, useMemo } from "react";
+import { Suspense, useContext, useEffect, useState, useMemo } from "react";
 import { Box, Toolbar, CssBaseline, Backdrop, CircularProgress, useMediaQuery, ThemeProvider, createTheme } from "@mui/material";
 import { useLiveQuery } from "dexie-react-hooks";
 import { BrowserRouter, Outlet, Route, Routes, useParams } from "react-router-dom";
@@ -27,10 +27,9 @@ import initI18n from "../app/i18n"; // Translations!
 import prefs from "../app/Prefs";
 import RTLCacheProvider from "./RTLCacheProvider";
 import session from "../app/Session";
+import AccountContext from "./AccountContext";
 
 initI18n();
-
-export const AccountContext = createContext(null);
 
 const App = () => {
   const { i18n } = useTranslation();

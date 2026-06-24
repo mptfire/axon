@@ -40,7 +40,7 @@ import session from "../app/Session";
 import routes from "./routes";
 import accountApi from "../app/AccountApi";
 import { UnauthorizedError } from "../app/errors";
-import { AccountContext } from "./App";
+import AccountContext from "./AccountContext";
 
 const PublishDialog = (props) => {
   const theme = useTheme();

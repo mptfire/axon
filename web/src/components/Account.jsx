@@ -56,7 +56,7 @@ import accountApi, { LimitBasis, Role, SubscriptionInterval, SubscriptionStatus 
 import { Pref, PrefGroup } from "./Pref";
 import db from "../app/db";
 import UpgradeDialog from "./UpgradeDialog";
-import { AccountContext } from "./App";
+import AccountContext from "./AccountContext";
 import DialogFooter from "./DialogFooter";
 import { Paragraph } from "./styles";
 import { EmailPrimaryElsewhereError, IncorrectPasswordError, UnauthorizedError } from "../app/errors";

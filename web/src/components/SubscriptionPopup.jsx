@@ -39,7 +39,7 @@ import routes from "./routes";
 import PopupMenu from "./PopupMenu";
 import { formatShortDateTime, shuffle } from "../app/utils";
 import api from "../app/Api";
-import { AccountContext } from "./App";
+import AccountContext from "./AccountContext";
 import { ReserveAddDialog, ReserveDeleteDialog, ReserveEditDialog } from "./ReserveDialogs";
 import { UnauthorizedError } from "../app/errors";
 

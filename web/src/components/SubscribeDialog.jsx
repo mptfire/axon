@@ -26,7 +26,7 @@ import session from "../app/Session";
 import routes from "./routes";
 import accountApi, { Permission, Role } from "../app/AccountApi";
 import ReserveTopicSelect from "./ReserveTopicSelect";
-import { AccountContext } from "./App";
+import AccountContext from "./AccountContext";
 import { TopicReservedError, UnauthorizedError } from "../app/errors";
 import { ReserveLimitChip } from "./SubscriptionPopup";
 import prefs from "../app/Prefs";

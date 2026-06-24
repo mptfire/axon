@@ -41,7 +41,7 @@ import config from "../app/config";
 import session from "../app/Session";
 import accountApi, { Permission, Role } from "../app/AccountApi";
 import UpgradeDialog from "./UpgradeDialog";
-import { AccountContext } from "./App";
+import AccountContext from "./AccountContext";
 import { PermissionDenyAll, PermissionRead, PermissionReadWrite, PermissionWrite } from "./ReserveIcons";
 import { SubscriptionPopup } from "./SubscriptionPopup";
 import { useNotificationPermissionListener, useVersionChangeListener } from "./hooks";
