@@ -1972,6 +1972,7 @@ since I do have to reset emails on a regular basis.
 * Support HTTP (non-TLS) S3-compatible endpoints by preserving the endpoint scheme, e.g. for a local MinIO instance ([#1794](https://github.com/binwiederhier/ntfy/pull/1794), [#1734](https://github.com/binwiederhier/ntfy/issues/1734), thanks to [@sskender](https://github.com/sskender) for the contribution, and [@Kernald](https://github.com/Kernald) for reporting)
 * Stop silently stripping spaces from passwords while typing in the web app's login, signup, and password-reset forms ([#1246](https://github.com/binwiederhier/ntfy/issues/1246), thanks to [@aldem](https://github.com/aldem) for reporting)
 * Update web app dependencies, including major-version upgrades to Vite (6 -> 8, now Rolldown-based), Material UI (5 -> 9), and Dexie (3 -> 4) ([#1800](https://github.com/binwiederhier/ntfy/pull/1800), [#1764](https://github.com/binwiederhier/ntfy/pull/1764), [#1767](https://github.com/binwiederhier/ntfy/pull/1767), [#1762](https://github.com/binwiederhier/ntfy/pull/1762), [#1766](https://github.com/binwiederhier/ntfy/pull/1766), [#1765](https://github.com/binwiederhier/ntfy/pull/1765), thanks Dependabot)
+* Play notification sounds in the web app even when the Notification API is unavailable, e.g. over plain HTTP or in browsers without notification support ([#1772](https://github.com/binwiederhier/ntfy/pull/1772), thanks to [@mitya12342](https://github.com/mitya12342) for the contribution)
 
 ### ntfy Android v1.25.x (UNRELEASED)
 

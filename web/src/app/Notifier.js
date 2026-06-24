@@ -12,7 +12,7 @@ class Notifier {
 
   async notify(subscription, notification) {
     await this.playSound();
-    
+
     if (!this.supported()) {
       return;
     }
