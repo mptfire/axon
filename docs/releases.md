@@ -4,13 +4,48 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Current stable releases
 
-| Component        | Version | Release date |
-|------------------|---------|--------------|
-| ntfy server      | v2.24.0 | June 4, 2026 |
-| ntfy Android app | v1.24.0 | Mar 5, 2026  |
-| ntfy iOS app     | v1.7.0  | May 30, 2026 |
+| Component        | Version | Release date  |
+|------------------|---------|---------------|
+| ntfy server      | v2.25.0 | June 24, 2026 |
+| ntfy Android app | v1.24.0 | Mar 5, 2026   |
+| ntfy iOS app     | v1.7.0  | May 30, 2026  |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+## ntfy server v2.25.0
+Released June 24, 2026
+
+This release adds **password reset** via email, and reworks email verification to use durable,
+link-based magic links (replacing the old in-memory 6-digit codes). Email stays optional at
+signup; a user can reset their password only once they have a verified "primary" (recovery)
+email.
+
+All of this work is probably not useful for self-hosters, but it hopefully will be useful for me,
+since I do have to reset accounts on a regular basis.
+
+**Security issues:**
+
+* Generate access tokens, IDs, and magic-link tokens with a cryptographically secure RNG (`crypto/rand`) instead of a clock-seeded PRNG
+
+**Features:**
+
+* Add password reset via emailed magic link, with a "Forgot password" link on the login page and a `ntfy user reset-pass` CLI command for admins
+* Rework email verification to use durable, single-use, expiring magic links instead of in-memory 6-digit codes, and add a "primary" email (used for account recovery and as the `X-Email: yes` target) with verified/unverified state in the account UI
+* You can now clear/read messages and delete messages with a GET request ([#1771](https://github.com/binwiederhier/ntfy/issues/1771), thanks to [@lemmi](https://github.com/lemmi) for reporting and to [@wunter8](https://github.com/wunter8) for implementing)
+* Add a reload button to the web app's action bar when running as an installed PWA, which clears the service worker caches and hard-refreshes the app
+* Add a "Back to app" link to the web app's login, signup, and password-reset pages (alongside the existing links), which previously had no way back to the app
+
+**Bug fixes + maintenance:**
+
+* `X-Email: yes` (also `true`/`1`) now sends to your primary verified email regardless of the `smtp-sender-verify` setting (previously it was rejected unless verification was enabled); it requires being logged in with a verified address
+* Grant users full access to their own sync topic (`st_...`) so cross-device subscription sync works under `auth-default-access: deny-all` ([#733](https://github.com/binwiederhier/ntfy/issues/733), [#1795](https://github.com/binwiederhier/ntfy/pull/1795), thanks to [@lmorchard](https://github.com/lmorchard) for the contribution)
+* Support HTTP (non-TLS) S3-compatible endpoints by preserving the endpoint scheme, e.g. for a local MinIO instance ([#1794](https://github.com/binwiederhier/ntfy/pull/1794), [#1734](https://github.com/binwiederhier/ntfy/issues/1734), thanks to [@sskender](https://github.com/sskender) for the contribution, and [@Kernald](https://github.com/Kernald) for reporting)
+* Stop silently stripping spaces from passwords while typing in the web app's login, signup, and password-reset forms ([#1246](https://github.com/binwiederhier/ntfy/issues/1246), thanks to [@aldem](https://github.com/aldem) for reporting)
+* Update web app dependencies, including major-version upgrades to Vite (6 -> 8, now Rolldown-based), Material UI (5 -> 9), and Dexie (3 -> 4) ([#1800](https://github.com/binwiederhier/ntfy/pull/1800), [#1764](https://github.com/binwiederhier/ntfy/pull/1764), [#1767](https://github.com/binwiederhier/ntfy/pull/1767), [#1762](https://github.com/binwiederhier/ntfy/pull/1762), [#1766](https://github.com/binwiederhier/ntfy/pull/1766), [#1765](https://github.com/binwiederhier/ntfy/pull/1765), thanks Dependabot)
+* Play notification sounds in the web app even when the Notification API is unavailable, e.g. over plain HTTP or in browsers without notification support ([#1772](https://github.com/binwiederhier/ntfy/pull/1772), thanks to [@mitya12342](https://github.com/mitya12342) for the contribution)
+* Stop escaping `<`, `>`, and `&` as `\u003c`/`\u003e`/`\u0026` in JSON responses ([#1511](https://github.com/binwiederhier/ntfy/issues/1511), [#1512](https://github.com/binwiederhier/ntfy/pull/1512), thanks to [@wunter8](https://github.com/wunter8) for the contribution)
+* Fix the web app navbar not reflecting a topic reservation (lock icon, and "Reserve topic" -> "Change reservation"/"Remove reservation" menu) until a page reload, by persisting reservation and display-name changes onto already-subscribed topics during account sync
+* Reduce the web app's initial bundle size by ~300 KB (~50 KB gzipped) by lazy-loading the emoji picker dataset and the Markdown renderer, and by importing Material UI icons individually
 
 ## ntfy server v2.24.0
 Released June 4, 2026
@@ -1947,40 +1982,6 @@ For older releases, check out the GitHub releases pages for the [ntfy server](ht
 and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/releases).
 
 ## Not released yet
-
-### ntfy server v2.25.0 (UNRELEASED)
-
-This release adds **password reset** via email, and reworks email verification to use durable,
-link-based magic links (replacing the old in-memory 6-digit codes). Email stays optional at
-signup; a user can reset their password only once they have a verified "primary" (recovery)
-email.
-
-All of this work is probably not useful for self-hosters, but it hopefully will be useful for me,
-since I do have to reset accounts on a regular basis.
-
-**Security issues:**
-
-* Generate access tokens, IDs, and magic-link tokens with a cryptographically secure RNG (`crypto/rand`) instead of a clock-seeded PRNG
-
-**Features:**
-
-* Add password reset via emailed magic link, with a "Forgot password" link on the login page and a `ntfy user reset-pass` CLI command for admins
-* Rework email verification to use durable, single-use, expiring magic links instead of in-memory 6-digit codes, and add a "primary" email (used for account recovery and as the `X-Email: yes` target) with verified/unverified state in the account UI
-* You can now clear/read messages and delete messages with a GET request ([#1771](https://github.com/binwiederhier/ntfy/issues/1771), thanks to [@lemmi](https://github.com/lemmi) for reporting and to [@wunter8](https://github.com/wunter8) for implementing)
-* Add a reload button to the web app's action bar when running as an installed PWA, which clears the service worker caches and hard-refreshes the app
-* Add a "Back to app" link to the web app's login, signup, and password-reset pages (alongside the existing links), which previously had no way back to the app
-
-**Bug fixes + maintenance:**
-
-* `X-Email: yes` (also `true`/`1`) now sends to your primary verified email regardless of the `smtp-sender-verify` setting (previously it was rejected unless verification was enabled); it requires being logged in with a verified address
-* Grant users full access to their own sync topic (`st_...`) so cross-device subscription sync works under `auth-default-access: deny-all` ([#733](https://github.com/binwiederhier/ntfy/issues/733), [#1795](https://github.com/binwiederhier/ntfy/pull/1795), thanks to [@lmorchard](https://github.com/lmorchard) for the contribution)
-* Support HTTP (non-TLS) S3-compatible endpoints by preserving the endpoint scheme, e.g. for a local MinIO instance ([#1794](https://github.com/binwiederhier/ntfy/pull/1794), [#1734](https://github.com/binwiederhier/ntfy/issues/1734), thanks to [@sskender](https://github.com/sskender) for the contribution, and [@Kernald](https://github.com/Kernald) for reporting)
-* Stop silently stripping spaces from passwords while typing in the web app's login, signup, and password-reset forms ([#1246](https://github.com/binwiederhier/ntfy/issues/1246), thanks to [@aldem](https://github.com/aldem) for reporting)
-* Update web app dependencies, including major-version upgrades to Vite (6 -> 8, now Rolldown-based), Material UI (5 -> 9), and Dexie (3 -> 4) ([#1800](https://github.com/binwiederhier/ntfy/pull/1800), [#1764](https://github.com/binwiederhier/ntfy/pull/1764), [#1767](https://github.com/binwiederhier/ntfy/pull/1767), [#1762](https://github.com/binwiederhier/ntfy/pull/1762), [#1766](https://github.com/binwiederhier/ntfy/pull/1766), [#1765](https://github.com/binwiederhier/ntfy/pull/1765), thanks Dependabot)
-* Play notification sounds in the web app even when the Notification API is unavailable, e.g. over plain HTTP or in browsers without notification support ([#1772](https://github.com/binwiederhier/ntfy/pull/1772), thanks to [@mitya12342](https://github.com/mitya12342) for the contribution)
-* Stop escaping `<`, `>`, and `&` as `\u003c`/`\u003e`/`\u0026` in JSON responses ([#1511](https://github.com/binwiederhier/ntfy/issues/1511), [#1512](https://github.com/binwiederhier/ntfy/pull/1512), thanks to [@wunter8](https://github.com/wunter8) for the contribution)
-* Fix the web app navbar not reflecting a topic reservation (lock icon, and "Reserve topic" -> "Change reservation"/"Remove reservation" menu) until a page reload, by persisting reservation and display-name changes onto already-subscribed topics during account sync
-* Reduce the web app's initial bundle size by ~300 KB (~50 KB gzipped) by lazy-loading the emoji picker dataset and the Markdown renderer, and by importing Material UI icons individually
 
 ### ntfy Android v1.25.x (UNRELEASED)
 
