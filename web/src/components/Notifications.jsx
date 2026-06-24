@@ -462,7 +462,7 @@ const Image = (props) => {
           cursor: "pointer",
         }}
       />
-      <Modal open={open} onClose={() => setOpen(false)} BackdropComponent={LightboxBackdrop}>
+      <Modal open={open} onClose={() => setOpen(false)} slots={{ backdrop: LightboxBackdrop }}>
         <Fade in={open}>
           <Box
             component="img"

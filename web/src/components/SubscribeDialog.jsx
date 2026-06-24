@@ -179,9 +179,11 @@ const SubscribePage = (props) => {
             type="text"
             fullWidth
             variant="standard"
-            inputProps={{
-              maxLength: 64,
-              "aria-label": t("subscribe_dialog_subscribe_topic_placeholder"),
+            slotProps={{
+              htmlInput: {
+                maxLength: 64,
+                "aria-label": t("subscribe_dialog_subscribe_topic_placeholder"),
+              },
             }}
           />
           <Button
@@ -202,8 +204,10 @@ const SubscribePage = (props) => {
                   disabled={!reserveTopicEnabled}
                   checked={reserveTopicVisible}
                   onChange={(ev) => setReserveTopicVisible(ev.target.checked)}
-                  inputProps={{
-                    "aria-label": t("reserve_dialog_checkbox_label"),
+                  slotProps={{
+                    input: {
+                      "aria-label": t("reserve_dialog_checkbox_label"),
+                    },
                   }}
                 />
               }
@@ -224,8 +228,10 @@ const SubscribePage = (props) => {
                 <Switch
                   onChange={handleUseAnotherChanged}
                   checked={anotherServerVisible}
-                  inputProps={{
-                    "aria-label": t("subscribe_dialog_subscribe_use_another_label"),
+                  slotProps={{
+                    input: {
+                      "aria-label": t("subscribe_dialog_subscribe_use_another_label"),
+                    },
                   }}
                 />
               }
@@ -303,8 +309,10 @@ const LoginPage = (props) => {
           type="text"
           fullWidth
           variant="standard"
-          inputProps={{
-            "aria-label": t("subscribe_dialog_login_username_label"),
+          slotProps={{
+            htmlInput: {
+              "aria-label": t("subscribe_dialog_login_username_label"),
+            },
           }}
         />
         <TextField
@@ -316,8 +324,10 @@ const LoginPage = (props) => {
           onChange={(ev) => setPassword(ev.target.value)}
           fullWidth
           variant="standard"
-          inputProps={{
-            "aria-label": t("subscribe_dialog_login_password_label"),
+          slotProps={{
+            htmlInput: {
+              "aria-label": t("subscribe_dialog_login_password_label"),
+            },
           }}
         />
       </DialogContent>

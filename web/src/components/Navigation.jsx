@@ -22,7 +22,7 @@ import {
 } from "@mui/material";
 import * as React from "react";
 import { useContext, useState } from "react";
-import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutlineOutlined";
 import Person from "@mui/icons-material/Person";
 import SettingsIcon from "@mui/icons-material/Settings";
 import AddIcon from "@mui/icons-material/Add";

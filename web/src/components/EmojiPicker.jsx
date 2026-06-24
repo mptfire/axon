@@ -71,18 +71,20 @@ const EmojiPicker = (props) => {
                 variant="standard"
                 fullWidth
                 sx={{ marginTop: 0, marginBottom: "12px", paddingRight: 2 }}
-                inputProps={{
-                  role: "searchbox",
-                  "aria-label": t("emoji_picker_search_placeholder"),
-                }}
-                InputProps={{
-                  endAdornment: (
-                    <InputAdornment position="end" sx={{ display: search ? "" : "none" }}>
-                      <IconButton size="small" onClick={handleSearchClear} edge="end" aria-label={t("emoji_picker_search_clear")}>
-                        <Close />
-                      </IconButton>
-                    </InputAdornment>
-                  ),
+                slotProps={{
+                  htmlInput: {
+                    role: "searchbox",
+                    "aria-label": t("emoji_picker_search_placeholder"),
+                  },
+                  input: {
+                    endAdornment: (
+                      <InputAdornment position="end" sx={{ display: search ? "" : "none" }}>
+                        <IconButton size="small" onClick={handleSearchClear} edge="end" aria-label={t("emoji_picker_search_clear")}>
+                          <Close />
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
                 }}
               />
               <Box

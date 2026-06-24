@@ -326,18 +326,20 @@ const DisplayNameDialog = (props) => {
           type="text"
           fullWidth
           variant="standard"
-          inputProps={{
-            maxLength: 64,
-            "aria-label": t("display_name_dialog_placeholder"),
-          }}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton onClick={() => setDisplayName("")} edge="end">
-                  <Clear />
-                </IconButton>
-              </InputAdornment>
-            ),
+          slotProps={{
+            htmlInput: {
+              maxLength: 64,
+              "aria-label": t("display_name_dialog_placeholder"),
+            },
+            input: {
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton onClick={() => setDisplayName("")} edge="end">
+                    <Clear />
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
           }}
         />
       </DialogContent>

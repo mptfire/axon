@@ -1,8 +1,8 @@
 import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { Typography, Button, Box, CircularProgress } from "@mui/material";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutlineOutlined";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import accountApi from "../app/AccountApi";

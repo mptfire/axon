@@ -68,19 +68,21 @@ const Login = () => {
           value={password}
           onChange={(ev) => setPassword(ev.target.value)}
           autoComplete="current-password"
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton
-                  aria-label={t("signup_form_toggle_password_visibility")}
-                  onClick={() => setShowPassword(!showPassword)}
-                  onMouseDown={(ev) => ev.preventDefault()}
-                  edge="end"
-                >
-                  {showPassword ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              </InputAdornment>
-            ),
+          slotProps={{
+            input: {
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label={t("signup_form_toggle_password_visibility")}
+                    onClick={() => setShowPassword(!showPassword)}
+                    onMouseDown={(ev) => ev.preventDefault()}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
           }}
         />
         <Button type="submit" fullWidth variant="contained" disabled={username === "" || password === ""} sx={{ mt: 2, mb: 2 }}>

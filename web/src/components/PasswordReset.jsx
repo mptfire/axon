@@ -2,7 +2,7 @@ import * as React from "react";
 import { useEffect, useRef, useState } from "react";
 import { Typography, TextField, Button, Box } from "@mui/material";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import accountApi from "../app/AccountApi";

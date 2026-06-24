@@ -88,19 +88,21 @@ const Signup = () => {
           autoComplete="new-password"
           value={password}
           onChange={(ev) => setPassword(ev.target.value)}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton
-                  aria-label={t("signup_form_toggle_password_visibility")}
-                  onClick={() => setShowPassword(!showPassword)}
-                  onMouseDown={(ev) => ev.preventDefault()}
-                  edge="end"
-                >
-                  {showPassword ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              </InputAdornment>
-            ),
+          slotProps={{
+            input: {
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label={t("signup_form_toggle_password_visibility")}
+                    onClick={() => setShowPassword(!showPassword)}
+                    onMouseDown={(ev) => ev.preventDefault()}
+                    edge="end"
+                  >
+                    {showPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
           }}
         />
         <TextField
@@ -114,19 +116,21 @@ const Signup = () => {
           autoComplete="new-password"
           value={confirm}
           onChange={(ev) => setConfirm(ev.target.value)}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton
-                  aria-label={t("signup_form_toggle_password_visibility")}
-                  onClick={() => setShowConfirm(!showConfirm)}
-                  onMouseDown={(ev) => ev.preventDefault()}
-                  edge="end"
-                >
-                  {showConfirm ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              </InputAdornment>
-            ),
+          slotProps={{
+            input: {
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label={t("signup_form_toggle_password_visibility")}
+                    onClick={() => setShowConfirm(!showConfirm)}
+                    onMouseDown={(ev) => ev.preventDefault()}
+                    edge="end"
+                  >
+                    {showConfirm ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
           }}
         />
         <Button

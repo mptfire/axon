@@ -41,7 +41,7 @@ import {
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
 import { Trans, useTranslation } from "react-i18next";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import StarIcon from "@mui/icons-material/Star";
 import StarBorderIcon from "@mui/icons-material/StarBorder";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -787,7 +787,7 @@ const AddPhoneNumberDialog = (props) => {
               type="tel"
               value={phoneNumber}
               onChange={(ev) => setPhoneNumber(ev.target.value)}
-              inputProps={{ inputMode: "tel", pattern: "+[0-9]*" }}
+              slotProps={{ htmlInput: { inputMode: "tel", pattern: "+[0-9]*" } }}
               variant="standard"
               sx={{ flexGrow: 1 }}
             />
@@ -818,7 +818,7 @@ const AddPhoneNumberDialog = (props) => {
             value={code}
             onChange={(ev) => setCode(ev.target.value)}
             fullWidth
-            inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
+            slotProps={{ htmlInput: { inputMode: "numeric", pattern: "[0-9]*" } }}
             variant="standard"
           />
         )}
