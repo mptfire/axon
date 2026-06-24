@@ -33,7 +33,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useTranslation } from "react-i18next";
-import { Info } from "@mui/icons-material";
+import Info from "@mui/icons-material/Info";
 import { useOutletContext } from "react-router-dom";
 import userManager from "../app/UserManager";
 import { playSound, shortUrl, shuffle, sounds, validUrl } from "../app/utils";

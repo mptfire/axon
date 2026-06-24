@@ -19,18 +19,16 @@ import {
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import {
-  Clear,
-  ClearAll,
-  Edit,
-  EnhancedEncryption,
-  Lock,
-  LockOpen,
-  Notifications,
-  NotificationsOff,
-  RemoveCircle,
-  Send,
-} from "@mui/icons-material";
+import Clear from "@mui/icons-material/Clear";
+import ClearAll from "@mui/icons-material/ClearAll";
+import Edit from "@mui/icons-material/Edit";
+import EnhancedEncryption from "@mui/icons-material/EnhancedEncryption";
+import Lock from "@mui/icons-material/Lock";
+import LockOpen from "@mui/icons-material/LockOpen";
+import Notifications from "@mui/icons-material/Notifications";
+import NotificationsOff from "@mui/icons-material/NotificationsOff";
+import RemoveCircle from "@mui/icons-material/RemoveCircle";
+import Send from "@mui/icons-material/Send";
 import subscriptionManager from "../app/SubscriptionManager";
 import DialogFooter from "./DialogFooter";
 import accountApi, { Role } from "../app/AccountApi";

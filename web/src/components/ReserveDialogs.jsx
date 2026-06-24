@@ -17,7 +17,8 @@ import {
   useTheme,
 } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import { Check, DeleteForever } from "@mui/icons-material";
+import Check from "@mui/icons-material/Check";
+import DeleteForever from "@mui/icons-material/DeleteForever";
 import { validTopic } from "../app/utils";
 import DialogFooter from "./DialogFooter";
 import session from "../app/Session";

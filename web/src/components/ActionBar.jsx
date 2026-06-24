@@ -6,9 +6,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import NotificationsOffIcon from "@mui/icons-material/NotificationsOff";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import { useTranslation } from "react-i18next";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
-import { Logout, Person, Settings } from "@mui/icons-material";
+import Logout from "@mui/icons-material/Logout";
+import Person from "@mui/icons-material/Person";
+import Settings from "@mui/icons-material/Settings";
 import session from "../app/Session";
 import logo from "../img/ntfy.svg";
 import subscriptionManager from "../app/SubscriptionManager";
@@ -88,6 +91,7 @@ const ActionBar = (props) => {
         <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
           {title}
         </Typography>
+        {isLaunchedPWA && <ReloadIcon />}
         {props.selected && <SettingsIcons subscription={props.selected} onUnsubscribe={props.onUnsubscribe} />}
         <ProfileIcon />
       </Toolbar>
@@ -121,6 +125,31 @@ const SettingsIcons = (props) => {
       </IconButton>
       <SubscriptionPopup subscription={subscription} anchor={anchorEl} placement="right" onClose={() => setAnchorEl(null)} />
     </>
+  );
+};
+
+// ReloadIcon hard-refreshes the app. A plain reload would just serve the precached PWA shell,
+// so we first purge the service worker caches to force fresh assets from the network.
+const ReloadIcon = () => {
+  const { t } = useTranslation();
+
+  const handleReload = async () => {
+    try {
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((key) => caches.delete(key)));
+      }
+    } catch (e) {
+      console.warn("[ActionBar] Error clearing caches during reload", e);
+    } finally {
+      window.location.reload();
+    }
+  };
+
+  return (
+    <IconButton color="inherit" size="large" edge="end" onClick={handleReload} aria-label={t("action_bar_reload")}>
+      <RefreshIcon />
+    </IconButton>
   );
 };
 

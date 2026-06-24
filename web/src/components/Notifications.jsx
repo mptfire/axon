@@ -17,15 +17,13 @@ import {
   Button,
 } from "@mui/material";
 import * as React from "react";
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import CheckIcon from "@mui/icons-material/Check";
 import CloseIcon from "@mui/icons-material/Close";
 import { useLiveQuery } from "dexie-react-hooks";
 import InfiniteScroll from "react-infinite-scroll-component";
 import { Trans, useTranslation } from "react-i18next";
 import { useOutletContext } from "react-router-dom";
-import { useRemark } from "react-remark";
-import styled from "@emotion/styled";
 import {
   copyToClipboard,
   formatBytes,
@@ -172,64 +170,19 @@ const autolink = (s) => {
   return <>{parts}</>;
 };
 
-const MarkdownContainer = styled("div")`
-  line-height: 1;
-
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6,
-  p,
-  pre,
-  ul,
-  ol,
-  blockquote {
-    margin: 0;
-  }
-
-  p {
-    line-height: 1.5;
-  }
-
-  blockquote,
-  pre {
-    border-radius: 3px;
-    background: ${(props) => (props.theme.palette.mode === "light" ? "#f5f5f5" : "#333")};
-  }
-
-  pre {
-    overflow-x: scroll;
-    padding: 0.9rem;
-  }
-
-  ul,
-  ol,
-  blockquote {
-    padding-inline: 1rem;
-  }
-
-  img {
-    max-width: 100%;
-  }
-`;
-
-const MarkdownContent = ({ content }) => {
-  const [reactContent, setMarkdownSource] = useRemark();
-
-  useEffect(() => {
-    setMarkdownSource(content);
-  }, [content]);
-
-  return <MarkdownContainer>{reactContent}</MarkdownContainer>;
-};
+// Loaded lazily so the heavy react-remark/unified markdown stack is only fetched when a
+// text/markdown notification is actually rendered (see MarkdownContent.jsx).
+const MarkdownContent = lazy(() => import("./MarkdownContent"));
 
 const NotificationBody = ({ notification }) => {
   const displayAsMarkdown = notification.content_type === "text/markdown";
   const formatted = formatMessage(notification);
   if (displayAsMarkdown) {
-    return <MarkdownContent content={formatted} />;
+    return (
+      <Suspense fallback={null}>
+        <MarkdownContent content={formatted} />
+      </Suspense>
+    );
   }
   return autolink(formatted);
 };

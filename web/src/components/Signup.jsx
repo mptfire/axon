@@ -4,7 +4,8 @@ import { TextField, Button, Box, Typography, InputAdornment, IconButton } from "
 import { NavLink } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
-import { Visibility, VisibilityOff } from "@mui/icons-material";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import accountApi from "../app/AccountApi";
 import AvatarBox from "./AvatarBox";
 import session from "../app/Session";

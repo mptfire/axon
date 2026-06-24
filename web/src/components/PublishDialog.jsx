@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useContext, useEffect, useRef, useState } from "react";
+import { Suspense, lazy, useContext, useEffect, useRef, useState } from "react";
 import {
   Checkbox,
   Chip,
@@ -22,7 +22,7 @@ import {
   useTheme,
 } from "@mui/material";
 import InsertEmoticonIcon from "@mui/icons-material/InsertEmoticon";
-import { Close } from "@mui/icons-material";
+import Close from "@mui/icons-material/Close";
 import { Trans, useTranslation } from "react-i18next";
 import priority1 from "../img/priority-1.svg";
 import priority2 from "../img/priority-2.svg";
@@ -35,12 +35,15 @@ import AttachmentIcon from "./AttachmentIcon";
 import DialogFooter from "./DialogFooter";
 import api from "../app/Api";
 import userManager from "../app/UserManager";
-import EmojiPicker from "./EmojiPicker";
 import session from "../app/Session";
 import routes from "./routes";
 import accountApi from "../app/AccountApi";
 import { UnauthorizedError } from "../app/errors";
 import AccountContext from "./AccountContext";
+
+// Loaded lazily so the full emoji dataset (~300 KB) is only fetched when the publish
+// dialog is opened, not in the initial app bundle (see EmojiPicker.jsx).
+const EmojiPicker = lazy(() => import("./EmojiPicker"));
 
 const PublishDialog = (props) => {
   const theme = useTheme();
@@ -398,7 +401,9 @@ const PublishDialog = (props) => {
             }
           />
           <div style={{ display: "flex" }}>
-            <EmojiPicker anchorEl={emojiPickerAnchorEl} onEmojiPick={handleEmojiPick} onClose={handleEmojiClose} />
+            <Suspense fallback={null}>
+              <EmojiPicker anchorEl={emojiPickerAnchorEl} onEmojiPick={handleEmojiPick} onClose={handleEmojiClose} />
+            </Suspense>
             <DialogIconButton disabled={disabled} onClick={handleEmojiClick} aria-label={t("publish_dialog_emoji_picker_show")}>
               <InsertEmoticonIcon />
             </DialogIconButton>

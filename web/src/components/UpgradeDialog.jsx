@@ -24,7 +24,8 @@ import {
   useTheme,
 } from "@mui/material";
 import { Trans, useTranslation } from "react-i18next";
-import { Check, Close } from "@mui/icons-material";
+import Check from "@mui/icons-material/Check";
+import Close from "@mui/icons-material/Close";
 import { NavLink } from "react-router-dom";
 import { UnauthorizedError } from "../app/errors";
 import { formatBytes, formatNumber, formatPrice, formatShortDate } from "../app/utils";
