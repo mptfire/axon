@@ -2,12 +2,13 @@
 // navigate client-side (fading back in) or full-reload (the splash fades the next page in).
 
 const FADE_MS = 150;
+const rootNode = () => document.getElementById("root");
 
 // Fade #root out, resolving when done. Exported so callers can await it before their own
 // teardown + reload (e.g. resetAndRedirect wiping IndexedDB).
 export const fadeOut = () =>
   new Promise((resolve) => {
-    const node = document.getElementById("root");
+    const node = rootNode();
     if (!node) {
       resolve();
       return;
@@ -20,7 +21,7 @@ export const fadeOut = () =>
 // Fade #root back in, then strip the inline styles (a lingering `transition` would animate future
 // opacity changes). setTimeout, not rAF, so a backgrounded tab can't strand #root at opacity 0.
 const fadeInRoot = () => {
-  const node = document.getElementById("root");
+  const node = rootNode();
   if (!node) {
     return;
   }
