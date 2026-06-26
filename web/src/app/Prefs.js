@@ -6,27 +6,13 @@ export const THEME = {
   SYSTEM: "system",
 };
 
-// Key under which the theme preference is mirrored to localStorage. The inline script in
-// index.html reads it synchronously to pick the splash background before first paint.
-export const THEME_LOCALSTORAGE_KEY = "theme";
-
-// Default values returned by the getters below when a preference hasn't been set. Single source of
-// truth, also used by the PrefCache (see PrefCache.jsx) for its loading-state placeholder.
+// Default values the getters return when a pref is unset; also used by PrefCache (PrefCache.jsx).
 export const PREF_DEFAULTS = {
   sound: "ding",
   minPriority: 1,
   deleteAfter: 604800, // one week
   theme: THEME.SYSTEM,
   webPushEnabled: false,
-};
-
-const mirrorThemeToLocalStorage = (value) => {
-  try {
-    localStorage.setItem(THEME_LOCALSTORAGE_KEY, value);
-  } catch (e) {
-    // localStorage may be unavailable (private mode, disabled cookies); the splash just falls
-    // back to the system color scheme in that case.
-  }
 };
 
 class Prefs {
@@ -72,17 +58,11 @@ class Prefs {
 
   async theme() {
     const theme = await this.db.prefs.get("theme");
-    const value = theme?.value ?? PREF_DEFAULTS.theme;
-    // Mirror to localStorage so the inline script in index.html can pick the splash background
-    // synchronously before first paint. Self-heals for users who set their theme before the
-    // mirror existed.
-    mirrorThemeToLocalStorage(value);
-    return value;
+    return theme?.value ?? PREF_DEFAULTS.theme;
   }
 
   async setTheme(mode) {
     await this.db.prefs.put({ key: "theme", value: mode });
-    mirrorThemeToLocalStorage(mode);
   }
 }
 

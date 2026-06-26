@@ -48,9 +48,8 @@ const App = () => {
     document.dir = languageDir;
   }, [i18n.language, languageDir]);
 
-  // Keep the <html> background (visible behind the app, e.g. overscroll) in sync with the resolved
-  // theme once the stored preference has loaded. The inline script in index.html sets the initial
-  // class before first paint; don't override it while the preference is still loading (undefined).
+  // Keep the <html> background in sync with the theme once loaded. The splash script sets the
+  // initial class; don't override it while the preference is still loading.
   useEffect(() => {
     if (themePreference === undefined) {
       return;
@@ -58,7 +57,7 @@ const App = () => {
     document.documentElement.classList.toggle("dark", isDark);
   }, [isDark, themePreference]);
 
-  // Safety net: never let the splash trap the UI if no route hides it (e.g. an unmatched path).
+  // Safety net: hide the splash even if no route does (e.g. an unmatched path).
   useEffect(() => {
     const timer = setTimeout(() => hideSplash(), 3000);
     return () => clearTimeout(timer);
@@ -109,8 +108,7 @@ const updateTitle = (newNotificationsCount) => {
   updateFavicon(newNotificationsCount);
 };
 
-// Wraps the auth pages (login, signup, ...). They render synchronously with no async data, so the
-// splash can be removed as soon as the page mounts.
+// Auth pages render synchronously, so the splash can be removed on mount.
 const AuthLayout = () => {
   useEffect(() => hideSplash(), []);
   return <Outlet />;
@@ -123,8 +121,8 @@ const Layout = () => {
   const [sendDialogOpenMode, setSendDialogOpenMode] = useState("");
   const users = useLiveQuery(() => userManager.all());
   const subscriptions = useLiveQuery(() => subscriptionManager.all());
-  // Preloaded here (not in AllSubscriptions) so the "All notifications" view has its data ready on
-  // mount -- otherwise switching from a topic to All flashes an empty frame while the query runs.
+  // Preloaded here so the All view (and single topics, via filter) have data on mount -- no empty
+  // frame when switching.
   const allNotifications = useLiveQuery(() => subscriptionManager.getAllNotifications());
   const webPushTopics = useWebPushTopics();
   const subscriptionsWithoutInternal = subscriptions?.filter((s) => !s.internal);
@@ -140,8 +138,7 @@ const Layout = () => {
   useBackgroundProcesses();
   useEffect(() => updateTitle(newNotificationsCount), [newNotificationsCount]);
 
-  // Reveal the app only once the subscriptions have loaded from IndexedDB, so the navigation and
-  // message list don't pop in empty-then-filled behind the splash.
+  // Hide the splash only once subscriptions have loaded, so the nav/list don't pop in empty-then-filled.
   useEffect(() => {
     if (subscriptions !== undefined) {
       hideSplash();

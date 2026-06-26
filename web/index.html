@@ -45,10 +45,8 @@
     <!-- PWA -->
     <link rel="manifest" href="/manifest.webmanifest" />
 
-    <!-- Splash screen: painted instantly (before the JS bundle loads) and faded out by the app
-       once the initial data is ready (see src/app/splash.js). Avoids the white flash + spinner
-       flicker on first load. Background colors match MUI's grey[100]/grey[900] (the app's main
-       background) so the handoff to the app is seamless. -->
+    <!-- Splash: painted before the JS bundle loads, faded out by the app once ready (see
+       src/app/splash.js). Background matches MUI's grey[100]/grey[900] for a seamless handoff. -->
     <style>
       html {
         background-color: #f5f5f5;
@@ -108,19 +106,20 @@
       }
     </style>
 
-    <!-- Decide light/dark before first paint, reading the theme preference mirrored to
-       localStorage by Prefs.js. Avoids the light/dark flash caused by the async IndexedDB read. -->
+    <!-- Decide light/dark before first paint from the "prefcache" blob (written by PrefCache.jsx) --
+       avoids the async-IndexedDB theme flash. Keep the key in sync with PrefCache.jsx. -->
     <script>
       (function () {
         try {
-          var stored = localStorage.getItem("theme");
+          var cache = JSON.parse(localStorage.getItem("prefcache"));
+          var theme = cache && cache.theme;
           var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-          var dark = stored === "dark" || ((!stored || stored === "system") && prefersDark);
+          var dark = theme === "dark" || ((!theme || theme === "system") && prefersDark);
           if (dark) {
             document.documentElement.classList.add("dark");
           }
         } catch (e) {
-          /* localStorage/matchMedia unavailable -- fall back to the default light splash */
+          /* localStorage/matchMedia/JSON unavailable -- fall back to the default light splash */
         }
       })();
     </script>
@@ -132,8 +131,7 @@
       subscribe.
     </noscript>
 
-    <!-- Static splash, removed by src/app/splash.js once the app is ready. The logo is a same-origin
-     SVG precached by the service worker, so it paints right after the (instant) background. -->
+    <!-- Static splash, removed by src/app/splash.js once ready. Logo is a same-origin SVG (precached by the SW). -->
     <div id="splash" aria-hidden="true">
       <img src="/static/images/ntfy-splash.svg" alt="" />
     </div>

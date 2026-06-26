@@ -44,9 +44,8 @@ class Session {
   }
 
   async resetAndRedirect(url, { fade = false } = {}) {
-    // For user-initiated exits (logout, account deletion) fade the app out first -- while the data
-    // is still intact -- so the wipe + reload below doesn't flash a broken/empty UI. Error-driven
-    // redirects (e.g. an expired session) pass no options and cut straight to the target page.
+    // User-initiated exits (logout, account deletion) fade out first, while data's intact, so the
+    // wipe + reload doesn't flash a broken UI. Error redirects pass no options and cut straight through.
     if (fade) {
       await fadeOut();
     }

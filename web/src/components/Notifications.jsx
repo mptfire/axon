@@ -54,8 +54,7 @@ const priorityFiles = {
 };
 
 export const AllSubscriptions = () => {
-  // allNotifications is preloaded in Layout (App.jsx) so this view has its data ready on mount and
-  // doesn't flash an empty frame when switching to it from a topic.
+  // allNotifications is preloaded in Layout, so this view has its data on mount (no empty frame on switch).
   const { subscriptions, allNotifications } = useOutletContext();
   if (!subscriptions || allNotifications === null || allNotifications === undefined) {
     return <DeferredLoading />;
@@ -85,9 +84,8 @@ const AllSubscriptionsList = (props) => {
 
 const SingleSubscriptionList = (props) => {
   const { subscription, allNotifications } = props;
-  // Derived from the preloaded allNotifications by filtering -- getNotifications(id) is exactly
-  // getAllNotifications() filtered by subscriptionId, so this is the same data with no per-topic
-  // IndexedDB query, making switches to/between topics instant (no empty frame on mount).
+  // Filter the preloaded allNotifications instead of a per-topic query (getNotifications(id) ==
+  // getAllNotifications() filtered by id), so topic switches are instant.
   const notifications = useMemo(
     () => allNotifications.filter((notification) => notification.subscriptionId === subscription.id),
     [allNotifications, subscription.id]
@@ -670,11 +668,8 @@ const Loading = () => {
   );
 };
 
-// Reading notifications from IndexedDB takes only tens of milliseconds, but switching topics (or
-// going from "All notifications" to a single topic) remounts the list and briefly re-runs the
-// query, which would flash the centered Loading spinner each time. Render nothing until the load
-// has taken at least `delayMs`, so the spinner only appears for genuinely slow loads (large DB,
-// slow device) and normal switches just swap content directly.
+// Render nothing until a load takes at least `delayMs`, so the centered spinner only shows on
+// genuinely slow loads -- normal sub-frame IndexedDB reads don't flash it on every remount.
 const DeferredLoading = ({ delayMs = 250 }) => {
   const [show, setShow] = useState(false);
   useEffect(() => {
