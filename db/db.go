@@ -90,6 +90,15 @@ func (d *DB) ReadOnly() *sql.DB {
 	return d.primary.DB
 }
 
+// MarkReplicasHealthyForTest immediately marks all configured replicas as healthy, bypassing the
+// async health-check loop's initial delay. It exists so tests can deterministically route
+// ReadOnly() to a replica without waiting; it is not used in production code.
+func (d *DB) MarkReplicasHealthyForTest() {
+	for _, r := range d.replicas {
+		r.healthy.Store(true)
+	}
+}
+
 // Close closes the primary database and all replicas, and stops the health-check goroutine.
 func (d *DB) Close() error {
 	d.cancel()

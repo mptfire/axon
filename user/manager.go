@@ -941,7 +941,9 @@ func (a *Manager) RemoveReservations(username string, topics ...string) error {
 
 // Reservations returns all user-owned topics, and the associated everyone-access
 func (a *Manager) Reservations(username string) ([]Reservation, error) {
-	return a.reservationsTx(a.db.ReadOnly(), username)
+	// Read from the primary, not a replica: this backs GET /account, which the web app refetches
+	// immediately after a sync event. Replication lag would otherwise show stale data.
+	return a.reservationsTx(a.db, username)
 }
 
 func (a *Manager) reservationsTx(tx db.Querier, username string) ([]Reservation, error) {
@@ -1204,7 +1206,8 @@ func (a *Manager) Token(userID, token string) (*Token, error) {
 
 // Tokens returns all existing tokens for the user with the given user ID
 func (a *Manager) Tokens(userID string) ([]*Token, error) {
-	rows, err := a.db.ReadOnly().Query(a.queries.selectTokens, userID)
+	// Primary read: backs GET /account (read-your-writes after a sync event).
+	rows, err := a.db.Query(a.queries.selectTokens, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1417,7 +1420,8 @@ func (a *Manager) readTier(rows *sql.Rows) (*Tier, error) {
 
 // PhoneNumbers returns all phone numbers for the user with the given user ID
 func (a *Manager) PhoneNumbers(userID string) ([]string, error) {
-	rows, err := a.db.ReadOnly().Query(a.queries.selectPhoneNumbers, userID)
+	// Primary read: backs GET /account (read-your-writes after a sync event).
+	rows, err := a.db.Query(a.queries.selectPhoneNumbers, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1465,14 +1469,17 @@ func (a *Manager) readPhoneNumber(rows *sql.Rows) (string, error) {
 	return phoneNumber, nil
 }
 
-// Emails returns all verified email addresses for the user with the given user ID
-func (a *Manager) Emails(userID string) ([]string, error) {
-	rows, err := a.db.ReadOnly().Query(a.queries.selectEmails, userID)
+// Emails returns all verified email addresses for the user with the given user ID, each carrying
+// whether it is the primary (recovery) address. Because the primary flag is included, callers that
+// need it (e.g. the account view) do not need a separate PrimaryEmail call.
+func (a *Manager) Emails(userID string) (Emails, error) {
+	// Primary read: backs GET /account (read-your-writes after a sync event).
+	rows, err := a.db.Query(a.queries.selectEmails, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	emails := make([]string, 0)
+	emails := make(Emails, 0)
 	for {
 		email, err := a.readEmail(rows)
 		if errors.Is(err, ErrEmailNotFound) {
@@ -1508,7 +1515,8 @@ func (a *Manager) RemoveEmail(userID, email string) error {
 // the user has not designated one.
 func (a *Manager) PrimaryEmail(userID string) (string, error) {
 	var email sql.NullString
-	err := a.db.ReadOnly().QueryRow(a.queries.selectPrimaryEmail, userID).Scan(&email)
+	// Primary read: backs GET /account (read-your-writes after a sync event).
+	err := a.db.QueryRow(a.queries.selectPrimaryEmail, userID).Scan(&email)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	} else if err != nil {
@@ -1534,7 +1542,8 @@ func (a *Manager) UserIDByPrimaryEmail(email string) (string, error) {
 // PendingEmails returns the user's unverified (pending) email addresses, i.e. addresses with
 // an outstanding email-verification magic link.
 func (a *Manager) PendingEmails(userID string) ([]string, error) {
-	rows, err := a.db.ReadOnly().Query(a.queries.selectPendingEmails, string(MagicLinkKindEmailVerify), userID)
+	// Primary read: backs GET /account (read-your-writes after a sync event).
+	rows, err := a.db.Query(a.queries.selectPendingEmails, string(MagicLinkKindEmailVerify), userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1756,17 +1765,18 @@ func (a *Manager) deleteExpiredMagicLinks() error {
 	return err
 }
 
-func (a *Manager) readEmail(rows *sql.Rows) (string, error) {
-	var email string
+func (a *Manager) readEmail(rows *sql.Rows) (*Email, error) {
+	var address string
+	var primary bool
 	if !rows.Next() {
-		return "", ErrEmailNotFound
+		return nil, ErrEmailNotFound
 	}
-	if err := rows.Scan(&email); err != nil {
-		return "", err
+	if err := rows.Scan(&address, &primary); err != nil {
+		return nil, err
 	} else if err := rows.Err(); err != nil {
-		return "", err
+		return nil, err
 	}
-	return email, nil
+	return &Email{Address: address, Primary: primary}, nil
 }
 
 // ChangeBilling updates a user's billing fields
