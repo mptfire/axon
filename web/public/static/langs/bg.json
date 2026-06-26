@@ -407,5 +407,16 @@
     "account_tokens_table_cannot_delete_or_edit_provisioned_token": "Кодът за защита от външна система не може да бъде променян или премахван",
     "account_basics_cannot_edit_or_delete_provisioned_user": "Потребител от външна система не може да бъде променян или премахван",
     "common_close": "Затваряне",
-    "common_refresh": "Презареждане"
+    "common_refresh": "Презареждане",
+    "email_verify_progress_title": "Проверяване адреса на ел. поща…",
+    "email_verify_success_title": "Адресът на ел. поща е проверен",
+    "email_verify_success_description": "Адресът на ел. поща е проверен е добавен към профила.",
+    "email_verify_error_title": "Проверката не е успешна",
+    "email_verify_error_description": "Препратката за проверка е повредена или с изтекла валидност. Вземете друга от настройките на профила.",
+    "email_verify_button_account": "Към профила",
+    "version_update_available_title": "Налично е ново издание",
+    "version_update_available_description": "Сървърът на ntfy е обновен. Презаредете страницата.",
+    "signup_form_email": "Адрес на ел. поща (по желание, с цел възстановяване)",
+    "login_link_forgot_password": "Забравена парола",
+    "reset_password_request_title": "Нулиране на парола"
 }
