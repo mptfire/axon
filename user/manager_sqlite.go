@@ -214,7 +214,7 @@ const (
 	sqliteDeletePhoneNumberQuery  = `DELETE FROM user_phone WHERE user_id = ? AND phone_number = ?`
 
 	// Email queries
-	sqliteSelectEmailsQuery            = `SELECT email FROM user_email WHERE user_id = ? ORDER BY email`
+	sqliteSelectEmailsQuery            = `SELECT email, is_primary FROM user_email WHERE user_id = ? ORDER BY email`
 	sqliteInsertEmailQuery             = `INSERT INTO user_email (user_id, email) VALUES (?, ?)`
 	sqliteInsertEmailIgnoreQuery       = `INSERT INTO user_email (user_id, email) VALUES (?, ?) ON CONFLICT (user_id, email) DO NOTHING`
 	sqliteDeleteEmailQuery             = `DELETE FROM user_email WHERE user_id = ? AND email = ?`

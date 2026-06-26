@@ -1983,6 +1983,13 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
+### ntfy server v2.26.x (UNRELEASED)
+
+**Bug fixes + maintenance:**
+
+* `GET /account` now reads from the primary database instead of a read replica, so the account view no longer shows stale data right after a change when replicas lag behind
+* The web app no longer issues a redundant second `GET /account` after email actions (e.g. setting a primary email); it relies on the sync-topic event for the refresh
+
 ### ntfy Android v1.25.x (UNRELEASED)
 
 This release makes the "connection lost" alert configurable and turns it off by default. Folks did not like it and many reached out

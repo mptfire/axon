@@ -217,7 +217,7 @@ const (
 	postgresDeletePhoneNumberQuery  = `DELETE FROM user_phone WHERE user_id = $1 AND phone_number = $2`
 
 	// Email queries
-	postgresSelectEmailsQuery            = `SELECT email FROM user_email WHERE user_id = $1 ORDER BY email`
+	postgresSelectEmailsQuery            = `SELECT email, is_primary FROM user_email WHERE user_id = $1 ORDER BY email`
 	postgresInsertEmailQuery             = `INSERT INTO user_email (user_id, email) VALUES ($1, $2)`
 	postgresInsertEmailIgnoreQuery       = `INSERT INTO user_email (user_id, email) VALUES ($1, $2) ON CONFLICT (user_id, email) DO NOTHING`
 	postgresDeleteEmailQuery             = `DELETE FROM user_email WHERE user_id = $1 AND email = $2`

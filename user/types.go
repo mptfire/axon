@@ -182,6 +182,36 @@ type Reservation struct {
 	Everyone Permission
 }
 
+// Email is a verified email address on a user account, along with whether it is the user's
+// designated primary (recovery) address.
+type Email struct {
+	Address string
+	Primary bool
+}
+
+// Emails is a list of verified email addresses for a user.
+type Emails []*Email
+
+// Strings returns just the address strings, in the same order. It is a convenience for callers
+// that only care about the addresses and not the primary flag.
+func (e Emails) Strings() []string {
+	addresses := make([]string, len(e))
+	for i, email := range e {
+		addresses[i] = email.Address
+	}
+	return addresses
+}
+
+// Contains reports whether the given address is in the list.
+func (e Emails) Contains(address string) bool {
+	for _, email := range e {
+		if email.Address == address {
+			return true
+		}
+	}
+	return false
+}
+
 // Permission represents a read or write permission to a topic
 type Permission uint8
 

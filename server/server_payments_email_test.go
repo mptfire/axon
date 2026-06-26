@@ -72,7 +72,7 @@ func TestPayments_Checkout_SendsBillingEmailVerification(t *testing.T) {
 
 		emails, err := s.userManager.Emails(u.ID)
 		require.Nil(t, err)
-		require.Equal(t, []string{"billing@example.com"}, emails)
+		require.Equal(t, []string{"billing@example.com"}, emails.Strings())
 		primary, err := s.userManager.PrimaryEmail(u.ID)
 		require.Nil(t, err)
 		require.Equal(t, "billing@example.com", primary)

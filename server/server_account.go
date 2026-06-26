@@ -180,10 +180,6 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 			if err != nil {
 				return err
 			}
-			primaryEmail, err := s.userManager.PrimaryEmail(u.ID)
-			if err != nil {
-				return err
-			}
 			pendingEmails, err := s.userManager.PendingEmails(u.ID)
 			if err != nil {
 				return err
@@ -191,7 +187,7 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 			// Combine verified (with primary flag) and pending (unverified) into one list
 			emailInfos := make([]*apiAccountEmailInfo, 0, len(emails)+len(pendingEmails))
 			for _, email := range emails {
-				emailInfos = append(emailInfos, &apiAccountEmailInfo{Address: email, Primary: email == primaryEmail})
+				emailInfos = append(emailInfos, &apiAccountEmailInfo{Address: email.Address, Primary: email.Primary})
 			}
 			for _, email := range pendingEmails {
 				emailInfos = append(emailInfos, &apiAccountEmailInfo{Address: email, Pending: true})
@@ -667,7 +663,7 @@ func (s *Server) handleAccountEmailAdd(w http.ResponseWriter, r *http.Request, v
 	emails, err := s.userManager.Emails(u.ID)
 	if err != nil {
 		return err
-	} else if util.Contains(emails, req.Email) {
+	} else if emails.Contains(req.Email) {
 		return errHTTPConflictEmailExists
 	}
 	// Rate limit (counts against the user's email quota)
@@ -888,7 +884,7 @@ func (s *Server) convertEmailAddress(u *user.User, email string) (string, *errHT
 		if err != nil {
 			return "", errHTTPInternalError
 		} else if len(emails) > 0 {
-			return emails[0], nil
+			return emails[0].Address, nil
 		}
 		return "", errHTTPBadRequestEmailAddressNotVerified
 	}
@@ -903,7 +899,7 @@ func (s *Server) convertEmailAddress(u *user.User, email string) (string, *errHT
 	emails, err := s.userManager.Emails(u.ID)
 	if err != nil {
 		return "", errHTTPInternalError
-	} else if util.Contains(emails, email) {
+	} else if emails.Contains(email) {
 		return email, nil
 	}
 	return "", errHTTPBadRequestEmailAddressNotVerified

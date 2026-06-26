@@ -1157,7 +1157,7 @@ func TestUser_EmailAddListRemove(t *testing.T) {
 		emails, err := a.Emails(phil.ID)
 		require.Nil(t, err)
 		require.Equal(t, 1, len(emails))
-		require.Equal(t, "phil@example.com", emails[0])
+		require.Equal(t, "phil@example.com", emails[0].Address)
 
 		require.Nil(t, a.RemoveEmail(phil.ID, "phil@example.com"))
 		emails, err = a.Emails(phil.ID)
@@ -2701,7 +2701,7 @@ func TestStoreEmails(t *testing.T) {
 		emails, err = manager.Emails(u.ID)
 		require.Nil(t, err)
 		require.Len(t, emails, 1)
-		require.Equal(t, "phil2@example.com", emails[0])
+		require.Equal(t, "phil2@example.com", emails[0].Address)
 	})
 }
 
@@ -2871,7 +2871,7 @@ func TestUser_MagicLink_VerifyEmail_SetsPrimary(t *testing.T) {
 
 		emails, err = a.Emails(phil.ID)
 		require.Nil(t, err)
-		require.Equal(t, []string{"phil@example.com"}, emails)
+		require.Equal(t, []string{"phil@example.com"}, emails.Strings())
 		primary, err = a.PrimaryEmail(phil.ID)
 		require.Nil(t, err)
 		require.Equal(t, "phil@example.com", primary)
@@ -2904,7 +2904,7 @@ func TestUser_MagicLink_VerifyEmail_SecondStaysSecondary(t *testing.T) {
 		// Both verified, but primary is still the first
 		emails, err := a.Emails(phil.ID)
 		require.Nil(t, err)
-		require.Equal(t, []string{"first@example.com", "second@example.com"}, emails)
+		require.Equal(t, []string{"first@example.com", "second@example.com"}, emails.Strings())
 		primary, err := a.PrimaryEmail(phil.ID)
 		require.Nil(t, err)
 		require.Equal(t, "first@example.com", primary)
@@ -2933,7 +2933,7 @@ func TestUser_MagicLink_PrimaryGlobalUniqueness(t *testing.T) {
 		require.Nil(t, err)
 		emails, err := a.Emails(ben.ID)
 		require.Nil(t, err)
-		require.Equal(t, []string{"shared@example.com"}, emails)
+		require.Equal(t, []string{"shared@example.com"}, emails.Strings())
 		primary, err = a.PrimaryEmail(ben.ID)
 		require.Nil(t, err)
 		require.Equal(t, "", primary)
@@ -3168,7 +3168,7 @@ func TestUser_MagicLink_VerifyEmail_ProvisionedGetsPrimary(t *testing.T) {
 
 		emails, err := a.Emails(prov.ID)
 		require.Nil(t, err)
-		require.Equal(t, []string{"prov@example.com"}, emails)
+		require.Equal(t, []string{"prov@example.com"}, emails.Strings())
 		primary, err := a.PrimaryEmail(prov.ID)
 		require.Nil(t, err)
 		require.Equal(t, "prov@example.com", primary)
@@ -3218,4 +3218,98 @@ func TestUser_MagicLink_UserIDByPrimaryEmail_NotFound(t *testing.T) {
 		_, err := a.UserIDByPrimaryEmail("ghost@example.com")
 		require.ErrorIs(t, err, ErrUserNotFound)
 	})
+}
+
+func TestManager_Emails_PrimaryFlagAndHelpers(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		u, err := a.User("phil")
+		require.Nil(t, err)
+		require.Nil(t, a.AddEmail(u.ID, "a@example.com"))
+		require.Nil(t, a.AddEmail(u.ID, "b@example.com"))
+		require.Nil(t, a.SetPrimaryEmail(u.ID, "b@example.com"))
+
+		// Emails() carries the primary flag, so a separate PrimaryEmail() call is unnecessary.
+		emails, err := a.Emails(u.ID)
+		require.Nil(t, err)
+		require.Len(t, emails, 2)
+		require.Equal(t, "a@example.com", emails[0].Address) // ORDER BY email
+		require.False(t, emails[0].Primary)
+		require.Equal(t, "b@example.com", emails[1].Address)
+		require.True(t, emails[1].Primary)
+
+		// Helper methods for the address-only callers
+		require.Equal(t, []string{"a@example.com", "b@example.com"}, emails.Strings())
+		require.True(t, emails.Contains("a@example.com"))
+		require.False(t, emails.Contains("c@example.com"))
+	})
+}
+
+// openReplicaTestSQLite opens a fresh SQLite database file with the user schema applied.
+func openReplicaTestSQLite(t *testing.T, filename string) *sql.DB {
+	d, err := sql.Open("sqlite3", filename+"?_case_sensitive_like=on")
+	require.Nil(t, err)
+	require.Nil(t, setupSQLite(d))
+	return d
+}
+
+// TestManager_AccountReadsUsePrimary verifies that the per-user reads backing the GET /account
+// endpoint read from the primary, not from a read replica. The sync event ("something changed")
+// is published immediately after a write, so a replica that lags would make the account view
+// stale right after the user changes it. These reads must therefore be read-your-writes consistent.
+//
+// The test wires up a primary and a deliberately-empty replica (simulating replication lag),
+// forces the replica healthy so ReadOnly() would route to it, writes everything to the primary,
+// and asserts the reads still observe the fresh primary data.
+func TestManager_AccountReadsUsePrimary(t *testing.T) {
+	dir := t.TempDir()
+	primaryDB := openReplicaTestSQLite(t, filepath.Join(dir, "primary.db"))
+	replicaDB := openReplicaTestSQLite(t, filepath.Join(dir, "replica.db")) // intentionally left empty
+
+	pool := db.New(&db.Host{DB: primaryDB}, []*db.Host{{DB: replicaDB}})
+	pool.MarkReplicasHealthyForTest() // force ReadOnly() to route to the stale replica
+	a, err := newManager(pool, sqliteQueries, &Config{BcryptCost: bcrypt.MinCost})
+	require.Nil(t, err)
+	t.Cleanup(func() { a.Close() })
+
+	// All writes below go to the primary; the replica stays empty.
+	require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+	u, err := a.User("phil")
+	require.Nil(t, err)
+	_, err = a.CreateToken(u.ID, "test token", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false)
+	require.Nil(t, err)
+	require.Nil(t, a.AddReservation("phil", "mytopic", PermissionDenyAll, 10))
+	require.Nil(t, a.AddPhoneNumber(u.ID, "+12223334444"))
+	require.Nil(t, a.AddEmail(u.ID, "phil@example.com"))
+	require.Nil(t, a.SetPrimaryEmail(u.ID, "phil@example.com"))
+	_, err = a.AddMagicLink(MagicLinkKindEmailVerify, u.ID, "pending@example.com", time.Hour)
+	require.Nil(t, err)
+
+	// Each read must observe the just-written primary data, NOT the empty replica.
+	tokens, err := a.Tokens(u.ID)
+	require.Nil(t, err)
+	require.Len(t, tokens, 1)
+
+	reservations, err := a.Reservations("phil")
+	require.Nil(t, err)
+	require.Len(t, reservations, 1)
+
+	phoneNumbers, err := a.PhoneNumbers(u.ID)
+	require.Nil(t, err)
+	require.Len(t, phoneNumbers, 1)
+
+	emails, err := a.Emails(u.ID)
+	require.Nil(t, err)
+	require.Len(t, emails, 1)
+	require.Equal(t, "phil@example.com", emails[0].Address)
+	require.True(t, emails[0].Primary)
+
+	primaryEmail, err := a.PrimaryEmail(u.ID)
+	require.Nil(t, err)
+	require.Equal(t, "phil@example.com", primaryEmail)
+
+	pendingEmails, err := a.PendingEmails(u.ID)
+	require.Nil(t, err)
+	require.Len(t, pendingEmails, 1)
 }

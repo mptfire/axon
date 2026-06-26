@@ -402,13 +402,12 @@ const Emails = () => {
     setSnack(t("account_basics_emails_copied_to_clipboard"));
   };
 
-  // runEmailAction wraps an account API call with the shared error handling (redirect on
-  // unauthorized, surface a message otherwise). On success it refetches the account so the email
-  // list reflects the change immediately, rather than waiting for the async sync event.
+  // runEmailAction wraps an email account action with the shared error handling used by the
+  // delete/set-primary/resend handlers (redirect on unauthorized, surface a message otherwise).
+  // The account view refreshes via the server's sync event, so there's no explicit refetch here.
   const runEmailAction = async (fn, errorMessage) => {
     try {
       await fn();
-      await accountApi.sync();
     } catch (e) {
       console.log(`[Account] Email action failed`, e);
       if (e instanceof UnauthorizedError) {
@@ -569,7 +568,6 @@ const AddEmailDialog = (props) => {
       setSending(true);
       setError(""); // Clear any error from a previous attempt
       await accountApi.startEmailVerification(email);
-      await accountApi.sync(); // Refresh so the new "(unverified)" address shows up immediately
       setSent(true);
     } catch (e) {
       console.log(`[Account] Error starting email verification`, e);
