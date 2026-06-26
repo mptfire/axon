@@ -1396,7 +1396,7 @@ const DeleteAccountDialog = (props) => {
       await accountApi.delete(password);
       await db().delete();
       console.debug(`[Account] Account deleted`);
-      await session.resetAndRedirect(routes.app);
+      await session.resetAndRedirect(routes.app, { fade: true });
     } catch (e) {
       console.log(`[Account] Error deleting account`, e);
       if (e instanceof IncorrectPasswordError) {

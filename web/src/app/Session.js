@@ -1,4 +1,5 @@
 import Dexie from "dexie";
+import { fadeOut } from "./transition";
 
 /**
  * Manages the logged-in user's session and access token.
@@ -42,7 +43,13 @@ class Session {
     localStorage.setItem("token", token);
   }
 
-  async resetAndRedirect(url) {
+  async resetAndRedirect(url, { fade = false } = {}) {
+    // For user-initiated exits (logout, account deletion) fade the app out first -- while the data
+    // is still intact -- so the wipe + reload below doesn't flash a broken/empty UI. Error-driven
+    // redirects (e.g. an expired session) pass no options and cut straight to the target page.
+    if (fade) {
+      await fadeOut();
+    }
     await this.db.delete();
     localStorage.removeItem("user");
     localStorage.removeItem("token");

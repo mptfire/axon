@@ -4,15 +4,20 @@
 
 const FADE_MS = 150;
 
-// Fade #root out and return it (or null if not found / no document).
-const fadeOutRoot = () => {
-  const node = document.getElementById("root");
-  if (node) {
+// Fade #root out over FADE_MS, resolving once the fade has finished (immediately if #root isn't in
+// the document). Exported so callers that need to run their own teardown between the fade-out and
+// the reload -- e.g. session.resetAndRedirect() wiping IndexedDB -- can await it first.
+export const fadeOut = () =>
+  new Promise((resolve) => {
+    const node = document.getElementById("root");
+    if (!node) {
+      resolve();
+      return;
+    }
     node.style.transition = `opacity ${FADE_MS}ms ease-out`;
     node.style.opacity = "0";
-  }
-  return node;
-};
+    setTimeout(resolve, FADE_MS);
+  });
 
 // Fade #root back in, then remove the inline styles we added so nothing is left behind on the
 // element -- otherwise the lingering `transition` would silently animate any future opacity change
@@ -33,24 +38,16 @@ const fadeInRoot = () => {
 // Fade the app out, run a client-side navigation, then fade the new page back in. Used for
 // app -> login/signup, which stay within the same document (no reload).
 export const fadeNavigate = (navigate, to) => {
-  if (!fadeOutRoot()) {
-    navigate(to);
-    return;
-  }
-  setTimeout(() => {
+  fadeOut().then(() => {
     navigate(to);
     fadeInRoot();
-  }, FADE_MS);
+  });
 };
 
 // Fade the app out, then do a full page reload to `url`. Used for login/signup -> app, which must
 // reload (the per-user IndexedDB changes). The splash screen fades the reloaded app back in.
 export const fadeReload = (url) => {
-  if (!fadeOutRoot()) {
+  fadeOut().then(() => {
     window.location.href = url;
-    return;
-  }
-  setTimeout(() => {
-    window.location.href = url;
-  }, FADE_MS);
+  });
 };
