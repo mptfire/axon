@@ -49,7 +49,8 @@ import { ReserveAddDialog, ReserveDeleteDialog, ReserveEditDialog } from "./Rese
 import { UnauthorizedError } from "../app/errors";
 import { subscribeTopic } from "./SubscribeDialog";
 import notifier from "../app/Notifier";
-import { useCachedPref, useIsLaunchedPWA, useNotificationPermissionListener } from "./hooks";
+import { useIsLaunchedPWA, useNotificationPermissionListener } from "./hooks";
+import { usePrefCache } from "./PrefCache";
 
 const maybeUpdateAccountSettings = async (payload) => {
   if (!session.exists()) {
@@ -99,7 +100,7 @@ const Notifications = () => {
 const Sound = () => {
   const { t } = useTranslation();
   const labelId = "prefSound";
-  const sound = useCachedPref(() => prefs.sound(), "pref.sound", "ding");
+  const { sound } = usePrefCache();
   const handleChange = async (ev) => {
     await prefs.setSound(ev.target.value);
     await maybeUpdateAccountSettings({
@@ -140,7 +141,7 @@ const Sound = () => {
 const MinPriority = () => {
   const { t } = useTranslation();
   const labelId = "prefMinPriority";
-  const minPriority = useCachedPref(() => prefs.minPriority(), "pref.minPriority", 1);
+  const { minPriority } = usePrefCache();
   const handleChange = async (ev) => {
     await prefs.setMinPriority(ev.target.value);
     await maybeUpdateAccountSettings({
@@ -185,7 +186,7 @@ const MinPriority = () => {
 const DeleteAfter = () => {
   const { t } = useTranslation();
   const labelId = "prefDeleteAfter";
-  const deleteAfter = useCachedPref(() => prefs.deleteAfter(), "pref.deleteAfter", 604800);
+  const { deleteAfter } = usePrefCache();
   const handleChange = async (ev) => {
     await prefs.setDeleteAfter(ev.target.value);
     await maybeUpdateAccountSettings({
@@ -230,7 +231,7 @@ const DeleteAfter = () => {
 const Theme = () => {
   const { t } = useTranslation();
   const labelId = "prefTheme";
-  const theme = useCachedPref(() => prefs.theme(), "pref.theme", THEME.SYSTEM);
+  const { theme } = usePrefCache();
   const handleChange = async (ev) => {
     await prefs.setTheme(ev.target.value);
   };
@@ -251,7 +252,7 @@ const Theme = () => {
 const WebPushEnabled = () => {
   const { t } = useTranslation();
   const labelId = "prefWebPushEnabled";
-  const enabled = useCachedPref(() => prefs.webPushEnabled(), "pref.webPushEnabled", false);
+  const { webPushEnabled: enabled } = usePrefCache();
   const handleChange = async (ev) => {
     await prefs.setWebPushEnabled(ev.target.value);
   };

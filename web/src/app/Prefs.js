@@ -10,6 +10,16 @@ export const THEME = {
 // index.html reads it synchronously to pick the splash background before first paint.
 export const THEME_LOCALSTORAGE_KEY = "theme";
 
+// Default values returned by the getters below when a preference hasn't been set. Single source of
+// truth, also used by the PrefCache (see PrefCache.jsx) for its loading-state placeholder.
+export const PREF_DEFAULTS = {
+  sound: "ding",
+  minPriority: 1,
+  deleteAfter: 604800, // one week
+  theme: THEME.SYSTEM,
+  webPushEnabled: false,
+};
+
 const mirrorThemeToLocalStorage = (value) => {
   try {
     localStorage.setItem(THEME_LOCALSTORAGE_KEY, value);
@@ -30,7 +40,7 @@ class Prefs {
 
   async sound() {
     const sound = await this.db.prefs.get("sound");
-    return sound ? sound.value : "ding";
+    return sound ? sound.value : PREF_DEFAULTS.sound;
   }
 
   async setMinPriority(minPriority) {
@@ -39,7 +49,7 @@ class Prefs {
 
   async minPriority() {
     const minPriority = await this.db.prefs.get("minPriority");
-    return minPriority ? Number(minPriority.value) : 1;
+    return minPriority ? Number(minPriority.value) : PREF_DEFAULTS.minPriority;
   }
 
   async setDeleteAfter(deleteAfter) {
@@ -48,12 +58,12 @@ class Prefs {
 
   async deleteAfter() {
     const deleteAfter = await this.db.prefs.get("deleteAfter");
-    return deleteAfter ? Number(deleteAfter.value) : 604800; // Default is one week
+    return deleteAfter ? Number(deleteAfter.value) : PREF_DEFAULTS.deleteAfter;
   }
 
   async webPushEnabled() {
     const webPushEnabled = await this.db.prefs.get("webPushEnabled");
-    return webPushEnabled?.value;
+    return webPushEnabled?.value ?? PREF_DEFAULTS.webPushEnabled;
   }
 
   async setWebPushEnabled(enabled) {
@@ -62,7 +72,7 @@ class Prefs {
 
   async theme() {
     const theme = await this.db.prefs.get("theme");
-    const value = theme?.value ?? THEME.SYSTEM;
+    const value = theme?.value ?? PREF_DEFAULTS.theme;
     // Mirror to localStorage so the inline script in index.html can pick the splash background
     // synchronously before first paint. Self-heals for users who set their theme before the
     // mirror existed.

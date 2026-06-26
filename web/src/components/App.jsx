@@ -28,6 +28,7 @@ import prefs from "../app/Prefs";
 import RTLCacheProvider from "./RTLCacheProvider";
 import session from "../app/Session";
 import AccountContext from "./AccountContext";
+import { PrefCacheProvider } from "./PrefCache";
 import hideSplash from "../app/splash";
 
 initI18n();
@@ -148,27 +149,29 @@ const Layout = () => {
   }, [subscriptions]);
 
   return (
-    <Box sx={{ display: "flex" }}>
-      <ActionBar selected={selected} onMobileDrawerToggle={() => setMobileDrawerOpen(!mobileDrawerOpen)} />
-      <Navigation
-        subscriptions={subscriptionsWithoutInternal}
-        selectedSubscription={selected}
-        mobileDrawerOpen={mobileDrawerOpen}
-        onMobileDrawerToggle={() => setMobileDrawerOpen(!mobileDrawerOpen)}
-        onPublishMessageClick={() => setSendDialogOpenMode(PublishDialog.OPEN_MODE_DEFAULT)}
-      />
-      <Main>
-        <Toolbar />
-        <Outlet
-          context={{
-            subscriptions: subscriptionsWithoutInternal,
-            selected,
-            allNotifications,
-          }}
+    <PrefCacheProvider>
+      <Box sx={{ display: "flex" }}>
+        <ActionBar selected={selected} onMobileDrawerToggle={() => setMobileDrawerOpen(!mobileDrawerOpen)} />
+        <Navigation
+          subscriptions={subscriptionsWithoutInternal}
+          selectedSubscription={selected}
+          mobileDrawerOpen={mobileDrawerOpen}
+          onMobileDrawerToggle={() => setMobileDrawerOpen(!mobileDrawerOpen)}
+          onPublishMessageClick={() => setSendDialogOpenMode(PublishDialog.OPEN_MODE_DEFAULT)}
         />
-      </Main>
-      <Messaging selected={selected} dialogOpenMode={sendDialogOpenMode} onDialogOpenModeChange={setSendDialogOpenMode} />
-    </Box>
+        <Main>
+          <Toolbar />
+          <Outlet
+            context={{
+              subscriptions: subscriptionsWithoutInternal,
+              selected,
+              allNotifications,
+            }}
+          />
+        </Main>
+        <Messaging selected={selected} dialogOpenMode={sendDialogOpenMode} onDialogOpenModeChange={setSendDialogOpenMode} />
+      </Box>
+    </PrefCacheProvider>
   );
 };
 

@@ -16,39 +16,6 @@ import prefs from "../app/Prefs";
 import { EVENT_MESSAGE_DELETE, EVENT_MESSAGE_CLEAR, SW_PERIODIC_SYNC_EXTEND_TOKEN_TAG } from "../app/events";
 
 /**
- * Reads a preference via a Dexie live query, but renders the last known value from localStorage
- * synchronously on first paint (and mirrors new values back to localStorage). This avoids the
- * Settings page flicker where rows "pop in" one by one while IndexedDB resolves -- the cached value
- * shows instantly and is confirmed/updated from IndexedDB in the background.
- */
-export const useCachedPref = (reader, cacheKey, fallback) => {
-  const live = useLiveQuery(reader);
-
-  useEffect(() => {
-    if (live !== undefined && live !== null) {
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify(live));
-      } catch (e) {
-        // localStorage may be unavailable (private mode); the value just isn't cached for next time
-      }
-    }
-  }, [live, cacheKey]);
-
-  if (live !== undefined && live !== null) {
-    return live;
-  }
-  try {
-    const cached = localStorage.getItem(cacheKey);
-    if (cached !== null) {
-      return JSON.parse(cached);
-    }
-  } catch (e) {
-    // ignore parse/storage errors and fall back
-  }
-  return fallback;
-};
-
-/**
  * Wire connectionManager and subscriptionManager so that subscriptions are updated when the connection
  * state changes. Conversely, when the subscription changes, the connection is refreshed (which may lead
  * to the connection being re-established).
