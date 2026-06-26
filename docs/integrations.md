@@ -54,6 +54,7 @@ I've added a ⭐ to projects or posts that have a significant following, or had 
 - [Proxmox-Ntfy](https://github.com/qtsone/proxmox-ntfy) - Python script that monitors Proxmox tasks and sends notifications using the Ntfy service.
 - [Scrutiny](https://github.com/AnalogJ/scrutiny) - WebUI for smartd S.M.A.R.T monitoring. Scrutiny includes shoutrrr/ntfy integration ([see integration README](https://github.com/AnalogJ/scrutiny?tab=readme-ov-file#notifications))
 - [UptimeObserver](https://uptimeobserver.com) - Uptime Monitoring tool for Websites, APIs, SSL Certificates, DNS, Domain Names and Ports. [Integration Guide](https://support.uptimeobserver.com/integrations/ntfy/)
+- [Flowtriq](https://flowtriq.com) - Real-time DDoS detection and mitigation platform (integration via [webhook alerts](https://flowtriq.com))
 
 ## [UnifiedPush](https://unifiedpush.org/users/apps/) integrations
 
