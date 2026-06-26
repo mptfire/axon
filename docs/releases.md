@@ -1987,8 +1987,8 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 **Bug fixes + maintenance:**
 
-* `GET /account` now reads from the primary database instead of a read replica, so the account view no longer shows stale data right after a change when replicas lag behind
-* The web app no longer issues a redundant second `GET /account` after email actions (e.g. setting a primary email); it relies on the sync-topic event for the refresh
+* Web app: Smooth transitions and loading animation, remove flickering
+* Web app: `GET /account` now reads from the primary database instead of a read replica, so the account view no longer shows stale data right after a change when replicas lag behind
 
 ### ntfy Android v1.25.x (UNRELEASED)
 

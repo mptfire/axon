@@ -50,6 +50,7 @@ import { UnauthorizedError } from "../app/errors";
 import { subscribeTopic } from "./SubscribeDialog";
 import notifier from "../app/Notifier";
 import { useIsLaunchedPWA, useNotificationPermissionListener } from "./hooks";
+import { usePrefCache } from "./PrefCache";
 
 const maybeUpdateAccountSettings = async (payload) => {
   if (!session.exists()) {
@@ -99,7 +100,7 @@ const Notifications = () => {
 const Sound = () => {
   const { t } = useTranslation();
   const labelId = "prefSound";
-  const sound = useLiveQuery(async () => prefs.sound());
+  const { sound } = usePrefCache();
   const handleChange = async (ev) => {
     await prefs.setSound(ev.target.value);
     await maybeUpdateAccountSettings({
@@ -108,9 +109,6 @@ const Sound = () => {
       },
     });
   };
-  if (!sound) {
-    return null; // While loading
-  }
   let description;
   if (sound === "none") {
     description = t("prefs_notifications_sound_description_none");
@@ -143,7 +141,7 @@ const Sound = () => {
 const MinPriority = () => {
   const { t } = useTranslation();
   const labelId = "prefMinPriority";
-  const minPriority = useLiveQuery(async () => prefs.minPriority());
+  const { minPriority } = usePrefCache();
   const handleChange = async (ev) => {
     await prefs.setMinPriority(ev.target.value);
     await maybeUpdateAccountSettings({
@@ -152,9 +150,6 @@ const MinPriority = () => {
       },
     });
   };
-  if (!minPriority) {
-    return null; // While loading
-  }
   const priorities = {
     1: t("priority_min"),
     2: t("priority_low"),
@@ -191,7 +186,7 @@ const MinPriority = () => {
 const DeleteAfter = () => {
   const { t } = useTranslation();
   const labelId = "prefDeleteAfter";
-  const deleteAfter = useLiveQuery(async () => prefs.deleteAfter());
+  const { deleteAfter } = usePrefCache();
   const handleChange = async (ev) => {
     await prefs.setDeleteAfter(ev.target.value);
     await maybeUpdateAccountSettings({
@@ -200,11 +195,6 @@ const DeleteAfter = () => {
       },
     });
   };
-
-  if (deleteAfter === null || deleteAfter === undefined) {
-    // !deleteAfter will not work with "0"
-    return null; // While loading
-  }
 
   const description = (() => {
     switch (deleteAfter) {
@@ -241,7 +231,7 @@ const DeleteAfter = () => {
 const Theme = () => {
   const { t } = useTranslation();
   const labelId = "prefTheme";
-  const theme = useLiveQuery(async () => prefs.theme());
+  const { theme } = usePrefCache();
   const handleChange = async (ev) => {
     await prefs.setTheme(ev.target.value);
   };
@@ -249,7 +239,7 @@ const Theme = () => {
   return (
     <Pref labelId={labelId} title={t("prefs_appearance_theme_title")}>
       <FormControl fullWidth variant="standard" sx={{ m: 1 }}>
-        <Select value={theme ?? THEME.SYSTEM} onChange={handleChange} aria-labelledby={labelId}>
+        <Select value={theme} onChange={handleChange} aria-labelledby={labelId}>
           <MenuItem value={THEME.SYSTEM}>{t("prefs_appearance_theme_system")}</MenuItem>
           <MenuItem value={THEME.DARK}>{t("prefs_appearance_theme_dark")}</MenuItem>
           <MenuItem value={THEME.LIGHT}>{t("prefs_appearance_theme_light")}</MenuItem>
@@ -262,7 +252,7 @@ const Theme = () => {
 const WebPushEnabled = () => {
   const { t } = useTranslation();
   const labelId = "prefWebPushEnabled";
-  const enabled = useLiveQuery(async () => prefs.webPushEnabled());
+  const { webPushEnabled: enabled } = usePrefCache();
   const handleChange = async (ev) => {
     await prefs.setWebPushEnabled(ev.target.value);
   };

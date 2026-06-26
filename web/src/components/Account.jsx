@@ -191,7 +191,7 @@ const ChangePasswordDialog = (props) => {
   };
 
   return (
-    <Dialog open={props.open} onClose={props.onCancel} fullScreen={fullScreen}>
+    <Dialog open={props.open} onClose={props.onClose} fullScreen={fullScreen}>
       <DialogTitle>{t("account_basics_password_dialog_title")}</DialogTitle>
       <DialogContent>
         <TextField
@@ -772,7 +772,7 @@ const AddPhoneNumberDialog = (props) => {
   };
 
   return (
-    <Dialog open={props.open} onClose={props.onCancel} fullScreen={fullScreen}>
+    <Dialog open={props.open} onClose={props.onClose} fullScreen={fullScreen}>
       <DialogTitle>{t("account_basics_phone_numbers_dialog_title")}</DialogTitle>
       <DialogContent>
         <DialogContentText>{t("account_basics_phone_numbers_dialog_description")}</DialogContentText>
@@ -1396,7 +1396,7 @@ const DeleteAccountDialog = (props) => {
       await accountApi.delete(password);
       await db().delete();
       console.debug(`[Account] Account deleted`);
-      await session.resetAndRedirect(routes.app);
+      await session.resetAndRedirect(routes.app, { fade: true });
     } catch (e) {
       console.log(`[Account] Error deleting account`, e);
       if (e instanceof IncorrectPasswordError) {

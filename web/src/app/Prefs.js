@@ -6,6 +6,15 @@ export const THEME = {
   SYSTEM: "system",
 };
 
+// Default values the getters return when a pref is unset; also used by PrefCache (PrefCache.jsx).
+export const PREF_DEFAULTS = {
+  sound: "ding",
+  minPriority: 1,
+  deleteAfter: 604800, // one week
+  theme: THEME.SYSTEM,
+  webPushEnabled: false,
+};
+
 class Prefs {
   constructor(dbImpl) {
     this.db = dbImpl;
@@ -17,7 +26,7 @@ class Prefs {
 
   async sound() {
     const sound = await this.db.prefs.get("sound");
-    return sound ? sound.value : "ding";
+    return sound ? sound.value : PREF_DEFAULTS.sound;
   }
 
   async setMinPriority(minPriority) {
@@ -26,7 +35,7 @@ class Prefs {
 
   async minPriority() {
     const minPriority = await this.db.prefs.get("minPriority");
-    return minPriority ? Number(minPriority.value) : 1;
+    return minPriority ? Number(minPriority.value) : PREF_DEFAULTS.minPriority;
   }
 
   async setDeleteAfter(deleteAfter) {
@@ -35,12 +44,12 @@ class Prefs {
 
   async deleteAfter() {
     const deleteAfter = await this.db.prefs.get("deleteAfter");
-    return deleteAfter ? Number(deleteAfter.value) : 604800; // Default is one week
+    return deleteAfter ? Number(deleteAfter.value) : PREF_DEFAULTS.deleteAfter;
   }
 
   async webPushEnabled() {
     const webPushEnabled = await this.db.prefs.get("webPushEnabled");
-    return webPushEnabled?.value;
+    return webPushEnabled?.value ?? PREF_DEFAULTS.webPushEnabled;
   }
 
   async setWebPushEnabled(enabled) {
@@ -49,7 +58,7 @@ class Prefs {
 
   async theme() {
     const theme = await this.db.prefs.get("theme");
-    return theme?.value ?? THEME.SYSTEM;
+    return theme?.value ?? PREF_DEFAULTS.theme;
   }
 
   async setTheme(mode) {

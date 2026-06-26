@@ -11,6 +11,7 @@ import AvatarBox from "./AvatarBox";
 import session from "../app/Session";
 import routes from "./routes";
 import { AccountActionLimitReachedError, UserExistsError } from "../app/errors";
+import { fadeReload } from "../app/transition";
 
 const Signup = () => {
   const { t } = useTranslation();
@@ -30,7 +31,7 @@ const Signup = () => {
       const token = await accountApi.login(user);
       console.log(`[Signup] User signup for user ${user.username} successful, token is ${token}`);
       await session.store(user.username, token);
-      window.location.href = routes.app;
+      fadeReload(routes.app);
     } catch (e) {
       console.log(`[Signup] Signup for user ${user.username} failed`, e);
       if (e instanceof UserExistsError) {
