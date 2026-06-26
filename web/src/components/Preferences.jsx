@@ -43,7 +43,7 @@ import accountApi, { Permission, Role } from "../app/AccountApi";
 import { Pref, PrefGroup } from "./Pref";
 import AccountContext from "./AccountContext";
 import { Paragraph } from "./styles";
-import prefs, { THEME, THEME_LOCALSTORAGE_KEY } from "../app/Prefs";
+import prefs, { THEME } from "../app/Prefs";
 import { PermissionDenyAll, PermissionRead, PermissionReadWrite, PermissionWrite } from "./ReserveIcons";
 import { ReserveAddDialog, ReserveDeleteDialog, ReserveEditDialog } from "./ReserveDialogs";
 import { UnauthorizedError } from "../app/errors";
@@ -230,10 +230,7 @@ const DeleteAfter = () => {
 const Theme = () => {
   const { t } = useTranslation();
   const labelId = "prefTheme";
-  // Reuse the same localStorage key Prefs already mirrors for the splash (THEME_LOCALSTORAGE_KEY),
-  // rather than a second cache key, so the value isn't stored twice. The cached value renders the
-  // dropdown instantly; the live query then confirms it from IndexedDB.
-  const theme = useLiveQuery(() => prefs.theme()) ?? localStorage.getItem(THEME_LOCALSTORAGE_KEY) ?? THEME.SYSTEM;
+  const theme = useCachedPref(() => prefs.theme(), "pref.theme", THEME.SYSTEM);
   const handleChange = async (ev) => {
     await prefs.setTheme(ev.target.value);
   };
