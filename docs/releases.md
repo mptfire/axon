@@ -32,7 +32,7 @@ since I do have to reset accounts on a regular basis.
 * Add password reset via emailed magic link, with a "Forgot password" link on the login page and a `ntfy user reset-pass` CLI command for admins
 * Rework email verification to use durable, single-use, expiring magic links instead of in-memory 6-digit codes, and add a "primary" email (used for account recovery and as the `X-Email: yes` target) with verified/unverified state in the account UI
 * You can now clear/read messages and delete messages with a GET request ([#1771](https://github.com/binwiederhier/ntfy/issues/1771), thanks to [@lemmi](https://github.com/lemmi) for reporting and to [@wunter8](https://github.com/wunter8) for implementing)
-* Add a reload button to the web app's action bar when running as an installed PWA, which clears the service worker caches and hard-refreshes the app
+* Add a reload button to the web app's action bar when running as an installed PWA, which clears the service worker caches and hard-refreshes the app ([#1281](https://github.com/binwiederhier/ntfy/issues/1281), thanks to [@leanza](https://github.com/leanza) for reporting)
 * Add a "Back to app" link to the web app's login, signup, and password-reset pages (alongside the existing links), which previously had no way back to the app
 
 **Bug fixes + maintenance:**
