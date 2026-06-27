@@ -65,8 +65,8 @@ These steps **assume Ubuntu**. Steps may vary on different Linux distributions.
 
 First, install [Go](https://go.dev/) (see [official instructions](https://go.dev/doc/install)):
 ``` shell
-wget https://go.dev/dl/go1.19.1.linux-amd64.tar.gz
-sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.19.1.linux-amd64.tar.gz
+wget https://go.dev/dl/go1.25.8.linux-amd64.tar.gz
+sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf go1.25.8.linux-amd64.tar.gz
 export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
 go version   # verifies that it worked
 ```
