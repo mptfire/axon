@@ -43,6 +43,7 @@ I've added a ⭐ to projects or posts that have a significant following, or had 
 - [Miniflux](https://miniflux.app/docs/ntfy.html) - Minimalist and opinionated feed reader
 - [Beszel](https://beszel.dev/guide/notifications/ntfy) - Server monitoring platform
 - [Simple Observability](https://simpleobservability.com/docs/alerts/ntfy) - Server monitoring and observability platform
+- [Sifio](https://sifio.net) - Aggregate updates from RSS, social media, and other sources, then deliver them to ntfy, Slack, Notion and more
 
 ## Integration via HTTP/SMTP/etc.
 
