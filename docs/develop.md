@@ -77,9 +77,11 @@ go install github.com/goreleaser/goreleaser@latest
 goreleaser -v   # verifies that it worked
 ```
 
-Install [nodejs](https://nodejs.org/en/) (see [official instructions](https://nodejs.org/en/download/package-manager/)):
+Install [nodejs](https://nodejs.org/en/) (see [official instructions](https://nodejs.org/en/download/package-manager/)).
+Use a current LTS release (Node 24 is what CI builds with; anything older than Node 20 will not work
+with the current Vite-based web build):
 ``` shell
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt-get install -y nodejs
 npm -v   # verifies that it worked
 ```
