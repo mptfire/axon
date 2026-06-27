@@ -726,3 +726,31 @@ kubectl apply -k /ntfy
     cache-file: "/var/cache/ntfy/cache.db"
     attachment-cache-dir: "/var/cache/ntfy/attachments"
     ```
+
+## Helm
+<span class="community-badge" title="This package is maintained by the community, not the ntfy developers"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg> Community maintained</span>
+
+If you prefer [Helm](https://helm.sh/), ntfy can be deployed using the third-party
+[HelmForge chart](https://helmforge.dev/docs/charts/ntfy), which packages the official
+`binwiederhier/ntfy` image with persistent storage, Service, Ingress, optional Prometheus metrics, and more.
+This chart is **not** maintained by the ntfy developers.
+
+!!! warning
+    The HelmForge project is young and maintained by a small community. Review the chart before deploying it,
+    and use it at your own risk.
+
+```bash
+helm repo add helmforge https://repo.helmforge.dev
+helm repo update
+helm install ntfy helmforge/ntfy
+```
+
+Alternatively, install it directly from the OCI registry:
+
+```bash
+helm install ntfy oci://ghcr.io/helmforgedev/helm/ntfy
+```
+
+Because ntfy's default SQLite storage is single-writer, run the chart as a single instance rather than
+treating it as a horizontally scalable deployment. See the [chart documentation](https://helmforge.dev/docs/charts/ntfy)
+for the full list of configurable values.
