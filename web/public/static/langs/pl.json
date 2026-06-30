@@ -377,7 +377,7 @@
     "prefs_notifications_web_push_disabled_description": "Powiadomienia są dostarczane kiedy aplikacja jest aktywna (poprzez WebSocket)",
     "prefs_notifications_web_push_enabled": "Włączone dla {{server}}",
     "prefs_notifications_web_push_disabled": "Wyłączone",
-    "prefs_appearance_theme_system": "Systemowy (domyślny)",
+    "prefs_system_default": "Systemowy domyślny",
     "prefs_appearance_theme_dark": "Tryb ciemny",
     "prefs_appearance_theme_light": "Tryb jasny",
     "prefs_reservations_edit_button": "Modyfikuj ustawienia dostępu dla tematu",

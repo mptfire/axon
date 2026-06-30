@@ -400,7 +400,7 @@
     "prefs_notifications_web_push_enabled": "{{server}}で有効",
     "prefs_notifications_web_push_disabled": "無効",
     "prefs_appearance_theme_title": "テーマ",
-    "prefs_appearance_theme_system": "システム (既定)",
+    "prefs_system_default": "システム 既定",
     "prefs_appearance_theme_dark": "ダークモード",
     "web_push_unknown_notification_title": "不明な通知を受信しました",
     "web_push_unknown_notification_body": "ウェブアプリを開いてntfyをアップデートする必要があります",

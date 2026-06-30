@@ -312,6 +312,8 @@ type apiAccountResponse struct {
 	SyncTopic     string                     `json:"sync_topic,omitempty"`
 	Provisioned   bool                       `json:"provisioned,omitempty"`
 	Language      string                     `json:"language,omitempty"`
+	DateFormat    string                     `json:"date_format,omitempty"`
+	TimeFormat    string                     `json:"time_format,omitempty"`
 	Notification  *user.NotificationPrefs    `json:"notification,omitempty"`
 	Subscriptions []*user.Subscription       `json:"subscriptions,omitempty"`
 	Reservations  []*apiAccountReservation   `json:"reservations,omitempty"`

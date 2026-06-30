@@ -13,7 +13,7 @@ vi.mock("./Session", () => ({
 }));
 vi.mock("./SubscriptionManager", () => ({ default: { syncFromRemote: vi.fn() } }));
 vi.mock("./Prefs", () => ({
-  default: { setSound: vi.fn(), setDeleteAfter: vi.fn(), setMinPriority: vi.fn() },
+  default: { setSound: vi.fn(), setDeleteAfter: vi.fn(), setMinPriority: vi.fn(), setDateFormat: vi.fn(), setTimeFormat: vi.fn() },
   THEME: { DARK: "dark", LIGHT: "light", SYSTEM: "system" },
 }));
 vi.mock("i18next", () => ({ default: { changeLanguage: vi.fn() } }));
@@ -190,6 +190,8 @@ describe("AccountApi.sync", () => {
     fetchMock.mockResolvedValue(
       ok({
         language: "de",
+        date_format: "iso8601",
+        time_format: "24h",
         notification: { sound: "ding", delete_after: 3600, min_priority: 3 },
         subscriptions: [{ topic: "t" }],
         reservations: [{ topic: "t" }],
@@ -199,6 +201,8 @@ describe("AccountApi.sync", () => {
     await accountApi.sync();
 
     expect(i18n.changeLanguage).toHaveBeenCalledWith("de");
+    expect(prefs.setDateFormat).toHaveBeenCalledWith("iso8601");
+    expect(prefs.setTimeFormat).toHaveBeenCalledWith("24h");
     expect(prefs.setSound).toHaveBeenCalledWith("ding");
     expect(prefs.setDeleteAfter).toHaveBeenCalledWith(3600);
     expect(prefs.setMinPriority).toHaveBeenCalledWith(3);

@@ -398,7 +398,7 @@
     "prefs_notifications_web_push_enabled": "Увімкнено для {{server}}",
     "prefs_notifications_web_push_disabled": "Вимкнено",
     "prefs_appearance_theme_title": "Тема оформлення",
-    "prefs_appearance_theme_system": "Система (за замовчуванням)",
+    "prefs_system_default": "Система за замовчуванням",
     "prefs_appearance_theme_light": "Світлий режим",
     "error_boundary_button_reload_ntfy": "Перезавантажити ntfy",
     "web_push_subscription_expiring_title": "Сповіщення буде призупинено",

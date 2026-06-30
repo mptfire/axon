@@ -107,6 +107,12 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 			if u.Prefs.Language != nil {
 				response.Language = *u.Prefs.Language
 			}
+			if u.Prefs.DateFormat != nil {
+				response.DateFormat = *u.Prefs.DateFormat
+			}
+			if u.Prefs.TimeFormat != nil {
+				response.TimeFormat = *u.Prefs.TimeFormat
+			}
 			if u.Prefs.Notification != nil {
 				response.Notification = u.Prefs.Notification
 			}
@@ -372,6 +378,12 @@ func (s *Server) handleAccountSettingsChange(w http.ResponseWriter, r *http.Requ
 	prefs := u.Prefs
 	if newPrefs.Language != nil {
 		prefs.Language = newPrefs.Language
+	}
+	if newPrefs.DateFormat != nil {
+		prefs.DateFormat = newPrefs.DateFormat
+	}
+	if newPrefs.TimeFormat != nil {
+		prefs.TimeFormat = newPrefs.TimeFormat
 	}
 	if newPrefs.Notification != nil {
 		if prefs.Notification == nil {

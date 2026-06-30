@@ -448,6 +448,12 @@ class AccountApi {
       if (account.language) {
         await i18n.changeLanguage(account.language);
       }
+      if (account.date_format) {
+        await prefs.setDateFormat(account.date_format);
+      }
+      if (account.time_format) {
+        await prefs.setTimeFormat(account.time_format);
+      }
       if (account.notification) {
         if (account.notification.sound) {
           await prefs.setSound(account.notification.sound);

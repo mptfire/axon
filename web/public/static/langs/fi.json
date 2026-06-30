@@ -390,7 +390,7 @@
     "alert_notification_ios_install_required_title": "iOS-asennus vaaditaan",
     "publish_dialog_checkbox_markdown": "Muotoile Markdownina",
     "prefs_notifications_web_push_title": "Taustailmoitukset",
-    "prefs_appearance_theme_system": "Järjestelmä (oletus)",
+    "prefs_system_default": "Järjestelmä oletus",
     "alert_notification_permission_denied_description": "Ota ilmoitukset uudelleen käyttöön selaimessa",
     "prefs_appearance_theme_title": "Teema",
     "prefs_appearance_theme_light": "Vaalea tila",

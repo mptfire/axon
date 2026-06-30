@@ -238,7 +238,7 @@
     "account_basics_tier_title": "Kasutajakonto tüüp",
     "account_basics_tier_description": "Sinu kasutajakonto õigused",
     "account_delete_dialog_button_submit": "Kustuta kasutajakonto jäädavalt",
-    "prefs_appearance_theme_system": "Süsteemi kujundus",
+    "prefs_system_default": "Süsteemi kujundus",
     "prefs_appearance_theme_dark": "Tume kujundus",
     "prefs_appearance_theme_light": "Hele kujundus",
     "prefs_reservations_title": "Reserveeritud teemad",

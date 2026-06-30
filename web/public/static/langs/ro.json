@@ -341,7 +341,7 @@
     "prefs_appearance_title": "Aspect",
     "prefs_appearance_language_title": "Limbă",
     "prefs_appearance_theme_title": "Temă",
-    "prefs_appearance_theme_system": "Sistem (implicit)",
+    "prefs_system_default": "Sistem implicit",
     "prefs_appearance_theme_dark": "Mod întunecat",
     "prefs_appearance_theme_light": "Mod luminos",
     "prefs_reservations_title": "Subiecte rezervate",

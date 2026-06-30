@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { THEME } from "./Prefs";
+import { THEME, DATE_FORMAT, TIME_FORMAT } from "./Prefs";
 import {
   topicUrl,
   topicUrlWs,
@@ -24,6 +24,9 @@ import {
   formatNumber,
   formatPrice,
   formatShortDuration,
+  formatDate,
+  formatDateTime,
+  formatTime,
   getKebabCaseLangStr,
   darkModeEnabled,
   urlB64ToUint8Array,
@@ -149,5 +152,67 @@ describe("misc pure helpers", () => {
 
   it("urlB64ToUint8Array decodes web push keys", () => {
     expect(Array.from(urlB64ToUint8Array("AQID"))).toEqual([1, 2, 3]);
+  });
+});
+
+describe("date/time formatting", () => {
+  // 2026-03-08 14:30 in the runner's local timezone (the same wall-clock time Intl renders).
+  const ts = Math.floor(new Date(2026, 2, 8, 14, 30, 0).getTime() / 1000);
+
+  it("ISO 8601 mode renders YYYY-MM-DD HH:mm regardless of locale", () => {
+    expect(formatDateTime(ts, DATE_FORMAT.ISO8601)).toBe("2026-03-08 14:30");
+    expect(formatDate(ts, DATE_FORMAT.ISO8601)).toBe("2026-03-08");
+  });
+
+  it("ISO 8601 mode zero-pads single-digit months, days, hours and minutes", () => {
+    const early = Math.floor(new Date(2026, 0, 5, 9, 7, 0).getTime() / 1000);
+    expect(formatDateTime(early, DATE_FORMAT.ISO8601)).toBe("2026-01-05 09:07");
+  });
+
+  it("default mode follows the browser locale, not the UI translation language", () => {
+    // The format must depend only on the browser's default locale -- passing a language
+    // tag (the old behavior) must NOT change the output anymore.
+    const browserDefault = new Intl.DateTimeFormat(undefined, { dateStyle: "short", timeStyle: "short" }).format(new Date(ts * 1000));
+    expect(formatDateTime(ts, DATE_FORMAT.SYSTEM)).toBe(browserDefault);
+    expect(formatDateTime(ts, "fr")).toBe(browserDefault);
+    expect(formatDateTime(ts, "en_US")).toBe(browserDefault);
+    expect(formatDateTime(ts, undefined)).toBe(browserDefault);
+  });
+
+  it("only ISO 8601 zero-pads; DMY, dot-separated DMY and MDY all drop leading zeros", () => {
+    expect(formatDate(ts, DATE_FORMAT.DMY)).toBe("8/3/2026");
+    expect(formatDate(ts, DATE_FORMAT.DMY_DOT)).toBe("8.3.2026");
+    expect(formatDate(ts, DATE_FORMAT.MDY)).toBe("3/8/2026");
+    // Double-digit day/month are left intact.
+    const ts2 = Math.floor(new Date(2026, 11, 25, 14, 30, 0).getTime() / 1000);
+    expect(formatDate(ts2, DATE_FORMAT.DMY)).toBe("25/12/2026");
+    expect(formatDate(ts2, DATE_FORMAT.DMY_DOT)).toBe("25.12.2026");
+    expect(formatDate(ts2, DATE_FORMAT.MDY)).toBe("12/25/2026");
+    // The same ordering prefixes the datetime variant.
+    expect(formatDateTime(ts, DATE_FORMAT.DMY)).toMatch(/^8\/3\/2026 /);
+    expect(formatDateTime(ts, DATE_FORMAT.DMY_DOT)).toMatch(/^8\.3\.2026 /);
+    expect(formatDateTime(ts, DATE_FORMAT.MDY)).toMatch(/^3\/8\/2026 /);
+  });
+
+  it("formatTime renders only the time, honoring the 12/24-hour choice", () => {
+    const local24 = new Intl.DateTimeFormat(undefined, { timeStyle: "short", hour12: false }).format(new Date(ts * 1000));
+    expect(formatTime(ts, TIME_FORMAT.H24)).toBe(local24);
+    expect(formatTime(ts, TIME_FORMAT.H24)).toContain("14:30");
+    expect(formatTime(ts, TIME_FORMAT.H12)).toContain("2:30");
+  });
+
+  it("time format selects 12-hour vs 24-hour independently of the date format", () => {
+    const local24 = new Intl.DateTimeFormat(undefined, { timeStyle: "short", hour12: false }).format(new Date(ts * 1000));
+    expect(formatDateTime(ts, DATE_FORMAT.DMY, TIME_FORMAT.H24)).toBe(`8/3/2026 ${local24}`);
+
+    const h12 = formatDateTime(ts, DATE_FORMAT.SYSTEM, TIME_FORMAT.H12);
+    const h24 = formatDateTime(ts, DATE_FORMAT.SYSTEM, TIME_FORMAT.H24);
+    expect(h24).toContain("14:30");
+    expect(h12).toContain("2:30");
+    expect(h12).not.toBe(h24);
+  });
+
+  it("ISO 8601 is always 24-hour regardless of the time format", () => {
+    expect(formatDateTime(ts, DATE_FORMAT.ISO8601, TIME_FORMAT.H12)).toBe("2026-03-08 14:30");
   });
 });

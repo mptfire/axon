@@ -390,7 +390,7 @@
     "prefs_notifications_web_push_disabled": "Disabilitato",
     "prefs_users_table_cannot_delete_or_edit": "Impossibile eliminare o modificare l'utente registrato",
     "prefs_appearance_theme_title": "Tema",
-    "prefs_appearance_theme_system": "Sistema (predefinito)",
+    "prefs_system_default": "Sistema predefinito",
     "prefs_appearance_theme_dark": "Modalità scura",
     "prefs_appearance_theme_light": "Modalità chiara",
     "prefs_reservations_table_topic_header": "Argomento",

@@ -400,7 +400,7 @@
     "prefs_notifications_web_push_title": "Известия във фонов режим",
     "prefs_notifications_web_push_enabled_description": "Известията ще бъдат получавани даже и ако приложението за уеб не работи (чрез Web Push)",
     "prefs_appearance_theme_title": "Цветова тема",
-    "prefs_appearance_theme_system": "Системна (подразбирана)",
+    "prefs_system_default": "Системна подразбирана",
     "web_push_subscription_expiring_title": "Известията временно ще бъдат спрени",
     "web_push_subscription_expiring_body": "За да продължите да получавате известия, отворете ntfy",
     "action_bar_unmute_notifications": "Включване звука на известията",

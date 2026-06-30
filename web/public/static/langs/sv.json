@@ -395,7 +395,7 @@
     "prefs_notifications_web_push_enabled": "Aktivera för {{server}}",
     "prefs_notifications_web_push_disabled": "Avaktivera",
     "prefs_appearance_theme_title": "Tema",
-    "prefs_appearance_theme_system": "System (basinställning)",
+    "prefs_system_default": "System basinställning",
     "prefs_appearance_theme_dark": "Mörkt läge",
     "prefs_appearance_theme_light": "Ljust läge",
     "error_boundary_button_reload_ntfy": "Ladda om ntfy",

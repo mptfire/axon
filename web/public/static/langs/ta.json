@@ -235,7 +235,7 @@
     "prefs_appearance_title": "தோற்றம்",
     "prefs_appearance_language_title": "மொழி",
     "prefs_appearance_theme_title": "கருப்பொருள்",
-    "prefs_appearance_theme_system": "கணினி (இயல்புநிலை)",
+    "prefs_system_default": "கணினி இயல்புநிலை",
     "prefs_appearance_theme_dark": "இருண்ட முறை",
     "prefs_appearance_theme_light": "ஒளி பயன்முறை",
     "prefs_reservations_title": "ஒதுக்கப்பட்ட தலைப்புகள்",

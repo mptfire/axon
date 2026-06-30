@@ -1985,10 +1985,15 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ### ntfy server v2.26.x (UNRELEASED)
 
+**Features:**
+
+* Web app: Add "Date format" and "Time format" settings (Settings -> Appearance), with ISO 8601, day/month/year (slash or dot) and month/day/year date options and a 12-/24-hour clock option, and base the default format on your browser/system locale rather than the selected display language. When logged in, both settings sync across devices via your account ([#1647](https://github.com/binwiederhier/ntfy/issues/1647), thanks to [@wsw70](https://github.com/wsw70) for reporting)
+
 **Bug fixes + maintenance:**
 
 * Web app: Smooth transitions and loading animation, remove flickering
 * Web app: `GET /account` now reads from the primary database instead of a read replica, so the account view no longer shows stale data right after a change when replicas lag behind
+* Docs: Document the third-party HelmForge Helm chart as a Kubernetes installation option ([#1727](https://github.com/binwiederhier/ntfy/issues/1727), thanks to [@mberlofa](https://github.com/mberlofa))
 
 ### ntfy Android v1.25.x (UNRELEASED)
 

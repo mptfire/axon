@@ -371,7 +371,7 @@
     "prefs_users_description_no_sync": "A felhasználónevek és jelszavak nem kerülnek szinkronizálásra a fiókjával.",
     "prefs_users_table_cannot_delete_or_edit": "A bejelentkezett felhasználót nem lehet törölni vagy szerkeszteni",
     "prefs_appearance_theme_title": "Téma",
-    "prefs_appearance_theme_system": "Rendszer (alapértelmezett)",
+    "prefs_system_default": "Rendszer alapértelmezett",
     "prefs_appearance_theme_dark": "Sötét mód",
     "prefs_appearance_theme_light": "Világos mód",
     "prefs_reservations_title": "Fenntartott témák",

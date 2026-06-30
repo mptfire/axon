@@ -266,7 +266,7 @@
     "account_upgrade_dialog_button_cancel_subscription": "Avslutt abonnement",
     "account_tokens_description": "Bruk tilgangstokener når du publiserer og abonnerer via ntfy-APIet, slik at du ikke trenger å sende innloggingsinformasjon for kontoen din. Se <Link>dokumentasjonen</Link> for å lære mer.",
     "account_tokens_table_current_session": "Nåværende nettleserøkt",
-    "prefs_appearance_theme_system": "System (standard)",
+    "prefs_system_default": "System standard",
     "prefs_notifications_web_push_disabled_description": "Varslinger mottas når web-appen kjører (via WebSocket)",
     "prefs_appearance_theme_title": "Tema",
     "prefs_appearance_theme_dark": "Mørk modus",

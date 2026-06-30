@@ -207,12 +207,19 @@ func TestAccount_ChangeSettings(t *testing.T) {
 		})
 		require.Equal(t, 200, rr.Code)
 
+		rr = request(t, s, "PATCH", "/v1/account/settings", `{"date_format": "iso8601", "time_format": "24h"}`, map[string]string{
+			"Authorization": util.BearerAuth(token.Value),
+		})
+		require.Equal(t, 200, rr.Code)
+
 		rr = request(t, s, "GET", "/v1/account", `{"username":"marian", "password":"marian"}`, map[string]string{
 			"Authorization": util.BearerAuth(token.Value),
 		})
 		require.Equal(t, 200, rr.Code)
 		account, _ := util.UnmarshalJSON[apiAccountResponse](io.NopCloser(rr.Body))
 		require.Equal(t, "de", account.Language)
+		require.Equal(t, "iso8601", account.DateFormat) // Merged, not overwritten by previous PATCH
+		require.Equal(t, "24h", account.TimeFormat)
 		require.Equal(t, util.Int(86400), account.Notification.DeleteAfter)
 		require.Equal(t, util.String("juntos"), account.Notification.Sound)
 		require.Nil(t, account.Notification.MinPriority) // Not set

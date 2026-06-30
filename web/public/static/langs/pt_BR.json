@@ -384,7 +384,7 @@
     "prefs_notifications_web_push_disabled": "Desativado",
     "prefs_appearance_theme_title": "Tema",
     "prefs_users_table_cannot_delete_or_edit": "Não é possível apagar ou editar o usuário conectado",
-    "prefs_appearance_theme_system": "Sistema (padrão)",
+    "prefs_system_default": "Sistema padrão",
     "prefs_appearance_theme_dark": "Modo escuro",
     "prefs_appearance_theme_light": "Modo claro",
     "prefs_reservations_title": "Tópicos reservados",

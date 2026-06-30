@@ -399,7 +399,7 @@
     "prefs_notifications_web_push_enabled": "Diaktifkan untuk {{server}}",
     "prefs_notifications_web_push_disabled": "Dinonaktifkan",
     "prefs_appearance_theme_dark": "Mode gelap",
-    "prefs_appearance_theme_system": "Sistem (bawaan)",
+    "prefs_system_default": "Sistem bawaan",
     "prefs_appearance_theme_light": "Mode terang",
     "web_push_subscription_expiring_title": "Notifikasi akan dijeda",
     "web_push_subscription_expiring_body": "Buka ntfy untuk terus menerima notifikasi",

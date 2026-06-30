@@ -401,7 +401,7 @@
     "notifications_actions_failed_notification": "Неудачное действие",
     "publish_dialog_checkbox_markdown": "Форматировать как Markdown",
     "subscribe_dialog_subscribe_use_another_background_info": "Уведомления с других серверов не будут получены, когда веб-приложение не открыто",
-    "prefs_appearance_theme_system": "Как в системе (по умолчанию)",
+    "prefs_system_default": "Как в системе по умолчанию",
     "prefs_appearance_theme_dark": "Тёмная",
     "prefs_appearance_theme_light": "Светлая",
     "account_basics_cannot_edit_or_delete_provisioned_user": "Пользователя, созданного автоматически, нельзя изменить или удалить",

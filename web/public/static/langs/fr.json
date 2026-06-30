@@ -396,7 +396,7 @@
     "prefs_notifications_web_push_enabled": "Activé pour {{server}}",
     "prefs_notifications_web_push_disabled": "Désactivé",
     "prefs_appearance_theme_title": "Thème",
-    "prefs_appearance_theme_system": "Système (défaut)",
+    "prefs_system_default": "Système défaut",
     "prefs_appearance_theme_dark": "Mode sombre",
     "prefs_appearance_theme_light": "Mode clair",
     "error_boundary_button_reload_ntfy": "Recharger ntfy",

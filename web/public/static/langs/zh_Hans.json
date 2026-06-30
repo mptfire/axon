@@ -152,7 +152,7 @@
     "prefs_appearance_title": "外观",
     "prefs_appearance_language_title": "语言",
     "prefs_appearance_theme_title": "主題",
-    "prefs_appearance_theme_system": "系统 (默认)",
+    "prefs_system_default": "系统 默认",
     "prefs_appearance_theme_dark": "深色模式",
     "prefs_appearance_theme_light": "浅色模式",
     "priority_min": "最低",

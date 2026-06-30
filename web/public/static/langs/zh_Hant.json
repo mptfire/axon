@@ -229,7 +229,7 @@
     "prefs_appearance_language_title": "語言",
     "prefs_appearance_theme_dark": "深色模式",
     "prefs_appearance_theme_light": "淺色模式",
-    "prefs_appearance_theme_system": "系統 (預設)",
+    "prefs_system_default": "系統 預設",
     "prefs_appearance_theme_title": "主題",
     "prefs_appearance_title": "外觀",
     "prefs_notifications_delete_after_never_description": "永不自動刪除通知",

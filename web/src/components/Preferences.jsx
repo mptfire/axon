@@ -2,6 +2,7 @@ import * as React from "react";
 import { useContext, useEffect, useState } from "react";
 import {
   Alert,
+  Box,
   CardActions,
   CardContent,
   Chip,
@@ -36,14 +37,14 @@ import { useTranslation } from "react-i18next";
 import Info from "@mui/icons-material/Info";
 import { useOutletContext } from "react-router-dom";
 import userManager from "../app/UserManager";
-import { playSound, shortUrl, shuffle, sounds, validUrl } from "../app/utils";
+import { formatDate, formatTime, playSound, shortUrl, shuffle, sounds, validUrl } from "../app/utils";
 import session from "../app/Session";
 import routes from "./routes";
 import accountApi, { Permission, Role } from "../app/AccountApi";
 import { Pref, PrefGroup } from "./Pref";
 import AccountContext from "./AccountContext";
 import { Paragraph } from "./styles";
-import prefs, { THEME } from "../app/Prefs";
+import prefs, { THEME, DATE_FORMAT, TIME_FORMAT } from "../app/Prefs";
 import { PermissionDenyAll, PermissionRead, PermissionReadWrite, PermissionWrite } from "./ReserveIcons";
 import { ReserveAddDialog, ReserveDeleteDialog, ReserveEditDialog } from "./ReserveDialogs";
 import { UnauthorizedError } from "../app/errors";
@@ -228,10 +229,18 @@ const DeleteAfter = () => {
   );
 };
 
+// Shows the resolved/sample value of an option (the current system mode, or a date/time sample) in muted gray.
+const FormatExample = ({ children }) => (
+  <Box component="span" sx={{ color: "text.secondary", ml: 1 }}>
+    {children}
+  </Box>
+);
+
 const Theme = () => {
   const { t } = useTranslation();
   const labelId = "prefTheme";
   const { theme } = usePrefCache();
+  const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
   const handleChange = async (ev) => {
     await prefs.setTheme(ev.target.value);
   };
@@ -240,9 +249,90 @@ const Theme = () => {
     <Pref labelId={labelId} title={t("prefs_appearance_theme_title")}>
       <FormControl fullWidth variant="standard" sx={{ m: 1 }}>
         <Select value={theme} onChange={handleChange} aria-labelledby={labelId}>
-          <MenuItem value={THEME.SYSTEM}>{t("prefs_appearance_theme_system")}</MenuItem>
+          <MenuItem value={THEME.SYSTEM}>
+            {t("prefs_system_default")}
+            <FormatExample>{prefersDarkMode ? t("prefs_appearance_theme_dark") : t("prefs_appearance_theme_light")}</FormatExample>
+          </MenuItem>
           <MenuItem value={THEME.DARK}>{t("prefs_appearance_theme_dark")}</MenuItem>
           <MenuItem value={THEME.LIGHT}>{t("prefs_appearance_theme_light")}</MenuItem>
+        </Select>
+      </FormControl>
+    </Pref>
+  );
+};
+
+// An unambiguous sample (April 26, 2:30 PM, current year) used for each option's example: the day
+// (26) is too large to be a month, so the day/month order is unmistakable, and 14:30 distinguishes
+// the 12h/24h clock. Using today's date could be ambiguous (e.g. when the day could pass for a month).
+const EXAMPLE_TIMESTAMP = Math.round(new Date(new Date().getFullYear(), 3, 26, 14, 30).getTime() / 1000);
+
+const DateFormat = () => {
+  const { t } = useTranslation();
+  const labelId = "prefDateFormat";
+  const { dateFormat } = usePrefCache();
+  const handleChange = async (ev) => {
+    await prefs.setDateFormat(ev.target.value);
+    await maybeUpdateAccountSettings({ date_format: ev.target.value });
+  };
+
+  return (
+    <Pref labelId={labelId} title={t("prefs_appearance_date_format_title")}>
+      <FormControl fullWidth variant="standard" sx={{ m: 1 }}>
+        <Select value={dateFormat} onChange={handleChange} aria-labelledby={labelId}>
+          <MenuItem value={DATE_FORMAT.SYSTEM}>
+            {t("prefs_system_default")}
+            <FormatExample>{formatDate(EXAMPLE_TIMESTAMP, DATE_FORMAT.SYSTEM)}</FormatExample>
+          </MenuItem>
+          <MenuItem value={DATE_FORMAT.ISO8601}>
+            {t("prefs_appearance_date_format_iso8601")}
+            <FormatExample>{formatDate(EXAMPLE_TIMESTAMP, DATE_FORMAT.ISO8601)}</FormatExample>
+          </MenuItem>
+          <MenuItem value={DATE_FORMAT.DMY}>
+            {t("prefs_appearance_date_format_dmy")}
+            <FormatExample>{formatDate(EXAMPLE_TIMESTAMP, DATE_FORMAT.DMY)}</FormatExample>
+          </MenuItem>
+          <MenuItem value={DATE_FORMAT.DMY_DOT}>
+            {t("prefs_appearance_date_format_dmy_dot")}
+            <FormatExample>{formatDate(EXAMPLE_TIMESTAMP, DATE_FORMAT.DMY_DOT)}</FormatExample>
+          </MenuItem>
+          <MenuItem value={DATE_FORMAT.MDY}>
+            {t("prefs_appearance_date_format_mdy")}
+            <FormatExample>{formatDate(EXAMPLE_TIMESTAMP, DATE_FORMAT.MDY)}</FormatExample>
+          </MenuItem>
+        </Select>
+      </FormControl>
+    </Pref>
+  );
+};
+
+const TimeFormat = () => {
+  const { t } = useTranslation();
+  const labelId = "prefTimeFormat";
+  const { timeFormat, dateFormat } = usePrefCache();
+  // ISO 8601 dates are always 24-hour, so the clock choice is fixed while it's selected. Disable the
+  // control and show 24-hour, but leave the stored pref untouched so it returns for other date formats.
+  const fixedTo24h = dateFormat === DATE_FORMAT.ISO8601;
+  const handleChange = async (ev) => {
+    await prefs.setTimeFormat(ev.target.value);
+    await maybeUpdateAccountSettings({ time_format: ev.target.value });
+  };
+
+  return (
+    <Pref labelId={labelId} title={t("prefs_appearance_time_format_title")}>
+      <FormControl fullWidth variant="standard" sx={{ m: 1 }}>
+        <Select value={fixedTo24h ? TIME_FORMAT.H24 : timeFormat} onChange={handleChange} disabled={fixedTo24h} aria-labelledby={labelId}>
+          <MenuItem value={TIME_FORMAT.SYSTEM}>
+            {t("prefs_system_default")}
+            <FormatExample>{formatTime(EXAMPLE_TIMESTAMP, TIME_FORMAT.SYSTEM)}</FormatExample>
+          </MenuItem>
+          <MenuItem value={TIME_FORMAT.H12}>
+            {t("prefs_appearance_time_format_12h")}
+            <FormatExample>{formatTime(EXAMPLE_TIMESTAMP, TIME_FORMAT.H12)}</FormatExample>
+          </MenuItem>
+          <MenuItem value={TIME_FORMAT.H24}>
+            {t("prefs_appearance_time_format_24h")}
+            <FormatExample>{formatTime(EXAMPLE_TIMESTAMP, TIME_FORMAT.H24)}</FormatExample>
+          </MenuItem>
         </Select>
       </FormControl>
     </Pref>
@@ -518,6 +608,8 @@ const Appearance = () => {
       </Typography>
       <PrefGroup>
         <Theme />
+        <DateFormat />
+        <TimeFormat />
         <Language />
       </PrefGroup>
     </Card>

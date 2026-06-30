@@ -395,7 +395,7 @@
     "prefs_notifications_web_push_enabled_description": "Las notificaciones se reciben incluso cuando la aplicación web no se está ejecutando (a través de Web Push)",
     "prefs_notifications_web_push_disabled": "Desactivado",
     "prefs_appearance_theme_title": "Tema",
-    "prefs_appearance_theme_system": "Sistema (por defecto)",
+    "prefs_system_default": "Sistema por defecto",
     "error_boundary_button_reload_ntfy": "Volver a cargar ntfy",
     "web_push_subscription_expiring_title": "Las notificaciones se pausarán",
     "prefs_notifications_web_push_disabled_description": "Las notificaciones se reciben cuando la aplicación web se está ejecutando (a través de WebSocket)",

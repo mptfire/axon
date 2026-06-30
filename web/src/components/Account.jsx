@@ -52,12 +52,13 @@ import ContentCopy from "@mui/icons-material/ContentCopy";
 import Public from "@mui/icons-material/Public";
 import AddIcon from "@mui/icons-material/Add";
 import routes from "./routes";
-import { copyToClipboard, formatBytes, formatShortDate, formatShortDateTime, formatShortDuration, openUrl } from "../app/utils";
+import { copyToClipboard, formatBytes, formatDate, formatDateTime, formatShortDuration, openUrl } from "../app/utils";
 import accountApi, { LimitBasis, Role, SubscriptionInterval, SubscriptionStatus } from "../app/AccountApi";
 import { Pref, PrefGroup } from "./Pref";
 import db from "../app/db";
 import UpgradeDialog from "./UpgradeDialog";
 import AccountContext from "./AccountContext";
+import { usePrefCache } from "./PrefCache";
 import DialogFooter from "./DialogFooter";
 import { Paragraph } from "./styles";
 import { EmailPrimaryElsewhereError, IncorrectPasswordError, UnauthorizedError } from "../app/errors";
@@ -242,7 +243,8 @@ const ChangePasswordDialog = (props) => {
 };
 
 const AccountType = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { dateFormat } = usePrefCache();
   const { account } = useContext(AccountContext);
   const [upgradeDialogKey, setUpgradeDialogKey] = useState(0);
   const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
@@ -304,7 +306,7 @@ const AccountType = () => {
         {account.billing?.paid_until && !account.billing?.cancel_at && (
           <Tooltip
             title={t("account_basics_tier_paid_until", {
-              date: formatShortDate(account.billing?.paid_until, i18n.language),
+              date: formatDate(account.billing?.paid_until, dateFormat),
             })}
           >
             <span>
@@ -349,7 +351,7 @@ const AccountType = () => {
       {account.billing?.cancel_at > 0 && (
         <Alert severity="warning" sx={{ mt: 1 }}>
           {t("account_basics_tier_canceled_subscription", {
-            date: formatShortDate(account.billing.cancel_at, i18n.language),
+            date: formatDate(account.billing.cancel_at, dateFormat),
           })}
         </Alert>
       )}
@@ -1076,7 +1078,8 @@ const Tokens = () => {
 };
 
 const TokensTable = (props) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { dateFormat, timeFormat } = usePrefCache();
   const [snackOpen, setSnackOpen] = useState(false);
   const [upsertDialogKey, setUpsertDialogKey] = useState(0);
   const [upsertDialogOpen, setUpsertDialogOpen] = useState(false);
@@ -1154,11 +1157,11 @@ const TokensTable = (props) => {
                 {token.token !== session.token() && (token.label || "-")}
               </TableCell>
               <TableCell sx={{ whiteSpace: "nowrap" }} aria-label={t("account_tokens_table_expires_header")}>
-                {token.expires ? formatShortDateTime(token.expires, i18n.language) : <em>{t("account_tokens_table_never_expires")}</em>}
+                {token.expires ? formatDateTime(token.expires, dateFormat, timeFormat) : <em>{t("account_tokens_table_never_expires")}</em>}
               </TableCell>
               <TableCell sx={{ whiteSpace: "nowrap" }} aria-label={t("account_tokens_table_last_access_header")}>
                 <div style={{ display: "flex", alignItems: "center" }}>
-                  {hasLastAccess ? <span>{formatShortDateTime(token.last_access, i18n.language)}</span> : <em>-</em>}
+                  {hasLastAccess ? <span>{formatDateTime(token.last_access, dateFormat, timeFormat)}</span> : <em>-</em>}
                   {hasLastOrigin && (
                     <Tooltip
                       title={t("account_tokens_table_last_origin_tooltip", {

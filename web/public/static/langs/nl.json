@@ -397,7 +397,7 @@
     "prefs_notifications_web_push_disabled": "Uitgezet",
     "prefs_notifications_web_push_enabled_description": "Notificaties worden ontvangen, ook als de webapplicatie niet geopend is (via Web Push)",
     "prefs_appearance_theme_title": "Thema",
-    "prefs_appearance_theme_system": "Systeem (standaard)",
+    "prefs_system_default": "Systeem standaard",
     "prefs_appearance_theme_dark": "Donkere modus",
     "prefs_appearance_theme_light": "Lichte modus",
     "error_boundary_button_reload_ntfy": "Herlaad ntfy",

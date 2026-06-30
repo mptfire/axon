@@ -395,7 +395,7 @@
     "prefs_notifications_web_push_enabled": "{{server}} için etkinleştirildi",
     "prefs_notifications_web_push_disabled": "Devre dışı",
     "prefs_appearance_theme_title": "Tema",
-    "prefs_appearance_theme_system": "Sistem (öntanımlı)",
+    "prefs_system_default": "Sistem öntanımlı",
     "prefs_appearance_theme_dark": "Koyu mod",
     "prefs_appearance_theme_light": "Açık mod",
     "error_boundary_button_reload_ntfy": "ntfy'yi yeniden yükle",

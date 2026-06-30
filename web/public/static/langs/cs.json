@@ -398,7 +398,7 @@
     "prefs_notifications_web_push_disabled_description": "Oznámení jsou přijímána, když je webová aplikace spuštěna (přes WebSocket)",
     "prefs_notifications_web_push_disabled": "Zakázáno",
     "prefs_appearance_theme_title": "Motiv",
-    "prefs_appearance_theme_system": "Systém (výchozí)",
+    "prefs_system_default": "Systém výchozí",
     "prefs_appearance_theme_dark": "Tmavý režim",
     "prefs_appearance_theme_light": "Světlý režim",
     "web_push_subscription_expiring_title": "Oznámení budou pozastavena",

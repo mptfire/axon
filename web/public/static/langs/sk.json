@@ -397,7 +397,7 @@
     "prefs_notifications_web_push_enabled": "Povolené pre {{server}}",
     "prefs_notifications_web_push_disabled": "Zakázané",
     "prefs_appearance_theme_title": "Téma",
-    "prefs_appearance_theme_system": "Systémové (predvolené)",
+    "prefs_system_default": "Systémové predvolené",
     "prefs_appearance_theme_dark": "Tmavý režim",
     "prefs_appearance_theme_light": "Svetlý režim",
     "error_boundary_button_reload_ntfy": "Obnoviť ntfy",

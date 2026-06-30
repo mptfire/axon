@@ -32,6 +32,8 @@ export const PrefCacheProvider = ({ children }) => {
     minPriority: await prefs.minPriority(),
     deleteAfter: await prefs.deleteAfter(),
     theme: await prefs.theme(),
+    dateFormat: await prefs.dateFormat(),
+    timeFormat: await prefs.timeFormat(),
     webPushEnabled: await prefs.webPushEnabled(),
   }));
 

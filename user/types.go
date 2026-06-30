@@ -97,6 +97,8 @@ type MagicLink struct {
 // Prefs represents a user's configuration settings
 type Prefs struct {
 	Language      *string            `json:"language,omitempty"`
+	DateFormat    *string            `json:"date_format,omitempty"`
+	TimeFormat    *string            `json:"time_format,omitempty"`
 	Notification  *NotificationPrefs `json:"notification,omitempty"`
 	Subscriptions []*Subscription    `json:"subscriptions,omitempty"`
 }

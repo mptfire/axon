@@ -23,16 +23,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import InfiniteScroll from "react-infinite-scroll-component";
 import { Trans, useTranslation } from "react-i18next";
 import { useOutletContext } from "react-router-dom";
-import {
-  copyToClipboard,
-  formatBytes,
-  formatShortDateTime,
-  maybeActionErrors,
-  openUrl,
-  shortUrl,
-  topicUrl,
-  unmatchedTags,
-} from "../app/utils";
+import { copyToClipboard, formatBytes, formatDateTime, maybeActionErrors, openUrl, shortUrl, topicUrl, unmatchedTags } from "../app/utils";
 import { ACTION_BROADCAST, ACTION_COPY, ACTION_HTTP, ACTION_VIEW } from "../app/actions";
 import { formatMessage, formatTitle, isImage } from "../app/notificationUtils";
 import { LightboxBackdrop, Paragraph, VerticallyCenteredContainer } from "./styles";
@@ -45,6 +36,7 @@ import priority5 from "../img/priority-5.svg";
 import logoOutline from "../img/ntfy-outline.svg";
 import AttachmentIcon from "./AttachmentIcon";
 import { useAutoSubscribe } from "./hooks";
+import { usePrefCache } from "./PrefCache";
 
 const priorityFiles = {
   1: priority1,
@@ -186,10 +178,11 @@ const NotificationBody = ({ notification }) => {
 };
 
 const NotificationItem = (props) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { dateFormat, timeFormat } = usePrefCache();
   const { notification } = props;
   const { attachment } = notification;
-  const date = formatShortDateTime(notification.time, i18n.language);
+  const date = formatDateTime(notification.time, dateFormat, timeFormat);
   const otherTags = unmatchedTags(notification.tags);
   const tags = otherTags.length > 0 ? otherTags.join(", ") : null;
   const handleDelete = async () => {
@@ -305,7 +298,8 @@ const NotificationItem = (props) => {
 };
 
 const Attachment = (props) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
+  const { dateFormat, timeFormat } = usePrefCache();
   const { attachment } = props;
   const expired = attachment.expires && attachment.expires < Date.now() / 1000;
   const expires = attachment.expires && attachment.expires > Date.now() / 1000;
@@ -324,7 +318,7 @@ const Attachment = (props) => {
   if (expires) {
     infos.push(
       t("notifications_attachment_link_expires", {
-        date: formatShortDateTime(attachment.expires, i18n.language),
+        date: formatDateTime(attachment.expires, dateFormat, timeFormat),
       })
     );
   }
