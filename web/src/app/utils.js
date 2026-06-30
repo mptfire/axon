@@ -203,7 +203,8 @@ export const formatTime = (timestamp, timeFormat = TIME_FORMAT.SYSTEM) =>
 export const formatDateTime = (timestamp, dateFormat = DATE_FORMAT.SYSTEM, timeFormat = TIME_FORMAT.SYSTEM) => {
   if (dateFormat === DATE_FORMAT.ISO8601) {
     return formatDateTimeIso(new Date(timestamp * 1000));
-  } else if ([DATE_FORMAT.DMY, DATE_FORMAT.DMY_DOT, DATE_FORMAT.MDY].includes(dateFormat)) {
+  }
+  if ([DATE_FORMAT.DMY, DATE_FORMAT.DMY_DOT, DATE_FORMAT.MDY].includes(dateFormat)) {
     return `${formatDate(timestamp, dateFormat)} ${formatTime(timestamp, timeFormat)}`;
   }
   return new Intl.DateTimeFormat(undefined, {
