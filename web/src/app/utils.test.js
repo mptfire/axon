@@ -241,9 +241,11 @@ describe("sanitizeUrl", () => {
   });
 
   it("strips dangerous protocols", () => {
+    /* eslint-disable no-script-url -- these javascript: literals are exactly what we're testing */
     expect(sanitizeUrl("javascript:alert(document.domain)")).toBe("");
     expect(sanitizeUrl("JavaScript:alert(1)")).toBe("");
     expect(sanitizeUrl("  javascript:alert(1)")).toBe("");
+    /* eslint-enable no-script-url */
     expect(sanitizeUrl("vbscript:msgbox(1)")).toBe("");
     expect(sanitizeUrl("data:text/html,<script>alert(1)</script>")).toBe("");
   });
