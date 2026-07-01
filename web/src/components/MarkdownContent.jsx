@@ -2,6 +2,18 @@ import * as React from "react";
 import { useEffect } from "react";
 import { useRemark } from "react-remark";
 import styled from "@emotion/styled";
+import { sanitizeUrl } from "../app/utils";
+
+// Strip unsafe URL protocols (javascript:, data:, ...) from links and images. Without
+// this, React blocks javascript: URLs at render time and throws an uncaught "React has
+// blocked a javascript: URL" error.
+const SafeLink = ({ href, children, ...props }) => (
+  <a href={sanitizeUrl(href)} {...props}>
+    {children}
+  </a>
+);
+
+const SafeImage = ({ src, alt, ...props }) => <img src={sanitizeUrl(src)} alt={alt} {...props} />;
 
 const MarkdownContainer = styled("div")`
   line-height: 1;
@@ -50,7 +62,9 @@ const MarkdownContainer = styled("div")`
 // dependency stack) is heavy, so this component lives in its own module and is loaded
 // lazily by Notifications.jsx -- it only ships when a markdown message is actually shown.
 const MarkdownContent = ({ content }) => {
-  const [reactContent, setMarkdownSource] = useRemark();
+  const [reactContent, setMarkdownSource] = useRemark({
+    rehypeReactOptions: { components: { a: SafeLink, img: SafeImage } },
+  });
 
   useEffect(() => {
     setMarkdownSource(content);

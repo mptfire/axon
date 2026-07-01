@@ -1994,6 +1994,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 * Web app: Smooth transitions and loading animation, remove flickering
 * Web app: `GET /account` now reads from the primary database instead of a read replica, so the account view no longer shows stale data right after a change when replicas lag behind
 * Docs: Document the third-party HelmForge Helm chart as a Kubernetes installation option ([#1727](https://github.com/binwiederhier/ntfy/issues/1727), thanks to [@mberlofa](https://github.com/mberlofa))
+* Web app: Strip unsafe URL protocols (`javascript:`, `data:`, ...) from links and images in Markdown-rendered messages, so they no longer trigger an uncaught "React has blocked a javascript: URL" error (thanks to [@jvoisin](https://github.com/jvoisin) for reporting)
 
 ### ntfy Android v1.25.x (UNRELEASED)
 

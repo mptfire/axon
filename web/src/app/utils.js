@@ -444,6 +444,17 @@ export const updateFavicon = async (count) => {
   }
 };
 
+// Matches a URL whose scheme is NOT in the safe list (https, mailto, ...). A scheme
+// (RFC 3986: [a-z][a-z0-9+.-]*) can't contain a slash, query, or hash, so a colon later
+// in the path/query (e.g. foo?x=a:b) is never mistaken for a protocol separator. Relative
+// URLs have no scheme and never match. This strips javascript:/data:/vbscript:/... so React
+// never has to block a javascript: URL at render time -- which it does loudly, throwing an
+// uncaught error.
+const unsafeUrlProtocol = /^\s*(?!(?:https?|ftps?|ircs?|mailto|xmpp|tel):)[a-z][a-z0-9+.-]*:/i;
+
+// Returns the URL unchanged if it uses a safe protocol or is relative, otherwise "".
+export const sanitizeUrl = (url) => (url && unsafeUrlProtocol.test(url) ? "" : url || "");
+
 export const copyToClipboard = (text) => {
   if (navigator.clipboard && window.isSecureContext) {
     return navigator.clipboard.writeText(text);

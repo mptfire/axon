@@ -19,6 +19,7 @@ import {
   withBearerAuth,
   maybeWithAuth,
   splitNoEmpty,
+  sanitizeUrl,
   hashCode,
   formatBytes,
   formatNumber,
@@ -214,5 +215,42 @@ describe("date/time formatting", () => {
 
   it("ISO 8601 is always 24-hour regardless of the time format", () => {
     expect(formatDateTime(ts, DATE_FORMAT.ISO8601, TIME_FORMAT.H12)).toBe("2026-03-08 14:30");
+  });
+});
+
+describe("sanitizeUrl", () => {
+  it("keeps safe absolute URLs", () => {
+    expect(sanitizeUrl("https://ntfy.sh")).toBe("https://ntfy.sh");
+    expect(sanitizeUrl("http://example.com/foo?bar=1")).toBe("http://example.com/foo?bar=1");
+    expect(sanitizeUrl("mailto:phil@ntfy.sh")).toBe("mailto:phil@ntfy.sh");
+    expect(sanitizeUrl("ftp://ftp.example.com/file.txt")).toBe("ftp://ftp.example.com/file.txt");
+    expect(sanitizeUrl("ftps://ftp.example.com/file.txt")).toBe("ftps://ftp.example.com/file.txt");
+  });
+
+  it("keeps relative URLs, fragments and query strings", () => {
+    expect(sanitizeUrl("/docs")).toBe("/docs");
+    expect(sanitizeUrl("./foo")).toBe("./foo");
+    expect(sanitizeUrl("#section")).toBe("#section");
+    expect(sanitizeUrl("?q=1")).toBe("?q=1");
+    expect(sanitizeUrl("foo/bar")).toBe("foo/bar");
+  });
+
+  it("does not treat a colon after a slash/query/hash as a protocol", () => {
+    expect(sanitizeUrl("/path:with:colons")).toBe("/path:with:colons");
+    expect(sanitizeUrl("foo?x=a:b")).toBe("foo?x=a:b");
+  });
+
+  it("strips dangerous protocols", () => {
+    expect(sanitizeUrl("javascript:alert(document.domain)")).toBe("");
+    expect(sanitizeUrl("JavaScript:alert(1)")).toBe("");
+    expect(sanitizeUrl("  javascript:alert(1)")).toBe("");
+    expect(sanitizeUrl("vbscript:msgbox(1)")).toBe("");
+    expect(sanitizeUrl("data:text/html,<script>alert(1)</script>")).toBe("");
+  });
+
+  it("handles empty and nullish input", () => {
+    expect(sanitizeUrl("")).toBe("");
+    expect(sanitizeUrl(undefined)).toBe("");
+    expect(sanitizeUrl(null)).toBe("");
   });
 });
