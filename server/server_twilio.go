@@ -67,11 +67,6 @@ func (s *Server) convertPhoneNumber(u *user.User, phoneNumber string) (string, *
 	} else if util.Contains(phoneNumbers, phoneNumber) {
 		return phoneNumber, nil
 	}
-	for _, p := range phoneNumbers {
-		if p == phoneNumber {
-			return phoneNumber, nil
-		}
-	}
 	return "", errHTTPBadRequestPhoneNumberNotVerified
 }
 
