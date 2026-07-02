@@ -1996,6 +1996,13 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 * Docs: Document the third-party HelmForge Helm chart as a Kubernetes installation option ([#1727](https://github.com/binwiederhier/ntfy/issues/1727), thanks to [@mberlofa](https://github.com/mberlofa))
 * Web app: Strip unsafe URL protocols (`javascript:`, `data:`, ...) from links and images in Markdown-rendered messages, so they no longer trigger an uncaught "React has blocked a javascript: URL" error (thanks to [@jvoisin](https://github.com/jvoisin) for reporting)
 
+### ntfy Android v1.25.1 (UNRELEASED)
+
+**Bug fixes + maintenance:**
+
+* Fix instant delivery not resuming after the network returns on Android 12+: the app now keeps the foreground service alive and shows a "Waiting for network" state while offline, instead of stopping the service and failing to restart it ([#1709](https://github.com/binwiederhier/ntfy/issues/1709), thanks to [@isaitgirl](https://github.com/isaitgirl) for reporting)
+* Fix the "connection lost" alert repeatedly waking the screen while a server stayed unreachable, by no longer re-posting the alert once it is already showing
+
 ### ntfy Android v1.25.x (UNRELEASED)
 
 This release makes the "connection lost" alert configurable and turns it off by default. Folks did not like it and many reached out
