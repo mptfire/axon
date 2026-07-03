@@ -2002,6 +2002,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 * Fix instant delivery not resuming after the network returns on Android 12+: the app now keeps the foreground service alive and shows a "Waiting for network" state while offline, instead of stopping the service and failing to restart it ([#1709](https://github.com/binwiederhier/ntfy/issues/1709), thanks to [@isaitgirl](https://github.com/isaitgirl) for reporting)
 * Fix the "connection lost" alert repeatedly waking the screen while a server stayed unreachable, by no longer re-posting the alert once it is already showing
+* Fix the "connection lost" alert firing late, erratically, or not at all when a connection kept dropping (e.g. a flaky server) rather than being refused outright, by tracking how long the connection has been down independently of whether the drop warrants a UI error
 
 ### ntfy Android v1.25.x (UNRELEASED)
 
