@@ -3,6 +3,7 @@ package server
 import (
 	"net/http"
 
+	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 )
 
@@ -137,5 +138,33 @@ func (s *Server) withAccountSync(next handleFunc) handleFunc {
 			s.publishSyncEventAsync(v)
 		}
 		return err
+	}
+}
+
+func (s *Server) authorizeTopicWrite(next handleFunc) handleFunc {
+	return s.authorizeTopic(next, user.PermissionWrite)
+}
+
+func (s *Server) authorizeTopicRead(next handleFunc) handleFunc {
+	return s.authorizeTopic(next, user.PermissionRead)
+}
+
+func (s *Server) authorizeTopic(next handleFunc, perm user.Permission) handleFunc {
+	return func(w http.ResponseWriter, r *http.Request, v *visitor) error {
+		if s.userManager == nil {
+			return next(w, r, v)
+		}
+		topics, _, err := s.topicsFromPath(v, r.URL.Path)
+		if err != nil {
+			return err
+		}
+		u := v.User()
+		for _, t := range topics {
+			if err := s.userManager.Authorize(u, t.ID, perm); err != nil {
+				logvr(v, r).With(t).Err(err).Debug("Access to topic %s not authorized", t.ID)
+				return errHTTPForbidden.With(t)
+			}
+		}
+		return next(w, r, v)
 	}
 }
