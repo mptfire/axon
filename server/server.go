@@ -58,6 +58,7 @@ type Server struct {
 	topics            map[string]*topic
 	visitors          map[string]*visitor // ip:<ip> or user:<user>
 	firebaseClient    *firebaseClient
+	twilio            *twilioClient
 	messages          int64                               // Total number of messages (persisted if messageCache enabled)
 	messagesHistory   []int64                             // Last n values of the messages counter, used to determine rate
 	userManager       *user.Manager                       // Might be nil!
@@ -295,6 +296,7 @@ func New(conf *Config) (*Server, error) {
 		webPush:         wp,
 		attachment:      attachmentStore,
 		firebaseClient:  firebaseClient,
+		twilio:          newTwilioClient(conf, userManager),
 		mailer:          sender,
 		topics:          topics,
 		userManager:     userManager,
@@ -838,7 +840,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 	}
 	if call != "" {
 		var httpErr *errHTTP
-		call, httpErr = s.convertPhoneNumber(v.User(), call)
+		call, httpErr = s.twilio.convertPhoneNumber(v.User(), call)
 		if httpErr != nil {
 			return nil, httpErr.With(t)
 		} else if !vrate.CallAllowed() {
@@ -887,7 +889,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 			go s.sendEmail(v, m, email)
 		}
 		if s.config.TwilioAccount != "" && call != "" {
-			go s.callPhone(v, r, m, call)
+			go s.twilio.callPhone(v, r, m, call)
 		}
 		if s.config.UpstreamBaseURL != "" && !unifiedpush { // UP messages are not sent to upstream
 			go s.forwardPollRequest(v, m)
