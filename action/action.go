@@ -1,4 +1,6 @@
-package server
+// Package action parses the "action buttons" that can be attached to a notification, in both the
+// JSON and the human-readable "simple" format described at https://ntfy.sh/docs/publish/#action-buttons.
+package action
 
 import (
 	"encoding/json"
@@ -37,10 +39,10 @@ type actionParser struct {
 	pos   int
 }
 
-// parseActions parses the actions string as described in https://ntfy.sh/docs/publish/#action-buttons.
+// Parse parses the actions string as described in https://ntfy.sh/docs/publish/#action-buttons.
 // It supports both a JSON representation (if the string begins with "[", see parseActionsFromJSON),
 // and the "simple" format, which is more human-readable, but harder to parse (see parseActionsFromSimple).
-func parseActions(s string) (actions []*model.Action, err error) {
+func Parse(s string) (actions []*model.Action, err error) {
 	// Parse JSON or simple format
 	s = strings.TrimSpace(s)
 	if strings.HasPrefix(s, "[") {

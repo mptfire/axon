@@ -29,6 +29,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
+	"heckel.io/ntfy/v2/action"
 	"heckel.io/ntfy/v2/attachment"
 	"heckel.io/ntfy/v2/db"
 	"heckel.io/ntfy/v2/db/pg"
@@ -1195,7 +1196,7 @@ func (s *Server) parsePublishParams(r *http.Request, m *model.Message) (cache bo
 	}
 	actionsStr := readParam(r, "x-actions", "actions", "action")
 	if actionsStr != "" {
-		m.Actions, e = parseActions(actionsStr)
+		m.Actions, e = action.Parse(actionsStr)
 		if e != nil {
 			return false, false, "", "", "", false, "", errHTTPBadRequestActionsInvalid.Wrap("%s", e.Error())
 		}
