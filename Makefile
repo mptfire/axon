@@ -92,7 +92,7 @@ clean: FORCE
 
 build: web docs cli
 
-update: web-deps-update cli-deps-update docs-deps-update
+update: web-deps-update cli-deps-update docs-deps-update go-check
 	docker pull alpine
 
 docker-dev:
@@ -273,9 +273,9 @@ cli-build-results:
 
 # Test/check targets
 
-check: test web-fmt-check fmt-check vet web-lint lint staticcheck
+check: test web-fmt-check fmt-check vet web-lint lint staticcheck template-check go-check
 
-checkv: testv web-fmt-check fmt-check vet web-lint lint staticcheck
+checkv: testv web-fmt-check fmt-check vet web-lint lint staticcheck template-check go-check
 
 test: cli-test web-test
 
@@ -317,15 +317,71 @@ vet:
 
 lint:
 	which golint || go install golang.org/x/lint/golint@latest
-	go list ./... | grep -v /vendor/ | xargs -L1 golint -set_exit_status
+	go list ./... | grep -v /vendor/ | grep -vE 'ntfy/v2/template/gotext' | xargs -L1 golint -set_exit_status
 
 staticcheck: FORCE
 	rm -rf build/staticcheck
 	which staticcheck || go install honnef.co/go/tools/cmd/staticcheck@latest
 	mkdir -p build/staticcheck
 	ln -s "go" build/staticcheck/go
-	PATH="$(PWD)/build/staticcheck:$(PATH)" staticcheck ./...
+	PATH="$(PWD)/build/staticcheck:$(PATH)" staticcheck $$(go list ./... | grep -vE 'ntfy/v2/template/gotext')
 	rm -rf build/staticcheck
+
+
+# Vendored template targets (see template/README.md)
+
+TEMPLATE_GO_VERSION := go$(shell cat .go-version 2>/dev/null)
+
+update-template:
+	@if [ "$$(go env GOVERSION)" != "$(TEMPLATE_GO_VERSION)" ]; then \
+		echo "ERROR: local Go $$(go env GOVERSION) != $(TEMPLATE_GO_VERSION) pinned in .go-version."; \
+		echo "Bump .go-version and install that toolchain first: go install golang.org/dl/$(TEMPLATE_GO_VERSION)@latest && $(TEMPLATE_GO_VERSION) download"; \
+		exit 1; \
+	fi
+	src="$$(go env GOROOT)/src"; \
+	rm -f template/gotext/*.go template/gotext/fmtsort/*.go; \
+	for f in $$(go list -f '{{range .GoFiles}}{{.}} {{end}}' text/template); do cp "$$src/text/template/$$f" template/gotext/; done; \
+	for f in $$(go list -f '{{range .GoFiles}}{{.}} {{end}}' internal/fmtsort); do cp "$$src/internal/fmtsort/$$f" template/gotext/fmtsort/; done; \
+	sed -i 's/^package template$$/package gotext/' template/gotext/*.go; \
+	sed -i 's#"internal/fmtsort"#"heckel.io/ntfy/v2/template/gotext/fmtsort"#' template/gotext/*.go; \
+	( cd template/gotext && for p in patches/*.patch; do echo "Applying $$p"; git apply "$$p" || exit 1; done )
+	go env GOVERSION > template/gotext/GENERATED_FROM
+	@echo "Regenerated template/gotext/ from $(TEMPLATE_GO_VERSION) (files enumerated via 'go list'); review with 'git diff'."
+
+template-check: FORCE
+	@if [ "$$(cat template/gotext/GENERATED_FROM)" != "$(TEMPLATE_GO_VERSION)" ]; then \
+		echo "ERROR: template/gotext was generated from $$(cat template/gotext/GENERATED_FROM), but .go-version pins $(TEMPLATE_GO_VERSION). Run 'make update-template' on the pinned Go."; \
+		exit 1; \
+	fi
+	@if [ "$$(go env GOVERSION)" != "$(TEMPLATE_GO_VERSION)" ]; then \
+		echo "SKIP: local Go $$(go env GOVERSION) != pinned $(TEMPLATE_GO_VERSION); skipping vendored template content check (version marker already verified)."; \
+		exit 0; \
+	fi
+	@tmp=$$(mktemp -d); src="$$(go env GOROOT)/src"; \
+	mkdir -p "$$tmp/gotext/fmtsort"; \
+	for f in $$(go list -f '{{range .GoFiles}}{{.}} {{end}}' text/template); do cp "$$src/text/template/$$f" "$$tmp/gotext/"; done; \
+	for f in $$(go list -f '{{range .GoFiles}}{{.}} {{end}}' internal/fmtsort); do cp "$$src/internal/fmtsort/$$f" "$$tmp/gotext/fmtsort/"; done; \
+	sed -i 's/^package template$$/package gotext/' "$$tmp/gotext/"*.go; \
+	sed -i 's#"internal/fmtsort"#"heckel.io/ntfy/v2/template/gotext/fmtsort"#' "$$tmp/gotext/"*.go; \
+	cp template/gotext/patches/*.patch "$$tmp/"; \
+	( cd "$$tmp/gotext" && for p in "$$tmp"/*.patch; do git apply "$$p" || exit 1; done ); \
+	if diff -rq -x 'README.md' -x 'GENERATED_FROM' -x 'patches' "$$tmp/gotext" template/gotext >/dev/null 2>&1; then \
+		rm -rf "$$tmp"; \
+	else \
+		echo "ERROR: template/gotext/ drifted from GOROOT+patches (or its file set changed). Run 'make update-template' on Go $(TEMPLATE_GO_VERSION):"; \
+		diff -rq -x 'README.md' -x 'GENERATED_FROM' -x 'patches' "$$tmp/gotext" template/gotext; \
+		rm -rf "$$tmp"; exit 1; \
+	fi
+
+# go-check is advisory only (never fails): it warns when the pinned Go (.go-version) is behind the
+# latest upstream release, so template/gotext doesn't silently fall behind on text/template fixes.
+go-check: FORCE
+	@latest=$$(curl -s --max-time 10 'https://go.dev/VERSION?m=text' 2>/dev/null | head -1); \
+	if [ -n "$$latest" ] && [ "$$latest" != "$(TEMPLATE_GO_VERSION)" ]; then \
+		echo ""; \
+		echo "note: latest Go is $$latest, but template/gotext is pinned to $(TEMPLATE_GO_VERSION) (.go-version)."; \
+		echo "      to bump: install $$latest, set .go-version to $${latest#go}, then run 'make update-template'."; \
+	fi
 
 
 # Releasing targets
@@ -338,6 +394,10 @@ release-snapshot: clean cli-deps docs web check
 
 release-checks:
 	$(eval LATEST_TAG := $(shell git describe --abbrev=0 --tags | cut -c2-))
+	if [ "$$(go env GOVERSION)" != "go$$(cat .go-version)" ]; then\
+		echo "ERROR: releases must use the pinned Go toolchain (go$$(cat .go-version) from .go-version), but this is $$(go env GOVERSION). This also ensures 'make check' enforces (not skips) the template/gotext drift check.";\
+		exit 1;\
+	fi
 	if ! grep -q $(LATEST_TAG) docs/install.md; then\
 	 	echo "ERROR: Must update docs/install.md with latest tag first.";\
 	 	exit 1;\

@@ -3635,6 +3635,151 @@ func TestServer_MessageTemplate_Range(t *testing.T) {
 	})
 }
 
+func TestServer_MessageTemplate_ExecutionTimeout(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+		// Nested range over a 1000-element JSON field with a no-output body: no Write ever happens,
+		// so the write-triggered TimeoutWriter never fires. Must be bounded by the executor's
+		// wall-clock deadline instead (GHSA-rhwf-xgc9-m9fp).
+		elems := make([]string, 1000)
+		for i := range elems {
+			elems[i] = "0"
+		}
+		jsonBody := `{"a":[` + strings.Join(elems, ",") + `]}`
+		msg := `{{range .a}}{{range $.a}}` + strings.Repeat(`{{$x := .}}`, 100) + `{{end}}{{end}}done`
+		start := time.Now()
+		response := request(t, s, "POST", "/mytopic", jsonBody, map[string]string{
+			"X-Message":  msg,
+			"X-Template": "1",
+		})
+		elapsed := time.Since(start)
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, 40055, toHTTPError(t, response.Body.String()).Code)
+		require.Less(t, elapsed, 500*time.Millisecond, "template must be interrupted by the deadline, not run to completion (took %s)", elapsed)
+	})
+}
+
+// TestServer_MessageTemplate_DataDrivenNestedRange_TimesOut is the regression for the exact hole the
+// old write-triggered TimeoutWriter missed: a nested {{range}} over a JSON array field with a
+// no-output body calls no function, so only the executor's wall-clock deadline can stop it
+// (GHSA-rhwf-xgc9-m9fp).
+func TestServer_MessageTemplate_DataDrivenNestedRange_TimesOut(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+		elems := make([]string, 1000)
+		for i := range elems {
+			elems[i] = "0"
+		}
+		jsonBody := `{"a":[` + strings.Join(elems, ",") + `]}`
+		msg := `{{range .a}}{{range $.a}}{{range $.a}}{{$x := .}}{{end}}{{end}}{{end}}done`
+		start := time.Now()
+		response := request(t, s, "POST", "/mytopic", jsonBody, map[string]string{
+			"X-Message":  msg,
+			"X-Template": "1",
+		})
+		elapsed := time.Since(start)
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, 40055, toHTTPError(t, response.Body.String()).Code)
+		require.Less(t, elapsed, 500*time.Millisecond, "data-driven nested range should be cut off by the deadline (took %s)", elapsed)
+	})
+}
+
+// TestServer_MessageTemplate_ExpensiveFunctionLoop_TimesOut ensures the deadline also bounds loops
+// whose body calls an expensive function (hashing a large string), where a single call between
+// deadline checks could otherwise overshoot (GHSA-rhwf-xgc9-m9fp).
+func TestServer_MessageTemplate_ExpensiveFunctionLoop_TimesOut(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+		msg := `{{$big := repeat 990 "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"}}{{range until 1000}}{{range until 1000}}{{$h := sha512sum $big}}{{end}}{{end}}`
+		start := time.Now()
+		response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
+			"X-Message":  msg,
+			"X-Template": "1",
+		})
+		elapsed := time.Since(start)
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, 40055, toHTTPError(t, response.Body.String()).Code)
+		require.Less(t, elapsed, 1500*time.Millisecond, "expensive-function loop should be cut off by the deadline (took %s)", elapsed)
+	})
+}
+
+// TestServer_MessageTemplate_NestedLoopPoC_TimesOut is the exact proof-of-concept from the advisory:
+// a range over a runtime-computed slice, nested, must be bounded by the deadline (GHSA-rhwf-xgc9-m9fp).
+func TestServer_MessageTemplate_NestedLoopPoC_TimesOut(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+		start := time.Now()
+		response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
+			"X-Message":  `{{$x := until 10000}}{{range $x}}{{range $x}}{{end}}{{end}}done`,
+			"X-Template": "1",
+		})
+		elapsed := time.Since(start)
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, 40055, toHTTPError(t, response.Body.String()).Code)
+		require.Less(t, elapsed, 500*time.Millisecond, "advisory PoC should be cut off by the deadline (took %s)", elapsed)
+	})
+}
+
+func TestServer_MessageTemplate_GenuineError_NotTimeout(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+		// A real runtime error (len of an int) must map to execute-failed, not the timeout code.
+		response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
+			"X-Message":  `{{ len 5 }}`,
+			"X-Template": "1",
+		})
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, 40045, toHTTPError(t, response.Body.String()).Code)
+	})
+}
+
+// slowBody delivers its data after a delay, simulating a slow client upload of the request body.
+type slowBody struct {
+	data  []byte
+	delay time.Duration
+	done  bool
+}
+
+func (b *slowBody) Read(p []byte) (int, error) {
+	if b.done {
+		return 0, io.EOF
+	}
+	time.Sleep(b.delay)
+	n := copy(p, b.data)
+	b.done = true
+	return n, nil
+}
+
+func (b *slowBody) Close() error { return nil }
+
+// TestServer_MessageTemplate_SlowUpload_NotCountedAgainstDeadline verifies that a slow request-body
+// upload does not consume the template execution deadline: the body is fully read (util.Peek)
+// before the deadline starts, so a trivial template still renders even when the upload alone took
+// longer than the deadline (GHSA-rhwf-xgc9-m9fp).
+func TestServer_MessageTemplate_SlowUpload_NotCountedAgainstDeadline(t *testing.T) {
+	s := newTestServer(t, newTestConfig(t, ""))
+	start := time.Now()
+	// The loop makes the template execute enough nodes (>256) to actually hit the deadline check,
+	// so this test distinguishes correct behavior from a deadline that includes upload time -- yet
+	// it runs in ~1ms, far under the deadline, so on correct code it renders fine.
+	response := request(t, s, "POST", "/mytopic", `{"foo":"bar"}`, map[string]string{
+		"Template":  "yes",
+		"X-Message": `{{range until 5000}}{{$x := .}}{{end}}hello {{.foo}}`,
+	}, func(r *http.Request) {
+		r.Body = &slowBody{data: []byte(`{"foo":"bar"}`), delay: 3 * templateMaxExecutionTime}
+	})
+	elapsed := time.Since(start)
+	require.Greater(t, elapsed, templateMaxExecutionTime, "the slow upload must outlast the exec deadline for this test to be meaningful")
+	require.Equal(t, 200, response.Code) // Would be 40055 if upload time counted against the deadline
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, "hello bar", m.Message)
+}
+
 func TestServer_MessageTemplate_ExceedMessageSize_TemplatedMessageOK(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
@@ -3729,11 +3874,18 @@ func TestServer_MessageTemplate_DisallowedCalls(t *testing.T) {
 			`{{- template ""}}`,
 			`{{-
 template ""}}`,
-			`{{      call abc}}`,
-			`{{      define "aa"}}`,
-			`We cannot {{define "aa"}}`,
+			`{{ call "aa"}}`,
+			`{{define "aa"}}hi{{end}}`,
+			`We cannot {{define "aa"}}hi{{end}}`,
 			`We cannot {{ call "aa"}}`,
 			`We cannot {{- template "aa"}}`,
+			`{{block "aa" .}}hi{{end}}`,
+			`We cannot {{- block "aa" .}}hi{{end}}`,
+			// call is a function, not a keyword, so it can hide in non-leading positions that a
+			// raw-string regex misses -- the parse-tree walk catches all of them.
+			`{{if call .x}}x{{end}}`,
+			`{{$y := call .x}}`,
+			`{{index (call .x) 0}}`,
 		}
 		for _, disallowedTemplate := range disallowedTemplates {
 			messageTemplate := disallowedTemplate

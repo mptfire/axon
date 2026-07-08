@@ -1,0 +1,113 @@
+diff -ruN a/exec.go b/exec.go
+--- a/exec.go	2026-07-08 21:46:30.952555712 +0200
++++ b/exec.go	2026-07-08 21:46:30.953912265 +0200
+@@ -7,12 +7,14 @@
+ import (
+ 	"errors"
+ 	"fmt"
+-	"heckel.io/ntfy/v2/template/gotext/fmtsort"
+ 	"io"
+ 	"reflect"
+ 	"runtime"
+ 	"strings"
+ 	"text/template/parse"
++	"time"
++
++	"heckel.io/ntfy/v2/template/gotext/fmtsort"
+ )
+ 
+ // maxExecDepth specifies the maximum stack depth of templates within
+@@ -32,11 +34,13 @@
+ // template so that multiple executions of the same template
+ // can execute in parallel.
+ type state struct {
+-	tmpl  *Template
+-	wr    io.Writer
+-	node  parse.Node // current node, for errors
+-	vars  []variable // push-down stack of variable values.
+-	depth int        // the height of the stack of executing templates.
++	tmpl     *Template
++	wr       io.Writer
++	node     parse.Node // current node, for errors
++	vars     []variable // push-down stack of variable values.
++	depth    int        // the height of the stack of executing templates.
++	deadline time.Time  // ntfy: wall-clock bail-out; zero means no limit
++	steps    int64      // ntfy: node counter for amortized deadline checks
+ }
+ 
+ // variable holds the dynamic value of a variable such as $, $x etc.
+@@ -131,6 +135,10 @@
+ 	return e.Err
+ }
+ 
++// ErrExecutionInterrupted is wrapped into the error returned by Execute when a template exceeds the
++// deadline set via Template.SetExecutionDeadline. Detect it with errors.Is. (ntfy addition)
++var ErrExecutionInterrupted = errors.New("template execution interrupted")
++
+ // errorf records an ExecError and terminates processing.
+ func (s *state) errorf(format string, args ...any) {
+ 	name := doublePercent(s.tmpl.Name())
+@@ -214,9 +222,10 @@
+ 		value = reflect.ValueOf(data)
+ 	}
+ 	state := &state{
+-		tmpl: t,
+-		wr:   wr,
+-		vars: []variable{{"$", value}},
++		tmpl:     t,
++		wr:       wr,
++		vars:     []variable{{"$", value}},
++		deadline: t.deadline, // ntfy: wall-clock execution bail-out
+ 	}
+ 	if t.Tree == nil || t.Root == nil {
+ 		state.errorf("%q is an incomplete or empty template", t.Name())
+@@ -260,6 +269,11 @@
+ // generating output as they go.
+ func (s *state) walk(dot reflect.Value, node parse.Node) {
+ 	s.at(node)
++	// ntfy: amortized wall-clock bail-out to prevent CPU DoS from user-supplied templates
++	// (tight/nested ranges that never write output). See GHSA-rhwf-xgc9-m9fp.
++	if s.steps++; s.steps&0xff == 0 && !s.deadline.IsZero() && time.Now().After(s.deadline) {
++		s.errorf("execution interrupted: %w", ErrExecutionInterrupted)
++	}
+ 	switch node := node.(type) {
+ 	case *parse.ActionNode:
+ 		// Do not pop variables so they persist until next end.
+diff -ruN a/template.go b/template.go
+--- a/template.go	2026-07-08 21:46:30.952848382 +0200
++++ b/template.go	2026-07-08 21:46:30.953952891 +0200
+@@ -9,13 +9,15 @@
+ 	"reflect"
+ 	"sync"
+ 	"text/template/parse"
++	"time"
+ )
+ 
+ // common holds the information shared by related templates.
+ type common struct {
+-	tmpl   map[string]*Template // Map from name to defined templates.
+-	muTmpl sync.RWMutex         // protects tmpl
+-	option option
++	tmpl     map[string]*Template // Map from name to defined templates.
++	muTmpl   sync.RWMutex         // protects tmpl
++	option   option
++	deadline time.Time // ntfy: wall-clock execution deadline (zero = none)
+ 	// We use two maps, one for parsing and one for execution.
+ 	// This separation makes the API cleaner since it doesn't
+ 	// expose reflection to the client.
+@@ -49,6 +51,15 @@
+ 	return t.name
+ }
+ 
++// SetExecutionDeadline sets a wall-clock deadline after which Execute aborts with an error wrapping
++// ErrExecutionInterrupted. A zero deadline disables the limit. It bounds CPU for untrusted templates
++// that text/template cannot otherwise interrupt. (ntfy addition, see GHSA-rhwf-xgc9-m9fp.)
++func (t *Template) SetExecutionDeadline(deadline time.Time) *Template {
++	t.init()
++	t.deadline = deadline
++	return t
++}
++
+ // New allocates a new, undefined template associated with the given one and with the same
+ // delimiters. The association, which is transitive, allows one template to
+ // invoke another with a {{template}} action.

@@ -150,10 +150,7 @@ var (
 	templatesFs  embed.FS // Contains template config files (e.g. grafana.yml, github.yml, ...)
 	templatesDir = "templates"
 
-	// templateDisallowedRegex tests a template for disallowed expressions. While not really dangerous, they
-	// are not useful, and seem potentially troublesome.
-	templateDisallowedRegex = regexp.MustCompile(`(?m)\{\{-?\s*(call|template|define)\b`)
-	templateNameRegex       = regexp.MustCompile(`^[-_A-Za-z0-9]+$`)
+	templateNameRegex = regexp.MustCompile(`^[-_A-Za-z0-9]+$`)
 )
 
 const (
