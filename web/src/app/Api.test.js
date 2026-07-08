@@ -57,7 +57,7 @@ describe("Api.publish", () => {
       expect.objectContaining({
         method: "PUT",
         body: JSON.stringify({ topic: "mytopic", message: "Hello", priority: 5, tags: ["warning"] }),
-      })
+      }),
     );
   });
 
@@ -109,7 +109,7 @@ describe("Api web push", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ endpoint: "https://push.example/abc", auth: "AUTH", p256dh: "P256", topics: ["topicA", "topicB"] }),
-      })
+      }),
     );
   });
 
@@ -121,7 +121,7 @@ describe("Api web push", () => {
       expect.objectContaining({
         method: "DELETE",
         body: JSON.stringify({ endpoint: "https://push.example/abc" }),
-      })
+      }),
     );
   });
 });

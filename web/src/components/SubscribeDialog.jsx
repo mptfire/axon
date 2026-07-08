@@ -93,7 +93,7 @@ const SubscribePage = (props) => {
   const { topic } = props;
   const existingTopicUrls = props.subscriptions.map((s) => topicUrl(s.baseUrl, s.topic));
   const existingBaseUrls = Array.from(new Set([publicBaseUrl, ...props.subscriptions.map((s) => s.baseUrl)])).filter(
-    (s) => s !== config.base_url
+    (s) => s !== config.base_url,
   );
   const showReserveTopicCheckbox = config.enable_reservations && !anotherServerVisible && (config.enable_payments || account);
   const reserveTopicEnabled =
@@ -113,7 +113,7 @@ const SubscribePage = (props) => {
         setError(
           t("subscribe_dialog_error_user_not_authorized", {
             username,
-          })
+          }),
         );
         return;
       }

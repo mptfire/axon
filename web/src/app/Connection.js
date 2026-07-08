@@ -67,7 +67,7 @@ class Connection {
     this.ws.onclose = (event) => {
       if (event.wasClean) {
         console.log(
-          `[Connection, ${this.shortUrl}, ${this.connectionId}] Connection closed cleanly, code=${event.code} reason=${event.reason}`
+          `[Connection, ${this.shortUrl}, ${this.connectionId}] Connection closed cleanly, code=${event.code} reason=${event.reason}`,
         );
         this.ws = null;
       } else {

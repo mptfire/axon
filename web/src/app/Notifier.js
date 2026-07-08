@@ -30,7 +30,7 @@ class Notifier {
         topicRoute: new URL(routes.forSubscription(subscription), window.location.origin).toString(),
         baseUrl: subscription.baseUrl,
         topic: subscription.topic,
-      })
+      }),
     );
   }
 

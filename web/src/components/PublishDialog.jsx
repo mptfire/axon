@@ -168,7 +168,7 @@ const PublishDialog = (props) => {
               loaded: formatBytes(ev.loaded),
               total: formatBytes(ev.total),
               percent: Math.round((ev.loaded * 100.0) / ev.total),
-            })
+            }),
           );
         } else {
           setStatus(t("publish_dialog_progress_uploading"));
@@ -201,19 +201,19 @@ const PublishDialog = (props) => {
           t("publish_dialog_attachment_limits_file_and_quota_reached", {
             fileSizeLimit: formatBytes(fileSizeLimit),
             remainingBytes: formatBytes(remainingBytes),
-          })
+          }),
         );
       } else if (fileSizeLimitReached) {
         setAttachFileError(
           t("publish_dialog_attachment_limits_file_reached", {
             fileSizeLimit: formatBytes(fileSizeLimit),
-          })
+          }),
         );
       } else if (quotaReached) {
         setAttachFileError(
           t("publish_dialog_attachment_limits_quota_reached", {
             remainingBytes: formatBytes(remainingBytes),
-          })
+          }),
         );
       } else {
         setAttachFileError("");

@@ -61,7 +61,7 @@ const handlePushMessage = async (data) => {
       topicRoute: new URL(message.topic, self.location.origin).toString(),
       baseUrl: subscription.baseUrl,
       topic: subscription.topic,
-    })
+    }),
   );
 
   // Delete existing notification with same sequence ID (if any)
@@ -417,7 +417,7 @@ self.addEventListener("notificationclick", (event) => {
 // [{"revision":"aaabbbcccdddeeefff12345","url":"/index.html"},...]
 precacheAndRoute(
   // eslint-disable-next-line no-underscore-dangle
-  self.__WB_MANIFEST
+  self.__WB_MANIFEST,
 );
 
 // Claim all open windows
@@ -441,7 +441,7 @@ if (!import.meta.env.DEV) {
         // the app root itself, could be /, or not
         new RegExp(`^${config.app_root}$`),
       ],
-    })
+    }),
   );
 
   // the manifest excludes config.js (see vite.config.js) since the dist-file differs from the

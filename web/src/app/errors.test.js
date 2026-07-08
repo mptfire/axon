@@ -56,7 +56,7 @@ describe("throwAppError", () => {
     await expect(throwAppError(fakeResponse(409, { code: UserExistsError.CODE }))).rejects.toBeInstanceOf(UserExistsError);
     await expect(throwAppError(fakeResponse(409, { code: TopicReservedError.CODE }))).rejects.toBeInstanceOf(TopicReservedError);
     await expect(throwAppError(fakeResponse(429, { code: AccountActionLimitReachedError.CODE }))).rejects.toBeInstanceOf(
-      AccountActionLimitReachedError
+      AccountActionLimitReachedError,
     );
   });
 
@@ -78,7 +78,7 @@ describe("fetchOrThrow", () => {
     const response = { status: 200 };
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => response)
+      vi.fn(async () => response),
     );
     await expect(fetchOrThrow("https://ntfy.sh/mytopic/json")).resolves.toBe(response);
   });
@@ -86,7 +86,7 @@ describe("fetchOrThrow", () => {
   it("throws on a non-200 response", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => fakeResponse(401))
+      vi.fn(async () => fakeResponse(401)),
     );
     await expect(fetchOrThrow("https://ntfy.sh/mytopic/json")).rejects.toBeInstanceOf(UnauthorizedError);
   });

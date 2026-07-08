@@ -65,7 +65,7 @@ describe("AccountApi.create", () => {
     await accountApi.create("phil", "pw");
     expect(fetchMock).toHaveBeenCalledWith(
       "https://ntfy.sh/v1/account",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ username: "phil", password: "pw", email: "" }) })
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ username: "phil", password: "pw", email: "" }) }),
     );
   });
 });
@@ -195,7 +195,7 @@ describe("AccountApi.sync", () => {
         notification: { sound: "ding", delete_after: 3600, min_priority: 3 },
         subscriptions: [{ topic: "t" }],
         reservations: [{ topic: "t" }],
-      })
+      }),
     );
 
     await accountApi.sync();

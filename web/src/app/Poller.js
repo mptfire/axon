@@ -35,7 +35,7 @@ class Poller {
         } catch (e) {
           console.log(`[Poller] Error polling ${s.id}`, e);
         }
-      })
+      }),
     );
   }
 
@@ -61,7 +61,7 @@ class Poller {
     if (deletedSequenceIds.length > 0) {
       console.log(`[Poller] Deleting notifications with deleted sequence IDs for ${subscription.id}`, deletedSequenceIds);
       await Promise.all(
-        deletedSequenceIds.map((sequenceId) => subscriptionManager.deleteNotificationBySequenceId(subscription.id, sequenceId))
+        deletedSequenceIds.map((sequenceId) => subscriptionManager.deleteNotificationBySequenceId(subscription.id, sequenceId)),
       );
     }
 

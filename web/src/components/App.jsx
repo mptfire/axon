@@ -130,7 +130,7 @@ const Layout = () => {
   const [selected] = (subscriptionsWithoutInternal || []).filter(
     (s) =>
       (params.baseUrl && expandUrl(params.baseUrl).includes(s.baseUrl) && params.topic === s.topic) ||
-      (config.base_url === s.baseUrl && params.topic === s.topic)
+      (config.base_url === s.baseUrl && params.topic === s.topic),
   );
 
   useConnectionListeners(account, subscriptions, users, webPushTopics);

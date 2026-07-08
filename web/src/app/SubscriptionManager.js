@@ -18,7 +18,7 @@ export class SubscriptionManager {
       subscriptions.map(async (s) => ({
         ...s,
         new: await this.db.notifications.where({ subscriptionId: s.id, new: 1 }).count(),
-      }))
+      })),
     );
   }
 
@@ -122,7 +122,7 @@ export class SubscriptionManager {
         });
 
         return local.id;
-      })
+      }),
     );
 
     // Remove local subscriptions that do not exist remotely
@@ -134,7 +134,7 @@ export class SubscriptionManager {
         if (!local.internal && !remoteExists) {
           await this.remove(local);
         }
-      })
+      }),
     );
   }
 
@@ -144,7 +144,7 @@ export class SubscriptionManager {
 
     if (!browserSubscription) {
       console.log(
-        "[SubscriptionManager] No browser subscription currently exists, so web push was never enabled or the notification permission was removed. Skipping."
+        "[SubscriptionManager] No browser subscription currently exists, so web push was never enabled or the notification permission was removed. Skipping.",
       );
       return;
     }

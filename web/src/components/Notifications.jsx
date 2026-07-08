@@ -80,7 +80,7 @@ const SingleSubscriptionList = (props) => {
   // getAllNotifications() filtered by id), so topic switches are instant.
   const notifications = useMemo(
     () => allNotifications.filter((notification) => notification.subscriptionId === subscription.id),
-    [allNotifications, subscription.id]
+    [allNotifications, subscription.id],
   );
   if (notifications.length === 0) {
     return <NoNotifications subscription={subscription} />;
@@ -104,7 +104,7 @@ const NotificationList = (props) => {
         main.scrollTo(0, 0);
       }
     },
-    [props.id]
+    [props.id],
   );
 
   return (
@@ -319,7 +319,7 @@ const Attachment = (props) => {
     infos.push(
       t("notifications_attachment_link_expires", {
         date: formatDateTime(attachment.expires, dateFormat, timeFormat),
-      })
+      }),
     );
   }
   if (expired) {
