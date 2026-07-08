@@ -3660,6 +3660,70 @@ func TestServer_MessageTemplate_ExecutionTimeout(t *testing.T) {
 	})
 }
 
+// TestServer_MessageTemplate_DataDrivenNestedRange_TimesOut is the regression for the exact hole the
+// old write-triggered TimeoutWriter missed: a nested {{range}} over a JSON array field with a
+// no-output body calls no function, so only the executor's wall-clock deadline can stop it
+// (GHSA-rhwf-xgc9-m9fp).
+func TestServer_MessageTemplate_DataDrivenNestedRange_TimesOut(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+		elems := make([]string, 1000)
+		for i := range elems {
+			elems[i] = "0"
+		}
+		jsonBody := `{"a":[` + strings.Join(elems, ",") + `]}`
+		msg := `{{range .a}}{{range $.a}}{{range $.a}}{{$x := .}}{{end}}{{end}}{{end}}done`
+		start := time.Now()
+		response := request(t, s, "POST", "/mytopic", jsonBody, map[string]string{
+			"X-Message":  msg,
+			"X-Template": "1",
+		})
+		elapsed := time.Since(start)
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, 40055, toHTTPError(t, response.Body.String()).Code)
+		require.Less(t, elapsed, 500*time.Millisecond, "data-driven nested range should be cut off by the deadline (took %s)", elapsed)
+	})
+}
+
+// TestServer_MessageTemplate_ExpensiveFunctionLoop_TimesOut ensures the deadline also bounds loops
+// whose body calls an expensive function (hashing a large string), where a single call between
+// deadline checks could otherwise overshoot (GHSA-rhwf-xgc9-m9fp).
+func TestServer_MessageTemplate_ExpensiveFunctionLoop_TimesOut(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+		msg := `{{$big := repeat 990 "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789"}}{{range until 1000}}{{range until 1000}}{{$h := sha512sum $big}}{{end}}{{end}}`
+		start := time.Now()
+		response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
+			"X-Message":  msg,
+			"X-Template": "1",
+		})
+		elapsed := time.Since(start)
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, 40055, toHTTPError(t, response.Body.String()).Code)
+		require.Less(t, elapsed, 1500*time.Millisecond, "expensive-function loop should be cut off by the deadline (took %s)", elapsed)
+	})
+}
+
+// TestServer_MessageTemplate_NestedLoopPoC_TimesOut is the exact proof-of-concept from the advisory:
+// a range over a runtime-computed slice, nested, must be bounded by the deadline (GHSA-rhwf-xgc9-m9fp).
+func TestServer_MessageTemplate_NestedLoopPoC_TimesOut(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+		start := time.Now()
+		response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
+			"X-Message":  `{{$x := until 10000}}{{range $x}}{{range $x}}{{end}}{{end}}done`,
+			"X-Template": "1",
+		})
+		elapsed := time.Since(start)
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, 40055, toHTTPError(t, response.Body.String()).Code)
+		require.Less(t, elapsed, 500*time.Millisecond, "advisory PoC should be cut off by the deadline (took %s)", elapsed)
+	})
+}
+
 func TestServer_MessageTemplate_GenuineError_NotTimeout(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
@@ -3810,11 +3874,18 @@ func TestServer_MessageTemplate_DisallowedCalls(t *testing.T) {
 			`{{- template ""}}`,
 			`{{-
 template ""}}`,
-			`{{      call abc}}`,
-			`{{      define "aa"}}`,
-			`We cannot {{define "aa"}}`,
+			`{{ call "aa"}}`,
+			`{{define "aa"}}hi{{end}}`,
+			`We cannot {{define "aa"}}hi{{end}}`,
 			`We cannot {{ call "aa"}}`,
 			`We cannot {{- template "aa"}}`,
+			`{{block "aa" .}}hi{{end}}`,
+			`We cannot {{- block "aa" .}}hi{{end}}`,
+			// call is a function, not a keyword, so it can hide in non-leading positions that a
+			// raw-string regex misses -- the parse-tree walk catches all of them.
+			`{{if call .x}}x{{end}}`,
+			`{{$y := call .x}}`,
+			`{{index (call .x) 0}}`,
 		}
 		for _, disallowedTemplate := range disallowedTemplates {
 			messageTemplate := disallowedTemplate

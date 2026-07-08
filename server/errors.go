@@ -136,7 +136,7 @@ var (
 	errHTTPBadRequestTemplateMessageTooLarge         = &errHTTP{40041, http.StatusBadRequest, "invalid request: message or title is too large after replacing template", "https://ntfy.sh/docs/publish/#message-templating", nil}
 	errHTTPBadRequestTemplateMessageNotJSON          = &errHTTP{40042, http.StatusBadRequest, "invalid request: message body must be JSON if templating is enabled", "https://ntfy.sh/docs/publish/#message-templating", nil}
 	errHTTPBadRequestTemplateInvalid                 = &errHTTP{40043, http.StatusBadRequest, "invalid request: could not parse template", "https://ntfy.sh/docs/publish/#message-templating", nil}
-	errHTTPBadRequestTemplateDisallowedFunctionCalls = &errHTTP{40044, http.StatusBadRequest, "invalid request: template contains disallowed function calls, e.g. template, call, or define", "https://ntfy.sh/docs/publish/#message-templating", nil}
+	errHTTPBadRequestTemplateDisallowedFunctionCalls = &errHTTP{40044, http.StatusBadRequest, "invalid request: template contains disallowed function calls, e.g. template, call, define, or block", "https://ntfy.sh/docs/publish/#message-templating", nil}
 	errHTTPBadRequestTemplateExecuteFailed           = &errHTTP{40045, http.StatusBadRequest, "invalid request: template execution failed", "https://ntfy.sh/docs/publish/#message-templating", nil}
 	errHTTPBadRequestTemplateExecutionTimeout        = &errHTTP{40055, http.StatusBadRequest, "invalid request: template execution timed out", "https://ntfy.sh/docs/publish/#message-templating", nil}
 	errHTTPBadRequestInvalidUsername                 = &errHTTP{40046, http.StatusBadRequest, "invalid request: invalid username", "", nil}

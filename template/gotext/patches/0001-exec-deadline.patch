@@ -1,17 +1,11 @@
 diff -ruN a/exec.go b/exec.go
---- a/exec.go	2026-07-08 15:38:43.551040811 +0200
-+++ b/exec.go	2026-07-08 15:38:43.553556913 +0200
-@@ -2,17 +2,19 @@
- // Use of this source code is governed by a BSD-style
- // license that can be found in the LICENSE file.
- 
--package template
-+package gotext
- 
+--- a/exec.go	2026-07-08 21:46:30.952555712 +0200
++++ b/exec.go	2026-07-08 21:46:30.953912265 +0200
+@@ -7,12 +7,14 @@
  import (
  	"errors"
  	"fmt"
--	"internal/fmtsort"
+-	"heckel.io/ntfy/v2/template/gotext/fmtsort"
  	"io"
  	"reflect"
  	"runtime"
@@ -79,42 +73,10 @@ diff -ruN a/exec.go b/exec.go
  	switch node := node.(type) {
  	case *parse.ActionNode:
  		// Do not pop variables so they persist until next end.
-diff -ruN a/funcs.go b/funcs.go
---- a/funcs.go	2026-07-08 15:38:43.551127782 +0200
-+++ b/funcs.go	2026-07-08 15:38:43.553627333 +0200
-@@ -2,7 +2,7 @@
- // Use of this source code is governed by a BSD-style
- // license that can be found in the LICENSE file.
- 
--package template
-+package gotext
- 
- import (
- 	"errors"
-diff -ruN a/option.go b/option.go
---- a/option.go	2026-07-08 15:38:43.551232856 +0200
-+++ b/option.go	2026-07-08 15:38:43.553688366 +0200
-@@ -4,7 +4,7 @@
- 
- // This file contains the code to handle template options.
- 
--package template
-+package gotext
- 
- import "strings"
- 
 diff -ruN a/template.go b/template.go
---- a/template.go	2026-07-08 15:38:43.551182684 +0200
-+++ b/template.go	2026-07-08 15:38:43.553660525 +0200
-@@ -2,20 +2,22 @@
- // Use of this source code is governed by a BSD-style
- // license that can be found in the LICENSE file.
- 
--package template
-+package gotext
- 
- import (
- 	"maps"
+--- a/template.go	2026-07-08 21:46:30.952848382 +0200
++++ b/template.go	2026-07-08 21:46:30.953952891 +0200
+@@ -9,13 +9,15 @@
  	"reflect"
  	"sync"
  	"text/template/parse"

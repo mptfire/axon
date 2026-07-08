@@ -339,11 +339,14 @@ update-template:
 		exit 1; \
 	fi
 	src="$$(go env GOROOT)/src"; \
-	cp "$$src/text/template/exec.go" "$$src/text/template/funcs.go" "$$src/text/template/template.go" "$$src/text/template/option.go" template/gotext/; \
-	cp "$$src/internal/fmtsort/sort.go" template/gotext/fmtsort/; \
+	rm -f template/gotext/*.go template/gotext/fmtsort/*.go; \
+	for f in $$(go list -f '{{range .GoFiles}}{{.}} {{end}}' text/template); do cp "$$src/text/template/$$f" template/gotext/; done; \
+	for f in $$(go list -f '{{range .GoFiles}}{{.}} {{end}}' internal/fmtsort); do cp "$$src/internal/fmtsort/$$f" template/gotext/fmtsort/; done; \
+	sed -i 's/^package template$$/package gotext/' template/gotext/*.go; \
+	sed -i 's#"internal/fmtsort"#"heckel.io/ntfy/v2/template/gotext/fmtsort"#' template/gotext/*.go; \
 	( cd template/gotext && for p in patches/*.patch; do echo "Applying $$p"; git apply "$$p" || exit 1; done )
 	go env GOVERSION > template/gotext/GENERATED_FROM
-	@echo "Regenerated template/gotext/ from $(TEMPLATE_GO_VERSION); review with 'git diff'."
+	@echo "Regenerated template/gotext/ from $(TEMPLATE_GO_VERSION) (files enumerated via 'go list'); review with 'git diff'."
 
 template-check: FORCE
 	@if [ "$$(cat template/gotext/GENERATED_FROM)" != "$(TEMPLATE_GO_VERSION)" ]; then \
@@ -355,17 +358,20 @@ template-check: FORCE
 		exit 0; \
 	fi
 	@tmp=$$(mktemp -d); src="$$(go env GOROOT)/src"; \
-	mkdir -p "$$tmp/gotext/fmtsort" "$$tmp/patches"; \
-	cp "$$src/text/template/exec.go" "$$src/text/template/funcs.go" "$$src/text/template/template.go" "$$src/text/template/option.go" "$$tmp/gotext/"; \
-	cp "$$src/internal/fmtsort/sort.go" "$$tmp/gotext/fmtsort/"; \
-	cp template/gotext/patches/*.patch "$$tmp/patches/"; \
-	( cd "$$tmp/gotext" && for p in "$$tmp"/patches/*.patch; do git apply "$$p" || exit 1; done ); \
-	ok=1; \
-	for f in exec.go funcs.go template.go option.go fmtsort/sort.go; do \
-		diff -q "$$tmp/gotext/$$f" "template/gotext/$$f" >/dev/null 2>&1 || { echo "DRIFT: template/gotext/$$f differs from GOROOT+patches"; ok=0; }; \
-	done; \
-	rm -rf "$$tmp"; \
-	if [ "$$ok" != 1 ]; then echo "ERROR: template/gotext/ drifted from GOROOT+patches. Run 'make update-template' on Go $(TEMPLATE_GO_VERSION)."; exit 1; fi
+	mkdir -p "$$tmp/gotext/fmtsort"; \
+	for f in $$(go list -f '{{range .GoFiles}}{{.}} {{end}}' text/template); do cp "$$src/text/template/$$f" "$$tmp/gotext/"; done; \
+	for f in $$(go list -f '{{range .GoFiles}}{{.}} {{end}}' internal/fmtsort); do cp "$$src/internal/fmtsort/$$f" "$$tmp/gotext/fmtsort/"; done; \
+	sed -i 's/^package template$$/package gotext/' "$$tmp/gotext/"*.go; \
+	sed -i 's#"internal/fmtsort"#"heckel.io/ntfy/v2/template/gotext/fmtsort"#' "$$tmp/gotext/"*.go; \
+	cp template/gotext/patches/*.patch "$$tmp/"; \
+	( cd "$$tmp/gotext" && for p in "$$tmp"/*.patch; do git apply "$$p" || exit 1; done ); \
+	if diff -rq -x 'README.md' -x 'GENERATED_FROM' -x 'patches' "$$tmp/gotext" template/gotext >/dev/null 2>&1; then \
+		rm -rf "$$tmp"; \
+	else \
+		echo "ERROR: template/gotext/ drifted from GOROOT+patches (or its file set changed). Run 'make update-template' on Go $(TEMPLATE_GO_VERSION):"; \
+		diff -rq -x 'README.md' -x 'GENERATED_FROM' -x 'patches' "$$tmp/gotext" template/gotext; \
+		rm -rf "$$tmp"; exit 1; \
+	fi
 
 # go-check is advisory only (never fails): it warns when the pinned Go (.go-version) is behind the
 # latest upstream release, so template/gotext doesn't silently fall behind on text/template fixes.

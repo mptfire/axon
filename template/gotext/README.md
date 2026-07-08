@@ -34,9 +34,9 @@ config: Twilio, `cmd/serve.go`) keep using the standard library -- they are not 
 
 | File | Origin |
 |------|--------|
-| `exec.go`, `funcs.go`, `template.go`, `option.go` | verbatim from `$(go env GOROOT)/src/text/template/` |
+| `*.go` (`exec.go`, `funcs.go`, `template.go`, `option.go`, `helper.go`, `doc.go`) | verbatim from `$(go env GOROOT)/src/text/template/`, enumerated with `go list` so files added/removed upstream are picked up automatically |
 | `fmtsort/sort.go` | verbatim from `$(go env GOROOT)/src/internal/fmtsort/` -- `exec.go` needs it, and `internal/...` packages can't be imported from outside GOROOT, so it comes along |
-| `patches/0001-exec-deadline.patch` | our only change (see below) |
+| `patches/0001-exec-deadline.patch` | our only real change (see below) |
 | `GENERATED_FROM` | the exact Go version `make update-template` last regenerated this copy from; provenance, written by that target |
 
 The Go toolchain version this copy is pinned to lives in the repo-root [`.go-version`](../../.go-version)
@@ -49,15 +49,20 @@ plain import.
 ## The patch
 
 `patches/` is a quilt-style ordered series (apply `0001-*`, then `0002-*`, ...). Today there is just
-`0001-exec-deadline.patch`, which is small and purely additive:
+`0001-exec-deadline.patch` -- small, purely additive, and touching only `exec.go`/`template.go`:
 
-- renames the package to `gotext` and rewrites the `internal/fmtsort` import to `heckel.io/ntfy/v2/template/gotext/fmtsort`
 - adds `deadline`/`steps` fields to the executor `state` and a `deadline` field + a
   `SetExecutionDeadline(time.Time)` method on `Template`
 - adds the amortized deadline check at the top of `state.walk`
 - adds the exported sentinel `ErrExecutionInterrupted` (detect with `errors.Is`)
 
-Keeping the patch tiny and additive is deliberate: it makes re-basing onto a new Go release cheap.
+Two *mechanical* transforms are applied by `make update-template` with `sed`, **not** the patch --
+renaming the package to `gotext`, and rewriting the `internal/fmtsort` import to
+`heckel.io/ntfy/v2/template/gotext/fmtsort`. Keeping them out of the patch means they apply to
+whatever files `go list` returns, so they survive upstream files being added or removed.
+
+Keeping the patch tiny (deadline logic only, on two stable files) is deliberate: it makes re-basing
+onto a new Go release cheap.
 
 ## Updating (when bumping the Go toolchain)
 

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template/parse"
 	"time"
 
 	"gopkg.in/yaml.v2"
@@ -105,9 +106,6 @@ func (s *Server) renderTemplateFromParams(m *model.Message, peekedBody string, p
 
 // renderTemplate renders a template with the given JSON source data.
 func (s *Server) renderTemplate(name, tpl, source string) (string, error) {
-	if templateDisallowedRegex.MatchString(tpl) {
-		return "", errHTTPBadRequestTemplateDisallowedFunctionCalls
-	}
 	var data any
 	if err := json.Unmarshal([]byte(source), &data); err != nil {
 		return "", errHTTPBadRequestTemplateMessageNotJSON
@@ -115,6 +113,9 @@ func (s *Server) renderTemplate(name, tpl, source string) (string, error) {
 	t, err := gotext.New("").Funcs(sprig.TxtFuncMap()).Parse(tpl)
 	if err != nil {
 		return "", errHTTPBadRequestTemplateInvalid.Wrap("%s", err.Error())
+	}
+	if templateUsesDisallowedFeatures(t) {
+		return "", errHTTPBadRequestTemplateDisallowedFunctionCalls
 	}
 	t.SetExecutionDeadline(time.Now().Add(templateMaxExecutionTime)) // Bail out of runaway templates (GHSA-rhwf-xgc9-m9fp)
 	var buf bytes.Buffer
@@ -126,4 +127,60 @@ func (s *Server) renderTemplate(name, tpl, source string) (string, error) {
 		return "", errHTTPBadRequestTemplateExecuteFailed.Wrap("template %s: %s", name, err.Error())
 	}
 	return strings.TrimSpace(strings.ReplaceAll(buf.String(), "\\n", "\n")), nil // replace any remaining "\n" (those outside of template curly braces) with newlines
+}
+
+// templateUsesDisallowedFeatures reports whether the parsed template defines or invokes a
+// sub-template ({{define}}/{{block}}/{{template}}) or uses the {{call}} builtin. None are useful for
+// ntfy's JSON-data templates. Checking the parse tree (rather than the raw string) catches every
+// syntactic form -- e.g. {{if call .x}} or {{$y := call .x}} -- that a regex would miss.
+func templateUsesDisallowedFeatures(t *gotext.Template) bool {
+	if len(t.Templates()) > 1 { // {{define}}/{{block}} create additional associated templates
+		return true
+	}
+	return treeContainsDisallowedNode(t.Root)
+}
+
+// treeContainsDisallowedNode reports whether the parse tree contains a {{template}}/{{block}}
+// invocation or a {{call}} builtin, descending into pipes and command arguments (where {{call}} can
+// appear anywhere a function is allowed).
+func treeContainsDisallowedNode(node parse.Node) bool {
+	switch n := node.(type) {
+	case *parse.ListNode:
+		if n == nil {
+			return false
+		}
+		for _, child := range n.Nodes {
+			if treeContainsDisallowedNode(child) {
+				return true
+			}
+		}
+	case *parse.ActionNode:
+		return treeContainsDisallowedNode(n.Pipe)
+	case *parse.RangeNode:
+		return treeContainsDisallowedNode(n.Pipe) || treeContainsDisallowedNode(n.List) || treeContainsDisallowedNode(n.ElseList)
+	case *parse.IfNode:
+		return treeContainsDisallowedNode(n.Pipe) || treeContainsDisallowedNode(n.List) || treeContainsDisallowedNode(n.ElseList)
+	case *parse.WithNode:
+		return treeContainsDisallowedNode(n.Pipe) || treeContainsDisallowedNode(n.List) || treeContainsDisallowedNode(n.ElseList)
+	case *parse.TemplateNode: // {{template}} or {{block}} invocation
+		return true
+	case *parse.PipeNode:
+		if n == nil {
+			return false
+		}
+		for _, cmd := range n.Cmds {
+			if treeContainsDisallowedNode(cmd) {
+				return true
+			}
+		}
+	case *parse.CommandNode:
+		for _, arg := range n.Args {
+			if treeContainsDisallowedNode(arg) {
+				return true
+			}
+		}
+	case *parse.IdentifierNode: // a function name; {{call}} is the disallowed builtin
+		return n.Ident == "call"
+	}
+	return false
 }
