@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
-	"text/template"
 	"time"
 )
 
@@ -21,8 +20,9 @@ const (
 //
 //	tpl := template.New("foo").Funcs(sprig.FuncMap()))
 //
-// TxtFuncMap returns a 'text/template'.FuncMap
-func TxtFuncMap() template.FuncMap {
+// TxtFuncMap returns the function map as a plain map[string]any, assignable to any text/template or
+// html/template FuncMap (including ntfy's vendored internal/template).
+func TxtFuncMap() map[string]any {
 	return map[string]any{
 		// Date functions
 		"ago":            dateAgo,

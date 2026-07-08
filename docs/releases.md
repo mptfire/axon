@@ -37,6 +37,7 @@ since I do have to reset accounts on a regular basis.
 
 **Bug fixes + maintenance:**
 
+* Prevent a CPU denial of service via message templates (`Template: yes`) ([GHSA-rhwf-xgc9-m9fp](https://github.com/binwiederhier/ntfy/security/advisories/GHSA-rhwf-xgc9-m9fp))
 * `X-Email: yes` (also `true`/`1`) now sends to your primary verified email regardless of the `smtp-sender-verify` setting (previously it was rejected unless verification was enabled); it requires being logged in with a verified address
 * Grant users full access to their own sync topic (`st_...`) so cross-device subscription sync works under `auth-default-access: deny-all` ([#733](https://github.com/binwiederhier/ntfy/issues/733), [#1795](https://github.com/binwiederhier/ntfy/pull/1795), thanks to [@lmorchard](https://github.com/lmorchard) for the contribution)
 * Support HTTP (non-TLS) S3-compatible endpoints by preserving the endpoint scheme, e.g. for a local MinIO instance ([#1794](https://github.com/binwiederhier/ntfy/pull/1794), [#1734](https://github.com/binwiederhier/ntfy/issues/1734), thanks to [@sskender](https://github.com/sskender) for the contribution, and [@Kernald](https://github.com/Kernald) for reporting)

@@ -3,13 +3,15 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
-	"text/template"
+	"time"
 
 	"gopkg.in/yaml.v2"
 	"heckel.io/ntfy/v2/model"
+	"heckel.io/ntfy/v2/template/gotext"
 	"heckel.io/ntfy/v2/util"
 	"heckel.io/ntfy/v2/util/sprig"
 )
@@ -110,13 +112,17 @@ func (s *Server) renderTemplate(name, tpl, source string) (string, error) {
 	if err := json.Unmarshal([]byte(source), &data); err != nil {
 		return "", errHTTPBadRequestTemplateMessageNotJSON
 	}
-	t, err := template.New("").Funcs(sprig.TxtFuncMap()).Parse(tpl)
+	t, err := gotext.New("").Funcs(sprig.TxtFuncMap()).Parse(tpl)
 	if err != nil {
 		return "", errHTTPBadRequestTemplateInvalid.Wrap("%s", err.Error())
 	}
+	t.SetExecutionDeadline(time.Now().Add(templateMaxExecutionTime)) // Bail out of runaway templates (GHSA-rhwf-xgc9-m9fp)
 	var buf bytes.Buffer
-	limitWriter := util.NewLimitWriter(util.NewTimeoutWriter(&buf, templateMaxExecutionTime), util.NewFixedLimiter(templateMaxOutputBytes))
+	limitWriter := util.NewLimitWriter(&buf, util.NewFixedLimiter(templateMaxOutputBytes))
 	if err := t.Execute(limitWriter, data); err != nil {
+		if errors.Is(err, gotext.ErrExecutionInterrupted) {
+			return "", errHTTPBadRequestTemplateExecutionTimeout
+		}
 		return "", errHTTPBadRequestTemplateExecuteFailed.Wrap("template %s: %s", name, err.Error())
 	}
 	return strings.TrimSpace(strings.ReplaceAll(buf.String(), "\\n", "\n")), nil // replace any remaining "\n" (those outside of template curly braces) with newlines

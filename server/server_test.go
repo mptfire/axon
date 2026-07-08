@@ -3635,6 +3635,84 @@ func TestServer_MessageTemplate_Range(t *testing.T) {
 	})
 }
 
+func TestServer_MessageTemplate_ExecutionTimeout(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+		// Nested range over a 1000-element JSON field with a no-output body: no Write ever happens,
+		// so the write-triggered TimeoutWriter never fires. Must be bounded by the executor's
+		// wall-clock deadline instead (GHSA-rhwf-xgc9-m9fp).
+		elems := make([]string, 1000)
+		for i := range elems {
+			elems[i] = "0"
+		}
+		jsonBody := `{"a":[` + strings.Join(elems, ",") + `]}`
+		msg := `{{range .a}}{{range $.a}}` + strings.Repeat(`{{$x := .}}`, 100) + `{{end}}{{end}}done`
+		start := time.Now()
+		response := request(t, s, "POST", "/mytopic", jsonBody, map[string]string{
+			"X-Message":  msg,
+			"X-Template": "1",
+		})
+		elapsed := time.Since(start)
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, 40055, toHTTPError(t, response.Body.String()).Code)
+		require.Less(t, elapsed, 500*time.Millisecond, "template must be interrupted by the deadline, not run to completion (took %s)", elapsed)
+	})
+}
+
+func TestServer_MessageTemplate_GenuineError_NotTimeout(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		t.Parallel()
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+		// A real runtime error (len of an int) must map to execute-failed, not the timeout code.
+		response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
+			"X-Message":  `{{ len 5 }}`,
+			"X-Template": "1",
+		})
+		require.Equal(t, 400, response.Code)
+		require.Equal(t, 40045, toHTTPError(t, response.Body.String()).Code)
+	})
+}
+
+// slowBody delivers its data after a delay, simulating a slow client upload of the request body.
+type slowBody struct {
+	data  []byte
+	delay time.Duration
+	done  bool
+}
+
+func (b *slowBody) Read(p []byte) (int, error) {
+	if b.done {
+		return 0, io.EOF
+	}
+	time.Sleep(b.delay)
+	n := copy(p, b.data)
+	b.done = true
+	return n, nil
+}
+
+func (b *slowBody) Close() error { return nil }
+
+// TestServer_MessageTemplate_SlowUpload_NotCountedAgainstDeadline verifies that a slow request-body
+// upload does not consume the template execution deadline: the body is fully read (util.Peek)
+// before the deadline starts, so a trivial template still renders even when the upload alone took
+// longer than the deadline (GHSA-rhwf-xgc9-m9fp).
+func TestServer_MessageTemplate_SlowUpload_NotCountedAgainstDeadline(t *testing.T) {
+	s := newTestServer(t, newTestConfig(t, ""))
+	start := time.Now()
+	response := request(t, s, "POST", "/mytopic", `{"foo":"bar"}`, map[string]string{
+		"Template":  "yes",
+		"X-Message": "hello {{.foo}}",
+	}, func(r *http.Request) {
+		r.Body = &slowBody{data: []byte(`{"foo":"bar"}`), delay: 3 * templateMaxExecutionTime}
+	})
+	elapsed := time.Since(start)
+	require.Greater(t, elapsed, templateMaxExecutionTime, "the slow upload must outlast the exec deadline for this test to be meaningful")
+	require.Equal(t, 200, response.Code) // Would be 40055 if upload time counted against the deadline
+	m := toMessage(t, response.Body.String())
+	require.Equal(t, "hello bar", m.Message)
+}
+
 func TestServer_MessageTemplate_ExceedMessageSize_TemplatedMessageOK(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		t.Parallel()
