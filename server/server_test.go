@@ -3700,9 +3700,12 @@ func (b *slowBody) Close() error { return nil }
 func TestServer_MessageTemplate_SlowUpload_NotCountedAgainstDeadline(t *testing.T) {
 	s := newTestServer(t, newTestConfig(t, ""))
 	start := time.Now()
+	// The loop makes the template execute enough nodes (>256) to actually hit the deadline check,
+	// so this test distinguishes correct behavior from a deadline that includes upload time -- yet
+	// it runs in ~1ms, far under the deadline, so on correct code it renders fine.
 	response := request(t, s, "POST", "/mytopic", `{"foo":"bar"}`, map[string]string{
 		"Template":  "yes",
-		"X-Message": "hello {{.foo}}",
+		"X-Message": `{{range until 5000}}{{$x := .}}{{end}}hello {{.foo}}`,
 	}, func(r *http.Request) {
 		r.Body = &slowBody{data: []byte(`{"foo":"bar"}`), delay: 3 * templateMaxExecutionTime}
 	})
