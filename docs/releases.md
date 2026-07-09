@@ -6,11 +6,35 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 | Component        | Version | Release date  |
 |------------------|---------|---------------|
-| ntfy server      | v2.25.0 | June 24, 2026 |
+| ntfy server      | v2.26.0 | July 9, 2026  |
 | ntfy Android app | v1.24.0 | Mar 5, 2026   |
 | ntfy iOS app     | v1.7.0  | May 30, 2026  |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+### ntfy server v2.26.0
+Released July 9, 2026
+
+This release hardens **message templates**, which are now executed with a hard-capped execution timeout. This closes
+a denial-of-service hole.
+
+On the web app side, it adds configurable **date and time formats**, a smoother loading and page-transition experience,
+and a fix that strips unsafe URL protocols from rendered Markdown.
+
+**Security:**
+
+* Prevent a CPU denial of service via message templates (`Template: yes`) ([GHSA-rhwf-xgc9-m9fp](https://github.com/binwiederhier/ntfy/security/advisories/GHSA-rhwf-xgc9-m9fp), [#1826](https://github.com/binwiederhier/ntfy/pull/1826), thanks to [@alanturing881](https://github.com/alanturing881) for reporting)
+
+**Features:**
+
+* Web app: Add "Date format" and "Time format" settings (Settings -> Appearance), with ISO 8601, day/month/year (slash or dot) and month/day/year date options and a 12-/24-hour clock option, and base the default format on your browser/system locale rather than the selected display language. When logged in, both settings sync across devices via your account ([#1647](https://github.com/binwiederhier/ntfy/issues/1647), thanks to [@wsw70](https://github.com/wsw70) for reporting)
+
+**Bug fixes + maintenance:**
+
+* Web app: Smooth transitions and loading animation, remove flickering
+* Web app: `GET /account` now reads from the primary database instead of a read replica, so the account view no longer shows stale data right after a change when replicas lag behind
+* Docs: Document the third-party HelmForge Helm chart as a Kubernetes installation option ([#1727](https://github.com/binwiederhier/ntfy/issues/1727), thanks to [@mberlofa](https://github.com/mberlofa))
+* Web app: Strip unsafe URL protocols (`javascript:`, `data:`, ...) from links and images in Markdown-rendered messages, so they no longer trigger an uncaught "React has blocked a javascript: URL" error (thanks to [@jvoisin](https://github.com/jvoisin) for reporting)
 
 ## ntfy server v2.25.0
 Released June 24, 2026
@@ -1982,23 +2006,6 @@ For older releases, check out the GitHub releases pages for the [ntfy server](ht
 and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/releases).
 
 ## Not released yet
-
-### ntfy server v2.26.x (UNRELEASED)
-
-**Security:**
-
-* Prevent a CPU denial of service via message templates (`Template: yes`) ([GHSA-rhwf-xgc9-m9fp](https://github.com/binwiederhier/ntfy/security/advisories/GHSA-rhwf-xgc9-m9fp), [#1826](https://github.com/binwiederhier/ntfy/pull/1826), thanks to [@alanturing881](https://github.com/alanturing881) for reporting)
-
-**Features:**
-
-* Web app: Add "Date format" and "Time format" settings (Settings -> Appearance), with ISO 8601, day/month/year (slash or dot) and month/day/year date options and a 12-/24-hour clock option, and base the default format on your browser/system locale rather than the selected display language. When logged in, both settings sync across devices via your account ([#1647](https://github.com/binwiederhier/ntfy/issues/1647), thanks to [@wsw70](https://github.com/wsw70) for reporting)
-
-**Bug fixes + maintenance:**
-
-* Web app: Smooth transitions and loading animation, remove flickering
-* Web app: `GET /account` now reads from the primary database instead of a read replica, so the account view no longer shows stale data right after a change when replicas lag behind
-* Docs: Document the third-party HelmForge Helm chart as a Kubernetes installation option ([#1727](https://github.com/binwiederhier/ntfy/issues/1727), thanks to [@mberlofa](https://github.com/mberlofa))
-* Web app: Strip unsafe URL protocols (`javascript:`, `data:`, ...) from links and images in Markdown-rendered messages, so they no longer trigger an uncaught "React has blocked a javascript: URL" error (thanks to [@jvoisin](https://github.com/jvoisin) for reporting)
 
 ### ntfy Android v1.25.1 (UNRELEASED)
 
