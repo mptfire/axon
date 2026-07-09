@@ -2007,7 +2007,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
-### ntfy Android v1.25.1 (UNRELEASED)
+### ntfy Android v1.25.2 (UNRELEASED)
 
 This release makes the "connection lost" alert configurable and turns it off by default. Folks did not like it and many reached out
 or even gave ntfy bad reviews. I heard you! You can re-enable the alert in the advanced settings.
@@ -2031,6 +2031,7 @@ especially when paired with increaseing the server-side `keepalive-interval` in 
 
 **Bug fixes + maintenance:**
 
+* Fix the "connection lost" alert briefly disappearing and re-firing when roaming between networks (e.g. Wi-Fi to cellular), by no longer cancelling it during the transient no-network gap of a handover
 * Fix the "connection lost" alert repeatedly waking the screen while a server stayed unreachable, by no longer re-posting the alert once it is already showing
 * Fix the "connection lost" alert firing late, erratically, or not at all when a connection kept dropping (e.g. a flaky server) rather than being refused outright, by tracking how long the connection has been down independently of whether the drop warrants a UI error
 * Undo automatic phone number linking for numbers in message body ([ntfy-android#170](https://github.com/binwiederhier/ntfy-android/pull/170), thanks to [@acortelyou](https://github.com/acortelyou) for the contribution)
