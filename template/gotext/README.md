@@ -1,8 +1,8 @@
-# `template/gotext/` -- vendored `text/template` with an execution deadline
+# `template/gotext/` -- vendored `text/template` with context cancellation
 
 This directory is a **verbatim copy of Go's standard-library `text/template` package**, plus one
-small patch that adds a wall-clock execution deadline. It exists for exactly one reason: to stop
-**user-supplied** message templates (`Template: yes`, see the [templating docs](https://ntfy.sh/docs/publish/#message-templating))
+small patch that adds context-aware execution (`ExecuteContext`). It exists for exactly one reason:
+to stop **user-supplied** message templates (`Template: yes`, see the [templating docs](https://ntfy.sh/docs/publish/#message-templating))
 from burning CPU.
 
 - **Source:** Go stdlib `text/template` (+ `internal/fmtsort`), `$(go env GOROOT)/src`
@@ -14,7 +14,8 @@ from burning CPU.
 
 ntfy lets users send a Go template that is rendered against a JSON body. Go's `text/template`
 **cannot be interrupted mid-execution** -- there is no context, no deadline, no cancellation
-([golang/go#31107](https://github.com/golang/go/issues/31107) was declined). So a crafted template
+([golang/go#31107](https://github.com/golang/go/issues/31107) proposed `ExecuteContext` but was
+declined, over a bundled context-*values* feature, not cancellation itself). So a crafted template
 with a tight or nested `{{range}}` (e.g. ranging over a large JSON array with a big loop body that
 writes no output) can run for tens of seconds on a single request. That is a CPU denial of service
 (GHSA-rhwf-xgc9-m9fp).
@@ -22,13 +23,17 @@ writes no output) can run for tens of seconds on a single request. That is a CPU
 There is no way to add an interrupt from the outside -- the executor's per-node `walk` loop is
 unexported. The only robust fix is to patch the executor itself. Rather than reach for fragile
 heuristics (guessing iteration counts, wrapping every function, etc.), we vendor the package and add
-a **single check inside `walk`**: every ~256 nodes it checks a wall-clock deadline and aborts (via
-the normal `ExecError` path) if it has passed. This bounds CPU for *any* template shape -- cheap
-loops and expensive functions alike -- by construction.
+the cancellation half of #31107 as a patch: `ExecuteContext(ctx, ...)` that aborts with `ctx.Err()`
+when `ctx` is canceled or its deadline passes. The check is a **single poll inside `walk`** of an
+atomic flag that a `context.AfterFunc` watcher flips -- so it bounds CPU for *any* template shape
+(cheap loops and expensive functions alike), it is exact (observed within one node), and it adds no
+measurable overhead. If #31107's cancellation half ever lands upstream, this fork can be deleted and
+the call site keeps compiling unchanged.
 
-The one user-facing execution site (`server/server_template.go` `renderTemplate`) sets the deadline
-with `SetExecutionDeadline` and maps the resulting error to a `400`. Trusted templates (operator
-config: Twilio, `cmd/serve.go`) keep using the standard library -- they are not user-supplied.
+The one user-facing execution site (`server/server_template.go` `renderTemplate`) wraps execution in
+`context.WithTimeout` and calls `ExecuteContext`, mapping `context.DeadlineExceeded` to a `400`.
+Trusted templates (operator config: Twilio, `cmd/serve.go`) keep using the standard library -- they
+are not user-supplied.
 
 ## What's here
 
@@ -36,7 +41,7 @@ config: Twilio, `cmd/serve.go`) keep using the standard library -- they are not 
 |------|--------|
 | `*.go` (`exec.go`, `funcs.go`, `template.go`, `option.go`, `helper.go`, `doc.go`) | verbatim from `$(go env GOROOT)/src/text/template/`, enumerated with `go list` so files added/removed upstream are picked up automatically |
 | `fmtsort/sort.go` | verbatim from `$(go env GOROOT)/src/internal/fmtsort/` -- `exec.go` needs it, and `internal/...` packages can't be imported from outside GOROOT, so it comes along |
-| `patches/0001-exec-deadline.patch` | our only real change (see below) |
+| `patches/0001-exec-context.patch` | our only real change (see below) |
 | `GENERATED_FROM` | the exact Go version `make update-template` last regenerated this copy from; provenance, written by that target |
 
 The Go toolchain version this copy is pinned to lives in the repo-root [`.go-version`](../../.go-version)
@@ -49,19 +54,26 @@ plain import.
 ## The patch
 
 `patches/` is a quilt-style ordered series (apply `0001-*`, then `0002-*`, ...). Today there is just
-`0001-exec-deadline.patch` -- small, purely additive, and touching only `exec.go`/`template.go`:
+`0001-exec-context.patch` -- small, purely additive, and touching only `exec.go`:
 
-- adds `deadline`/`steps` fields to the executor `state` and a `deadline` field + a
-  `SetExecutionDeadline(time.Time)` method on `Template`
-- adds the amortized deadline check at the top of `state.walk`
-- adds the exported sentinel `ErrExecutionInterrupted` (detect with `errors.Is`)
+- adds `ctx context.Context` and a shared `cancelled *atomic.Bool` to the executor `state`
+- adds `ExecuteContext` / `ExecuteTemplateContext`; `Execute` / `ExecuteTemplate` become
+  `context.Background()` wrappers, so their behavior and cost are unchanged
+- when `ctx.Done() != nil`, arms one `context.AfterFunc` watcher that flips the flag; `walk` polls it
+  per node and aborts via a `cancelError` that `errRecover` strips to the bare `ctx.Err()`
+  (`errors.Is(err, context.DeadlineExceeded)`)
+
+The flag is a `*atomic.Bool` (not a value) because `walkTemplate` copies `state` for nested
+`{{template}}` invocations; a shared pointer keeps one flag across all copies and avoids `go vet`
+copylocks. `template.go` is unchanged -- the context is per-call, not stored on the `Template`.
 
 Two *mechanical* transforms are applied by `make update-template` with `sed`, **not** the patch --
 renaming the package to `gotext`, and rewriting the `internal/fmtsort` import to
 `heckel.io/ntfy/v2/template/gotext/fmtsort`. Keeping them out of the patch means they apply to
-whatever files `go list` returns, so they survive upstream files being added or removed.
+whatever files `go list` returns, so they survive upstream files being added or removed. (These two
+transforms are also the only difference between our patch and the upstream `text/template` diff.)
 
-Keeping the patch tiny (deadline logic only, on two stable files) is deliberate: it makes re-basing
+Keeping the patch tiny (cancellation only, on one stable file) is deliberate: it makes re-basing
 onto a new Go release cheap.
 
 ## Updating (when bumping the Go toolchain)

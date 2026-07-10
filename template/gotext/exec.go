@@ -5,14 +5,15 @@
 package gotext
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"reflect"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"text/template/parse"
-	"time"
 
 	"heckel.io/ntfy/v2/template/gotext/fmtsort"
 )
@@ -34,13 +35,13 @@ func initMaxExecDepth() int {
 // template so that multiple executions of the same template
 // can execute in parallel.
 type state struct {
-	tmpl     *Template
-	wr       io.Writer
-	node     parse.Node // current node, for errors
-	vars     []variable // push-down stack of variable values.
-	depth    int        // the height of the stack of executing templates.
-	deadline time.Time  // ntfy: wall-clock bail-out; zero means no limit
-	steps    int64      // ntfy: node counter for amortized deadline checks
+	tmpl      *Template
+	ctx       context.Context // ctx-ex: execution context; Execute uses context.Background.
+	wr        io.Writer
+	node      parse.Node   // current node, for errors
+	vars      []variable   // push-down stack of variable values.
+	depth     int          // the height of the stack of executing templates.
+	cancelled *atomic.Bool // ctx-ex: shared flag set by the context.AfterFunc watcher; nil if ctx cannot be canceled
 }
 
 // variable holds the dynamic value of a variable such as $, $x etc.
@@ -135,10 +136,6 @@ func (e ExecError) Unwrap() error {
 	return e.Err
 }
 
-// ErrExecutionInterrupted is wrapped into the error returned by Execute when a template exceeds the
-// deadline set via Template.SetExecutionDeadline. Detect it with errors.Is. (ntfy addition)
-var ErrExecutionInterrupted = errors.New("template execution interrupted")
-
 // errorf records an ExecError and terminates processing.
 func (s *state) errorf(format string, args ...any) {
 	name := doublePercent(s.tmpl.Name())
@@ -168,6 +165,14 @@ func (s *state) writeError(err error) {
 	})
 }
 
+// cancelError is the wrapper type used internally when execution is aborted
+// because the context is done. Like writeError, it is stripped in errRecover
+// so the caller receives the original ctx.Err(). It is not an implementation
+// of error, so it cannot escape from the package as an error value.
+type cancelError struct {
+	Err error // Original context error.
+}
+
 // errRecover is the handler that turns panics into returns from the top
 // level of Parse.
 func errRecover(errp *error) {
@@ -178,6 +183,8 @@ func errRecover(errp *error) {
 			panic(e)
 		case writeError:
 			*errp = err.Err // Strip the wrapper.
+		case cancelError:
+			*errp = err.Err // Strip the wrapper; return the context error.
 		case ExecError:
 			*errp = err // Keep the wrapper.
 		default:
@@ -194,11 +201,19 @@ func errRecover(errp *error) {
 // A template may be executed safely in parallel, although if parallel
 // executions share a Writer the output may be interleaved.
 func (t *Template) ExecuteTemplate(wr io.Writer, name string, data any) error {
+	return t.ExecuteTemplateContext(context.Background(), wr, name, data)
+}
+
+// ExecuteTemplateContext is like [Template.ExecuteTemplate], but aborts and
+// returns ctx.Err() if ctx is canceled or its deadline is exceeded before
+// execution completes. See [Template.ExecuteContext] for the cancellation
+// semantics.
+func (t *Template) ExecuteTemplateContext(ctx context.Context, wr io.Writer, name string, data any) error {
 	tmpl := t.Lookup(name)
 	if tmpl == nil {
 		return fmt.Errorf("template: no template %q associated with template %q", name, t.name)
 	}
-	return tmpl.Execute(wr, data)
+	return tmpl.ExecuteContext(ctx, wr, data)
 }
 
 // Execute applies a parsed template to the specified data object,
@@ -212,20 +227,47 @@ func (t *Template) ExecuteTemplate(wr io.Writer, name string, data any) error {
 // If data is a [reflect.Value], the template applies to the concrete
 // value that the reflect.Value holds, as in [fmt.Print].
 func (t *Template) Execute(wr io.Writer, data any) error {
-	return t.execute(wr, data)
+	return t.executeContext(context.Background(), wr, data)
 }
 
-func (t *Template) execute(wr io.Writer, data any) (err error) {
+// ExecuteContext is like [Template.Execute], but aborts and returns ctx.Err()
+// (either [context.Canceled] or [context.DeadlineExceeded], retrievable with
+// [errors.Is]) if ctx is canceled or its deadline is exceeded before execution
+// completes.
+//
+// Cancellation is observed between node evaluations as the template is walked,
+// so long-running renders -- including tight or nested {{range}} loops that
+// write no output -- are aborted promptly. A template blocked inside a single
+// function call is not interrupted until that call returns. Partial results may
+// already have been written to wr.
+func (t *Template) ExecuteContext(ctx context.Context, wr io.Writer, data any) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return t.executeContext(ctx, wr, data)
+}
+
+func (t *Template) executeContext(ctx context.Context, wr io.Writer, data any) (err error) {
 	defer errRecover(&err)
 	value, ok := data.(reflect.Value)
 	if !ok {
 		value = reflect.ValueOf(data)
 	}
 	state := &state{
-		tmpl:     t,
-		wr:       wr,
-		vars:     []variable{{"$", value}},
-		deadline: t.deadline, // ntfy: wall-clock execution bail-out
+		tmpl: t,
+		ctx:  ctx,
+		wr:   wr,
+		vars: []variable{{"$", value}},
+	}
+	// If the context can be canceled, watch it with a single context.AfterFunc
+	// callback that flips an atomic flag; walk polls that flag per node (a cheap
+	// monomorphic atomic load) instead of calling ctx.Err() every node.
+	// Contexts that can never be canceled (Background, TODO) have a nil Done
+	// channel, so the default Execute path installs nothing and pays nothing.
+	if ctx.Done() != nil {
+		state.cancelled = new(atomic.Bool)
+		stop := context.AfterFunc(ctx, func() { state.cancelled.Store(true) })
+		defer stop()
 	}
 	if t.Tree == nil || t.Root == nil {
 		state.errorf("%q is an incomplete or empty template", t.Name())
@@ -269,10 +311,11 @@ var (
 // generating output as they go.
 func (s *state) walk(dot reflect.Value, node parse.Node) {
 	s.at(node)
-	// ntfy: amortized wall-clock bail-out to prevent CPU DoS from user-supplied templates
-	// (tight/nested ranges that never write output). See GHSA-rhwf-xgc9-m9fp.
-	if s.steps++; s.steps&0xff == 0 && !s.deadline.IsZero() && time.Now().After(s.deadline) {
-		s.errorf("execution interrupted: %w", ErrExecutionInterrupted)
+	// Abort if the context has been canceled or its deadline has passed. The
+	// flag is set by the watcher installed in executeContext; observing it here
+	// interrupts any template shape, including loops that write no output.
+	if s.cancelled != nil && s.cancelled.Load() {
+		panic(cancelError{s.ctx.Err()})
 	}
 	switch node := node.(type) {
 	case *parse.ActionNode:

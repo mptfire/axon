@@ -2,13 +2,13 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template/parse"
-	"time"
 
 	"gopkg.in/yaml.v2"
 	"heckel.io/ntfy/v2/model"
@@ -17,7 +17,7 @@ import (
 	"heckel.io/ntfy/v2/util/sprig"
 )
 
-func (s *Server) handleBodyAsTemplatedTextMessage(m *model.Message, template templateMode, body *util.PeekedReadCloser, priorityStr string) error {
+func (s *Server) handleBodyAsTemplatedTextMessage(ctx context.Context, m *model.Message, template templateMode, body *util.PeekedReadCloser, priorityStr string) error {
 	body, err := util.Peek(body, max(s.config.MessageSizeLimit, jsonBodyBytesLimit))
 	if err != nil {
 		return err
@@ -26,11 +26,11 @@ func (s *Server) handleBodyAsTemplatedTextMessage(m *model.Message, template tem
 	}
 	peekedBody := strings.TrimSpace(string(body.PeekedBytes))
 	if template.FileMode() {
-		if err := s.renderTemplateFromFile(m, template.FileName(), peekedBody); err != nil {
+		if err := s.renderTemplateFromFile(ctx, m, template.FileName(), peekedBody); err != nil {
 			return err
 		}
 	} else {
-		if err := s.renderTemplateFromParams(m, peekedBody, priorityStr); err != nil {
+		if err := s.renderTemplateFromParams(ctx, m, peekedBody, priorityStr); err != nil {
 			return err
 		}
 	}
@@ -42,7 +42,7 @@ func (s *Server) handleBodyAsTemplatedTextMessage(m *model.Message, template tem
 
 // renderTemplateFromFile transforms the JSON message body according to a template from the filesystem.
 // The template file must be in the templates directory, or in the configured template directory.
-func (s *Server) renderTemplateFromFile(m *model.Message, templateName, peekedBody string) error {
+func (s *Server) renderTemplateFromFile(ctx context.Context, m *model.Message, templateName, peekedBody string) error {
 	if !templateNameRegex.MatchString(templateName) {
 		return errHTTPBadRequestTemplateFileNotFound
 	}
@@ -61,17 +61,17 @@ func (s *Server) renderTemplateFromFile(m *model.Message, templateName, peekedBo
 	}
 	var err error
 	if tpl.Message != nil {
-		if m.Message, err = s.renderTemplate(templateName+" (message)", *tpl.Message, peekedBody); err != nil {
+		if m.Message, err = s.renderTemplate(ctx, templateName+" (message)", *tpl.Message, peekedBody); err != nil {
 			return err
 		}
 	}
 	if tpl.Title != nil {
-		if m.Title, err = s.renderTemplate(templateName+" (title)", *tpl.Title, peekedBody); err != nil {
+		if m.Title, err = s.renderTemplate(ctx, templateName+" (title)", *tpl.Title, peekedBody); err != nil {
 			return err
 		}
 	}
 	if tpl.Priority != nil {
-		renderedPriority, err := s.renderTemplate(templateName+" (priority)", *tpl.Priority, peekedBody)
+		renderedPriority, err := s.renderTemplate(ctx, templateName+" (priority)", *tpl.Priority, peekedBody)
 		if err != nil {
 			return err
 		}
@@ -84,16 +84,16 @@ func (s *Server) renderTemplateFromFile(m *model.Message, templateName, peekedBo
 
 // renderTemplateFromParams transforms the JSON message body according to the inline template in the
 // message, title, and priority parameters.
-func (s *Server) renderTemplateFromParams(m *model.Message, peekedBody string, priorityStr string) error {
+func (s *Server) renderTemplateFromParams(ctx context.Context, m *model.Message, peekedBody string, priorityStr string) error {
 	var err error
-	if m.Message, err = s.renderTemplate("priority query parameter", m.Message, peekedBody); err != nil {
+	if m.Message, err = s.renderTemplate(ctx, "priority query parameter", m.Message, peekedBody); err != nil {
 		return err
 	}
-	if m.Title, err = s.renderTemplate("title query parameter", m.Title, peekedBody); err != nil {
+	if m.Title, err = s.renderTemplate(ctx, "title query parameter", m.Title, peekedBody); err != nil {
 		return err
 	}
 	if priorityStr != "" {
-		renderedPriority, err := s.renderTemplate("priority query parameter", priorityStr, peekedBody)
+		renderedPriority, err := s.renderTemplate(ctx, "priority query parameter", priorityStr, peekedBody)
 		if err != nil {
 			return err
 		}
@@ -105,7 +105,7 @@ func (s *Server) renderTemplateFromParams(m *model.Message, peekedBody string, p
 }
 
 // renderTemplate renders a template with the given JSON source data.
-func (s *Server) renderTemplate(name, tpl, source string) (string, error) {
+func (s *Server) renderTemplate(ctx context.Context, name, tpl, source string) (string, error) {
 	var data any
 	if err := json.Unmarshal([]byte(source), &data); err != nil {
 		return "", errHTTPBadRequestTemplateMessageNotJSON
@@ -117,11 +117,15 @@ func (s *Server) renderTemplate(name, tpl, source string) (string, error) {
 	if templateUsesDisallowedFeatures(t) {
 		return "", errHTTPBadRequestTemplateDisallowedFunctionCalls
 	}
-	t.SetExecutionDeadline(time.Now().Add(templateMaxExecutionTime)) // Bail out of runaway templates (GHSA-rhwf-xgc9-m9fp)
+	// Bail out of runaway templates (GHSA-rhwf-xgc9-m9fp). The deadline starts here, after the body
+	// has already been read, so a slow upload is not counted against it. Deriving from the request
+	// context means a client disconnect aborts the render too.
+	execCtx, cancel := context.WithTimeout(ctx, templateMaxExecutionTime)
+	defer cancel()
 	var buf bytes.Buffer
 	limitWriter := util.NewLimitWriter(&buf, util.NewFixedLimiter(templateMaxOutputBytes))
-	if err := t.Execute(limitWriter, data); err != nil {
-		if errors.Is(err, gotext.ErrExecutionInterrupted) {
+	if err := t.ExecuteContext(execCtx, limitWriter, data); err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
 			return "", errHTTPBadRequestTemplateExecutionTimeout
 		}
 		return "", errHTTPBadRequestTemplateExecuteFailed.Wrap("template %s: %s", name, err.Error())

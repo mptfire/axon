@@ -9,15 +9,13 @@ import (
 	"reflect"
 	"sync"
 	"text/template/parse"
-	"time"
 )
 
 // common holds the information shared by related templates.
 type common struct {
-	tmpl     map[string]*Template // Map from name to defined templates.
-	muTmpl   sync.RWMutex         // protects tmpl
-	option   option
-	deadline time.Time // ntfy: wall-clock execution deadline (zero = none)
+	tmpl   map[string]*Template // Map from name to defined templates.
+	muTmpl sync.RWMutex         // protects tmpl
+	option option
 	// We use two maps, one for parsing and one for execution.
 	// This separation makes the API cleaner since it doesn't
 	// expose reflection to the client.
@@ -49,15 +47,6 @@ func New(name string) *Template {
 // Name returns the name of the template.
 func (t *Template) Name() string {
 	return t.name
-}
-
-// SetExecutionDeadline sets a wall-clock deadline after which Execute aborts with an error wrapping
-// ErrExecutionInterrupted. A zero deadline disables the limit. It bounds CPU for untrusted templates
-// that text/template cannot otherwise interrupt. (ntfy addition, see GHSA-rhwf-xgc9-m9fp.)
-func (t *Template) SetExecutionDeadline(deadline time.Time) *Template {
-	t.init()
-	t.deadline = deadline
-	return t
 }
 
 // New allocates a new, undefined template associated with the given one and with the same

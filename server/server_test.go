@@ -3764,9 +3764,8 @@ func (b *slowBody) Close() error { return nil }
 func TestServer_MessageTemplate_SlowUpload_NotCountedAgainstDeadline(t *testing.T) {
 	s := newTestServer(t, newTestConfig(t, ""))
 	start := time.Now()
-	// The loop makes the template execute enough nodes (>256) to actually hit the deadline check,
-	// so this test distinguishes correct behavior from a deadline that includes upload time -- yet
-	// it runs in ~1ms, far under the deadline, so on correct code it renders fine.
+	// The template runs in ~1ms, far under the deadline, so on correct code it renders fine; the
+	// point is that the deadline starts at execution, not when the (slow) upload began.
 	response := request(t, s, "POST", "/mytopic", `{"foo":"bar"}`, map[string]string{
 		"Template":  "yes",
 		"X-Message": `{{range until 5000}}{{$x := .}}{{end}}hello {{.foo}}`,
@@ -3778,6 +3777,40 @@ func TestServer_MessageTemplate_SlowUpload_NotCountedAgainstDeadline(t *testing.
 	require.Equal(t, 200, response.Code) // Would be 40055 if upload time counted against the deadline
 	m := toMessage(t, response.Body.String())
 	require.Equal(t, "hello bar", m.Message)
+}
+
+// TestServer_MessageTemplate_ClientDisconnect_CancelsRender verifies that canceling the request
+// context (e.g. the client disconnecting) aborts an in-progress template render. The execution
+// deadline is raised well above the cancel delay for this test so that cancellation -- not the
+// deadline -- is what stops the render: a runaway template is canceled 500ms in and must abort
+// shortly after (well under the raised deadline), yielding the generic execute-failed code (40045),
+// not the timeout code (40055).
+//
+// Not parallel: it temporarily raises the package-global templateMaxExecutionTime. Non-parallel
+// tests run in their own phase (parallel tests are paused), so the override is race-free.
+func TestServer_MessageTemplate_ClientDisconnect_CancelsRender(t *testing.T) {
+	origDeadline := templateMaxExecutionTime
+	templateMaxExecutionTime = 30 * time.Second // large enough that only the cancel can stop the render
+	defer func() { templateMaxExecutionTime = origDeadline }()
+
+	s := newTestServer(t, newTestConfig(t, ""))
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(500 * time.Millisecond)
+		cancel()
+	}()
+	start := time.Now()
+	response := request(t, s, "POST", "/mytopic", `{}`, map[string]string{
+		"X-Message":  `{{$x := until 10000}}{{range $x}}{{range $x}}{{end}}{{end}}done`,
+		"X-Template": "1",
+	}, func(r *http.Request) {
+		*r = *r.WithContext(ctx)
+	})
+	elapsed := time.Since(start)
+	require.Equal(t, 400, response.Code)
+	require.Equal(t, 40045, toHTTPError(t, response.Body.String()).Code, "a canceled render should map to execute-failed, not the timeout code 40055")
+	require.Greater(t, elapsed, 500*time.Millisecond, "render must still be running when the cancel fires (took %s)", elapsed)
+	require.Less(t, elapsed, 700*time.Millisecond, "request-context cancel should abort the render promptly after firing (took %s)", elapsed)
 }
 
 func TestServer_MessageTemplate_ExceedMessageSize_TemplatedMessageOK(t *testing.T) {
