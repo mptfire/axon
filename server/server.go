@@ -151,6 +151,11 @@ var (
 	templatesDir = "templates"
 
 	templateNameRegex = regexp.MustCompile(`^[-_A-Za-z0-9]+$`)
+
+	// templateMaxExecutionTime is the wall-clock deadline for a single template render, a DoS guard
+	// (GHSA-rhwf-xgc9-m9fp). It is a var (not a const) solely so tests can raise it; it is never
+	// mutated in production.
+	templateMaxExecutionTime = 100 * time.Millisecond
 )
 
 const (
@@ -164,7 +169,6 @@ const (
 	unifiedPushTopicPrefix   = "up"                      // Temporarily, we rate limit all "up*" topics based on the subscriber
 	unifiedPushTopicLength   = 14                        // Length of UnifiedPush topics, including the "up" part
 	messagesHistoryMax       = 10                        // Number of message count values to keep in memory
-	templateMaxExecutionTime = 100 * time.Millisecond    // Maximum time a template can take to execute, used to prevent DoS attacks
 	templateMaxOutputBytes   = 1024 * 1024               // Maximum number of bytes a template can output, used to prevent DoS attacks
 	templateFileExtension    = ".yml"                    // Template files must end with this extension
 )
@@ -1245,7 +1249,7 @@ func (s *Server) handlePublishBody(r *http.Request, v *visitor, m *model.Message
 	} else if m.Attachment != nil && m.Attachment.Name != "" {
 		return s.handleBodyAsAttachment(r, v, m, body) // Case 4
 	} else if template.Enabled() {
-		return s.handleBodyAsTemplatedTextMessage(m, template, body, priorityStr) // Case 5
+		return s.handleBodyAsTemplatedTextMessage(r.Context(), m, template, body, priorityStr) // Case 5
 	} else if !body.LimitReached && utf8.Valid(body.PeekedBytes) {
 		return s.handleBodyAsTextMessage(m, body) // Case 6
 	}
