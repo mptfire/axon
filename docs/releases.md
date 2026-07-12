@@ -23,7 +23,7 @@ and a fix that strips unsafe URL protocols from rendered Markdown.
 
 **Security:**
 
-* Prevent a CPU denial of service via message templates (`Template: yes`) ([#1826](https://github.com/binwiederhier/ntfy/pull/1826), thanks to [@alanturing881](https://github.com/alanturing881) for reporting)
+* Prevent a CPU denial of service via message templates (`Template: yes`) ([#1826](https://github.com/binwiederhier/ntfy/pull/1826), thanks to [@alanturing881](https://github.com/alanturing881), [@5ud0er](https://github.com/5ud0er) and [@jvoisin](https://github.com/jvoisin) for reporting)
 
 **Features:**
 
