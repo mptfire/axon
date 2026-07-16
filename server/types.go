@@ -217,6 +217,14 @@ type apiAccountTokenResponse struct {
 	Provisioned bool   `json:"provisioned,omitempty"` // True if this token was provisioned by the server config
 }
 
+// apiAccountLoginResponse is the body of POST /v1/account/login: it authenticates a
+// username-or-email + password, mints a session token, and returns the token together with the
+// canonical username (which may differ from the identifier the user typed, e.g. a primary email).
+type apiAccountLoginResponse struct {
+	Token    string `json:"token"`
+	Username string `json:"username"`
+}
+
 type apiAccountPhoneNumberVerifyRequest struct {
 	Number  string `json:"number"`
 	Channel string `json:"channel"`

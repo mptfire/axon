@@ -110,6 +110,7 @@ var (
 	apiUsersPath                                         = "/v1/users"
 	apiUsersAccessPath                                   = "/v1/users/access"
 	apiAccountPath                                       = "/v1/account"
+	apiAccountLoginPath                                  = "/v1/account/login"
 	apiAccountTokenPath                                  = "/v1/account/token"
 	apiAccountPasswordPath                               = "/v1/account/password"
 	apiAccountSettingsPath                               = "/v1/account/settings"
@@ -579,6 +580,8 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureUser(s.withAccountSync(s.handleAccountDelete))(w, r, v)
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountPasswordPath {
 		return s.ensureUser(s.handleAccountPasswordChange)(w, r, v)
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountLoginPath {
+		return s.ensureUser(s.withAccountSync(s.handleAccountLogin))(w, r, v)
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAccountTokenPath {
 		return s.ensureUser(s.withAccountSync(s.handleAccountTokenCreate))(w, r, v)
 	} else if r.Method == http.MethodPatch && r.URL.Path == apiAccountTokenPath {

@@ -2947,6 +2947,108 @@ func TestUser_MagicLink_PrimaryGlobalUniqueness(t *testing.T) {
 	})
 }
 
+func TestManager_Authenticate_ByPrimaryEmail(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+
+		// phil verifies phil@example.com -> becomes his primary (recovery) email
+		_, err = a.VerifyEmail(addVerifyLink(t, a, phil.ID, "phil@example.com", 24*time.Hour))
+		require.Nil(t, err)
+
+		// Login by username still works
+		u, err := a.Authenticate("phil", "phil")
+		require.Nil(t, err)
+		require.Equal(t, "phil", u.Name)
+
+		// Login by primary email works and resolves to the same account
+		u, err = a.Authenticate("phil@example.com", "phil")
+		require.Nil(t, err)
+		require.Equal(t, "phil", u.Name)
+
+		// Login by primary email with the wrong password fails
+		u, err = a.Authenticate("phil@example.com", "wrong")
+		require.Nil(t, u)
+		require.Equal(t, ErrUnauthenticated, err)
+
+		// An unknown email fails
+		u, err = a.Authenticate("nobody@example.com", "phil")
+		require.Nil(t, u)
+		require.Equal(t, ErrUnauthenticated, err)
+	})
+}
+
+func TestManager_Authenticate_BySecondaryEmailDenied(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
+		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
+		phil, err := a.User("phil")
+		require.Nil(t, err)
+		ben, err := a.User("ben")
+		require.Nil(t, err)
+
+		// phil verifies shared@ first -> his primary; ben verifies it too -> only secondary for ben
+		_, err = a.VerifyEmail(addVerifyLink(t, a, phil.ID, "shared@example.com", 24*time.Hour))
+		require.Nil(t, err)
+		_, err = a.VerifyEmail(addVerifyLink(t, a, ben.ID, "shared@example.com", 24*time.Hour))
+		require.Nil(t, err)
+
+		// Login by the shared address resolves to the primary owner (phil), never the secondary (ben)
+		u, err := a.Authenticate("shared@example.com", "phil")
+		require.Nil(t, err)
+		require.Equal(t, "phil", u.Name)
+
+		// ben's password must not authenticate via the shared address (it is not his primary)
+		u, err = a.Authenticate("shared@example.com", "ben")
+		require.Nil(t, u)
+		require.Equal(t, ErrUnauthenticated, err)
+	})
+}
+
+func TestManager_Authenticate_UsernameLookalikeEmailPrecedence(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+
+		// The collision: a squatter whose USERNAME is literally "phil@example.com" (usernames may
+		// contain '@' and '.'), and a different account (ben) that owns "phil@example.com" as its
+		// verified primary email. Both are reachable; nothing links usernames to email addresses.
+		require.Nil(t, a.AddUser("phil@example.com", "squatterpass", RoleUser, false))
+		require.Nil(t, a.AddUser("ben", "benpass", RoleUser, false))
+		ben, err := a.User("ben")
+		require.Nil(t, err)
+		_, err = a.VerifyEmail(addVerifyLink(t, a, ben.ID, "phil@example.com", 24*time.Hour))
+		require.Nil(t, err)
+
+		// Login resolves the ambiguous identifier username-FIRST (the ORDER BY CASE in the query):
+		// the squatter owns the login, and returns deterministically even though both rows match.
+		squatter, err := a.Authenticate("phil@example.com", "squatterpass")
+		require.Nil(t, err)
+		require.Equal(t, "phil@example.com", squatter.Name)
+
+		// Consequently the email owner's password does NOT authenticate via the colliding identifier
+		// at login, but the owner is not locked out: their real username still works.
+		u, err := a.Authenticate("phil@example.com", "benpass")
+		require.Nil(t, u)
+		require.Equal(t, ErrUnauthenticated, err)
+		u, err = a.Authenticate("ben", "benpass")
+		require.Nil(t, err)
+		require.Equal(t, "ben", u.Name)
+
+		// The inverse: password reset (UserByEmailOrUsername) resolves the SAME identifier email-FIRST,
+		// so the reset link goes to the verified email owner (ben), never the look-alike username. The
+		// two flows deliberately use opposite precedence.
+		loginUser, err := a.userByNameOrEmail("phil@example.com")
+		require.Nil(t, err)
+		require.Equal(t, "phil@example.com", loginUser.Name) // username owner (squatter)
+		resetUser, err := a.UserByEmailOrUsername("phil@example.com")
+		require.Nil(t, err)
+		require.Equal(t, "ben", resetUser.Name) // email owner
+	})
+}
+
 func TestUser_MagicLink_SetPrimary_NotVerified(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		a := newTestManager(t, newManager, PermissionDenyAll)

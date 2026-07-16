@@ -268,6 +268,24 @@ func (s *Server) handleAccountPasswordChange(w http.ResponseWriter, r *http.Requ
 	return s.writeJSON(w, newSuccessResponse())
 }
 
+// handleAccountLogin authenticates a username-or-email + password (via the ensureUser wrapper's
+// Basic Auth), mints a session token, and returns it together with the canonical username. Unlike
+// the token endpoint (which exists to mint arbitrary API tokens), this endpoint's job is to log a
+// user in, so it also reports who they are (the identifier they typed may be a primary email).
+func (s *Server) handleAccountLogin(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	u := v.User()
+	logvr(v, r).Tag(tagAccount).Info("Logging in user %s", u.Name)
+	token, err := s.userManager.CreateToken(u.ID, "", time.Now().Add(tokenExpiryDuration), v.IP(), false)
+	if err != nil {
+		return err
+	}
+	response := &apiAccountLoginResponse{
+		Token:    token.Value,
+		Username: u.Name,
+	}
+	return s.writeJSON(w, response)
+}
+
 func (s *Server) handleAccountTokenCreate(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	req, err := readJSONWithLimit[apiAccountTokenIssueRequest](r.Body, jsonBodyBytesLimit, true) // Allow empty body!
 	if err != nil {
