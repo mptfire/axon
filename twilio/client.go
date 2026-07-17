@@ -58,7 +58,7 @@ func (c *Client) Call(to string, data *CallData) error {
 		// Twilio rejects calls with a 4xx, e.g. for an invalid phone number, or if the account
 		// is out of funds. Without this check, a rejected call would be counted as a success.
 		ev.Field("twilio_status", code).Field("twilio_response", response).Warn("Twilio call failed with status code %d", code)
-		return err
+		return fmt.Errorf("twilio call failed with status code %d", code)
 	}
 	ev.FieldIf("twilio_response", response, log.TraceLevel).Debug("Received successful Twilio response")
 	return nil
@@ -80,7 +80,7 @@ func (c *Client) Verify(phoneNumber, channel string) error {
 		// Without this check, a rejected verification would look like a success to the caller,
 		// and the user would be told to wait for an SMS that was never sent.
 		ev.Field("twilio_status", code).Field("twilio_response", response).Warn("Twilio phone verification request failed with status code %d", code)
-		return err
+		return fmt.Errorf("twilio phone verification request failed with status code %d", code)
 	}
 	ev.FieldIf("twilio_response", response, log.TraceLevel).Debug("Received Twilio phone verification response")
 	return nil

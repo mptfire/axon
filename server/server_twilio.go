@@ -1,6 +1,7 @@
 package server
 
 import (
+	"heckel.io/ntfy/v2/metrics"
 	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/twilio"
 	"heckel.io/ntfy/v2/user"
@@ -46,8 +47,8 @@ func (s *Server) callPhone(v *visitor, m *model.Message, to string) {
 	})
 	if err != nil {
 		logvm(v, m).Tag(tagTwilio).Field("twilio_to", to).Err(err).Warn("Unable to call phone %s: %v", to, err.Error())
-		minc(metricCallsMadeFailure)
+		metrics.CallsMadeFailure.Inc()
 		return
 	}
-	minc(metricCallsMadeSuccess)
+	metrics.CallsMadeSuccess.Inc()
 }

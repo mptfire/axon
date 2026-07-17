@@ -150,7 +150,6 @@ type Config struct {
 	TwilioVerifyBaseURL                  string
 	TwilioVerifyService                  string
 	TwilioCallFormat                     *template.Template
-	MetricsEnable                        bool
 	MetricsListenHTTP                    string
 	ProfileListenHTTP                    string
 	MessageDelayMin                      time.Duration

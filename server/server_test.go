@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 	dbtest "heckel.io/ntfy/v2/db/test"
@@ -323,6 +324,40 @@ func TestServer_WebEnabled(t *testing.T) {
 		require.Equal(t, 200, rr.Code)
 	})
 }
+
+// TestServer_MetricsEnabled ensures that the /metrics endpoint serves the registered ntfy metrics
+// once the metrics handler is set (as Serve does when enable-metrics is configured).
+func TestServer_MetricsEnabled(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		s := newTestServer(t, newTestConfig(t, databaseURL))
+		s.metricsHandler = promhttp.Handler() // Serve sets this when enable-metrics is configured
+
+		// Count at least one request first: Prometheus only reports a CounterVec such as
+		// ntfy_http_requests_total once it has children
+		request(t, s, "GET", "/v1/health", "", nil)
+
+		rr := request(t, s, "GET", "/metrics", "", nil)
+		require.Equal(t, 200, rr.Code)
+		require.Contains(t, rr.Body.String(), "ntfy_messages_published_success")
+		require.Contains(t, rr.Body.String(), "ntfy_http_requests_total")
+	})
+}
+
+// TestServer_MetricsDisabled ensures that the ntfy metrics are not exposed when the metrics handler
+// is unset (the default). The collectors are always registered with the Prometheus registry, so a
+// nil metrics handler is the only thing keeping them off the wire.
+func TestServer_MetricsDisabled(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		conf := newTestConfig(t, databaseURL)
+		conf.WebRoot = "" // Disable the web app, so its catch-all does not mask the /metrics route
+		s := newTestServer(t, conf)
+
+		rr := request(t, s, "GET", "/metrics", "", nil)
+		require.Equal(t, 404, rr.Code)
+		require.NotContains(t, rr.Body.String(), "ntfy_messages_published_success")
+	})
+}
+
 func TestServer_PublishLargeMessage(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, databaseURL string) {
 		c := newTestConfig(t, databaseURL)
@@ -1684,6 +1719,7 @@ func TestServer_PublishEmailVerify_BoolValueUsesPrimary(t *testing.T) {
 			"Authorization": util.BasicAuth("phil", "phil"),
 		})
 		require.Equal(t, 200, response.Code)
+		waitFor(t, func() bool { return mailer.LastTo() != "" }) // E-Mail publishing happens in a Go routine
 		require.Equal(t, "zzz@example.com", mailer.LastTo())
 	})
 }
@@ -1710,6 +1746,7 @@ func TestServer_PublishEmailVerify_BoolValueNoVerifyUsesPrimary(t *testing.T) {
 			"Authorization": util.BasicAuth("phil", "phil"),
 		})
 		require.Equal(t, 200, response.Code)
+		waitFor(t, func() bool { return mailer.LastTo() != "" }) // E-Mail publishing happens in a Go routine
 		require.Equal(t, "zzz@example.com", mailer.LastTo())
 	})
 }
@@ -1751,6 +1788,7 @@ func TestServer_PublishEmailVerify_BoolValueProvisionedUsesPrimary(t *testing.T)
 			"Authorization": util.BasicAuth("prov", "provpass"),
 		})
 		require.Equal(t, 200, response.Code)
+		waitFor(t, func() bool { return mailer.LastTo() != "" }) // E-Mail publishing happens in a Go routine
 		require.Equal(t, "zzz@example.com", mailer.LastTo())
 	})
 }

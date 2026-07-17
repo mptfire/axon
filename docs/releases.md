@@ -2016,6 +2016,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 **Bug fixes + maintenance:**
 
 * Fix Twilio phone calls and phone number verifications failing silently when Twilio rejected the request, and move the Twilio integration into its own `twilio` package
+* Move the Prometheus metrics into a dedicated `metrics` package
 
 ### ntfy Android v1.25.2 (UNRELEASED)
 

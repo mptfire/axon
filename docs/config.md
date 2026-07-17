@@ -2159,13 +2159,14 @@ See [Installation for Docker](install.md#docker) for an example of how this coul
 If configured, ntfy can expose a `/metrics` endpoint for [Prometheus](https://prometheus.io/), which can then be used to
 create dashboards and alerts (e.g. via [Grafana](https://grafana.com/)).
 
-To configure the metrics endpoint, either set `enable-metrics` and/or set the `metrics-listen-http` option to a dedicated
+To configure the metrics endpoint, either set `enable-metrics`, or set the `metrics-listen-http` option to a dedicated
 listen address. Metrics may be considered sensitive information, so before you enable them, be sure you know what you are
 doing, and/or secure access to the endpoint in your reverse proxy.
 
 - `enable-metrics` enables the /metrics endpoint for the default ntfy server (i.e. HTTP, HTTPS and/or Unix socket)
-- `metrics-listen-http` exposes the metrics endpoint via a dedicated `[IP]:port`. If set, this option implicitly
-  enables metrics as well, e.g. "10.0.1.1:9090" or ":9090"
+- `metrics-listen-http` moves the metrics endpoint to a dedicated `[IP]:port`, e.g. "10.0.1.1:9090" or ":9090". It
+  implicitly enables metrics. If set, the metrics are served only on that dedicated port, and the default ntfy server
+  does not serve /metrics, even if `enable-metrics` is also set.
 
 === "server.yml (Using default port)"
     ```yaml

@@ -36,6 +36,7 @@ import (
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/mail"
 	"heckel.io/ntfy/v2/message"
+	"heckel.io/ntfy/v2/metrics"
 	"heckel.io/ntfy/v2/model"
 	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/twilio"
@@ -411,13 +412,11 @@ func (s *Server) Run() error {
 		}()
 	}
 	if s.config.MetricsListenHTTP != "" {
-		initMetrics()
 		s.httpMetricsServer = &http.Server{Addr: s.config.MetricsListenHTTP, Handler: promhttp.Handler()}
 		go func() {
 			errChan <- s.httpMetricsServer.ListenAndServe()
 		}()
 	} else if s.config.EnableMetrics {
-		initMetrics()
 		s.metricsHandler = promhttp.Handler()
 	}
 	if s.config.ProfileListenHTTP != "" {
@@ -505,9 +504,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 				s.handleError(w, r, v, err)
 				return
 			}
-			if metricHTTPRequests != nil {
-				metricHTTPRequests.WithLabelValues("200", "20000", r.Method).Inc()
-			}
+			metrics.HTTPRequests.WithLabelValues("200", "20000", r.Method).Inc()
 		}).
 		Debug("HTTP request finished")
 }
@@ -517,9 +514,7 @@ func (s *Server) handleError(w http.ResponseWriter, r *http.Request, v *visitor,
 	if !ok {
 		httpErr = errHTTPInternalError
 	}
-	if metricHTTPRequests != nil {
-		metricHTTPRequests.WithLabelValues(fmt.Sprintf("%d", httpErr.HTTPCode), fmt.Sprintf("%d", httpErr.Code), r.Method).Inc()
-	}
+	metrics.HTTPRequests.WithLabelValues(strconv.Itoa(httpErr.HTTPCode), strconv.Itoa(httpErr.Code), r.Method).Inc()
 	isRateLimiting := util.Contains(rateLimitingErrorCodes, httpErr.HTTPCode)
 	isNormalError := strings.Contains(err.Error(), "i/o timeout") || util.Contains(normalErrorCodes, httpErr.HTTPCode)
 	ev := logvr(v, r).Err(err)
@@ -940,27 +935,27 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 	s.messages++
 	s.mu.Unlock()
 	if unifiedpush {
-		minc(metricUnifiedPushPublishedSuccess)
+		metrics.UnifiedPushPublishedSuccess.Inc()
 	}
-	mset(metricMessagePublishDurationMillis, time.Since(start).Milliseconds())
+	metrics.MessagePublishDurationMillis.Set(float64(time.Since(start).Milliseconds()))
 	return m, nil
 }
 
 func (s *Server) handlePublish(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	m, err := s.handlePublishInternal(r, v)
 	if err != nil {
-		minc(metricMessagesPublishedFailure)
+		metrics.MessagesPublishedFailure.Inc()
 		return err
 	}
-	minc(metricMessagesPublishedSuccess)
+	metrics.MessagesPublishedSuccess.Inc()
 	return s.writeJSON(w, m.ForJSON())
 }
 
 func (s *Server) handlePublishMatrix(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	_, err := s.handlePublishInternal(r, v)
 	if err != nil {
-		minc(metricMessagesPublishedFailure)
-		minc(metricMatrixPublishedFailure)
+		metrics.MessagesPublishedFailure.Inc()
+		metrics.MatrixPublishedFailure.Inc()
 		if e, ok := err.(*errHTTP); ok && e.HTTPCode == errHTTPInsufficientStorageUnifiedPush.HTTPCode {
 			topic, err := fromContext[*topic](r, contextTopic)
 			if err != nil {
@@ -976,8 +971,8 @@ func (s *Server) handlePublishMatrix(w http.ResponseWriter, r *http.Request, v *
 		}
 		return err
 	}
-	minc(metricMessagesPublishedSuccess)
-	minc(metricMatrixPublishedSuccess)
+	metrics.MessagesPublishedSuccess.Inc()
+	metrics.MatrixPublishedSuccess.Inc()
 	return writeMatrixSuccess(w)
 }
 
@@ -1049,7 +1044,7 @@ func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *
 func (s *Server) sendToFirebase(v *visitor, m *model.Message) {
 	logvm(v, m).Tag(tagFirebase).Debug("Publishing to Firebase")
 	if err := s.firebaseClient.Send(v, m); err != nil {
-		minc(metricFirebasePublishedFailure)
+		metrics.FirebasePublishedFailure.Inc()
 		if errors.Is(err, errFirebaseTemporarilyBanned) {
 			logvm(v, m).Tag(tagFirebase).Err(err).Debug("Unable to publish to Firebase: %v", err.Error())
 		} else {
@@ -1057,17 +1052,17 @@ func (s *Server) sendToFirebase(v *visitor, m *model.Message) {
 		}
 		return
 	}
-	minc(metricFirebasePublishedSuccess)
+	metrics.FirebasePublishedSuccess.Inc()
 }
 
 func (s *Server) sendEmail(v *visitor, m *model.Message, email string) {
 	logvm(v, m).Tag(tagEmail).Field("email", email).Info("Sending email to %s", email)
 	if err := s.mailer.SendNotification(email, m, v.ip.String()); err != nil {
 		logvm(v, m).Tag(tagEmail).Field("email", email).Err(err).Warn("Unable to send email to %s: %v", email, err.Error())
-		minc(metricEmailsPublishedFailure)
+		metrics.EmailsPublishedFailure.Inc()
 		return
 	}
-	minc(metricEmailsPublishedSuccess)
+	metrics.EmailsPublishedSuccess.Inc()
 }
 
 func (s *Server) forwardPollRequest(v *visitor, m *model.Message) {
