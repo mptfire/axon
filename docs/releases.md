@@ -2013,6 +2013,10 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 * Allow logging in with your verified primary email address (in addition to your username), so a password reset no longer leaves you unable to sign in when you only remember the email you signed up with
 
+**Bug fixes + maintenance:**
+
+* Fix Twilio phone calls and phone number verifications failing silently when Twilio rejected the request, and move the Twilio integration into its own `twilio` package
+
 ### ntfy Android v1.25.2 (UNRELEASED)
 
 This release makes the "connection lost" alert configurable and turns it off by default. Folks did not like it and many reached out

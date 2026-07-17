@@ -10,6 +10,7 @@ import (
 
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/model"
+	"heckel.io/ntfy/v2/twilio"
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 )
@@ -631,7 +632,7 @@ func (s *Server) handleAccountPhoneNumberVerify(w http.ResponseWriter, r *http.R
 	}
 	// Actually add the unverified number, and send verification
 	logvr(v, r).Tag(tagAccount).Field("phone_number", req.Number).Debug("Sending phone number verification")
-	if err := s.twilio.verifyPhoneNumber(v, r, req.Number, req.Channel); err != nil {
+	if err := s.twilio.Verify(req.Number, req.Channel); err != nil {
 		return err
 	}
 	return s.writeJSON(w, newSuccessResponse())
@@ -646,7 +647,10 @@ func (s *Server) handleAccountPhoneNumberAdd(w http.ResponseWriter, r *http.Requ
 	if !phoneNumberRegex.MatchString(req.Number) {
 		return errHTTPBadRequestPhoneNumberInvalid
 	}
-	if err := s.twilio.verifyPhoneNumberCheck(v, r, req.Number, req.Code); err != nil {
+	if err := s.twilio.CheckVerify(req.Number, req.Code); err != nil {
+		if errors.Is(err, twilio.ErrVerificationExpired) {
+			return errHTTPGonePhoneVerificationExpired
+		}
 		return err
 	}
 	logvr(v, r).Tag(tagAccount).Field("phone_number", req.Number).Debug("Adding phone number as verified")
