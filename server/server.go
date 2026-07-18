@@ -472,7 +472,7 @@ func (s *Server) closeDatabases() {
 
 // handle is the main entry point for all HTTP requests
 func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
-	v, err := s.maybeAuthenticate(r) // Note: Always returns v, even when error is returned
+	r, v, err := s.maybeAuthenticate(r) // Note: Always returns v (and r, with the client IP in its context), even on error
 	if err != nil {
 		s.handleError(w, r, v, err)
 		return
@@ -538,6 +538,15 @@ func (s *Server) handleError(w http.ResponseWriter, r *http.Request, v *visitor,
 	w.Header().Set("Access-Control-Allow-Origin", s.config.AccessControlAllowOrigin) // CORS, allow cross-origin requests
 	w.WriteHeader(httpErr.HTTPCode)
 	io.WriteString(w, httpErr.JSON()+"\n")
+	if s.config.BanFile != "" {
+		// Abuse ban-feed: record against the OFFENDING request's IP, not v.ip. An account-keyed
+		// (tier'd) visitor is one object shared across all its source IPs, so v.ip is stale. The IP was
+		// already extracted in maybeAuthenticate and stashed in the request context (contextVisitorIP),
+		// so reuse it here rather than re-parsing headers.
+		if ip, err := fromContext[netip.Addr](r, contextVisitorIP); err == nil {
+			v.recordStatus(ip, httpErr.HTTPCode, httpErr.Code)
+		}
+	}
 }
 
 func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visitor) error {

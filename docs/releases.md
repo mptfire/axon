@@ -2007,6 +2007,12 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Not released yet
 
+### ntfy server v2.26.1 (UNRELEASED)
+
+**Features:**
+
+* Add an abuse ban-feed: when enabled via `ban-file`, ntfy tracks a weighted strike budget per visitor and appends abusive IPs to a file that fail2ban can tail and ban on sight (see `ban-file`, `ban-window`, `ban-threshold`, `ban-weights`)
+
 ### ntfy Android v1.25.1 (UNRELEASED)
 
 This release makes the "connection lost" alert configurable and turns it off by default. Folks did not like it and many reached out

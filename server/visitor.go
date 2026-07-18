@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"net/netip"
+	"os"
 	"sync"
 	"time"
 
@@ -70,6 +71,8 @@ type visitor struct {
 	authLimiter          *rate.Limiter      // Limiter for incorrect login attempts, may be nil
 	firebase             time.Time          // Next allowed Firebase message
 	seen                 time.Time          // Last seen time of this visitor (needed for removal of stale visitors)
+	banLimiter           *rate.Limiter      // Abuse ban-feed: single weighted breach detector (rate.Limiter is concurrency-safe), nil when feature disabled
+	banEmit              *rate.Limiter      // Abuse ban-feed: throttles writes so a persistent offender only re-appears occasionally, nil when disabled
 	mu                   sync.RWMutex
 }
 
@@ -141,6 +144,13 @@ func newVisitor(conf *Config, messageCache *message.Cache, userManager *user.Man
 		bandwidthLimiter:     nil, // Set in resetLimiters
 		accountLimiter:       nil, // Set in resetLimiters, may be nil
 		authLimiter:          nil, // Set in resetLimiters, may be nil
+	}
+	// Abuse ban-feed: only wire up per-visitor tracking when the feature is enabled. One weighted
+	// token bucket (capacity BanThreshold, refilled at BanThreshold/BanWindow per second) is the
+	// breach detector; banEmit throttles writes so the feed stays tiny.
+	if conf.BanFile != "" {
+		v.banLimiter = rate.NewLimiter(rate.Limit(float64(conf.BanThreshold)/conf.BanWindow.Seconds()), conf.BanThreshold)
+		v.banEmit = rate.NewLimiter(rate.Every(conf.BanWindow), 1)
 	}
 	v.resetLimitersNoLock(messages, emails, calls, false)
 	return v
@@ -549,6 +559,73 @@ func replenishDurationToDailyLimit(duration time.Duration) int64 {
 
 func dailyLimitToRate(limit int64) rate.Limit {
 	return rate.Limit(limit) * rate.Every(oneDay)
+}
+
+// recordStatus is called once per request with the offending request's IP and the final HTTP status
+// and ntfy code. Each rejection (4xx/5xx only) consumes weightFor(ntfyCode) tokens from the visitor's
+// single weighted ban bucket; a code weighted 0 (or one that matches no rule) is exempt and never
+// counts. When the bucket cannot cover a rejection the visitor has breached, and ip is appended to
+// the ban file that fail2ban tails (throttled via banEmit so a persistent offender only re-appears
+// occasionally). ip is passed in rather than read from v.ip because an account-keyed (tier'd) visitor
+// is shared across all its source IPs, so v.ip would be stale; we ban the address that breached.
+// This is on the hot path, so it no-ops immediately when the feature is disabled.
+func (v *visitor) recordStatus(ip netip.Addr, httpCode, ntfyCode int) {
+	if v.config.BanFile == "" {
+		return // Feature disabled
+	}
+	if httpCode < 400 {
+		return // Only rejections (4xx/5xx) count toward a ban; success and redirects never do
+	}
+	// Note: tier'd (account-keyed) visitors are NOT exempt. A persistent 429 stream is abusive
+	// regardless of the account behind it, and banning the offending IP is the right response --
+	// exactly what the pre-existing nginx-side jails already did. The legit case (a paid user merely
+	// hitting a plan/quota limit) is spared by the per-code weights instead: quota codes like 42908
+	// are weighted 0 below. Only request-limiter floods (42901, weight 1) actually accrue strikes.
+	weight := v.config.weightFor(ntfyCode)
+	if weight <= 0 {
+		return // Exempt (weight 0) or unmatched code: no strike
+	}
+	if v.banLimiter.AllowN(time.Now(), weight) {
+		return // The bucket covered this rejection; still within the strike budget
+	}
+	// Breached. Throttle so the feed stays tiny even if the offender keeps hammering.
+	if v.banEmit.Allow() {
+		writeBanLine(v.config.BanFile, ip, visitorPrefix(ip, v.config), httpCode, ntfyCode)
+	}
+}
+
+// banFileMu serializes appends to the ban file across all visitors (multiple visitors may breach
+// concurrently). The feed is pre-filtered, so write volume is low and a single mutex is plenty.
+var banFileMu sync.Mutex
+
+// writeBanLine appends a single line to the ban file:
+//
+//	<RFC3339-UTC-timestamp> <ip> <prefix> <http-code> <ntfy-code>
+//
+// e.g. "2026-07-18T20:56:32Z 1.2.3.4 1.2.3.4/32 429 42901". <prefix> is <ip> masked to the configured
+// rate-limiting prefix (VisitorPrefixBitsIPv4/IPv6); that is the unit fail2ban should ban, so an IPv6
+// client (which owns a whole /64) is banned as one, matching how ntfy rate-limits it. This exact
+// format is a contract that a fail2ban jail parses. Best-effort; any error is swallowed, because a
+// failure to write the ban feed must never fail the underlying request.
+func writeBanLine(path string, ip netip.Addr, prefix netip.Prefix, httpCode, ntfyCode int) {
+	banFileMu.Lock()
+	defer banFileMu.Unlock()
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	fmt.Fprintf(f, "%s %s %s %d %d\n", time.Now().UTC().Format(time.RFC3339), ip.String(), prefix.String(), httpCode, ntfyCode)
+}
+
+// visitorPrefix masks ip to the configured rate-limiting prefix (VisitorPrefixBitsIPv4/IPv6), so the
+// ban feed reports the same unit ntfy rate-limits by -- e.g. a whole /64 for an IPv6 client -- rather
+// than a single address. fail2ban bans that prefix.
+func visitorPrefix(ip netip.Addr, conf *Config) netip.Prefix {
+	if ip.Is4() {
+		return netip.PrefixFrom(ip, conf.VisitorPrefixBitsIPv4).Masked()
+	}
+	return netip.PrefixFrom(ip, conf.VisitorPrefixBitsIPv6).Masked()
 }
 
 // visitorID returns a unique identifier for a visitor based on user or IP, using configurable prefix bits for IPv4/IPv6

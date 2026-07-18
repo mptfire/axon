@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"net/netip"
 	"reflect"
+	"strconv"
+	"strings"
 	"text/template"
 	"time"
 
@@ -41,6 +43,18 @@ const (
 	DefaultWebPushExpiryWarningDuration = 55 * 24 * time.Hour
 	DefaultWebPushExpiryDuration        = 60 * 24 * time.Hour
 )
+
+// Defines default abuse ban-feed settings (see BanFile, BanWindow, BanThreshold, BanWeights)
+const (
+	DefaultBanWindow    = time.Minute
+	DefaultBanThreshold = 100 // Weighted strikes per BanWindow before a visitor is banned
+)
+
+// DefaultBanWeights defines the per-code strike weights used when the ban-feed is enabled but no
+// explicit ban-weights are configured. Format is "KEY:WEIGHT" (see ParseBanWeights). The auth-failure
+// flood is weighted heavily so it bans fast, the legit quota 429s are exempt (weight 0), and every
+// other rejection costs one strike via the "*" fallback.
+var DefaultBanWeights = []string{"42909:10", "42908:0", "42903:0", "42905:0", "42910:0", "*:1"}
 
 // Defines all global and per-visitor limits
 // - message size limit: the max number of bytes for a message
@@ -197,9 +211,13 @@ type Config struct {
 	WebPushStartupQueries                string
 	WebPushExpiryDuration                time.Duration
 	WebPushExpiryWarningDuration         time.Duration
-	BuildVersion                         string // Injected by App
-	BuildDate                            string // Injected by App
-	BuildCommit                          string // Injected by App
+	BanFile                              string         // Abuse ban-feed: file that fail2ban tails; empty string disables the feature
+	BanWindow                            time.Duration  // Abuse ban-feed: rolling window over which weighted strikes are counted
+	BanThreshold                         int            // Abuse ban-feed: weighted strikes per window before a visitor is banned
+	BanWeights                           map[string]int // Abuse ban-feed: normalized code matcher -> strike weight (see ParseBanWeights, weightFor)
+	BuildVersion                         string         // Injected by App
+	BuildDate                            string         // Injected by App
+	BuildCommit                          string         // Injected by App
 }
 
 // NewConfig instantiates a default new server config
@@ -300,6 +318,10 @@ func NewConfig() *Config {
 		WebPushEmailAddress:                  "",
 		WebPushExpiryDuration:                DefaultWebPushExpiryDuration,
 		WebPushExpiryWarningDuration:         DefaultWebPushExpiryWarningDuration,
+		BanFile:                              "",
+		BanWindow:                            DefaultBanWindow,
+		BanThreshold:                         DefaultBanThreshold,
+		BanWeights:                           nil,
 		BuildVersion:                         "",
 		BuildDate:                            "",
 		BuildCommit:                          "",
@@ -322,4 +344,84 @@ func (c *Config) Hash() string {
 		}
 	}
 	return fmt.Sprintf("%x", sha256.Sum256([]byte(result)))
+}
+
+// ParseBanWeights turns a list like ["42909:10","403:2","42908:0","*:1"] into a map of normalized
+// matcher key -> strike weight for the abuse ban-feed's single weighted bucket. A key may be an exact
+// ntfy code ("42909"), a prefix family ("429*"), or "*". A bare 3-digit HTTP status ("403") is a
+// shorthand normalized to its family ("403*"), so operators can weight a whole status at once. Weights
+// must be integers >= 0; a weight of 0 is valid and means the code is exempt (never contributes to a
+// ban), which lets a "*" catch-all coexist with carved-out legit-quota codes. A malformed entry is
+// rejected so misconfiguration surfaces at startup rather than silently disabling bans.
+func ParseBanWeights(entries []string) (map[string]int, error) {
+	out := make(map[string]int, len(entries))
+	for _, entry := range entries {
+		key, weightStr, ok := strings.Cut(entry, ":")
+		if !ok {
+			return nil, fmt.Errorf("invalid ban-weight %q, want KEY:WEIGHT", entry)
+		}
+		weight, err := strconv.Atoi(strings.TrimSpace(weightStr))
+		if err != nil || weight < 0 {
+			return nil, fmt.Errorf("invalid ban-weight value in %q, want a non-negative integer", entry)
+		}
+		key = strings.TrimSpace(key)
+		if !validBanWeightKey(key) {
+			return nil, fmt.Errorf("invalid ban-weight key in %q, want %q, an ntfy code, an HTTP status, or a PREFIX*", entry, "*")
+		}
+		// A bare 3-digit HTTP status is shorthand for the whole family (e.g. "403" -> "403*").
+		if len(key) == 3 && isAllDigits(key) {
+			key += "*"
+		}
+		out[key] = weight
+	}
+	return out, nil
+}
+
+// validBanWeightKey reports whether key is a legal ban-weight matcher: "*", an all-digits code,
+// or an all-digits prefix followed by "*".
+func validBanWeightKey(key string) bool {
+	if key == "*" {
+		return true
+	}
+	digits := strings.TrimSuffix(key, "*")
+	return digits != "" && isAllDigits(digits)
+}
+
+func isAllDigits(s string) bool {
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return s != ""
+}
+
+// weightFor returns the strike weight for a rejection's 5-digit ntfy code using the ban-weights
+// matcher, longest-match-wins. An exact key ("42909") matches with length len(code); a family key
+// ("429*") matches a code with that prefix, with length equal to the prefix; "*" matches everything
+// with length 0. The weight of the longest match is returned, or 0 if no key matches (which the
+// caller treats as "no strike").
+func (c *Config) weightFor(ntfyCode int) int {
+	code := strconv.Itoa(ntfyCode)
+	weight, bestLen, matched := 0, -1, false
+	for key, w := range c.BanWeights {
+		matchLen := -1
+		switch {
+		case key == "*":
+			matchLen = 0
+		case strings.HasSuffix(key, "*"):
+			if prefix := strings.TrimSuffix(key, "*"); strings.HasPrefix(code, prefix) {
+				matchLen = len(prefix)
+			}
+		case key == code:
+			matchLen = len(code)
+		}
+		if matchLen > bestLen {
+			weight, bestLen, matched = w, matchLen, true
+		}
+	}
+	if !matched {
+		return 0
+	}
+	return weight
 }

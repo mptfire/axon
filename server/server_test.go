@@ -2851,7 +2851,7 @@ func TestServer_Visitor_XForwardedFor_None(t *testing.T) {
 		r, _ := http.NewRequest("GET", "/bla", nil)
 		r.RemoteAddr = "8.9.10.11:1234"
 		r.Header.Set("X-Forwarded-For", "  ") // Spaces, not empty!
-		v, err := s.maybeAuthenticate(r)
+		_, v, err := s.maybeAuthenticate(r)
 		require.Nil(t, err)
 		require.Equal(t, "8.9.10.11", v.ip.String())
 	})
@@ -2865,7 +2865,7 @@ func TestServer_Visitor_XForwardedFor_Single(t *testing.T) {
 		r, _ := http.NewRequest("GET", "/bla", nil)
 		r.RemoteAddr = "8.9.10.11:1234"
 		r.Header.Set("X-Forwarded-For", "1.1.1.1")
-		v, err := s.maybeAuthenticate(r)
+		_, v, err := s.maybeAuthenticate(r)
 		require.Nil(t, err)
 		require.Equal(t, "1.1.1.1", v.ip.String())
 	})
@@ -2879,7 +2879,7 @@ func TestServer_Visitor_XForwardedFor_Multiple(t *testing.T) {
 		r, _ := http.NewRequest("GET", "/bla", nil)
 		r.RemoteAddr = "8.9.10.11:1234"
 		r.Header.Set("X-Forwarded-For", "1.2.3.4 , 2.4.4.2,234.5.2.1 ")
-		v, err := s.maybeAuthenticate(r)
+		_, v, err := s.maybeAuthenticate(r)
 		require.Nil(t, err)
 		require.Equal(t, "234.5.2.1", v.ip.String())
 	})
@@ -2894,7 +2894,7 @@ func TestServer_Visitor_Custom_ClientIP_Header(t *testing.T) {
 		r, _ := http.NewRequest("GET", "/bla", nil)
 		r.RemoteAddr = "8.9.10.11:1234"
 		r.Header.Set("X-Client-IP", "1.2.3.4")
-		v, err := s.maybeAuthenticate(r)
+		_, v, err := s.maybeAuthenticate(r)
 		require.Nil(t, err)
 		require.Equal(t, "1.2.3.4", v.ip.String())
 	})
@@ -2909,7 +2909,7 @@ func TestServer_Visitor_Custom_ClientIP_Header_IPv6(t *testing.T) {
 		r, _ := http.NewRequest("GET", "/bla", nil)
 		r.RemoteAddr = "[2001:db8:9999::1]:1234"
 		r.Header.Set("X-Client-IP", "2001:db8:7777::1")
-		v, err := s.maybeAuthenticate(r)
+		_, v, err := s.maybeAuthenticate(r)
 		require.Nil(t, err)
 		require.Equal(t, "2001:db8:7777::1", v.ip.String())
 	})
@@ -2925,7 +2925,7 @@ func TestServer_Visitor_Custom_Forwarded_Header(t *testing.T) {
 		r, _ := http.NewRequest("GET", "/bla", nil)
 		r.RemoteAddr = "8.9.10.11:1234"
 		r.Header.Set("Forwarded", " for=5.6.7.8, by=example.com;for=1.2.3.4")
-		v, err := s.maybeAuthenticate(r)
+		_, v, err := s.maybeAuthenticate(r)
 		require.Nil(t, err)
 		require.Equal(t, "5.6.7.8", v.ip.String())
 	})
@@ -2941,7 +2941,7 @@ func TestServer_Visitor_Custom_Forwarded_Header_IPv6(t *testing.T) {
 		r, _ := http.NewRequest("GET", "/bla", nil)
 		r.RemoteAddr = "[2001:db8:2222::1]:1234"
 		r.Header.Set("Forwarded", " for=[2001:db8:1111::1], by=example.com;for=[2001:db8:3333::1]")
-		v, err := s.maybeAuthenticate(r)
+		_, v, err := s.maybeAuthenticate(r)
 		require.Nil(t, err)
 		require.Equal(t, "2001:db8:3333::1", v.ip.String())
 	})
@@ -5146,4 +5146,45 @@ func TestServer_Publish_InvalidUTF8WithFirebase(t *testing.T) {
 	require.Equal(t, "notificaci\uFFFDn: alerta", sender.Messages()[0].Data["message"])
 	require.Equal(t, "\uFFFDclipse", sender.Messages()[0].Data["title"])
 	require.Equal(t, "probl\uFFFDme", sender.Messages()[0].Data["tags"])
+}
+
+func TestServer_BanFeed_RateLimitedIPBanned(t *testing.T) {
+	// Real requests: exhaust the visitor request limit so ntfy returns 429s, and confirm the
+	// client IP is written to the ban file after it breaches the per-status ban limit.
+	banFile := filepath.Join(t.TempDir(), "ntfy-ban.log")
+	c := newTestConfig(t, "")
+	c.BanFile = banFile
+	c.BanWindow = time.Minute
+	c.BanThreshold = 2                    // Ban after the weighted budget of 2 is exhausted
+	c.BanWeights = map[string]int{"*": 1} // Every rejection costs 1 strike
+	c.VisitorRequestLimitBurst = 2        // 429 quickly
+	s := newTestServer(t, c)
+	got429 := 0
+	for i := 0; i < 10; i++ {
+		rr := request(t, s, "PUT", "/mytopic", "x", nil)
+		if rr.Code == 429 {
+			got429++
+		}
+	}
+	require.Greater(t, got429, 2)
+	data, err := os.ReadFile(banFile)
+	require.NoError(t, err)
+	require.Contains(t, string(data), "9.9.9.9 9.9.9.9/32 429 42901") // <ip> <prefix> <http> <ntfy-code>
+}
+
+func TestServer_BanFeed_SuccessfulRequestsNotBanned(t *testing.T) {
+	// Real requests that all succeed (200) must never trigger a ban, even with a low "*" fallback.
+	banFile := filepath.Join(t.TempDir(), "ntfy-ban.log")
+	c := newTestConfig(t, "")
+	c.BanFile = banFile
+	c.BanWindow = time.Minute
+	c.BanThreshold = 3                    // Low threshold that would catch 200s if 2xx were not skipped
+	c.BanWeights = map[string]int{"*": 1} // Every rejection costs 1 strike
+	c.VisitorRequestLimitBurst = 100      // Stay under the request limit so every request is 200
+	s := newTestServer(t, c)
+	for i := 0; i < 10; i++ {
+		rr := request(t, s, "PUT", "/mytopic", fmt.Sprintf("m%d", i), nil)
+		require.Equal(t, 200, rr.Code)
+	}
+	require.NoFileExists(t, banFile)
 }
