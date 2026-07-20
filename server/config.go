@@ -50,13 +50,9 @@ const (
 )
 
 // DefaultBanWeights is the ban-feed's default per-code strike weights: the auth-failure flood bans fast,
-// legit quota codes are exempt (weight 0), and everything else defaults to weight 1 (no "*"; see WeightFor).
+// and everything else defaults to weight 1 (no "*" rule needed; see BanWeights.WeightFor).
 var DefaultBanWeights = []string{
-	banWeight(errHTTPTooManyRequestsLimitAuthFailure, 10),        // brute-force auth flood -> ban fast
-	banWeight(errHTTPTooManyRequestsLimitMessages, 0),            // daily message quota -> legit, exempt
-	banWeight(errHTTPTooManyRequestsLimitSubscriptions, 0),       // too many subscriptions -> legit, exempt
-	banWeight(errHTTPTooManyRequestsLimitAttachmentBandwidth, 0), // daily attachment bandwidth -> legit, exempt
-	banWeight(errHTTPTooManyRequestsLimitCalls, 0),               // daily phone-call quota -> legit, exempt
+	banWeight(errHTTPTooManyRequestsLimitAuthFailure, 10), // brute-force auth flood -> ban fast
 }
 
 // banWeight formats a "CODE:WEIGHT" ban-feed default from an ntfy error, so the codes stay in sync with
