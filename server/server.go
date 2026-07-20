@@ -31,6 +31,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"heckel.io/ntfy/v2/action"
 	"heckel.io/ntfy/v2/attachment"
+	"heckel.io/ntfy/v2/ban"
 	"heckel.io/ntfy/v2/db"
 	"heckel.io/ntfy/v2/db/pg"
 	"heckel.io/ntfy/v2/log"
@@ -57,6 +58,7 @@ type Server struct {
 	mailer            mail.Sender
 	topics            map[string]*topic
 	visitors          map[string]*visitor // ip:<ip> or user:<user>
+	ban               *ban.Service        // Abuse ban-feed; nil when the feature is disabled (no ban file)
 	firebaseClient    *firebaseClient
 	twilio            *twilioClient
 	messages          int64                               // Total number of messages (persisted if messageCache enabled)
@@ -286,6 +288,17 @@ func New(conf *Config) (*Server, error) {
 		}
 		firebaseClient = newFirebaseClient(sender, auther)
 	}
+	var banner *ban.Service
+	if conf.BanFile != "" {
+		banner = ban.NewService(&ban.Config{
+			File:           conf.BanFile,
+			Window:         conf.BanWindow,
+			Threshold:      conf.BanThreshold,
+			Weights:        conf.BanWeights,
+			PrefixBitsIPv4: conf.VisitorPrefixBitsIPv4,
+			PrefixBitsIPv6: conf.VisitorPrefixBitsIPv6,
+		})
+	}
 	s := &Server{
 		config:          conf,
 		db:              pool,
@@ -295,6 +308,7 @@ func New(conf *Config) (*Server, error) {
 		firebaseClient:  firebaseClient,
 		twilio:          newTwilioClient(conf, userManager),
 		mailer:          sender,
+		ban:             banner,
 		topics:          topics,
 		userManager:     userManager,
 		messages:        messages,
@@ -450,6 +464,9 @@ func (s *Server) Stop() {
 		s.attachment.Close()
 	}
 	s.closeDatabases()
+	if s.ban != nil {
+		s.ban.Close()
+	}
 	if s.closeChan != nil {
 		close(s.closeChan)
 	}
@@ -538,13 +555,9 @@ func (s *Server) handleError(w http.ResponseWriter, r *http.Request, v *visitor,
 	w.Header().Set("Access-Control-Allow-Origin", s.config.AccessControlAllowOrigin) // CORS, allow cross-origin requests
 	w.WriteHeader(httpErr.HTTPCode)
 	io.WriteString(w, httpErr.JSON()+"\n")
-	if s.config.BanFile != "" {
-		// Abuse ban-feed: record against the OFFENDING request's IP, not v.ip. An account-keyed
-		// (tier'd) visitor is one object shared across all its source IPs, so v.ip is stale. The IP was
-		// already extracted in maybeAuthenticate and stashed in the request context (contextVisitorIP),
-		// so reuse it here rather than re-parsing headers.
+	if s.ban != nil {
 		if ip, err := fromContext[netip.Addr](r, contextVisitorIP); err == nil {
-			v.recordStatus(ip, httpErr.HTTPCode, httpErr.Code)
+			s.ban.Record(ip, httpErr.HTTPCode, httpErr.Code)
 		}
 	}
 }

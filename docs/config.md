@@ -2129,6 +2129,74 @@ chain.
 The official ntfy.sh server uses fail2ban to ban IPs. Check out ntfy.sh's [Ansible fail2ban role](https://github.com/binwiederhier/ntfy-ansible/tree/main/roles/fail2ban) for details. Ban actors are banned for 1 hour initially, and up to
 4 hours at a time for repeated offenses. IPv4 addresses are banned individually, while IPv6 addresses are banned by their `/56` prefix.
 
+#### Ban-feed
+In addition to the fail2ban setup above, ntfy can detect abusive visitors itself and write their IP
+addresses to a file for fail2ban to ban from. ntfy keeps a per-prefix weighted "strike" budget, and
+each rejected request costs strikes based on its response code -- the ntfy error code, or its HTTP
+status (see `ban-weights`) -- so different kinds of rejection can be weighted differently or exempted
+entirely. When a prefix exceeds the budget, ntfy appends the offending IP address to `ban-file`. Since
+every line is already a confirmed offender, the fail2ban jail can ban on first sight (`maxretry = 1`).
+
+- `ban-file` is the file offenders are appended to. If it is not set, the ban-feed is disabled. Its
+  parent directory must exist and be writable by ntfy. Be sure to rotate it (e.g. with logrotate and
+  `copytruncate`) so it does not grow unbounded.
+- `ban-window` is the rolling window over which weighted strikes are counted, per IP prefix.
+- `ban-threshold` is the number of weighted strikes per `ban-window` before a prefix is written to
+  `ban-file`. Each prefix has one shared budget, so it cannot be gamed by mixing error codes.
+- `ban-weights` assigns a strike weight per matcher key, formatted as `KEY:WEIGHT`. A key is an exact
+  ntfy error code (`42909`), a code family (`429*`, `403*`, `4*`), a bare HTTP status (`403`, short for
+  `403*`), or `*`. The longest matching key wins. A weight of `0` exempts a code, which is useful to
+  spare legit plan/quota `429`s from a `*` catch-all. Heavier weights ban faster. If you do not
+  include a `*` rule, any code that matches nothing defaults to weight `1` (i.e. it can be banned);
+  set `*:0` to exempt everything that is not explicitly weighted.
+
+Only rejections (4xx/5xx) count towards a ban; successful requests never do. Because the budget
+refills over `ban-window`, the trigger is a sustained rate: a prefix is only written out once it
+exceeds `ban-threshold / ban-window` rejections per second (with the defaults, `100 / 10m` = ~0.17/s).
+
+Each line in `ban-file` has the format `<RFC3339-timestamp> <ip> <prefix> <http-code> <ntfy-code>`, for example:
+
+```
+2026-01-15T20:56:32Z 1.2.3.4 1.2.3.4/32 429 42901
+2026-01-15T20:56:32Z 2001:db8::abcd 2001:db8::/64 429 42909
+```
+
+`<prefix>` is `<ip>` masked to the rate-limiting prefix (`visitor-prefix-bits-ipv4`/`-ipv6`) -- the
+same unit ntfy rate-limits by. Have the fail2ban filter capture the bare `<ip>` (the action then
+applies the prefix):
+
+=== "server.yml"
+    ```yaml
+    ban-file: "/var/log/ntfy/ban.log"
+    ban-window: "10m"
+    ban-threshold: 100
+    ban-weights:
+      - "42909:10"   # too many auth failures -> brute force, ban fast
+      - "42908:0"    # daily message quota reached -> legit, never counts
+      # everything else 4xx/5xx defaults to weight 1
+    ```
+
+=== "/etc/fail2ban/filter.d/ntfy-ban.conf"
+    ```
+    [Definition]
+    failregex = ^\S+ <HOST> \S+ \d+ \d+$
+    datepattern = ^%%Y-%%m-%%dT%%H:%%M:%%S
+    ignoreregex =
+    ```
+
+=== "/etc/fail2ban/jail.d/ntfy-ban.local"
+    ```
+    [ntfy-ban]
+    enabled = true
+    filter = ntfy-ban
+    action = iptables-multiport[name=ntfy-ban, port="http,https", protocol=tcp]
+    logpath = /var/log/ntfy/ban.log
+    maxretry = 1
+    findtime = 1m
+    bantime = 1h
+    ```
+
+
 ## IPv6 support
 ntfy fully supports IPv6, though there are a few things to keep in mind.
 
@@ -2328,6 +2396,10 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `visitor-topic-creation-limit-replenish`   | `NTFY_VISITOR_TOPIC_CREATION_LIMIT_REPLENISH`   | *duration*                                          | 1m                | Rate limiting: Rate at which the per-visitor topic-creation bucket is refilled (one new topic per x).                                                                                                                                   |
 | `visitor-prefix-bits-ipv4`                 | `NTFY_VISITOR_PREFIX_BITS_IPV4`                 | *number*                                            | 32                | Rate limiting: Number of bits to use for IPv4 visitor prefix, e.g. 24 for /24                                                                                                                                                           |
 | `visitor-prefix-bits-ipv6`                 | `NTFY_VISITOR_PREFIX_BITS_IPV6`                 | *number*                                            | 64                | Rate limiting: Number of bits to use for IPv6 visitor prefix, e.g. 48 for /48                                                                                                                                                           |
+| `ban-file`                                 | `NTFY_BAN_FILE`                                 | *filename*                                          | -                 | Abuse ban-feed: file confirmed abusive visitor IPs are appended to, for fail2ban to tail. Empty disables the feature. See [Banning bad actors](#banning-bad-actors-fail2ban)                                                             |
+| `ban-window`                               | `NTFY_BAN_WINDOW`                               | *duration*                                          | 10m               | Abuse ban-feed: rolling window over which weighted strikes are counted, per IP prefix                                                                                                                                                     |
+| `ban-threshold`                            | `NTFY_BAN_THRESHOLD`                            | *number*                                            | 100               | Abuse ban-feed: weighted strikes per `ban-window` before a prefix is written to `ban-file`                                                                                                                                             |
+| `ban-weights`                              | `NTFY_BAN_WEIGHTS`                              | *list of KEY:WEIGHT*                                | `42909:10 ... *:1`| Abuse ban-feed: per-code strike weights (exact code, family `429*`, or `*`; longest match wins; `0` exempts). See [Banning bad actors](#banning-bad-actors-fail2ban)                                                                     |
 | `web-root`                                 | `NTFY_WEB_ROOT`                                 | *path*, e.g. `/` or `/app`, or `disable`            | `/`               | Sets root of the web app (e.g. /, or /app), or disables it entirely (disable)                                                                                                                                                           |
 | `enable-signup`                            | `NTFY_ENABLE_SIGNUP`                            | *boolean* (`true` or `false`)                       | `false`           | Allows users to sign up via the web app, or API                                                                                                                                                                                         |
 | `enable-login`                             | `NTFY_ENABLE_LOGIN`                             | *boolean* (`true` or `false`)                       | `false`           | Allows users to log in via the web app, or API                                                                                                                                                                                          |

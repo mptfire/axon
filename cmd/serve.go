@@ -18,6 +18,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 	"github.com/urfave/cli/v2/altsrc"
+	"heckel.io/ntfy/v2/ban"
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/payments"
 	"heckel.io/ntfy/v2/server"
@@ -101,7 +102,7 @@ var flagsServe = append(
 	altsrc.NewIntFlag(&cli.IntFlag{Name: "visitor-prefix-bits-ipv6", Aliases: []string{"visitor_prefix_bits_ipv6"}, EnvVars: []string{"NTFY_VISITOR_PREFIX_BITS_IPV6"}, Value: server.DefaultVisitorPrefixBitsIPv6, Usage: "number of bits of the IPv6 address to use for rate limiting (default: 64, /64 subnet)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ban-file", Aliases: []string{"ban_file"}, EnvVars: []string{"NTFY_BAN_FILE"}, Value: "", Usage: "if set, append IPs of abusive visitors to this file for fail2ban to tail (empty disables)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ban-window", Aliases: []string{"ban_window"}, EnvVars: []string{"NTFY_BAN_WINDOW"}, Value: util.FormatDuration(server.DefaultBanWindow), Usage: "rolling window over which weighted strikes are counted for the ban file"}),
-	altsrc.NewIntFlag(&cli.IntFlag{Name: "ban-threshold", Aliases: []string{"ban_threshold"}, EnvVars: []string{"NTFY_BAN_THRESHOLD"}, Value: server.DefaultBanThreshold, Usage: "weighted strikes per window before a visitor is banned"}),
+	altsrc.NewIntFlag(&cli.IntFlag{Name: "ban-threshold", Aliases: []string{"ban_threshold"}, EnvVars: []string{"NTFY_BAN_THRESHOLD"}, Value: server.DefaultBanThreshold, Usage: "weighted strikes per window before an offender is banned"}),
 	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "ban-weights", Aliases: []string{"ban_weights"}, EnvVars: []string{"NTFY_BAN_WEIGHTS"}, Value: cli.NewStringSlice(server.DefaultBanWeights...), Usage: "per-code strike weights as KEY:WEIGHT, where KEY is an ntfy code, an HTTP status, a PREFIX*, or '*' (weight 0 exempts)"}),
 	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "behind-proxy", Aliases: []string{"behind_proxy", "P"}, EnvVars: []string{"NTFY_BEHIND_PROXY"}, Value: false, Usage: "if set, use forwarded header (e.g. X-Forwarded-For, X-Client-IP) to determine visitor IP address (for rate limiting)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "proxy-forwarded-header", Aliases: []string{"proxy_forwarded_header"}, EnvVars: []string{"NTFY_PROXY_FORWARDED_HEADER"}, Value: "X-Forwarded-For", Usage: "use specified header to determine visitor IP address (for rate limiting)"}),
@@ -285,7 +286,7 @@ func execServe(c *cli.Context) error {
 	}
 
 	// Parse abuse ban-feed weights ("KEY:WEIGHT" list, "*" fallback)
-	banWeights, err := server.ParseBanWeights(banWeightsRaw)
+	banWeights, err := ban.ParseWeights(banWeightsRaw)
 	if err != nil {
 		return err
 	}

@@ -5167,6 +5167,7 @@ func TestServer_BanFeed_RateLimitedIPBanned(t *testing.T) {
 		}
 	}
 	require.Greater(t, got429, 2)
+	s.ban.Close() // Writes are async (runWriteLoop); Close flushes the buffer before we read
 	data, err := os.ReadFile(banFile)
 	require.NoError(t, err)
 	require.Contains(t, string(data), "9.9.9.9 9.9.9.9/32 429 42901") // <ip> <prefix> <http> <ntfy-code>
@@ -5186,5 +5187,6 @@ func TestServer_BanFeed_SuccessfulRequestsNotBanned(t *testing.T) {
 		rr := request(t, s, "PUT", "/mytopic", fmt.Sprintf("m%d", i), nil)
 		require.Equal(t, 200, rr.Code)
 	}
+	s.ban.Close() // Flush any buffered bans (there should be none) before asserting no file
 	require.NoFileExists(t, banFile)
 }

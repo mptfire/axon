@@ -2011,7 +2011,7 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 **Features:**
 
-* Add an abuse ban-feed: when enabled via `ban-file`, ntfy tracks a weighted strike budget per visitor and appends abusive IPs to a file that fail2ban can tail and ban on sight (see `ban-file`, `ban-window`, `ban-threshold`, `ban-weights`)
+* Add an abuse ban-feed: when enabled via `ban-file`, ntfy tracks a weighted strike budget per visitor and appends abusive IPs to a file that fail2ban can tail and ban on sight (`ban-file`, `ban-window`, `ban-threshold`, `ban-weights`; see [ban-feed docs](config.md#ban-feed))
 
 ### ntfy Android v1.25.1 (UNRELEASED)
 
