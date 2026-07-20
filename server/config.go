@@ -10,6 +10,7 @@ import (
 	"text/template"
 	"time"
 
+	"heckel.io/ntfy/v2/ban"
 	"heckel.io/ntfy/v2/user"
 )
 
@@ -41,6 +42,24 @@ const (
 	DefaultWebPushExpiryWarningDuration = 55 * 24 * time.Hour
 	DefaultWebPushExpiryDuration        = 60 * 24 * time.Hour
 )
+
+// Defines default abuse ban-feed settings (see BanFile, BanWindow, BanThreshold, BanWeights)
+const (
+	DefaultBanWindow    = 10 * time.Minute
+	DefaultBanThreshold = 100 // Weighted strikes per BanWindow before a prefix is banned
+)
+
+// DefaultBanWeights is the ban-feed's default per-code strike weights: the auth-failure flood bans fast,
+// and everything else defaults to weight 1 (no "*" rule needed; see BanWeights.WeightFor).
+var DefaultBanWeights = []string{
+	banWeight(errHTTPTooManyRequestsLimitAuthFailure, 10), // brute-force auth flood -> ban fast
+}
+
+// banWeight formats a "CODE:WEIGHT" ban-feed default from an ntfy error, so the codes stay in sync with
+// the errHTTP definitions instead of being duplicated as string literals.
+func banWeight(err *errHTTP, weight int) string {
+	return fmt.Sprintf("%d:%d", err.Code, weight)
+}
 
 // Defines all global and per-visitor limits
 // - message size limit: the max number of bytes for a message
@@ -196,9 +215,13 @@ type Config struct {
 	WebPushStartupQueries                string
 	WebPushExpiryDuration                time.Duration
 	WebPushExpiryWarningDuration         time.Duration
-	BuildVersion                         string // Injected by App
-	BuildDate                            string // Injected by App
-	BuildCommit                          string // Injected by App
+	BanFile                              string        // Abuse ban-feed: file that fail2ban tails; empty string disables the feature
+	BanWindow                            time.Duration // Abuse ban-feed: rolling window over which weighted strikes are counted
+	BanThreshold                         int           // Abuse ban-feed: weighted strikes per window before a prefix is banned
+	BanWeights                           ban.Weights   // Abuse ban-feed: code matcher -> strike weight (see ban.ParseWeights, ban.Weights.WeightFor)
+	BuildVersion                         string        // Injected by App
+	BuildDate                            string        // Injected by App
+	BuildCommit                          string        // Injected by App
 }
 
 // NewConfig instantiates a default new server config
@@ -299,6 +322,10 @@ func NewConfig() *Config {
 		WebPushEmailAddress:                  "",
 		WebPushExpiryDuration:                DefaultWebPushExpiryDuration,
 		WebPushExpiryWarningDuration:         DefaultWebPushExpiryWarningDuration,
+		BanFile:                              "",
+		BanWindow:                            DefaultBanWindow,
+		BanThreshold:                         DefaultBanThreshold,
+		BanWeights:                           nil,
 		BuildVersion:                         "",
 		BuildDate:                            "",
 		BuildCommit:                          "",
