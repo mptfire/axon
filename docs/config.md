@@ -2196,7 +2196,6 @@ applies the prefix):
     bantime = 1h
     ```
 
-
 ## IPv6 support
 ntfy fully supports IPv6, though there are a few things to keep in mind.
 

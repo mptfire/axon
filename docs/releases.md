@@ -4,13 +4,25 @@ and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/release
 
 ## Current stable releases
 
-| Component        | Version | Release date  |
-|------------------|---------|---------------|
-| ntfy server      | v2.26.0 | July 9, 2026  |
-| ntfy Android app | v1.24.0 | Mar 5, 2026   |
-| ntfy iOS app     | v1.7.0  | May 30, 2026  |
+| Component        | Version | Release date |
+|------------------|---------|--------------|
+| ntfy server      | v2.26.3 | Jul 20, 2026 |
+| ntfy Android app | v1.24.0 | Mar 5, 2026  |
+| ntfy iOS app     | v1.7.0  | May 30, 2026 |
 
 Please check out the release notes for [upcoming releases](#not-released-yet) below.
+
+### ntfy server v2.26.3
+Released July 20, 2026
+
+This is a hotfix release, useful pretty much only for ntfy.sh. It was adds the ability to track abusive IPs more
+efficiently, reducing the load on the IP banning services and preventing them from falling behind and leaving abusers
+unbanned for too long. It works by tracking HTTP errors, and writing out a ban file that fail2ban can read and ban
+offenders instantly. See [ban-feed](config.md#ban-feed) for details.
+
+**Features:**
+
+* Add an abuse ban-feed: when enabled via `ban-file`, ntfy tracks a weighted strike budget per visitor and appends abusive IPs to a file that fail2ban can tail and ban on sight (`ban-file`, `ban-window`, `ban-threshold`, `ban-weights`; see [ban-feed docs](config.md#ban-feed))
 
 ### ntfy server v2.26.0
 Released July 9, 2026
@@ -2006,12 +2018,6 @@ For older releases, check out the GitHub releases pages for the [ntfy server](ht
 and the [ntfy Android app](https://github.com/binwiederhier/ntfy-android/releases).
 
 ## Not released yet
-
-### ntfy server v2.26.1 (UNRELEASED)
-
-**Features:**
-
-* Add an abuse ban-feed: when enabled via `ban-file`, ntfy tracks a weighted strike budget per visitor and appends abusive IPs to a file that fail2ban can tail and ban on sight (`ban-file`, `ban-window`, `ban-threshold`, `ban-weights`; see [ban-feed docs](config.md#ban-feed))
 
 ### ntfy Android v1.25.1 (UNRELEASED)
 
