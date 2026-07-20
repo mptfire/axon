@@ -2129,7 +2129,7 @@ chain.
 The official ntfy.sh server uses fail2ban to ban IPs. Check out ntfy.sh's [Ansible fail2ban role](https://github.com/binwiederhier/ntfy-ansible/tree/main/roles/fail2ban) for details. Ban actors are banned for 1 hour initially, and up to
 4 hours at a time for repeated offenses. IPv4 addresses are banned individually, while IPv6 addresses are banned by their `/56` prefix.
 
-#### Ban-feed
+### Ban-feed
 In addition to the fail2ban setup above, ntfy can detect abusive visitors itself and write their IP
 addresses to a file for fail2ban to ban from. ntfy keeps a per-prefix weighted "strike" budget, and
 each rejected request costs strikes based on its response code -- the ntfy error code, or its HTTP
