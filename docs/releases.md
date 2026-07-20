@@ -268,7 +268,7 @@ to the primary until the replica recovers.
 
 **Features:**
 
-* Support [PostgreSQL read replicas](config.md#postgresql-experimental) for offloading non-critical read queries via `database-replica-urls` config option ([#1648](https://github.com/binwiederhier/ntfy/pull/1648))
+* Support [PostgreSQL read replicas](config.md#postgresql) for offloading non-critical read queries via `database-replica-urls` config option ([#1648](https://github.com/binwiederhier/ntfy/pull/1648))
 * Add interactive [config generator](config.md#config-generator) to the documentation to help create server configuration files ([#1654](https://github.com/binwiederhier/ntfy/pull/1654))
 
 **Bug fixes + maintenance:**
@@ -280,7 +280,7 @@ to the primary until the replica recovers.
 Released March 7, 2026
 
 This is the biggest release I've ever done on the server. It's 14,997 added lines of code, and 10,202 lines removed, all from
-one [pull request](https://github.com/binwiederhier/ntfy/pull/1619) that adds [PostgreSQL support](config.md#postgresql-experimental).
+one [pull request](https://github.com/binwiederhier/ntfy/pull/1619) that adds [PostgreSQL support](config.md#postgresql).
 
 The code was written by Cursor and Claude, but reviewed and heavily tested over 2-3 weeks by me. I created comparison documents,
 went through all queries multiple times and reviewed the logic over and over again. I also did load tests and manual regression tests,
@@ -291,7 +291,7 @@ if things are working (or not working). There is a [one-off migration tool](http
 
 **Features:**
 
-* Add experimental [PostgreSQL support](config.md#postgresql-experimental) as an alternative database backend (message cache, user manager, web push subscriptions) via `database-url` config option ([#1114](https://github.com/binwiederhier/ntfy/issues/1114)/[#1619](https://github.com/binwiederhier/ntfy/pull/1619), thanks to [@brettinternet](https://github.com/brettinternet) for reporting)
+* Add experimental [PostgreSQL support](config.md#postgresql) as an alternative database backend (message cache, user manager, web push subscriptions) via `database-url` config option ([#1114](https://github.com/binwiederhier/ntfy/issues/1114)/[#1619](https://github.com/binwiederhier/ntfy/pull/1619), thanks to [@brettinternet](https://github.com/brettinternet) for reporting)
 
 **Bug fixes + maintenance:**
 

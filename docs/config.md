@@ -379,7 +379,7 @@ This generator helps you configure your self-hosted ntfy instance. It's not full
 </div>
 </div>
 <div class="cg-panel" id="cg-panel-database">
-<div class="cg-panel-desc">Configure the PostgreSQL connection. See <a href="/config/#postgresql-experimental" target="_blank">PostgreSQL</a> for details.</div>
+<div class="cg-panel-desc">Configure the PostgreSQL connection. See <a href="/config/#postgresql" target="_blank">PostgreSQL</a> for details.</div>
 <div class="cg-field">
 <label>Database URL</label>
 <input type="text" data-key="database-url" placeholder="postgres://user:pass@host:5432/ntfy">
@@ -417,7 +417,7 @@ no external dependencies:
 * `auth-file`: Database file for authentication and [access control](#access-control). If set, enables auth.
 * `web-push-file`: Database file for [web push](#web-push) subscriptions.
 
-### PostgreSQL (EXPERIMENTAL)
+### PostgreSQL
 As an alternative, you can configure ntfy to use PostgreSQL for **all** database-backed stores by setting the
 `database-url` option to a PostgreSQL connection string.
 
@@ -1656,7 +1656,7 @@ a database to keep track of the browser's subscriptions, and an admin email addr
 - `web-push-expiry-duration` defines the duration after which unused subscriptions will expire (default is `60d`)
 
 Alternatively, you can use PostgreSQL instead of SQLite by setting `database-url`
-(see [PostgreSQL database](#postgresql-experimental)).
+(see [PostgreSQL database](#postgresql)).
 
 Limitations:
 
