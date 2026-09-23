@@ -93,6 +93,16 @@ nav:
   - "Self-hosting":
       - "Installation": install.md
       - "Configuration": config.md
+  - "AI fork plan":
+      - "Overview & phase index": ai-plan/index.md
+      - "Phase 0 — Foundation": ai-plan/phase-0-foundation.md
+      - "Phase 1 — AI provider layer": ai-plan/phase-1-ai-provider-layer.md
+      - "Phase 2 — AI subscription setup": ai-plan/phase-2-ai-subscription-setup.md
+      - "Phase 3 — Smart delivery": ai-plan/phase-3-smart-delivery.md
+      - "Phase 4 — Digests & briefings": ai-plan/phase-4-digests-briefings.md
+      - "Phase 5 — Chat with notifications": ai-plan/phase-5-chat-with-notifications.md
+      - "Phase 6 — Agents & MCP": ai-plan/phase-6-agents-mcp.md
+      - "Phase 7 — Mobile, hardening & release": ai-plan/phase-7-mobile-privacy-release.md
   - "Other things":
       - "FAQs": faq.md
       - "Examples": examples.md
