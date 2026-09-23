@@ -11,6 +11,15 @@
 </div>
 <hr>
 
+> [!NOTE]
+> **This is nfty — an AI-native fork of ntfy.** It adds an optional AI layer on top of
+> vanilla ntfy: natural-language subscription setup, AI message enrichment/digests,
+> chat over your notification history, and a built-in MCP server for AI agents.
+> With AI disabled (`ai-enabled: false`), it behaves identically to upstream ntfy and is a
+> drop-in replacement. See [docs/ai-plan](docs/ai-plan/index.md) for the phased plan.
+> All credit for the underlying ntfy goes to [Philipp Heckel](https://github.com/binwiederhier)
+> and the ntfy community — this fork tracks [binwiederhier/ntfy](https://github.com/binwiederhier/ntfy) (Apache-2.0).
+
 ![ntfy](web/public/static/images/ntfy.png)
 
 # ntfy.sh | Send push notifications to your phone or desktop via PUT/POST

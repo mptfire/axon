@@ -103,6 +103,7 @@ nav:
       - "Phase 5 — Chat with notifications": ai-plan/phase-5-chat-with-notifications.md
       - "Phase 6 — Agents & MCP": ai-plan/phase-6-agents-mcp.md
       - "Phase 7 — Mobile, hardening & release": ai-plan/phase-7-mobile-privacy-release.md
+      - "Upstream sync policy": ai-plan/upstream-sync.md
   - "Other things":
       - "FAQs": faq.md
       - "Examples": examples.md
