@@ -1,8 +1,8 @@
-# Phase 6 — Agents & MCP (nfty as the AI-native transport)
+# Phase 6 — Agents & MCP (axon as the AI-native transport)
 
 **Depends on:** Phase 1 (provider layer), Phase 2 (planner reuse) · **Size:** M (3 weeks) · **Status:** ☐ Not started
 
-**Goal:** flip the direction — instead of humans using AI to manage notifications, let AI agents (Claude, GPTs, IDE agents, scripts) use nfty as their notification bus. nfty becomes the push layer agents already know how to speak: MCP.
+**Goal:** flip the direction — instead of humans using AI to manage notifications, let AI agents (Claude, GPTs, IDE agents, scripts) use axon as their notification bus. axon becomes the push layer agents already know how to speak: MCP.
 
 ## Deliverable 1: `ntfy mcp` — a Model Context Protocol server
 
@@ -20,7 +20,7 @@ Auth: ntfy user tokens (`ntfy token create`) passed via env/config — Bearer on
 
 ## Deliverable 2: agent-friendly publishing conveniences (server, small)
 - `x-actions` already exist upstream; document agent recipes (approve/reject buttons → callback topics).
-- First-class recipe docs: "agent → ntfy → human phone" pattern: agent publishes priority-5 with actions; human reply publishes back to a per-conversation topic the agent `subscribe_wait`s on. This closes the loop for human-in-the-loop agent workflows — nfty's unique angle vs. email/webhook.
+- First-class recipe docs: "agent → ntfy → human phone" pattern: agent publishes priority-5 with actions; human reply publishes back to a per-conversation topic the agent `subscribe_wait`s on. This closes the loop for human-in-the-loop agent workflows — axon's unique angle vs. email/webhook.
 
 ## Deliverable 3: docs
 - `docs/agents.md` (mkdocs nav): quickstarts for Claude Desktop/Code, generic MCP clients, plain curl agents; scoping and safety guidance.
@@ -36,7 +36,7 @@ Auth: ntfy user tokens (`ntfy token create`) passed via env/config — Bearer on
 - Load: 100 concurrent `subscribe_wait` connections on a busy topic (reuse existing test server harness in `test/server.go`).
 
 ## Acceptance criteria
-- A Claude Desktop user adds nfty via MCP config and, without reading API docs, sets up a monitored subscription and receives a pushed notification on their phone.
+- A Claude Desktop user adds axon via MCP config and, without reading API docs, sets up a monitored subscription and receives a pushed notification on their phone.
 - A headless agent script completes the approve/reject loop (publish with actions → human taps → agent consumes reply).
 - Tokens without `ai` scope cannot reach planner/history tools (negative tests).
 

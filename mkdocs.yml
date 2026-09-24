@@ -1,8 +1,8 @@
 site_dir: server/docs
-site_name: ntfy
+site_name: axon
 site_url: https://ntfy.sh
-site_description: Send push notifications to your phone via PUT/POST
-copyright: Made with ❤️ by Philipp C. Heckel
+site_description: AI-native push notifications — an axon fork of ntfy. Send push notifications to your phone via PUT/POST.
+copyright: axon is a fork of ntfy, made with ❤️ by Philipp C. Heckel and the ntfy community
 repo_name: binwiederhier/ntfy
 repo_url: https://github.com/binwiederhier/ntfy
 edit_uri: blob/main/docs/

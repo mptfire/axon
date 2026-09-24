@@ -22,13 +22,13 @@ Constraint: **wire protocol unchanged** (see `server/server.go:83` — the path/
 
 ## 7.3 Release engineering
 
-- [ ] Versioning: fork version scheme `v2.x.y-nfty.N` tracking upstream's base (honest compatibility signal).
+- [ ] Versioning: fork version scheme `v2.x.y-axon.N` tracking upstream's base (honest compatibility signal).
 - [ ] Release artifacts: binaries (goreleaser configs exist), Docker images (multi-arch, matching upstream Dockerfile set), docs site deploy.
 - [ ] `docs/ai-plan/*` statuses finalized; user-facing docs: `docs/config.md` AI options table complete, `docs/agents.md`, quickstart "AI in 5 minutes with Ollama".
-- [ ] Comms: comparison page vs upstream ntfy (fork is a superset; credit prominently), migration notes (upstream server ⇒ nfty is a drop-in binary swap with AI off).
+- [ ] Comms: comparison page vs upstream ntfy (fork is a superset; credit prominently), migration notes (upstream server ⇒ axon is a drop-in binary swap with AI off).
 
 ## Acceptance criteria
-- Unmodified upstream Android/iOS apps work against the nfty server (compat suite green); forked apps pass store review with AI features on.
+- Unmodified upstream Android/iOS apps work against the axon server (compat suite green); forked apps pass store review with AI features on.
 - Security review findings all closed or accepted-with-mitigation in writing.
 - 1.0 images published; a fresh user can go `docker compose up` + Ollama + phone app + AI subscription wizard in one documented sitting.
 

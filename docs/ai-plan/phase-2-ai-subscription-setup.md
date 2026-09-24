@@ -20,14 +20,14 @@ Request:
 Response — a strictly schema-validated plan (validated server-side; regenerate once on schema violation, then fail):
 ```json
 { "subscriptions": [{
-    "baseUrl": "https://my-nfty.example.com",
+    "baseUrl": "https://my-axon.example.com",
     "topic": "myuser-ci",
     "displayName": "CI failures",
     "filters": { "search": "failed|error", "minPriority": 3 },
     "mutedUntil": null, "schedule": null,
     "justification": "You asked to be notified on failures; search filter keeps green builds silent."
   }],
-  "publisherInstructions": "Add this step to your workflow:\ncurl -d \"build failed: $JOB ($STATUS)\" -H \"Priority: 4\" https://my-nfty.example.com/myuser-ci",
+  "publisherInstructions": "Add this step to your workflow:\ncurl -d \"build failed: $JOB ($STATUS)\" -H \"Priority: 4\" https://my-axon.example.com/myuser-ci",
   "followUpQuestions": ["Do you also want PR-review reminders?"],
   "disclaimer": "AI-generated — review before applying." }
 ```

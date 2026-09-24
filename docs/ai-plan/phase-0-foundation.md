@@ -7,10 +7,17 @@
 ## Work items
 
 ### 0.1 Identity & branding decisions
-- [ ] Pick product name (working name: **nfty**) and reserve: binary name, Docker image name, default `User-Agent`/`X-Rate-...` friendly identifiers.
-- [ ] Decide module path strategy. Recommendation: **keep `heckel.io/ntfy/v2`** for now — renaming the module touches every import and makes upstream merges painful; revisit only if we publish our own Go API. Add `// nfty:` fork markers instead.
-- [ ] Update `README.md` (fork banner: what this is, upstream credit, status), `mkdocs.yml` (`site_name`, `repo_url`), Docker labels.
-- [ ] Add `NOTICE` (Apache-2.0 attribution) alongside `LICENSE`.
+- [x] **Product name: `axon`** (lowercase in prose/CLI contexts, "Axon" at sentence start). An axon is the
+      nerve fiber that carries signals — a notification bus with a brain. Binary name, config paths
+      (`/etc/ntfy/server.yml`), and the wire protocol **stay `ntfy`** for drop-in compatibility with
+      upstream servers and clients; `axon` is the fork/product name (docs, README, NOTICE, docs site).
+      Revisit only if we split distribution-wide (own Docker org, store listings).
+- [x] Module path strategy: **keep `heckel.io/ntfy/v2`** — renaming the module touches every import and
+      makes upstream merges painful; revisit only if we publish our own Go API. In-code fork edits are
+      marked `// axon:` instead.
+- [x] Update `README.md` (fork banner, upstream credit), `mkdocs.yml` (`site_name`), and add `NOTICE`
+      (Apache-2.0 attribution) alongside `LICENSE`.
+- [ ] Docker labels + image naming when release engineering lands (Phase 7).
 
 ### 0.2 Branch & sync policy
 - [ ] `ai/main` is the fork trunk; feature branches `ai/feat/<phase>-<thing>` merge via PR.

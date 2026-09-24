@@ -12,7 +12,7 @@
 <hr>
 
 > [!NOTE]
-> **This is nfty — an AI-native fork of ntfy.** It adds an optional AI layer on top of
+> **This is axon — an AI-native fork of ntfy.** It adds an optional AI layer on top of
 > vanilla ntfy: natural-language subscription setup, AI message enrichment/digests,
 > chat over your notification history, and a built-in MCP server for AI agents.
 > With AI disabled (`ai-enabled: false`), it behaves identically to upstream ntfy and is a

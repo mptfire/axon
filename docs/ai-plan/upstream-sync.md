@@ -10,7 +10,7 @@ releases affecting `server/`, `user/`, or `message/`.
 
 ```bash
 git fetch upstream
-git merge upstream/main        # resolve conflicts, keep // nfty: markers intact
+git merge upstream/main        # resolve conflicts, keep // axon: markers intact
 make check && make build       # full gate before pushing
 ```
 
@@ -32,7 +32,7 @@ every merge (grep first, line numbers drift):
 
 - New-code-first: AI features live in `ai/`, `server/server_ai*.go`, `server/server_mcp*.go`,
   `web/src/components/Ai*` — these should never conflict.
-- In-file edits inside upstream code are marked `// nfty:` and kept minimal.
+- In-file edits inside upstream code are marked `// axon:` and kept minimal.
 - Never reorder or reformat upstream code opportunistically; keep diffs surgical.
 - The Go module path stays `heckel.io/ntfy/v2` (see plan Phase 0).
 

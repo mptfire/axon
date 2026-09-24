@@ -1,12 +1,12 @@
-# nfty — AI-native notifications (a fork of ntfy)
+# axon — AI-native notifications (a fork of ntfy)
 
-**Branch:** `ai/main` · **Upstream:** [binwiederhier/ntfy](https://github.com/binwiederhier/ntfy) (Apache-2.0) · **Working name:** `nfty`
+**Branch:** `ai/main` · **Upstream:** [binwiederhier/ntfy](https://github.com/binwiederhier/ntfy) (Apache-2.0) · **Name:** `axon` — *notifications with a brain.*
 
-nfty takes ntfy — a simple, battle-tested HTTP pub-sub notification service (Go server, React web app, mobile apps in separate repos) — and makes AI a first-class citizen in all three directions of the notification flow:
+axon takes ntfy — a simple, battle-tested HTTP pub-sub notification service (Go server, React web app, mobile apps in separate repos) — and makes AI a first-class citizen in all three directions of the notification flow:
 
 1. **AI sets up your subscriptions** (Phase 2, the headline): you describe what you care about in plain language; the assistant plans the topic, filters, priorities and publisher wiring, you review, one click applies it.
 2. **AI processes your message stream** (Phases 3–5): enrichment and correlation at the delivery choke point, scheduled digests/briefings, and chat-with-your-notifications.
-3. **AI agents use nfty as transport** (Phase 6): a built-in MCP server so any agent can publish, wait on, and manage notifications.
+3. **AI agents use axon as transport** (Phase 6): a built-in MCP server so any agent can publish, wait on, and manage notifications.
 
 Every phase works on top of the existing ntfy architecture — no protocol breaks, no rip-and-replace.
 
@@ -20,7 +20,7 @@ Every phase works on top of the existing ntfy architecture — no protocol break
 4. **Cost and abuse control.** Per-user/per-visitor token budgets, response caching by content hash, strict rate limits on all `/v1/ai/*` endpoints (reusing the `visitor` machinery), and usage visibility.
 5. **Message content is untrusted input.** Every prompt that includes notification bodies defends against prompt injection: strict JSON output schemas, no tool-calling over message content, capability-limited application of results. This is a security requirement for every phase, reviewed at each acceptance gate.
 6. **Wire-protocol compatibility.** The Android/iOS apps live in separate repos ([ntfy-android](https://github.com/binwiederhier/ntfy-android), [ntfy-ios](https://github.com/binwiederhier/ntfy-ios)) and must keep working unmodified. All new endpoints are additive (`/v1/ai/*`, MCP); no changes to `/`, `/v1/*` payload shapes (see the warning at `server/server.go:83`).
-7. **Keep the fork mergeable.** New code lives in new files/packages (`ai/`, `server/server_ai.go`, `web/src/components/Ai*`); edits inside upstream files stay minimal and marked with `// nfty:` comments so quarterly upstream merges stay cheap.
+7. **Keep the fork mergeable.** New code lives in new files/packages (`ai/`, `server/server_ai.go`, `web/src/components/Ai*`); edits inside upstream files stay minimal and marked with `// axon:` comments so quarterly upstream merges stay cheap.
 
 ---
 
@@ -28,7 +28,7 @@ Every phase works on top of the existing ntfy architecture — no protocol break
 
 ```
                                    ┌─────────────────────────────────────────────┐
-                                   │  nfty server (Go)                           │
+                                   │  axon server (Go)                           │
  publishers ──PUT/POST /topic──►  │                                             │
                                    │  handleInternal ──► /v1/ai/* ──┐            │
  AI agents ────MCP (stdio/SSE)──► │        │                       ▼            │
