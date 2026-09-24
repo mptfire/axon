@@ -115,9 +115,6 @@ func (c *Client) Complete(ctx context.Context, req *Request) (*Response, error) 
 	if req.Model == "" {
 		req.Model = c.modelFor(req.Feature)
 	}
-	if req.Temperature == 0 {
-		req.Temperature = DefaultTemperature
-	}
 	if cached := c.cache.Get(req); cached != nil {
 		cached.Cached = true
 		metrics.AICacheHits.WithLabelValues(string(req.Feature)).Inc()

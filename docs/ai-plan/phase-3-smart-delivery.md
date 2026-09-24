@@ -1,6 +1,6 @@
 # Phase 3 — Smart delivery (AI on the message path)
 
-**Depends on:** Phase 1 (and pairs with Phase 2's per-subscription settings UI) · **Size:** L (4–6 weeks) · **Status:** ☐ Not started
+**Depends on:** Phase 1 (and pairs with Phase 2's per-subscription settings UI) · **Size:** L (4–6 weeks) · **Status:** 🔧 First slice landed (publisher-side summarize/classify, opt-in via `ai-enrich-topics`, `ai-inline-timeout` pass-through); subscriber-side transforms, correlate & translate pending
 
 **Goal:** optional, per-subscription AI processing of messages as they flow through the server: summarize, classify importance, correlate bursts, translate — without breaking ntfy's core promise of instant delivery.
 

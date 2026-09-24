@@ -56,7 +56,7 @@ type Request struct {
 	Messages    []Message // Conversation turns
 	Prompt      string    // Convenience for single-turn requests
 	MaxTokens   int       // Max output tokens; 0 = provider default
-	Temperature float64   // 0 = Client default (DefaultTemperature); negative = provider default
+	Temperature float64   // 0 = deterministic (sent as-is); negative = provider default. Most axon features set 0.2 explicitly.
 	JSONSchema  *Schema   // Optional strict JSON output schema
 	UserKey     string    // Budget attribution key, e.g. "user:phil" or "ip:1.2.3.4"
 }

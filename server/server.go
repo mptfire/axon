@@ -955,6 +955,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 		m.Message = emptyMessageBody
 	}
 	m.SanitizeUTF8()
+	s.maybeEnrichMessage(m) // axon: inline AI enrichment for opted-in topics (pass-through on breach)
 	delayed := m.Time > time.Now().Unix()
 	ev := logvrm(v, r, m).
 		Tag(tagPublish).

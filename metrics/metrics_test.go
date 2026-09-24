@@ -12,6 +12,8 @@ import (
 // expectedMetricNames is the exact set of metrics the server exposes. These names are a public
 // contract: renaming or dropping one silently breaks existing dashboards and alerts.
 var expectedMetricNames = []string{
+	"ntfy_ai_enrichment_applied_total",     // axon
+	"ntfy_ai_enrichment_passthrough_total", // axon
 	"ntfy_attachments_total_size",
 	"ntfy_calls_made_failure",
 	"ntfy_calls_made_success",

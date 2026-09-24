@@ -3,7 +3,9 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"heckel.io/ntfy/v2/ai"
@@ -45,7 +47,6 @@ func TestServer_AI_Status_Admin(t *testing.T) {
 		c.AIProvider = "mock"
 		c.AIModel = "test-model"
 		s := newTestServer(t, c)
-		defer s.closeDatabases()
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
 		require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser, false))
 
@@ -130,7 +131,6 @@ func TestServer_AI_Plan(t *testing.T) {
 		c.AIProvider = "mock"
 		c.BaseURL = "http://axon.example.com"
 		s := newTestServer(t, c)
-		defer s.closeDatabases()
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
 		s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
 			// The server must tell the planner its own base URL
@@ -293,4 +293,100 @@ func TestServer_AI_Plan_ContextSanitized(t *testing.T) {
 	for _, role := range seenRoles {
 		require.NotEqual(t, ai.RoleSystem, role)
 	}
+}
+
+func newAIEnrichTestServer(t *testing.T, handler func(*ai.Request) (*ai.Response, error)) *Server {
+	c := newTestConfig(t, "")
+	c.AIEnabled = true
+	c.AIProvider = "mock"
+	c.AIEnrichmentEnabled = true
+	c.AIEnrichTopics = []string{"prod-alerts"}
+	c.AIInlineTimeout = 2 * time.Second
+	s := newTestServer(t, c)
+	s.ai.Mock().SetHandler(handler)
+	return s
+}
+
+func TestServer_AI_Enrichment_Applied(t *testing.T) {
+	s := newAIEnrichTestServer(t, func(req *ai.Request) (*ai.Response, error) {
+		require.Equal(t, ai.FeatureEnrich, req.Feature)
+		require.Contains(t, req.Prompt, "prod-alerts")
+		require.Contains(t, req.Prompt, "disk usage at 97%")
+		return &ai.Response{Text: `{"summary": "Disk almost full on db-1", "priority": 4}`}, nil
+	})
+	defer s.closeDatabases()
+
+	rr := request(t, s, "PUT", "/prod-alerts", strings.Repeat("disk usage at 97% on host db-1, oldest backup failed. ", 5), nil)
+	require.Equal(t, 200, rr.Code)
+
+	// The cached message carries the summary as its title and the suggested priority
+	rr = request(t, s, "GET", "/prod-alerts/json?poll=1", "", nil)
+	require.Equal(t, 200, rr.Code)
+	messages := toMessages(t, rr.Body.String())
+	require.Len(t, messages, 1)
+	require.Equal(t, "Disk almost full on db-1", messages[0].Title)
+	require.Equal(t, 4, messages[0].Priority)
+}
+
+func TestServer_AI_Enrichment_NeverOverridesPublisher(t *testing.T) {
+	s := newAIEnrichTestServer(t, func(req *ai.Request) (*ai.Response, error) {
+		return &ai.Response{Text: `{"summary": "AI title", "priority": 5}`}, nil
+	})
+	defer s.closeDatabases()
+
+	// Publisher title and priority win
+	rr := request(t, s, "PUT", "/prod-alerts", strings.Repeat("important ", 20), map[string]string{
+		"Title":    "Publisher title",
+		"Priority": "2",
+	})
+	require.Equal(t, 200, rr.Code)
+	rr = request(t, s, "GET", "/prod-alerts/json?poll=1", "", nil)
+	messages := toMessages(t, rr.Body.String())
+	require.Len(t, messages, 1)
+	require.Equal(t, "Publisher title", messages[0].Title)
+	require.Equal(t, 2, messages[0].Priority)
+}
+
+func TestServer_AI_Enrichment_PassThroughOnTimeout(t *testing.T) {
+	c := newTestConfig(t, "")
+	c.AIEnabled = true
+	c.AIProvider = "mock"
+	c.AIEnrichmentEnabled = true
+	c.AIEnrichTopics = []string{"prod-alerts"}
+	c.AIInlineTimeout = 50 * time.Millisecond
+	s := newTestServer(t, c)
+	defer s.closeDatabases()
+	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
+		time.Sleep(300 * time.Millisecond) // Slower than the inline budget
+		return &ai.Response{Text: `{"summary": "too late"}`}, nil
+	})
+
+	rr := request(t, s, "PUT", "/prod-alerts", strings.Repeat("alert payload ", 20), nil)
+	require.Equal(t, 200, rr.Code) // Published anyway
+	rr = request(t, s, "GET", "/prod-alerts/json?poll=1", "", nil)
+	messages := toMessages(t, rr.Body.String())
+	require.Len(t, messages, 1)
+	require.Equal(t, "", messages[0].Title) // Original message passed through
+}
+
+func TestServer_AI_Enrichment_OptInTopicsOnly(t *testing.T) {
+	called := false
+	s := newAIEnrichTestServer(t, func(req *ai.Request) (*ai.Response, error) {
+		called = true
+		return &ai.Response{Text: `{"summary": "nope"}`}, nil
+	})
+	defer s.closeDatabases()
+
+	rr := request(t, s, "PUT", "/other-topic", strings.Repeat("some long payload ", 20), nil)
+	require.Equal(t, 200, rr.Code)
+	rr = request(t, s, "GET", "/other-topic/json?poll=1", "", nil)
+	messages := toMessages(t, rr.Body.String())
+	require.Len(t, messages, 1)
+	require.Equal(t, "", messages[0].Title)
+	require.False(t, called)
+
+	// Short messages on opted-in topics are not enriched either
+	rr = request(t, s, "PUT", "/prod-alerts", "tiny", nil)
+	require.Equal(t, 200, rr.Code)
+	require.False(t, called)
 }

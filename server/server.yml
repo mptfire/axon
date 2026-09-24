@@ -562,6 +562,17 @@
 # ai-model-enrich:
 # ai-model-digest:
 # ai-model-chat:
+# Inline AI enrichment (axon): messages published to the listed topics are summarized
+# and importance-classified before delivery. If the provider does not answer within
+# ai-inline-timeout, the original message is delivered unchanged (instant delivery
+# always wins). Requires ai-enabled.
+#
+# ai-enrichment-enabled: false
+# ai-enrich-topics:
+#    - prod-alerts
+#    - home-alerts
+# ai-inline-timeout: 2s
+#
 # ai-request-timeout: 10s
 # ai-visitor-daily-token-budget: 20000
 # ai-global-daily-token-budget: 2000000

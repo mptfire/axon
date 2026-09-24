@@ -87,11 +87,26 @@ func (p *MockProvider) Complete(ctx context.Context, req *Request) (*Response, e
 	if p.handler != nil {
 		handler := p.handler
 		p.mu.Unlock()
-		resp, err := handler(req)
-		if err != nil {
-			return nil, err
+		// Run the handler with the caller's deadline: a slow handler must behave like a
+		// slow provider (ctx.Done wins, see the select below).
+		type handlerOutcome struct {
+			resp *Response
+			err  error
 		}
-		result = MockResult{Response: resp}
+		done := make(chan handlerOutcome, 1)
+		go func() {
+			resp, err := handler(req)
+			done <- handlerOutcome{resp, err}
+		}()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case outcome := <-done:
+			if outcome.err != nil {
+				return nil, outcome.err
+			}
+			result = MockResult{Response: outcome.resp}
+		}
 	} else if len(p.queue) > 0 {
 		result = p.queue[0]
 		p.queue = p.queue[1:]

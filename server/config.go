@@ -46,6 +46,7 @@ const (
 // Defines default AI settings (axon fork, see docs/ai-plan/)
 const (
 	DefaultAIRequestTimeout          = 10 * time.Second
+	DefaultAIInlineTimeout           = 2 * time.Second // Budget for blocking enrichment on the publish path; pass-through on breach
 	DefaultAIVisitorDailyTokenBudget = 20000
 	DefaultAIGlobalDailyTokenBudget  = 2000000
 	DefaultAICacheSize               = 100 * 1024 * 1024 // 100 MB
@@ -254,6 +255,9 @@ type Config struct {
 	AIModelDigest             string        // Model override: digests
 	AIModelChat               string        // Model override: chat over notification history
 	AIRequestTimeout          time.Duration // Hard deadline per AI completion
+	AIInlineTimeout           time.Duration // Hard deadline for inline (publish-path) AI calls
+	AIEnrichmentEnabled       bool          // Enable inline AI enrichment on the publish path
+	AIEnrichTopics            []string      // Topics eligible for AI enrichment (exact match)
 	AIVisitorDailyTokenBudget int64         // Daily token budget per visitor (input+output); 0 = unlimited
 	AIGlobalDailyTokenBudget  int64         // Daily token budget server-wide (input+output); 0 = unlimited
 	AICacheSize               int64         // AI response cache size in bytes
@@ -377,6 +381,9 @@ func NewConfig() *Config {
 		AIModelDigest:             "",
 		AIModelChat:               "",
 		AIRequestTimeout:          DefaultAIRequestTimeout,
+		AIInlineTimeout:           DefaultAIInlineTimeout,
+		AIEnrichmentEnabled:       false,
+		AIEnrichTopics:            nil,
 		AIVisitorDailyTokenBudget: DefaultAIVisitorDailyTokenBudget,
 		AIGlobalDailyTokenBudget:  DefaultAIGlobalDailyTokenBudget,
 		AICacheSize:               DefaultAICacheSize,

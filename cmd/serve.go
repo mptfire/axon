@@ -133,6 +133,9 @@ var flagsServe = append(
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-model-digest", Aliases: []string{"ai_model_digest"}, EnvVars: []string{"NTFY_AI_MODEL_DIGEST"}, Usage: "AI model override for digests"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-model-chat", Aliases: []string{"ai_model_chat"}, EnvVars: []string{"NTFY_AI_MODEL_CHAT"}, Usage: "AI model override for chat over notification history"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-request-timeout", Aliases: []string{"ai_request_timeout"}, EnvVars: []string{"NTFY_AI_REQUEST_TIMEOUT"}, Value: util.FormatDuration(server.DefaultAIRequestTimeout), Usage: "timeout for AI provider requests"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-inline-timeout", Aliases: []string{"ai_inline_timeout"}, EnvVars: []string{"NTFY_AI_INLINE_TIMEOUT"}, Value: util.FormatDuration(server.DefaultAIInlineTimeout), Usage: "budget for inline AI calls on the publish path (messages pass through unchanged on breach)"}),
+	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "ai-enrichment-enabled", Aliases: []string{"ai_enrichment_enabled"}, EnvVars: []string{"NTFY_AI_ENRICHMENT_ENABLED"}, Value: false, Usage: "if set, publishes to ai-enrich-topics are summarized/classified inline by the AI provider"}),
+	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "ai-enrich-topics", Aliases: []string{"ai_enrich_topics"}, EnvVars: []string{"NTFY_AI_ENRICH_TOPICS"}, Usage: "topics eligible for inline AI enrichment, e.g. prod-alerts"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-visitor-daily-token-budget", Aliases: []string{"ai_visitor_daily_token_budget"}, EnvVars: []string{"NTFY_AI_VISITOR_DAILY_TOKEN_BUDGET"}, Value: fmt.Sprintf("%d", server.DefaultAIVisitorDailyTokenBudget), Usage: "daily AI token budget per visitor (0 = unlimited)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-global-daily-token-budget", Aliases: []string{"ai_global_daily_token_budget"}, EnvVars: []string{"NTFY_AI_GLOBAL_DAILY_TOKEN_BUDGET"}, Value: fmt.Sprintf("%d", server.DefaultAIGlobalDailyTokenBudget), Usage: "daily AI token budget server-wide (0 = unlimited)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-cache-size", Aliases: []string{"ai_cache_size"}, EnvVars: []string{"NTFY_AI_CACHE_SIZE"}, Value: fmt.Sprintf("%d", server.DefaultAICacheSize), Usage: "size of the AI response cache, e.g. 100M"}),
@@ -198,6 +201,9 @@ func execServe(c *cli.Context) error {
 	aiModelDigest := c.String("ai-model-digest")
 	aiModelChat := c.String("ai-model-chat")
 	aiRequestTimeoutStr := c.String("ai-request-timeout")
+	aiInlineTimeoutStr := c.String("ai-inline-timeout")
+	aiEnrichmentEnabled := c.Bool("ai-enrichment-enabled")
+	aiEnrichTopics := c.StringSlice("ai-enrich-topics")
 	aiVisitorDailyTokenBudget := c.Int64("ai-visitor-daily-token-budget")
 	aiGlobalDailyTokenBudget := c.Int64("ai-global-daily-token-budget")
 	aiCacheSizeStr := c.String("ai-cache-size")
@@ -328,6 +334,10 @@ func execServe(c *cli.Context) error {
 	aiCacheSize, err := util.ParseSize(aiCacheSizeStr)
 	if err != nil {
 		return fmt.Errorf("invalid ai cache size: %s", aiCacheSizeStr)
+	}
+	aiInlineTimeout, err := util.ParseDuration(aiInlineTimeoutStr)
+	if err != nil {
+		return fmt.Errorf("invalid ai inline timeout: %s", aiInlineTimeoutStr)
 	}
 
 	// Parse abuse ban-feed weights ("KEY:WEIGHT" list, "*" fallback)
@@ -625,6 +635,9 @@ func execServe(c *cli.Context) error {
 	conf.AIModelDigest = aiModelDigest
 	conf.AIModelChat = aiModelChat
 	conf.AIRequestTimeout = aiRequestTimeout
+	conf.AIInlineTimeout = aiInlineTimeout
+	conf.AIEnrichmentEnabled = aiEnrichmentEnabled
+	conf.AIEnrichTopics = aiEnrichTopics
 	conf.AIVisitorDailyTokenBudget = aiVisitorDailyTokenBudget
 	conf.AIGlobalDailyTokenBudget = aiGlobalDailyTokenBudget
 	conf.AICacheSize = aiCacheSize

@@ -4,11 +4,14 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"heckel.io/ntfy/v2/ai"
 	"heckel.io/ntfy/v2/log"
+	"heckel.io/ntfy/v2/metrics"
+	"heckel.io/ntfy/v2/model"
 )
 
 // aiPingTimeout bounds the provider health check in the status endpoint.
@@ -64,6 +67,44 @@ func (s *Server) handleAIStatus(w http.ResponseWriter, r *http.Request, v *visit
 // visitor, so unauthenticated clients can have usage too.
 func (s *Server) handleAIUsage(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	return s.writeJSON(w, s.ai.Report(visitorID(v.ip, v.user, v.config)))
+}
+
+const (
+	// aiEnrichMinMessageLen skips trivially short messages: there is nothing to summarize.
+	aiEnrichMinMessageLen = 120
+)
+
+// maybeEnrichMessage runs inline AI enrichment (summary -> title, importance ->
+// priority if the publisher did not set one) for messages on topics the operator opted
+// in via ai-enrich-topics. It is called on the publish path before dispatch, so:
+//   - enrichment is bounded by ai-inline-timeout; on breach or any error the message
+//     passes through unchanged (instant delivery is ntfy's core promise), and
+//   - the enriched message is what gets cached, so every subscriber and poller sees
+//     the same enrichment and the provider is paid once per message.
+func (s *Server) maybeEnrichMessage(m *model.Message) {
+	if !s.ai.Enabled() || !s.config.AIEnrichmentEnabled {
+		return
+	}
+	if !slices.Contains(s.config.AIEnrichTopics, m.Topic) {
+		return
+	}
+	if len(m.Message) < aiEnrichMinMessageLen || m.Title != "" {
+		return // Nothing to summarize, or the publisher already chose a title
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), s.config.AIInlineTimeout)
+	defer cancel()
+	enrichment, err := ai.NewEnricher(s.ai).Enrich(ctx, m.Topic, m.Title, m.Message)
+	if err != nil {
+		log.Tag(tagAI).Err(err).Field("topic", m.Topic).Field("message_id", m.ID).Debug("AI enrichment skipped, passing through")
+		metrics.AIEnrichmentPassThrough.Inc()
+		return
+	}
+	if m.Priority == 0 && enrichment.Priority > 0 {
+		m.Priority = enrichment.Priority // Never override an explicit publisher priority
+	}
+	m.Title = enrichment.Summary
+	metrics.AIEnrichmentApplied.Inc()
+	log.Tag(tagAI).Field("topic", m.Topic).Field("message_id", m.ID).Field("ai_feature", string(ai.FeatureEnrich)).Debug("AI enrichment applied")
 }
 
 // apiAIPlanRequest is the body of POST /v1/ai/plan. Context optionally carries prior
