@@ -42,7 +42,9 @@ import { usePrefCache } from "./PrefCache";
 import { ReserveAddDialog, ReserveDeleteDialog, ReserveEditDialog } from "./ReserveDialogs";
 import { UnauthorizedError } from "../app/errors";
 import AiTuneDialog from "./AiTuneDialog";
+import AiDigestDialog from "./AiDigestDialog";
 import AutoFixNormal from "@mui/icons-material/AutoFixNormal";
+import Summarize from "@mui/icons-material/Summarize";
 
 export const SubscriptionPopup = (props) => {
   const { t } = useTranslation();
@@ -51,6 +53,7 @@ export const SubscriptionPopup = (props) => {
   const navigate = useNavigate();
   const [displayNameDialogOpen, setDisplayNameDialogOpen] = useState(false);
   const [aiTuneDialogOpen, setAiTuneDialogOpen] = useState(false);
+  const [aiDigestDialogOpen, setAiDigestDialogOpen] = useState(false);
   const [reserveAddDialogOpen, setReserveAddDialogOpen] = useState(false);
   const [reserveEditDialogOpen, setReserveEditDialogOpen] = useState(false);
   const [reserveDeleteDialogOpen, setReserveDeleteDialogOpen] = useState(false);
@@ -59,7 +62,8 @@ export const SubscriptionPopup = (props) => {
   const placement = props.placement ?? "left";
   const reservations = account?.reservations || [];
 
-  const showAiTune = config.enable_ai && session.exists() && !subscription?.internal; // axon: tune needs a synced subscription
+  const showAi = config.enable_ai && session.exists() && !subscription?.internal; // axon: tune/digest need a synced subscription
+  const showAiTune = showAi;
   const showReservationAdd = config.enable_reservations && !subscription?.reservation && account?.stats.reservations_remaining > 0;
   const showReservationAddDisabled =
     !showReservationAdd &&
@@ -196,6 +200,14 @@ export const SubscriptionPopup = (props) => {
             {t("ai_tune_menu_item")}
           </MenuItem>
         )}
+        {showAi && (
+          <MenuItem onClick={() => setAiDigestDialogOpen(true)}>
+            <ListItemIcon>
+              <Summarize fontSize="small" />
+            </ListItemIcon>
+            {t("ai_digest_menu_item")}
+          </MenuItem>
+        )}
         {showReservationAdd && (
           <MenuItem onClick={handleReserveAdd}>
             <ListItemIcon>
@@ -274,6 +286,9 @@ export const SubscriptionPopup = (props) => {
         <DisplayNameDialog open={displayNameDialogOpen} subscription={subscription} onClose={() => setDisplayNameDialogOpen(false)} />
         {showAiTune && (
           <AiTuneDialog open={aiTuneDialogOpen} subscription={subscription} onClose={() => setAiTuneDialogOpen(false)} />
+        )}
+        {showAi && (
+          <AiDigestDialog open={aiDigestDialogOpen} subscription={subscription} onClose={() => setAiDigestDialogOpen(false)} />
         )}
         {showReservationAdd && (
           <ReserveAddDialog

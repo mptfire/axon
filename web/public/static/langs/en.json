@@ -492,5 +492,16 @@
   "ai_tune_button_back": "Edit goal",
   "ai_tune_button_apply": "Apply settings",
   "ai_refine_placeholder": "Not quite? Describe what to change…",
-  "ai_refine_button": "Refine plan"
+  "ai_refine_button": "Refine plan",
+  "ai_digest_menu_item": "AI summarize this topic…",
+  "ai_digest_title": "AI topic summary",
+  "ai_digest_description": "Summarize the recent messages of \"{{topic}}\" into a short briefing. The summary is AI-generated; browse the topic for the full messages.",
+  "ai_digest_range_label": "Summarize the last",
+  "ai_digest_range_24h": "24 hours",
+  "ai_digest_range_7d": "7 days",
+  "ai_digest_range_30d": "30 days",
+  "ai_digest_button": "Summarize",
+  "ai_digest_button_again": "Summarize again",
+  "ai_digest_empty": "No messages in this period.",
+  "ai_digest_disclaimer_label": "AI-generated"
 }

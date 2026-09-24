@@ -76,7 +76,7 @@ New pieces introduced by this plan (nothing upstream is replaced):
 | 1 | [AI provider layer](phase-1-ai-provider-layer.md) | `ai/` package, provider config, budgets, `/v1/ai/status` | 0 | M | ✅ Done |
 | 2 | [AI subscription setup](phase-2-ai-subscription-setup.md) | **Headline:** natural-language subscription wizard in web app + `/v1/ai/plan` | 1 | M | ✅ Done (wizard, tune UI, refinement, per-subscription `?q=` filters) |
 | 3 | [Smart delivery](phase-3-smart-delivery.md) | Summarize / classify / correlate / translate on the message path | 1 | L | 🔧 First slice: inline summarize/classify with pass-through landed |
-| 4 | [Digests & briefings](phase-4-digests-briefings.md) | Scheduled AI digests per user | 3 | M | ☐ Not started |
+| 4 | [Digests & briefings](phase-4-digests-briefings.md) | Scheduled AI digests per user | 3 | M | 🔧 First slice: on-demand topic digest (`/v1/ai/digest`) + web UI; scheduled briefings pending |
 | 5 | [Chat with your notifications](phase-5-chat-with-notifications.md) | Conversational Q&A / search over history (streaming) | 1 | M | ☐ Not started |
 | 6 | [Agents & MCP](phase-6-agents-mcp.md) | `ntfy mcp`, scoped agent tokens, agent docs | 1, 2 | M | 🔧 First slice: `ntfy mcp` (publish, read, wait, list, plan) + [docs/agents.md](../agents.md); scoped tokens pending |
 | 7 | [Mobile, hardening & release](phase-7-mobile-privacy-release.md) | Mobile AI settings (separate repos), security review, 1.0 | 2–4 | L | ☐ Not started |

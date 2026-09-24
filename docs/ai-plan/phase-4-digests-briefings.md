@@ -1,6 +1,6 @@
 # Phase 4 — Digests & briefings
 
-**Depends on:** Phase 3 (correlation input; per-subscription AI settings UI) · **Size:** M (2–3 weeks) · **Status:** ☐ Not started
+**Depends on:** Phase 3 (correlation input; per-subscription AI settings UI) · **Size:** M (2–3 weeks) · **Status:** 🔧 First slice landed (on-demand digest: `POST /v1/ai/digest` + web "AI summarize" dialog; scheduled briefings + delivery topic pending)
 
 **Goal:** scheduled, AI-written digests per user — "morning briefing" and on-demand rollups — so noisy topics can be muted entirely without fear of missing what matters.
 

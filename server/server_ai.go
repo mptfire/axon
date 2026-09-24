@@ -12,15 +12,16 @@ import (
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/metrics"
 	"heckel.io/ntfy/v2/model"
+	"heckel.io/ntfy/v2/user"
 )
 
 // aiPingTimeout bounds the provider health check in the status endpoint.
 const aiPingTimeout = 2 * time.Second
 
-// aiPlanRequestsPerDay caps AI planning requests per visitor per day (burst = the full
-// daily allowance). The token budget in the ai.Client is the cost control; this keeps
-// prompt spam from wasting even cached budget.
-const aiPlanRequestsPerDay = 10
+// aiRequestsPerDay caps AI feature requests (plans, tunes, digests) per visitor per day
+// (burst = the full daily allowance). The token budget in the ai.Client is the real cost
+// control; this keeps prompt spam from wasting even cached budget.
+const aiRequestsPerDay = 10
 
 // ensureAIEnabled fails requests with 400 if the AI layer is not configured. Like the
 // nil-if-unconfigured mailer/stripe/twilio guards, this keeps every AI route nil-safe.
@@ -137,7 +138,7 @@ func (s *Server) handleAIPlan(w http.ResponseWriter, r *http.Request, v *visitor
 	if ai.ValidatePrompt(body.Prompt) != nil {
 		return errHTTPBadRequestAIRequest // invalid requests do not consume the daily quota
 	}
-	if !v.aiPlanAllowed() {
+	if !v.aiQuotaAllowed() {
 		return errHTTPTooManyRequestsLimitAIRequests
 	}
 	existingTopics := visitorTopics(v)
@@ -173,7 +174,7 @@ func (s *Server) handleAITune(w http.ResponseWriter, r *http.Request, v *visitor
 	if !topicRegex.MatchString(body.Topic) || ai.ValidatePrompt(body.Goal) != nil {
 		return errHTTPBadRequestAIRequest // invalid requests do not consume the daily quota
 	}
-	if !v.aiPlanAllowed() {
+	if !v.aiQuotaAllowed() {
 		return errHTTPTooManyRequestsLimitAIRequests
 	}
 	planner := ai.NewPlanner(s.ai)
@@ -226,6 +227,83 @@ func sanitizePlanContext(context []apiAIPlanContext) (turns []ai.Message) {
 		turns = append(turns, ai.Message{Role: role, Content: content})
 	}
 	return turns
+}
+
+// apiAIDigestRequest is the body of POST /v1/ai/digest.
+type apiAIDigestRequest struct {
+	Topic string `json:"topic"`
+	Since string `json:"since"` // Duration like "24h" or "7d"; default 24h, max 30d
+}
+
+// handleAIDigest summarizes recent messages of one of the user's subscribed topics
+// (POST /v1/ai/digest). Requires an account: only synced subscriptions can be digested.
+func (s *Server) handleAIDigest(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	body, err := readJSONWithLimit[apiAIDigestRequest](r.Body, jsonBodyBytesLimit, false)
+	if err != nil {
+		return err
+	}
+	if !topicRegex.MatchString(body.Topic) {
+		return errHTTPBadRequestAIRequest
+	}
+	u := v.User()
+	if !userSubscribesTo(u, s.config.BaseURL, body.Topic) {
+		return errHTTPForbidden // Only your own subscriptions, keeps the quota honest
+	}
+	if !v.aiQuotaAllowed() {
+		return errHTTPTooManyRequestsLimitAIRequests
+	}
+	sinceDuration := 24 * time.Hour
+	if body.Since != "" {
+		parsed, err := time.ParseDuration(body.Since)
+		if err != nil || parsed < time.Hour || parsed > 30*24*time.Hour {
+			return errHTTPBadRequestAIRequest
+		}
+		sinceDuration = parsed
+	}
+	sinceMarker := model.NewSinceTime(time.Now().Add(-1 * sinceDuration).Unix())
+	cachedMessages, _, err := s.messageCache.MessagesCapped(body.Topic, sinceMarker, false, 512*1024)
+	if err != nil {
+		return err
+	}
+	digestMessages := make([]ai.DigestMessage, 0, len(cachedMessages))
+	for _, m := range cachedMessages {
+		digestMessages = append(digestMessages, ai.DigestMessage{
+			ID: m.ID, Title: m.Title, Message: m.Message, Priority: m.Priority, Time: m.Time,
+		})
+	}
+	log.Tag(tagAI).With(v).Fields(log.Context{
+		"ai_feature":      string(ai.FeatureDigest),
+		"ai_digest_topic": body.Topic,
+		"ai_digest_count": len(digestMessages),
+	}).Debug("AI digest requested")
+	if len(digestMessages) == 0 {
+		// Nothing in the window: answer without spending provider budget
+		return s.writeJSON(w, &ai.DigestResult{
+			Topic:      body.Topic,
+			Headline:   "No messages in this period.",
+			Disclaimer: ai.DigestDisclaimer,
+		})
+	}
+	digest, err := ai.NewDigester(s.ai).Digest(r.Context(), visitorID(v.ip, v.user, v.config), &ai.DigestInput{
+		Topic: body.Topic, Messages: digestMessages,
+	})
+	if err != nil {
+		return s.mapAIError(err)
+	}
+	return s.writeJSON(w, digest)
+}
+
+// userSubscribesTo reports whether the user has a synced subscription for the topic.
+func userSubscribesTo(u *user.User, baseURL, topic string) bool {
+	if u == nil || u.Prefs == nil {
+		return false
+	}
+	for _, sub := range u.Prefs.Subscriptions {
+		if sub.Topic == topic && (sub.BaseURL == baseURL || sub.BaseURL == "") {
+			return true
+		}
+	}
+	return false
 }
 
 // visitorTopics returns the topics of the visitor's synced subscriptions (empty for

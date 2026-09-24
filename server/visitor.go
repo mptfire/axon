@@ -68,7 +68,7 @@ type visitor struct {
 	bandwidthLimiter     *util.RateLimiter  // Limiter for attachment downloads and cached-message replay (polls)
 	accountLimiter       *rate.Limiter      // Rate limiter for account actions (signup, password-reset requests), may be nil
 	authLimiter          *rate.Limiter      // Limiter for incorrect login attempts, may be nil
-	aiPlanLimiter        *rate.Limiter      // axon: Limiter for AI planning requests, may be nil
+	aiQuotaLimiter       *rate.Limiter      // axon: Limiter for daily AI requests (plans, tunes, digests), may be nil
 	firebase             time.Time          // Next allowed Firebase message
 	seen                 time.Time          // Last seen time of this visitor (needed for removal of stale visitors)
 	mu                   sync.RWMutex
@@ -142,7 +142,7 @@ func newVisitor(conf *Config, messageCache *message.Cache, userManager *user.Man
 		bandwidthLimiter:     nil, // Set in resetLimiters
 		accountLimiter:       nil, // Set in resetLimiters, may be nil
 		authLimiter:          nil, // Set in resetLimiters, may be nil
-		aiPlanLimiter:        nil, // Set in resetLimiters, may be nil
+		aiQuotaLimiter:       nil, // Set in resetLimiters, may be nil
 	}
 	v.resetLimitersNoLock(messages, emails, calls, false)
 	return v
@@ -418,9 +418,9 @@ func (v *visitor) resetLimitersNoLock(messages, emails, calls int64, enqueueUpda
 		v.authLimiter = nil    // Users are already logged in, no need to limit requests
 	}
 	if v.config.AIEnabled {
-		v.aiPlanLimiter = rate.NewLimiter(rate.Every(oneDay/aiPlanRequestsPerDay), aiPlanRequestsPerDay)
+		v.aiQuotaLimiter = rate.NewLimiter(rate.Every(oneDay/aiRequestsPerDay), aiRequestsPerDay)
 	} else {
-		v.aiPlanLimiter = nil // AI disabled, no limiter needed
+		v.aiQuotaLimiter = nil // AI disabled, no limiter needed
 	}
 	if enqueueUpdate && v.user != nil {
 		go v.userManager.EnqueueUserStats(v.user.ID, &user.Stats{
@@ -438,11 +438,11 @@ func (v *visitor) Limits() *visitorLimits {
 	return v.limitsNoLock()
 }
 
-// aiPlanAllowed reports whether this visitor may make another AI planning request.
-func (v *visitor) aiPlanAllowed() bool {
+// aiQuotaAllowed reports whether this visitor may make another AI planning request.
+func (v *visitor) aiQuotaAllowed() bool {
 	v.mu.RLock()
 	defer v.mu.RUnlock()
-	return v.aiPlanLimiter == nil || v.aiPlanLimiter.Allow()
+	return v.aiQuotaLimiter == nil || v.aiQuotaLimiter.Allow()
 }
 
 func (v *visitor) limitsNoLock() *visitorLimits {

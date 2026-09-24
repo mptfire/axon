@@ -16,6 +16,17 @@ class AiApi {
     return response.json(); // May throw SyntaxError
   }
 
+  async digest(topic, since) {
+    const url = `${config.base_url}/v1/ai/digest`;
+    console.log(`[AiApi] Requesting digest of ${topic} (since ${since})`);
+    const response = await fetchOrThrow(url, {
+      method: "POST",
+      headers: maybeWithBearerAuth({ "Content-Type": "application/json" }, session.token()),
+      body: JSON.stringify({ topic, since }),
+    });
+    return response.json(); // May throw SyntaxError
+  }
+
   async tune(topic, { displayName, search, minPriority }, goal) {
     const url = `${config.base_url}/v1/ai/tune`;
     console.log(`[AiApi] Tuning subscription ${topic}`);

@@ -178,8 +178,8 @@ func TestServer_AI_Plan_QuotaPerVisitor(t *testing.T) {
 	// Invalid requests do not consume quota
 	rr := request(t, s, "POST", "/v1/ai/plan", `{"prompt":"  "}`, nil)
 	require.Equal(t, 400, rr.Code)
-	// Exactly aiPlanRequestsPerDay plans fit into the daily burst
-	for i := 0; i < aiPlanRequestsPerDay; i++ {
+	// Exactly aiRequestsPerDay plans fit into the daily burst
+	for i := 0; i < aiRequestsPerDay; i++ {
 		rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish"}`, nil)
 		require.Equal(t, 200, rr.Code, "plan %d should pass", i)
 	}

@@ -117,6 +117,7 @@ var (
 	apiAIUsagePath                                       = "/v1/ai/usage"  // axon
 	apiAIPlanPath                                        = "/v1/ai/plan"   // axon
 	apiAITunePath                                        = "/v1/ai/tune"   // axon
+	apiAIDigestPath                                      = "/v1/ai/digest" // axon
 	apiUsersPath                                         = "/v1/users"
 	apiUsersAccessPath                                   = "/v1/users/access"
 	apiAccountPath                                       = "/v1/account"
@@ -694,6 +695,8 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureAIEnabled(s.limitRequests(s.handleAIPlan))(w, r, v) // axon: allowed anonymously, plans are never applied server-side
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAITunePath {
 		return s.ensureAIEnabled(s.ensureUser(s.limitRequests(s.handleAITune)))(w, r, v) // axon: tunes a synced subscription
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAIDigestPath {
+		return s.ensureAIEnabled(s.ensureUser(s.limitRequests(s.handleAIDigest)))(w, r, v) // axon: digests a synced subscription
 	} else if r.Method == http.MethodGet && r.URL.Path == matrixPushPath {
 		return s.handleMatrixDiscovery(w)
 	} else if r.Method == http.MethodGet && r.URL.Path == metricsPath && s.metricsHandler != nil {
