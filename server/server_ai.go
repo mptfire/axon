@@ -92,7 +92,7 @@ func (s *Server) handleAIPlan(w http.ResponseWriter, r *http.Request, v *visitor
 	}
 	existingTopics := visitorTopics(v)
 	planner := ai.NewPlanner(s.ai)
-	plan, err := planner.Plan(r.Context(), s.config.BaseURL, body.Prompt, body.Locale, existingTopics)
+	plan, err := planner.Plan(r.Context(), visitorID(v.ip, v.user, v.config), s.config.BaseURL, body.Prompt, body.Locale, existingTopics)
 	if err != nil {
 		return s.mapAIError(err)
 	}
@@ -127,7 +127,7 @@ func (s *Server) handleAITune(w http.ResponseWriter, r *http.Request, v *visitor
 		return errHTTPTooManyRequestsLimitAIRequests
 	}
 	planner := ai.NewPlanner(s.ai)
-	tune, err := planner.Tune(r.Context(), &ai.TuneInput{
+	tune, err := planner.Tune(r.Context(), visitorID(v.ip, v.user, v.config), &ai.TuneInput{
 		Topic:       body.Topic,
 		DisplayName: body.DisplayName,
 		Search:      body.Search,

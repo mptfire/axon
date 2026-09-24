@@ -218,6 +218,14 @@ func TestServer_AI_Plan_BudgetExceededIs429(t *testing.T) {
 	rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish2"}`, nil)
 	require.Equal(t, 429, rr.Code)
 	require.Equal(t, 42912, toHTTPError(t, rr.Body.String()).Code)
+
+	// Usage is attributed to the requesting visitor (same IP as the plan request above)
+	rr = request(t, s, "GET", "/v1/ai/usage", "", nil)
+	require.Equal(t, 200, rr.Code)
+	var report ai.UsageReport
+	require.Nil(t, json.NewDecoder(rr.Body).Decode(&report))
+	require.Equal(t, int64(1), report.Visitor.Requests)
+	require.Equal(t, int64(200), report.Global.Total())
 }
 
 func TestServer_AI_Tune(t *testing.T) {

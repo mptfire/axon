@@ -91,7 +91,7 @@ func ValidatePrompt(prompt string) error {
 }
 
 // Plan generates a subscription plan for a natural-language prompt.
-func (p *Planner) Plan(ctx context.Context, baseURL, prompt, locale string, existingTopics []string) (*Plan, error) {
+func (p *Planner) Plan(ctx context.Context, userKey, baseURL, prompt, locale string, existingTopics []string) (*Plan, error) {
 	if err := ValidatePrompt(prompt); err != nil {
 		return nil, err
 	}
@@ -102,6 +102,7 @@ func (p *Planner) Plan(ctx context.Context, baseURL, prompt, locale string, exis
 		JSONSchema:  PlanSchema,
 		MaxTokens:   2048,
 		Temperature: 0.2,
+		UserKey:     userKey,
 	}
 	response, err := p.client.Complete(ctx, request)
 	if err != nil {
@@ -111,7 +112,7 @@ func (p *Planner) Plan(ctx context.Context, baseURL, prompt, locale string, exis
 }
 
 // Tune proposes adjustments to an existing subscription, given a natural-language goal.
-func (p *Planner) Tune(ctx context.Context, input *TuneInput, goal string) (*TuneResult, error) {
+func (p *Planner) Tune(ctx context.Context, userKey string, input *TuneInput, goal string) (*TuneResult, error) {
 	if err := ValidatePrompt(goal); err != nil {
 		return nil, err
 	}
@@ -123,6 +124,7 @@ func (p *Planner) Tune(ctx context.Context, input *TuneInput, goal string) (*Tun
 		JSONSchema:  TuneSchema,
 		MaxTokens:   1024,
 		Temperature: 0.2,
+		UserKey:     userKey,
 	}
 	response, err := p.client.Complete(ctx, request)
 	if err != nil {
