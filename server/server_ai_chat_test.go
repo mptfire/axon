@@ -45,6 +45,12 @@ func TestServer_AI_Chat(t *testing.T) {
 	require.Equal(t, 200, rr.Code)
 	require.Contains(t, seenPrompt, "backup failed exit 2 on db-1")
 
+	// Follow-up question with conversation history: history is forwarded to the model
+	rr = request(t, s, "POST", "/v1/ai/chat", `{"topic":"backups","question":"how often?","history":[{"question":"what failed?","answer":"db-1, twice"}]}`, auth)
+	require.Equal(t, 200, rr.Code)
+	require.Contains(t, seenPrompt, "Earlier in this conversation:")
+	require.Contains(t, seenPrompt, "Q: what failed?")
+
 	var chatResponse apiAIChatResponse
 	require.Nil(t, json.NewDecoder(rr.Body).Decode(&chatResponse))
 	require.Equal(t, "The last failure was db-1 with exit code 2.", chatResponse.Answer)

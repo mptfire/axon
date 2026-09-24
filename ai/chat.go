@@ -51,6 +51,12 @@ type ChatAnswer struct {
 // ChatDisclaimer is stamped onto every chat answer by the server.
 const ChatDisclaimer = "AI-generated answer based on the selected message window — verify anything important in the cited messages."
 
+// ChatTurn is one prior question/answer pair for multi-turn conversations.
+type ChatTurn struct {
+	Question string
+	Answer   string
+}
+
 // Chatter answers questions about notification history. Retrieval (which messages end
 // up in the context) happens in the server; this type does the completion and cleans up
 // the output.
@@ -65,7 +71,7 @@ func NewChatter(client *Client) *Chatter {
 
 // Chat answers a question given topic + context messages. Message IDs in the answer's
 // citations are validated against the provided context; invented IDs are stripped.
-func (c *Chatter) Chat(ctx context.Context, userKey, topic, question string, messages []DigestMessage) (*ChatAnswer, error) {
+func (c *Chatter) Chat(ctx context.Context, userKey, topic, question string, messages []DigestMessage, priorTurns []ChatTurn) (*ChatAnswer, error) {
 	if strings.TrimSpace(question) == "" {
 		return nil, fmt.Errorf("question is required")
 	}
@@ -76,7 +82,23 @@ func (c *Chatter) Chat(ctx context.Context, userKey, topic, question string, mes
 		messages = messages[len(messages)-ChatMaxContextMessages:]
 	}
 	var prompt strings.Builder
-	fmt.Fprintf(&prompt, "Topic: %s\nQuestion: %s\n\nMessages:\n", topic, question)
+	fmt.Fprintf(&prompt, "Topic: %s\n", topic)
+	if len(priorTurns) > 0 {
+		prompt.WriteString("Earlier in this conversation:\n")
+		for _, turn := range priorTurns {
+			q := turn.Question
+			a := turn.Answer
+			if len(q) > 500 {
+				q = q[:500]
+			}
+			if len(a) > 1000 {
+				a = a[:1000]
+			}
+			fmt.Fprintf(&prompt, "Q: %s\nA: %s\n", q, a)
+		}
+		prompt.WriteString("\n")
+	}
+	fmt.Fprintf(&prompt, "Question: %s\n\nMessages:\n", question)
 	for _, m := range messages {
 		text := m.Message
 		if len(text) > ChatMaxMessageChars {

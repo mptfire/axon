@@ -195,6 +195,8 @@ func (s *Server) callTool(ctx context.Context, params json.RawMessage) *toolResu
 		return s.toolReadMessages(ctx, args)
 	case "subscribe_wait":
 		return s.toolSubscribeWait(ctx, args)
+	case "digest_topic":
+		return s.toolDigestTopic(ctx, args)
 	case "list_subscriptions":
 		return s.toolListSubscriptions(ctx, args)
 	case "plan_subscription":

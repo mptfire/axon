@@ -13,12 +13,28 @@
 
 > [!NOTE]
 > **This is axon — an AI-native fork of ntfy.** It adds an optional AI layer on top of
-> vanilla ntfy: natural-language subscription setup, AI message enrichment/digests,
-> chat over your notification history, and a built-in MCP server for AI agents.
-> With AI disabled (`ai-enabled: false`), it behaves identically to upstream ntfy and is a
-> drop-in replacement. See [docs/ai-plan](docs/ai-plan/index.md) for the phased plan.
-> All credit for the underlying ntfy goes to [Philipp Heckel](https://github.com/binwiederhier)
-> and the ntfy community — this fork tracks [binwiederhier/ntfy](https://github.com/binwiederhier/ntfy) (Apache-2.0).
+> vanilla ntfy. With AI disabled (`ai-enabled: false`), it behaves identically to upstream
+> ntfy and is a drop-in replacement. All credit for the underlying ntfy goes to
+> [Philipp Heckel](https://github.com/binwiederhier) and the ntfy community — this fork
+> tracks [binwiederhier/ntfy](https://github.com/binwiederhier/ntfy) (Apache-2.0).
+
+**What axon adds today** (all opt-in, local-first with [Ollama](https://ollama.com)):
+
+- 🗣️ **AI subscription setup** — describe what you want in plain language in the web app;
+  the assistant proposes topics, filters and priorities for you to review and apply
+- 🔧 **AI subscription tuning** — "only page me for real emergencies at night"
+- ✍️ **Inline enrichment** — long alert messages get summarized into titles and an
+  importance estimate, with instant pass-through when the AI is slow
+- 📰 **Topic digests** — "summarize the last 7 days" as a structured briefing
+- 💬 **Ask your history** — questions about a topic's recent messages, answered with
+  citations to the actual messages
+- 🤖 **MCP server for AI agents** — `ntfy mcp` lets Claude & co. publish, wait for
+  replies, and read history; scoped agent tokens included (`ntfy token add --scope=ai`)
+
+Every AI call runs through a provider abstraction (OpenAI-compatible, Anthropic, Ollama),
+an LRU response cache, and per-visitor + global daily token budgets. See
+[docs/ai-plan](docs/ai-plan/index.md) for the phased plan and
+[docs/agents.md](docs/agents.md) for the agent quickstart.
 
 ![ntfy](web/public/static/images/ntfy.png)
 

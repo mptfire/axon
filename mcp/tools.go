@@ -85,6 +85,18 @@ func toolDefinitions() []toolDefinition {
 			},
 		},
 		{
+			Name:        "digest_topic",
+			Description: "Summarize the recent messages of a topic into a short briefing (AI layer required on the server).",
+			InputSchema: &inputSchema{
+				Type: "object",
+				Properties: map[string]propertySchema{
+					"topic": {Type: "string", Description: "Topic name"},
+					"since": {Type: "string", Description: `Summary window: "24h" (default), "168h", "720h", ... (max 30 days)`},
+				},
+				Required: []string{"topic"},
+			},
+		},
+		{
 			Name:        "list_subscriptions",
 			Description: "List the account's synced topic subscriptions. Requires an access token (--token).",
 			InputSchema: &inputSchema{Type: "object", Properties: map[string]propertySchema{}},
@@ -265,6 +277,36 @@ func (s *Server) toolSubscribeWait(ctx context.Context, args map[string]any) *to
 		return errorResult(err)
 	}
 	return textResult(fmt.Sprintf("timeout: no message arrived on topic %q within %s", topic, wait))
+}
+
+// toolDigestTopic summarizes a topic via the server's AI layer. Requires an
+// authenticated token: only the account's own subscriptions can be digested.
+func (s *Server) toolDigestTopic(ctx context.Context, args map[string]any) *toolResult {
+	topic, _ := args["topic"].(string)
+	if !validTopic(topic) {
+		return errorResult(errTopicRequired)
+	}
+	if s.config.AccessToken == "" {
+		return errorResult(errNoToken)
+	}
+	since, _ := args["since"].(string)
+	if since == "" {
+		since = "24h"
+	}
+	body, _ := json.Marshal(map[string]string{"topic": topic, "since": since})
+	resp, err := s.do(ctx, http.MethodPost, "/v1/ai/digest", strings.NewReader(string(body)), http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return errorResult(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return errorResult(fmt.Errorf("server returned %s: %s", resp.Status, firstKB(resp.Body)))
+	}
+	digest, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errorResult(err)
+	}
+	return textResult("Digest of topic " + strconv.Quote(topic) + ":\n" + string(digest))
 }
 
 // toolListSubscriptions lists the account's synced subscriptions.

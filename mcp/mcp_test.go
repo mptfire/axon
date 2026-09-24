@@ -103,7 +103,7 @@ func TestToolsList(t *testing.T) {
 	for _, tool := range tools {
 		names = append(names, tool.(map[string]any)["name"].(string))
 	}
-	require.Equal(t, []string{"publish", "read_messages", "subscribe_wait", "list_subscriptions", "plan_subscription"}, names)
+	require.Equal(t, []string{"publish", "read_messages", "subscribe_wait", "digest_topic", "list_subscriptions", "plan_subscription"}, names)
 }
 
 func TestToolPublish(t *testing.T) {
@@ -231,6 +231,38 @@ func TestToolSubscribeWait_Timeout(t *testing.T) {
 	})
 	require.Less(t, time.Since(start), time.Second) // capped by WaitMax, not 300s
 	require.Contains(t, resultText(t, response), "timeout")
+}
+
+func TestToolDigestTopic(t *testing.T) {
+	fake := fakeNtfy(t, func(w http.ResponseWriter, r *http.Request) bool {
+		if r.URL.Path == "/v1/ai/digest" && r.Method == http.MethodPost {
+			if r.Header.Get("Authorization") == "" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return true
+			}
+			var body map[string]string
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			require.Equal(t, "24h", body["since"])
+			fmt.Fprintln(w, `{"topic":"alerts","message_count":3,"headline":"All quiet-ish","sections":[],"disclaimer":"d"}`)
+			return true
+		}
+		return false
+	})
+	defer fake.Close()
+
+	s := New(Config{ServiceBaseURL: fake.URL, AccessToken: "tk_x"})
+	response := rpcCall(t, s, "1", "tools/call", map[string]any{
+		"name": "digest_topic", "arguments": map[string]any{"topic": "alerts"},
+	})
+	require.False(t, isErrorResult(t, response))
+	require.Contains(t, resultText(t, response), "All quiet-ish")
+
+	// Anonymous: tool error
+	s2 := New(Config{ServiceBaseURL: fake.URL})
+	response = rpcCall(t, s2, "2", "tools/call", map[string]any{
+		"name": "digest_topic", "arguments": map[string]any{"topic": "alerts"},
+	})
+	require.True(t, isErrorResult(t, response))
 }
 
 func TestToolListSubscriptions(t *testing.T) {

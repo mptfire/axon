@@ -309,11 +309,18 @@ func (s *Server) handleAIDigest(w http.ResponseWriter, r *http.Request, v *visit
 	return s.writeJSON(w, digest)
 }
 
-// apiAIChatRequest is the body of POST /v1/ai/chat.
+// apiAIChatRequest is the body of POST /v1/ai/chat. History carries prior question/
+// answer pairs for follow-up questions; it is sanitized and hard-capped.
 type apiAIChatRequest struct {
-	Topic    string `json:"topic"`
+	Topic    string             `json:"topic"`
+	Question string             `json:"question"`
+	Since    string             `json:"since"` // Retrieval window; default 7d, max 30d
+	History  []apiAIChatHistory `json:"history"`
+}
+
+type apiAIChatHistory struct {
 	Question string `json:"question"`
-	Since    string `json:"since"` // Retrieval window; default 7d, max 30d
+	Answer   string `json:"answer"`
 }
 
 // apiAIChatResponse is the response of POST /v1/ai/chat: the model's answer with
@@ -372,7 +379,7 @@ func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request, v *visitor
 		"ai_chat_topic":   body.Topic,
 		"ai_chat_context": len(context),
 	}).Debug("AI chat requested")
-	answer, err := ai.NewChatter(s.ai).Chat(r.Context(), visitorID(v.ip, v.user, v.config), body.Topic, question, toDigestMessages(context))
+	answer, err := ai.NewChatter(s.ai).Chat(r.Context(), visitorID(v.ip, v.user, v.config), body.Topic, question, toDigestMessages(context), sanitizeChatHistory(body.History))
 	if err != nil {
 		return s.mapAIError(err)
 	}
@@ -390,6 +397,28 @@ func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request, v *visitor
 		}
 	}
 	return s.writeJSON(w, response)
+}
+
+// sanitizeChatHistory caps the client-supplied conversation history: at most 5 turns,
+// each question/answer trimmed and length-capped. History is untrusted input.
+func sanitizeChatHistory(history []apiAIChatHistory) (turns []ai.ChatTurn) {
+	for i, turn := range history {
+		if i >= 5 {
+			break
+		}
+		question, answer := strings.TrimSpace(turn.Question), strings.TrimSpace(turn.Answer)
+		if question == "" || answer == "" {
+			continue
+		}
+		if len(question) > 1000 {
+			question = question[:1000]
+		}
+		if len(answer) > ai.ChatMaxAnswerChars {
+			answer = answer[:ai.ChatMaxAnswerChars]
+		}
+		turns = append(turns, ai.ChatTurn{Question: question, Answer: answer})
+	}
+	return turns
 }
 
 // toDigestMessages converts cached messages to the ai package's context type.
