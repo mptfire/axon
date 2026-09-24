@@ -3,6 +3,7 @@ package user
 import (
 	"errors"
 	"net/netip"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,8 +15,9 @@ import (
 type User struct {
 	ID          string
 	Name        string
-	Hash        string // Password hash (bcrypt)
-	Token       string // Only set if token was used to log in
+	Hash        string   // Password hash (bcrypt)
+	Token       string   // Only set if token was used to log in
+	TokenScopes []string // axon: scopes of the token used to log in (empty = unrestricted)
 	Role        Role
 	Prefs       *Prefs
 	Tier        *Tier
@@ -65,6 +67,43 @@ type Token struct {
 	LastOrigin  netip.Addr
 	Expires     time.Time
 	Provisioned bool
+	Scopes      string // axon: comma-separated token scopes ("" = unrestricted); see TokenScope* constants
+}
+
+// axon: token scopes. An empty scopes list means the token is unrestricted (backwards
+// compatible with all pre-existing tokens). Non-empty scopes restrict what the token can
+// do; currently only TokenScopeAI is enforced (LLM-costing endpoints).
+const (
+	TokenScopePublish = "publish"
+	TokenScopeRead    = "read"
+	TokenScopeAI      = "ai"
+)
+
+// ParseTokenScopes parses a comma-separated scopes column into a list. Empty or blank
+// scopes yield nil (= unrestricted).
+func ParseTokenScopes(scopes string) []string {
+	parsed := make([]string, 0)
+	for _, scope := range strings.Split(scopes, ",") {
+		if s := strings.TrimSpace(scope); s != "" {
+			parsed = append(parsed, s)
+		}
+	}
+	if len(parsed) == 0 {
+		return nil
+	}
+	return parsed
+}
+
+// HasTokenScope reports whether the user authenticated with a token that grants the
+// given scope. Tokens without scopes are unrestricted. A nil user never has scopes.
+func (u *User) HasTokenScope(scope string) bool {
+	if u == nil {
+		return false
+	}
+	if len(u.TokenScopes) == 0 {
+		return true
+	}
+	return slices.Contains(u.TokenScopes, scope)
 }
 
 // TokenUpdate holds information about the last access time and origin IP address of a token
@@ -384,6 +423,7 @@ type queries struct {
 	selectTokenCount           string
 	selectAllProvisionedTokens string
 	upsertToken                string
+	selectTokenScopesByValue   string // axon
 	updateToken                string
 	updateTokenLastAccess      string
 	deleteToken                string

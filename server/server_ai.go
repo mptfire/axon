@@ -36,6 +36,20 @@ func (s *Server) ensureAIEnabled(next handleFunc) handleFunc {
 	}
 }
 
+// ensureAIScope rejects requests authenticated with a token that does not carry the
+// "ai" scope (user.TokenScopes). Anonymous visitors and scope-less tokens pass — scopes
+// are a restriction for scoped agent tokens only. Applied to the LLM-costing endpoints
+// (plan, tune, digest, chat), not to status/usage.
+func (s *Server) ensureAIScope(next handleFunc) handleFunc {
+	return func(w http.ResponseWriter, r *http.Request, v *visitor) error {
+		if u := v.User(); u != nil && !u.HasTokenScope(user.TokenScopeAI) {
+			log.Tag(tagAI).With(v).Warn("Token does not carry the ai scope, rejecting request")
+			return errHTTPForbidden
+		}
+		return next(w, r, v)
+	}
+}
+
 // apiAIStatusResponse is the admin-facing view of the AI layer (GET /v1/ai/status).
 type apiAIStatusResponse struct {
 	Enabled  bool            `json:"enabled"`

@@ -64,6 +64,7 @@ const (
 			last_origin TEXT NOT NULL,
 			expires BIGINT NOT NULL,
 			provisioned BOOLEAN NOT NULL,
+			scopes TEXT NOT NULL DEFAULT '',
 			PRIMARY KEY (user_id, token)
 		);
 		CREATE TABLE IF NOT EXISTS user_phone (
@@ -96,7 +97,8 @@ const (
 )
 
 const (
-	postgresCurrentSchemaVersion = 9
+	// axon: fork migration 9 -> 10 adds token scopes (see sqlite side)
+	postgresCurrentSchemaVersion = 10
 )
 
 const (
@@ -125,6 +127,10 @@ const (
 		);
 		CREATE INDEX idx_magic_link_user_kind ON user_magic_link (user_id, kind);
 	`
+	// 9 -> 10: axon fork migration — token scopes for AI agents
+	postgresMigrate9To10UpdateQueries = `
+		ALTER TABLE user_token ADD COLUMN scopes TEXT NOT NULL DEFAULT '';
+	`
 )
 
 var (
@@ -135,6 +141,7 @@ var (
 	postgresMigrations = map[int]schema.MigrateFunc{
 		6: schema.AsMigrateFunc(postgresMigrate6To7UpdateQueries),
 		7: schema.AsMigrateFunc(postgresMigrate7To8UpdateQueries),
-		8: schema.NopMigrateFunc, // 8 -> 9 repairs a SQLite-only foreign key defect; nothing to do on Postgres
+		8: schema.NopMigrateFunc,                                   // 8 -> 9 repairs a SQLite-only foreign key defect; nothing to do on Postgres
+		9: schema.AsMigrateFunc(postgresMigrate9To10UpdateQueries), // axon
 	}
 )

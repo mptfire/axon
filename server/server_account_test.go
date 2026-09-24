@@ -247,7 +247,7 @@ func TestAccount_ChangeSettings(t *testing.T) {
 
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleUser, false))
 		u, _ := s.userManager.User("phil")
-		token, _ := s.userManager.CreateToken(u.ID, "", time.Unix(0, 0), netip.IPv4Unspecified(), false)
+		token, _ := s.userManager.CreateToken(u.ID, "", time.Unix(0, 0), netip.IPv4Unspecified(), false, "")
 
 		rr := request(t, s, "PATCH", "/v1/account/settings", `{"notification": {"sound": "juntos"},"ignored": true}`, map[string]string{
 			"Authorization": util.BasicAuth("phil", "phil"),

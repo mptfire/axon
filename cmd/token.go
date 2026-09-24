@@ -9,6 +9,7 @@ import (
 	"heckel.io/ntfy/v2/user"
 	"heckel.io/ntfy/v2/util"
 	"net/netip"
+	"strings"
 	"time"
 )
 
@@ -35,6 +36,7 @@ var cmdToken = &cli.Command{
 			Flags: []cli.Flag{
 				&cli.StringFlag{Name: "expires", Aliases: []string{"e"}, Value: "", Usage: "token expires after"},
 				&cli.StringFlag{Name: "label", Aliases: []string{"l"}, Value: "", Usage: "token label"},
+				&cli.StringSliceFlag{Name: "scope", Aliases: []string{"S"}, EnvVars: []string{"NTFY_TOKEN_SCOPE"}, Usage: "token scopes, e.g. ai (axon: restrict what the token can do; empty = unrestricted)"},
 			},
 			Description: `Create a new user access token.
 
@@ -49,7 +51,8 @@ Examples:
   ntfy token add phil                   # Create token for user phil which never expires
   ntfy token add --expires=2d phil      # Create token for user phil which expires in 2 days
   ntfy token add -e "tuesday, 8pm" phil # Create token for user phil which expires next Tuesday
-  ntfy token add -l backups phil        # Create token for user phil with label "backups"`,
+  ntfy token add -l backups phil        # Create token for user phil with label "backups"
+  ntfy token add --scope=ai phil        # axon: token restricted to AI features only`,
 		},
 		{
 			Name:      "remove",
@@ -126,7 +129,7 @@ func execTokenAdd(c *cli.Context) error {
 	} else if err != nil {
 		return err
 	}
-	token, err := manager.CreateToken(u.ID, label, expires, netip.IPv4Unspecified(), false)
+	token, err := manager.CreateToken(u.ID, label, expires, netip.IPv4Unspecified(), false, strings.Join(c.StringSlice("scope"), ","))
 	if err != nil {
 		return err
 	}

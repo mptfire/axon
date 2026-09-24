@@ -693,13 +693,13 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 	} else if r.Method == http.MethodGet && r.URL.Path == apiAIUsagePath {
 		return s.ensureAIEnabled(s.limitRequests(s.handleAIUsage))(w, r, v) // axon: allowed anonymously, attribution by visitor
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAIPlanPath {
-		return s.ensureAIEnabled(s.limitRequests(s.handleAIPlan))(w, r, v) // axon: allowed anonymously, plans are never applied server-side
+		return s.ensureAIEnabled(s.ensureAIScope(s.limitRequests(s.handleAIPlan)))(w, r, v) // axon: allowed anonymously, plans are never applied server-side
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAITunePath {
-		return s.ensureAIEnabled(s.ensureUser(s.limitRequests(s.handleAITune)))(w, r, v) // axon: tunes a synced subscription
+		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.limitRequests(s.handleAITune))))(w, r, v) // axon: tunes a synced subscription
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAIDigestPath {
-		return s.ensureAIEnabled(s.ensureUser(s.limitRequests(s.handleAIDigest)))(w, r, v) // axon: digests a synced subscription
+		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.limitRequests(s.handleAIDigest))))(w, r, v) // axon: digests a synced subscription
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAIChatPath {
-		return s.ensureAIEnabled(s.ensureUser(s.limitRequests(s.handleAIChat)))(w, r, v) // axon: asks about a synced subscription
+		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.limitRequests(s.handleAIChat))))(w, r, v) // axon: asks about a synced subscription
 	} else if r.Method == http.MethodGet && r.URL.Path == matrixPushPath {
 		return s.handleMatrixDiscovery(w)
 	} else if r.Method == http.MethodGet && r.URL.Path == metricsPath && s.metricsHandler != nil {

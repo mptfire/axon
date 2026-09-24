@@ -190,6 +190,9 @@ func (a *Manager) AuthenticateToken(token string) (*User, error) {
 		log.Tag(tag).Field("token", token).Err(err).Trace("Authentication of token failed")
 		return nil, ErrUnauthenticated
 	}
+	if user.TokenScopes, err = a.tokenScopesByValue(token); err != nil { // axon: scoped agent tokens
+		return nil, ErrUnauthenticated
+	}
 	user.Token = token
 	return user, nil
 }
@@ -1128,16 +1131,18 @@ func (a *Manager) resetTopicAccessTx(tx *sql.Tx, username, topicPattern string) 
 // CreateToken generates a random token for the given user and returns it. The token expires
 // after a fixed duration unless ChangeToken is called. This function also prunes tokens for the
 // given user, if there are too many of them.
-func (a *Manager) CreateToken(userID, label string, expires time.Time, origin netip.Addr, provisioned bool) (*Token, error) {
+// CreateToken creates a token for the given user. The scopes parameter is a
+// comma-separated list of TokenScope* values; empty means unrestricted.
+func (a *Manager) CreateToken(userID, label string, expires time.Time, origin netip.Addr, provisioned bool, scopes string) (*Token, error) {
 	return db.QueryTx(a.db, func(tx *sql.Tx) (*Token, error) {
-		return a.createTokenTx(tx, userID, GenerateToken(), label, time.Now(), origin, expires, tokenMaxCount, provisioned)
+		return a.createTokenTx(tx, userID, GenerateToken(), label, time.Now(), origin, expires, tokenMaxCount, provisioned, scopes)
 	})
 }
 
 // createTokenTx creates a new token and prunes excess tokens if the count exceeds maxTokenCount.
 // If maxTokenCount is 0, no pruning is performed.
-func (a *Manager) createTokenTx(tx *sql.Tx, userID, token, label string, lastAccess time.Time, lastOrigin netip.Addr, expires time.Time, maxTokenCount int, provisioned bool) (*Token, error) {
-	if _, err := tx.Exec(a.queries.upsertToken, userID, token, label, lastAccess.Unix(), lastOrigin.String(), expires.Unix(), provisioned); err != nil {
+func (a *Manager) createTokenTx(tx *sql.Tx, userID, token, label string, lastAccess time.Time, lastOrigin netip.Addr, expires time.Time, maxTokenCount int, provisioned bool, scopes string) (*Token, error) {
+	if _, err := tx.Exec(a.queries.upsertToken, userID, token, label, lastAccess.Unix(), lastOrigin.String(), expires.Unix(), provisioned, scopes); err != nil {
 		return nil, err
 	}
 	if maxTokenCount > 0 {
@@ -1160,7 +1165,18 @@ func (a *Manager) createTokenTx(tx *sql.Tx, userID, token, label string, lastAcc
 		LastOrigin:  lastOrigin,
 		Expires:     expires,
 		Provisioned: provisioned,
+		Scopes:      scopes,
 	}, nil
+}
+
+// tokenScopesByValue returns the parsed scopes of the given token value. A missing or
+// empty scopes column means unrestricted (nil).
+func (a *Manager) tokenScopesByValue(token string) ([]string, error) {
+	var scopes string
+	if err := a.db.QueryRow(a.queries.selectTokenScopesByValue, token).Scan(&scopes); err != nil {
+		return nil, err
+	}
+	return ParseTokenScopes(scopes), nil
 }
 
 // ChangeToken updates a token's label and/or expiry date
@@ -1309,13 +1325,13 @@ func (a *Manager) updateTokenLastAccessTx(tx *sql.Tx, token string, lastAccess i
 }
 
 func (a *Manager) readToken(rows *sql.Rows) (*Token, error) {
-	var token, label, lastOrigin string
+	var token, label, lastOrigin, scopes string
 	var lastAccess, expires int64
 	var provisioned bool
 	if !rows.Next() {
 		return nil, ErrTokenNotFound
 	}
-	if err := rows.Scan(&token, &label, &lastAccess, &lastOrigin, &expires, &provisioned); err != nil {
+	if err := rows.Scan(&token, &label, &lastAccess, &lastOrigin, &expires, &provisioned, &scopes); err != nil {
 		return nil, err
 	} else if err := rows.Err(); err != nil {
 		return nil, err
@@ -1327,6 +1343,7 @@ func (a *Manager) readToken(rows *sql.Rows) (*Token, error) {
 	return &Token{
 		Value:       token,
 		Label:       label,
+		Scopes:      scopes,
 		LastAccess:  time.Unix(lastAccess, 0),
 		LastOrigin:  lastOriginIP,
 		Expires:     time.Unix(expires, 0),
@@ -1960,7 +1977,7 @@ func (a *Manager) maybeProvisionTokens(tx *sql.Tx, provisionUsernames []string, 
 			return fmt.Errorf("failed to find provisioned user %s for provisioned tokens: %v", username, err)
 		}
 		for _, token := range tokens {
-			if _, err := a.createTokenTx(tx, userID, token.Value, token.Label, time.Unix(0, 0), netip.IPv4Unspecified(), time.Unix(0, 0), 0, true); err != nil {
+			if _, err := a.createTokenTx(tx, userID, token.Value, token.Label, time.Unix(0, 0), netip.IPv4Unspecified(), time.Unix(0, 0), 0, true, token.Scopes); err != nil {
 				return err
 			}
 		}

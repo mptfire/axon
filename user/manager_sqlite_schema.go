@@ -73,6 +73,7 @@ const (
 			last_origin TEXT NOT NULL,
 			expires INT NOT NULL,
 			provisioned INT NOT NULL,
+			scopes TEXT NOT NULL DEFAULT (''),
 			PRIMARY KEY (user_id, token),
 			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
 		);
@@ -114,7 +115,10 @@ const (
 )
 
 const (
-	sqliteCurrentSchemaVersion = 9
+	// axon: fork migration 9 -> 10 adds token scopes. When upstream claims 9 -> 10 in a
+	// future release, renumber ours to the next free version on merge (see
+	// docs/ai-plan/upstream-sync.md).
+	sqliteCurrentSchemaVersion = 10
 )
 
 // Schema migrations for SQLite
@@ -373,6 +377,11 @@ var (
 
 	// sqliteMigrations maps a schema version to the migration upgrading it to the next
 	// version. Always append migrations at the end, never insert in the middle.
+	// 9 -> 10: axon fork migration — token scopes for AI agents
+	sqliteMigrate9To10UpdateQueries = `
+		ALTER TABLE user_token ADD COLUMN scopes TEXT NOT NULL DEFAULT ('');
+	`
+
 	sqliteMigrations = map[int]schema.MigrateFunc{
 		1: sqliteMigrateFrom1,
 		2: schema.AsMigrateFunc(sqliteMigrate2To3UpdateQueries),
@@ -382,6 +391,7 @@ var (
 		6: schema.AsMigrateFunc(sqliteMigrate6To7UpdateQueries),
 		7: schema.AsMigrateFunc(sqliteMigrate7To8UpdateQueries),
 		8: schema.AsMigrateFunc(sqliteMigrate8To9UpdateQueries),
+		9: schema.AsMigrateFunc(sqliteMigrate9To10UpdateQueries), // axon
 	}
 )
 

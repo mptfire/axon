@@ -166,16 +166,17 @@ const (
 	postgresDeleteAllAccessQuery = `DELETE FROM user_access`
 
 	// Token queries
-	postgresSelectTokenQuery                = `SELECT token, label, last_access, last_origin, expires, provisioned FROM user_token WHERE user_id = $1 AND token = $2`
-	postgresSelectTokensQuery               = `SELECT token, label, last_access, last_origin, expires, provisioned FROM user_token WHERE user_id = $1`
+	postgresSelectTokenQuery                = `SELECT token, label, last_access, last_origin, expires, provisioned, scopes FROM user_token WHERE user_id = $1 AND token = $2`
+	postgresSelectTokensQuery               = `SELECT token, label, last_access, last_origin, expires, provisioned, scopes FROM user_token WHERE user_id = $1`
 	postgresSelectTokenCountQuery           = `SELECT COUNT(*) FROM user_token WHERE user_id = $1`
 	postgresSelectAllProvisionedTokensQuery = `SELECT token, label, last_access, last_origin, expires, provisioned FROM user_token WHERE provisioned = true`
 	postgresUpsertTokenQuery                = `
-		INSERT INTO user_token (user_id, token, label, last_access, last_origin, expires, provisioned)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO user_token (user_id, token, label, last_access, last_origin, expires, provisioned, scopes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (user_id, token)
-		DO UPDATE SET label = excluded.label, expires = excluded.expires, provisioned = excluded.provisioned
+		DO UPDATE SET label = excluded.label, expires = excluded.expires, provisioned = excluded.provisioned, scopes = excluded.scopes
 	`
+	postgresSelectTokenScopesByValueQuery   = `SELECT scopes FROM user_token WHERE token = $1` // axon
 	postgresUpdateTokenQuery                = `UPDATE user_token SET label = $1, expires = $2 WHERE user_id = $3 AND token = $4`
 	postgresUpdateTokenLastAccessQuery      = `UPDATE user_token SET last_access = $1, last_origin = $2 WHERE token = $3`
 	postgresDeleteTokenQuery                = `DELETE FROM user_token WHERE user_id = $1 AND token = $2`
@@ -308,6 +309,7 @@ var postgresQueries = queries{
 	deleteTopicAccess:              postgresDeleteTopicAccessQuery,
 	deleteAllAccess:                postgresDeleteAllAccessQuery,
 	selectToken:                    postgresSelectTokenQuery,
+	selectTokenScopesByValue:       postgresSelectTokenScopesByValueQuery,
 	selectTokens:                   postgresSelectTokensQuery,
 	selectTokenCount:               postgresSelectTokenCountQuery,
 	selectAllProvisionedTokens:     postgresSelectAllProvisionedTokensQuery,

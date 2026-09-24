@@ -241,7 +241,7 @@ func TestManager_MarkUserRemoved_RemoveDeletedUsers(t *testing.T) {
 		require.Nil(t, err)
 		require.False(t, u.Deleted)
 
-		token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false)
+		token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false, "")
 		require.Nil(t, err)
 
 		u, err = a.Authenticate("user", "pass")
@@ -291,7 +291,7 @@ func TestManager_CreateToken_Only_Lower(t *testing.T) {
 		u, err := a.User("user")
 		require.Nil(t, err)
 
-		token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false)
+		token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false, "")
 		require.Nil(t, err)
 		require.Equal(t, token.Value, strings.ToLower(token.Value))
 	})
@@ -585,7 +585,7 @@ func TestManager_Token_Valid(t *testing.T) {
 		require.Nil(t, err)
 
 		// Create token for user
-		token, err := a.CreateToken(u.ID, "some label", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
+		token, err := a.CreateToken(u.ID, "some label", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false, "")
 		require.Nil(t, err)
 		require.NotEmpty(t, token.Value)
 		require.Equal(t, "some label", token.Label)
@@ -654,12 +654,12 @@ func TestManager_Token_Expire(t *testing.T) {
 		require.Nil(t, err)
 
 		// Create tokens for user
-		token1, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
+		token1, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false, "")
 		require.Nil(t, err)
 		require.NotEmpty(t, token1.Value)
 		require.True(t, time.Now().Add(71*time.Hour).Unix() < token1.Expires.Unix())
 
-		token2, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
+		token2, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false, "")
 		require.Nil(t, err)
 		require.NotEmpty(t, token2.Value)
 		require.NotEqual(t, token1.Value, token2.Value)
@@ -708,7 +708,7 @@ func TestManager_Token_Extend(t *testing.T) {
 		require.Equal(t, errNoTokenProvided, err)
 
 		// Create token for user
-		token, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
+		token, err := a.CreateToken(u.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false, "")
 		require.Nil(t, err)
 		require.NotEmpty(t, token.Value)
 
@@ -739,12 +739,12 @@ func TestManager_Token_MaxCount_AutoDelete(t *testing.T) {
 
 		// Create 2 tokens for phil
 		philTokens := make([]string, 0)
-		token, err := a.CreateToken(phil.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
+		token, err := a.CreateToken(phil.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false, "")
 		require.Nil(t, err)
 		require.NotEmpty(t, token.Value)
 		philTokens = append(philTokens, token.Value)
 
-		token, err = a.CreateToken(phil.ID, "", time.Unix(0, 0), netip.IPv4Unspecified(), false)
+		token, err = a.CreateToken(phil.ID, "", time.Unix(0, 0), netip.IPv4Unspecified(), false, "")
 		require.Nil(t, err)
 		require.NotEmpty(t, token.Value)
 		philTokens = append(philTokens, token.Value)
@@ -753,7 +753,7 @@ func TestManager_Token_MaxCount_AutoDelete(t *testing.T) {
 		baseTime := time.Now().Add(24 * time.Hour)
 		benTokens := make([]string, 0)
 		for i := 0; i < 62; i++ { //
-			token, err := a.CreateToken(ben.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false)
+			token, err := a.CreateToken(ben.ID, "", time.Now().Add(72*time.Hour), netip.IPv4Unspecified(), false, "")
 			require.Nil(t, err)
 			require.NotEmpty(t, token.Value)
 			benTokens = append(benTokens, token.Value)
@@ -858,7 +858,7 @@ func TestManager_EnqueueTokenUpdate(t *testing.T) {
 		u, err := a.User("ben")
 		require.Nil(t, err)
 
-		token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false)
+		token, err := a.CreateToken(u.ID, "", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false, "")
 		require.Nil(t, err)
 
 		// Queue token update
@@ -2050,7 +2050,7 @@ func TestStoreUserByToken(t *testing.T) {
 		u, err := manager.User("phil")
 		require.Nil(t, err)
 
-		tk, err := manager.CreateToken(u.ID, "test token", time.Now().Add(24*time.Hour), netip.MustParseAddr("1.2.3.4"), false)
+		tk, err := manager.CreateToken(u.ID, "test token", time.Now().Add(24*time.Hour), netip.MustParseAddr("1.2.3.4"), false, "")
 		require.Nil(t, err)
 		require.NotEmpty(t, tk.Value)
 
@@ -2136,7 +2136,7 @@ func TestStoreTokens(t *testing.T) {
 		expires := time.Now().Add(24 * time.Hour)
 		origin := netip.MustParseAddr("9.9.9.9")
 
-		tk, err := manager.CreateToken(u.ID, "my token", expires, origin, false)
+		tk, err := manager.CreateToken(u.ID, "my token", expires, origin, false, "")
 		require.Nil(t, err)
 		require.NotEmpty(t, tk.Value)
 		require.Equal(t, "my token", tk.Label)
@@ -2162,7 +2162,7 @@ func TestStoreTokenChange(t *testing.T) {
 		require.Nil(t, err)
 
 		expires := time.Now().Add(time.Hour)
-		tk, err := manager.CreateToken(u.ID, "old label", expires, netip.MustParseAddr("1.2.3.4"), false)
+		tk, err := manager.CreateToken(u.ID, "old label", expires, netip.MustParseAddr("1.2.3.4"), false, "")
 		require.Nil(t, err)
 
 		newLabel := "new label"
@@ -2180,7 +2180,7 @@ func TestStoreTokenRemove(t *testing.T) {
 		u, err := manager.User("phil")
 		require.Nil(t, err)
 
-		tk, err := manager.CreateToken(u.ID, "label", time.Now().Add(time.Hour), netip.MustParseAddr("1.2.3.4"), false)
+		tk, err := manager.CreateToken(u.ID, "label", time.Now().Add(time.Hour), netip.MustParseAddr("1.2.3.4"), false, "")
 		require.Nil(t, err)
 
 		require.Nil(t, manager.RemoveToken(u.ID, tk.Value))
@@ -2196,9 +2196,9 @@ func TestStoreTokenRemoveExpired(t *testing.T) {
 		require.Nil(t, err)
 
 		// Create expired token and active token
-		tkExpired, err := manager.CreateToken(u.ID, "expired", time.Now().Add(-time.Hour), netip.MustParseAddr("1.2.3.4"), false)
+		tkExpired, err := manager.CreateToken(u.ID, "expired", time.Now().Add(-time.Hour), netip.MustParseAddr("1.2.3.4"), false, "")
 		require.Nil(t, err)
-		tkActive, err := manager.CreateToken(u.ID, "active", time.Now().Add(time.Hour), netip.MustParseAddr("1.2.3.4"), false)
+		tkActive, err := manager.CreateToken(u.ID, "active", time.Now().Add(time.Hour), netip.MustParseAddr("1.2.3.4"), false, "")
 		require.Nil(t, err)
 
 		require.Nil(t, manager.RemoveExpiredTokens())
@@ -2220,7 +2220,7 @@ func TestStoreTokenUpdateLastAccess(t *testing.T) {
 		u, err := manager.User("phil")
 		require.Nil(t, err)
 
-		tk, err := manager.CreateToken(u.ID, "label", time.Now().Add(time.Hour), netip.MustParseAddr("1.2.3.4"), false)
+		tk, err := manager.CreateToken(u.ID, "label", time.Now().Add(time.Hour), netip.MustParseAddr("1.2.3.4"), false, "")
 		require.Nil(t, err)
 
 		newTime := time.Now().Add(5 * time.Minute)
@@ -3524,7 +3524,7 @@ func TestManager_AccountReadsUsePrimary(t *testing.T) {
 	require.Nil(t, a.AddUser("phil", "phil", RoleUser, false))
 	u, err := a.User("phil")
 	require.Nil(t, err)
-	_, err = a.CreateToken(u.ID, "test token", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false)
+	_, err = a.CreateToken(u.ID, "test token", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false, "")
 	require.Nil(t, err)
 	require.Nil(t, a.AddReservation("phil", "mytopic", PermissionDenyAll, 10))
 	require.Nil(t, a.AddPhoneNumber(u.ID, "+12223334444"))
@@ -3559,4 +3559,40 @@ func TestManager_AccountReadsUsePrimary(t *testing.T) {
 	pendingEmails, err := a.PendingEmails(u.ID)
 	require.Nil(t, err)
 	require.Len(t, pendingEmails, 1)
+}
+
+func TestManager_TokenScopes(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		a := newTestManager(t, newManager, PermissionDenyAll)
+		require.Nil(t, a.AddUser("phil", "phil", RoleAdmin, false))
+		u, err := a.User("phil")
+		require.Nil(t, err)
+
+		// Scoped token round-trips through the DB
+		token, err := a.CreateToken(u.ID, "agent", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false, TokenScopeAI+","+TokenScopeRead)
+		require.Nil(t, err)
+		require.Equal(t, TokenScopeAI+","+TokenScopeRead, token.Scopes)
+		stored, err := a.Token(u.ID, token.Value)
+		require.Nil(t, err)
+		require.Equal(t, []string{TokenScopeAI, TokenScopeRead}, ParseTokenScopes(stored.Scopes))
+
+		// AuthenticateToken attaches the scopes to the user
+		authed, err := a.AuthenticateToken(token.Value)
+		require.Nil(t, err)
+		require.Equal(t, []string{TokenScopeAI, TokenScopeRead}, authed.TokenScopes)
+		require.True(t, authed.HasTokenScope(TokenScopeAI))
+		require.False(t, authed.HasTokenScope(TokenScopePublish))
+
+		// Scope-less token: unrestricted
+		plain, err := a.CreateToken(u.ID, "plain", time.Now().Add(time.Hour), netip.IPv4Unspecified(), false, "")
+		require.Nil(t, err)
+		authedPlain, err := a.AuthenticateToken(plain.Value)
+		require.Nil(t, err)
+		require.Nil(t, authedPlain.TokenScopes)
+		require.True(t, authedPlain.HasTokenScope(TokenScopeAI))
+
+		// Nil user never has scopes
+		var nilUser *User
+		require.False(t, nilUser.HasTokenScope(TokenScopeAI))
+	})
 }

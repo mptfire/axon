@@ -276,7 +276,7 @@ func (s *Server) handleAccountPasswordChange(w http.ResponseWriter, r *http.Requ
 func (s *Server) handleAccountLogin(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	u := v.User()
 	logvr(v, r).Tag(tagAccount).Info("Logging in user %s", u.Name)
-	token, err := s.userManager.CreateToken(u.ID, "", time.Now().Add(tokenExpiryDuration), v.IP(), false)
+	token, err := s.userManager.CreateToken(u.ID, "", time.Now().Add(tokenExpiryDuration), v.IP(), false, "")
 	if err != nil {
 		return err
 	}
@@ -308,7 +308,7 @@ func (s *Server) handleAccountTokenCreate(w http.ResponseWriter, r *http.Request
 			"token_expires": expires,
 		}).
 		Debug("Creating token for user %s", u.Name)
-	token, err := s.userManager.CreateToken(u.ID, label, expires, v.IP(), false)
+	token, err := s.userManager.CreateToken(u.ID, label, expires, v.IP(), false, "")
 	if err != nil {
 		return err
 	}

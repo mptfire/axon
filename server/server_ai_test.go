@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"net/netip"
 	"strings"
 	"testing"
 	"time"
@@ -389,4 +390,54 @@ func TestServer_AI_Enrichment_OptInTopicsOnly(t *testing.T) {
 	rr = request(t, s, "PUT", "/prod-alerts", "tiny", nil)
 	require.Equal(t, 200, rr.Code)
 	require.False(t, called)
+}
+
+func TestServer_AI_TokenScopes(t *testing.T) {
+	c := newTestConfigWithAuthFile(t, "")
+	c.AIEnabled = true
+	c.AIProvider = "mock"
+	c.BaseURL = "http://axon.example.com"
+	s := newTestServer(t, c)
+	defer s.closeDatabases()
+	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	u, err := s.userManager.User("phil")
+	require.Nil(t, err)
+
+	// time.Unix(0, 0) = "never expires" in ntfy's token schema
+	scopedToken, err := s.userManager.CreateToken(u.ID, "agent-no-ai", time.Unix(0, 0), netip.IPv4Unspecified(), false, user.TokenScopePublish)
+	require.Nil(t, err)
+	aiToken, err := s.userManager.CreateToken(u.ID, "agent-ai", time.Unix(0, 0), netip.IPv4Unspecified(), false, user.TokenScopeAI)
+	require.Nil(t, err)
+	unscopedToken, err := s.userManager.CreateToken(u.ID, "full", time.Unix(0, 0), netip.IPv4Unspecified(), false, "")
+	require.Nil(t, err)
+
+	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
+		return &ai.Response{Text: `{"subscriptions": [{"topic": "t"}]}`}, nil
+	})
+
+	params := `{"prompt":"wish"}`
+
+	// Scoped token WITHOUT the ai scope: 403
+	rr := request(t, s, "POST", "/v1/ai/plan", params, map[string]string{
+		"Authorization": util.BearerAuth(scopedToken.Value),
+	})
+	require.Equal(t, 403, rr.Code)
+
+	// Scoped token WITH the ai scope: allowed
+	rr = request(t, s, "POST", "/v1/ai/plan", params, map[string]string{
+		"Authorization": util.BearerAuth(aiToken.Value),
+	})
+	require.Equal(t, 200, rr.Code)
+
+	// Unscoped token: unrestricted (backwards compatible)
+	rr = request(t, s, "POST", "/v1/ai/plan", params, map[string]string{
+		"Authorization": util.BearerAuth(unscopedToken.Value),
+	})
+	require.Equal(t, 200, rr.Code)
+
+	// Same enforcement on chat (user-gated endpoint)
+	rr = request(t, s, "POST", "/v1/ai/chat", `{"topic":"t","question":"q"}`, map[string]string{
+		"Authorization": util.BearerAuth(scopedToken.Value),
+	})
+	require.Equal(t, 403, rr.Code)
 }

@@ -163,15 +163,16 @@ const (
 	sqliteDeleteAllAccessQuery = `DELETE FROM user_access`
 
 	// Token queries
-	sqliteSelectTokenQuery                = `SELECT token, label, last_access, last_origin, expires, provisioned FROM user_token WHERE user_id = ? AND token = ?`
-	sqliteSelectTokensQuery               = `SELECT token, label, last_access, last_origin, expires, provisioned FROM user_token WHERE user_id = ?`
+	sqliteSelectTokenQuery                = `SELECT token, label, last_access, last_origin, expires, provisioned, scopes FROM user_token WHERE user_id = ? AND token = ?`
+	sqliteSelectTokensQuery               = `SELECT token, label, last_access, last_origin, expires, provisioned, scopes FROM user_token WHERE user_id = ?`
 	sqliteSelectTokenCountQuery           = `SELECT COUNT(*) FROM user_token WHERE user_id = ?`
-	sqliteSelectAllProvisionedTokensQuery = `SELECT token, label, last_access, last_origin, expires, provisioned FROM user_token WHERE provisioned = 1`
+	sqliteSelectAllProvisionedTokensQuery = `SELECT token, label, last_access, last_origin, expires, provisioned, scopes FROM user_token WHERE provisioned = 1`
+	sqliteSelectTokenScopesByValueQuery   = `SELECT scopes FROM user_token WHERE token = ?` // axon
 	sqliteUpsertTokenQuery                = `
-		INSERT INTO user_token (user_id, token, label, last_access, last_origin, expires, provisioned)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO user_token (user_id, token, label, last_access, last_origin, expires, provisioned, scopes)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (user_id, token)
-		DO UPDATE SET label = excluded.label, expires = excluded.expires, provisioned = excluded.provisioned
+		DO UPDATE SET label = excluded.label, expires = excluded.expires, provisioned = excluded.provisioned, scopes = excluded.scopes
 	`
 	sqliteUpdateTokenQuery                = `UPDATE user_token SET label = ?, expires = ? WHERE user_id = ? AND token = ?`
 	sqliteUpdateTokenLastAccessQuery      = `UPDATE user_token SET last_access = ?, last_origin = ? WHERE token = ?`
@@ -304,6 +305,7 @@ var sqliteQueries = queries{
 	deleteTopicAccess:              sqliteDeleteTopicAccessQuery,
 	deleteAllAccess:                sqliteDeleteAllAccessQuery,
 	selectToken:                    sqliteSelectTokenQuery,
+	selectTokenScopesByValue:       sqliteSelectTokenScopesByValueQuery,
 	selectTokens:                   sqliteSelectTokensQuery,
 	selectTokenCount:               sqliteSelectTokenCountQuery,
 	selectAllProvisionedTokens:     sqliteSelectAllProvisionedTokensQuery,
