@@ -43,8 +43,10 @@ import { ReserveAddDialog, ReserveDeleteDialog, ReserveEditDialog } from "./Rese
 import { UnauthorizedError } from "../app/errors";
 import AiTuneDialog from "./AiTuneDialog";
 import AiDigestDialog from "./AiDigestDialog";
+import AiChatDialog from "./AiChatDialog";
 import AutoFixNormal from "@mui/icons-material/AutoFixNormal";
 import Summarize from "@mui/icons-material/Summarize";
+import QuestionAnswer from "@mui/icons-material/QuestionAnswer";
 
 export const SubscriptionPopup = (props) => {
   const { t } = useTranslation();
@@ -54,6 +56,7 @@ export const SubscriptionPopup = (props) => {
   const [displayNameDialogOpen, setDisplayNameDialogOpen] = useState(false);
   const [aiTuneDialogOpen, setAiTuneDialogOpen] = useState(false);
   const [aiDigestDialogOpen, setAiDigestDialogOpen] = useState(false);
+  const [aiChatDialogOpen, setAiChatDialogOpen] = useState(false);
   const [reserveAddDialogOpen, setReserveAddDialogOpen] = useState(false);
   const [reserveEditDialogOpen, setReserveEditDialogOpen] = useState(false);
   const [reserveDeleteDialogOpen, setReserveDeleteDialogOpen] = useState(false);
@@ -62,7 +65,7 @@ export const SubscriptionPopup = (props) => {
   const placement = props.placement ?? "left";
   const reservations = account?.reservations || [];
 
-  const showAi = config.enable_ai && session.exists() && !subscription?.internal; // axon: tune/digest need a synced subscription
+  const showAi = config.enable_ai && session.exists() && !subscription?.internal; // axon: tune/digest/chat need a synced subscription
   const showAiTune = showAi;
   const showReservationAdd = config.enable_reservations && !subscription?.reservation && account?.stats.reservations_remaining > 0;
   const showReservationAddDisabled =
@@ -208,6 +211,14 @@ export const SubscriptionPopup = (props) => {
             {t("ai_digest_menu_item")}
           </MenuItem>
         )}
+        {showAi && (
+          <MenuItem onClick={() => setAiChatDialogOpen(true)}>
+            <ListItemIcon>
+              <QuestionAnswer fontSize="small" />
+            </ListItemIcon>
+            {t("ai_chat_menu_item")}
+          </MenuItem>
+        )}
         {showReservationAdd && (
           <MenuItem onClick={handleReserveAdd}>
             <ListItemIcon>
@@ -289,6 +300,9 @@ export const SubscriptionPopup = (props) => {
         )}
         {showAi && (
           <AiDigestDialog open={aiDigestDialogOpen} subscription={subscription} onClose={() => setAiDigestDialogOpen(false)} />
+        )}
+        {showAi && (
+          <AiChatDialog open={aiChatDialogOpen} subscription={subscription} onClose={() => setAiChatDialogOpen(false)} />
         )}
         {showReservationAdd && (
           <ReserveAddDialog

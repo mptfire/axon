@@ -1,6 +1,6 @@
 # Phase 5 — Chat with your notifications
 
-**Depends on:** Phase 1 · **Size:** M (3 weeks) · **Status:** ☐ Not started
+**Depends on:** Phase 1 · **Size:** M (3 weeks) · **Status:** 🔧 First slice landed (non-streaming cited Q&A: `POST /v1/ai/chat`, term-overlap retrieval over the topic cache, validated citations, web dialog); SSE streaming, multi-turn, cross-topic search & embeddings pending
 
 **Goal:** conversational search and Q&A over your notification history — "what did the backups topic say last night?", "summarize this week's alerts", "when was the last time prod-alerts was quiet for 24h?" — streamed, with answers that cite the underlying messages.
 

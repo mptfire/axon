@@ -503,5 +503,13 @@
   "ai_digest_button": "Summarize",
   "ai_digest_button_again": "Summarize again",
   "ai_digest_empty": "No messages in this period.",
-  "ai_digest_disclaimer_label": "AI-generated"
+  "ai_digest_disclaimer_label": "AI-generated",
+  "ai_chat_menu_item": "AI: ask about this topic…",
+  "ai_chat_title": "Ask about this topic",
+  "ai_chat_description": "Ask a question about the recent history of \"{{topic}}\". Answers are based on the last 7 days of messages and cite the messages they rely on.",
+  "ai_chat_placeholder": "e.g. When did the last backup fail?",
+  "ai_chat_button": "Ask",
+  "ai_chat_button_again": "Ask again",
+  "ai_chat_citations_label": "Cited messages:",
+  "ai_chat_disclaimer_prefix": "AI-generated"
 }

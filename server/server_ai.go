@@ -5,8 +5,10 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"sort"
 	"strings"
 	"time"
+	"unicode"
 
 	"heckel.io/ntfy/v2/ai"
 	"heckel.io/ntfy/v2/log"
@@ -291,6 +293,148 @@ func (s *Server) handleAIDigest(w http.ResponseWriter, r *http.Request, v *visit
 		return s.mapAIError(err)
 	}
 	return s.writeJSON(w, digest)
+}
+
+// apiAIChatRequest is the body of POST /v1/ai/chat.
+type apiAIChatRequest struct {
+	Topic    string `json:"topic"`
+	Question string `json:"question"`
+	Since    string `json:"since"` // Retrieval window; default 7d, max 30d
+}
+
+// apiAIChatResponse is the response of POST /v1/ai/chat: the model's answer with
+// citations resolved back to the actual cached messages.
+type apiAIChatResponse struct {
+	Topic      string           `json:"topic"`
+	Question   string           `json:"question"`
+	Answer     string           `json:"answer"`
+	Citations  []*model.Message `json:"citations"`
+	Disclaimer string           `json:"disclaimer"`
+}
+
+// handleAIChat answers a question about one of the user's topics (POST /v1/ai/chat).
+// Retrieval is deliberately simple and classical: messages from the topic's cache,
+// scored by question-term overlap and recency; the model only ever sees the selected
+// window and may cite only IDs from it (invented citations are stripped in ai/).
+func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	body, err := readJSONWithLimit[apiAIChatRequest](r.Body, jsonBodyBytesLimit, false)
+	if err != nil {
+		return err
+	}
+	question := strings.TrimSpace(body.Question)
+	if !topicRegex.MatchString(body.Topic) || question == "" || len(question) > 1000 {
+		return errHTTPBadRequestAIRequest
+	}
+	u := v.User()
+	if !userSubscribesTo(u, s.config.BaseURL, body.Topic) {
+		return errHTTPForbidden
+	}
+	if !v.aiQuotaAllowed() {
+		return errHTTPTooManyRequestsLimitAIRequests
+	}
+	sinceDuration := 7 * 24 * time.Hour
+	if body.Since != "" {
+		parsed, err := time.ParseDuration(body.Since)
+		if err != nil || parsed < time.Hour || parsed > 30*24*time.Hour {
+			return errHTTPBadRequestAIRequest
+		}
+		sinceDuration = parsed
+	}
+	sinceMarker := model.NewSinceTime(time.Now().Add(-1 * sinceDuration).Unix())
+	cachedMessages, _, err := s.messageCache.MessagesCapped(body.Topic, sinceMarker, false, 512*1024)
+	if err != nil {
+		return err
+	}
+	if len(cachedMessages) == 0 {
+		return s.writeJSON(w, &apiAIChatResponse{
+			Topic: body.Topic, Question: question,
+			Answer:     "There are no messages in this topic for the selected period.",
+			Disclaimer: ai.ChatDisclaimer,
+		})
+	}
+	context := selectChatContext(question, cachedMessages)
+	log.Tag(tagAI).With(v).Fields(log.Context{
+		"ai_feature":      string(ai.FeatureChat),
+		"ai_chat_topic":   body.Topic,
+		"ai_chat_context": len(context),
+	}).Debug("AI chat requested")
+	answer, err := ai.NewChatter(s.ai).Chat(r.Context(), visitorID(v.ip, v.user, v.config), body.Topic, question, toDigestMessages(context))
+	if err != nil {
+		return s.mapAIError(err)
+	}
+	response := &apiAIChatResponse{
+		Topic: body.Topic, Question: question, Answer: answer.Answer,
+		Citations: make([]*model.Message, 0, len(answer.Citations)), Disclaimer: ai.ChatDisclaimer,
+	}
+	byID := make(map[string]*model.Message, len(context))
+	for _, m := range context {
+		byID[m.ID] = m
+	}
+	for _, id := range answer.Citations {
+		if m, ok := byID[id]; ok {
+			response.Citations = append(response.Citations, m)
+		}
+	}
+	return s.writeJSON(w, response)
+}
+
+// toDigestMessages converts cached messages to the ai package's context type.
+func toDigestMessages(messages []*model.Message) []ai.DigestMessage {
+	out := make([]ai.DigestMessage, 0, len(messages))
+	for _, m := range messages {
+		out = append(out, ai.DigestMessage{ID: m.ID, Title: m.Title, Message: m.Message, Priority: m.Priority, Time: m.Time})
+	}
+	return out
+}
+
+// selectChatContext picks the messages most likely to answer the question: term overlap
+// with title/message (titles weigh double) plus a mild recency bias. Deterministic and
+// cheap — no embeddings in v1.
+func selectChatContext(question string, messages []*model.Message) []*model.Message {
+	const k = 60
+	tokens := questionTokens(question)
+	scores := make(map[string]float64, len(messages)) // id -> score
+	for _, m := range messages {
+		score := 0.0
+		title := strings.ToLower(m.Title)
+		body := strings.ToLower(m.Message)
+		for _, token := range tokens {
+			if strings.Contains(title, token) {
+				score += 2
+			}
+			if strings.Contains(body, token) {
+				score++
+			}
+		}
+		scores[m.ID] = score
+	}
+	sort.SliceStable(messages, func(i, j int) bool {
+		si, sj := scores[messages[i].ID], scores[messages[j].ID]
+		if si != sj {
+			return si > sj // Highest term overlap first
+		}
+		return messages[i].Time > messages[j].Time // Then newest
+	})
+	if len(messages) > k {
+		messages = messages[:k]
+	}
+	// Keep chronological order for the model's readability
+	sort.SliceStable(messages, func(i, j int) bool { return messages[i].Time < messages[j].Time })
+	return messages
+}
+
+// questionTokens lowercases and splits the question, dropping short noise words.
+func questionTokens(question string) []string {
+	fields := strings.FieldsFunc(strings.ToLower(question), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+	})
+	tokens := make([]string, 0, len(fields))
+	for _, f := range fields {
+		if len([]rune(f)) >= 3 {
+			tokens = append(tokens, f)
+		}
+	}
+	return tokens
 }
 
 // userSubscribesTo reports whether the user has a synced subscription for the topic.

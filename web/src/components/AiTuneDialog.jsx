@@ -51,11 +51,15 @@ const AiTunePage = (props) => {
     setPlanning(true);
     setError("");
     try {
-      const tune = await aiApi.tune(subscription.topic, {
-        displayName: subscription.displayName,
-        search: subscription.filter,
-        minPriority: subscription.minPriority ?? 0,
-      }, goal);
+      const tune = await aiApi.tune(
+        subscription.topic,
+        {
+          displayName: subscription.displayName,
+          search: subscription.filter,
+          minPriority: subscription.minPriority ?? 0,
+        },
+        goal,
+      );
       setResult(tune);
       setDisplayName(tune.display_name ?? subscription.displayName ?? "");
       setSearch(tune.filters?.search ?? "");
