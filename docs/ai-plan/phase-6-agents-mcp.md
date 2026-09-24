@@ -1,6 +1,6 @@
 # Phase 6 — Agents & MCP (axon as the AI-native transport)
 
-**Depends on:** Phase 1 (provider layer), Phase 2 (planner reuse) · **Size:** M (3 weeks) · **Status:** ☐ Not started
+**Depends on:** Phase 1 (provider layer), Phase 2 (planner reuse) · **Size:** M (3 weeks) · **Status:** 🔧 First slice landed (`ntfy mcp` stdio server with 5 tools, zero deps; scoped-token capability pending)
 
 **Goal:** flip the direction — instead of humans using AI to manage notifications, let AI agents (Claude, GPTs, IDE agents, scripts) use axon as their notification bus. axon becomes the push layer agents already know how to speak: MCP.
 

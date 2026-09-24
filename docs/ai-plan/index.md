@@ -78,7 +78,7 @@ New pieces introduced by this plan (nothing upstream is replaced):
 | 3 | [Smart delivery](phase-3-smart-delivery.md) | Summarize / classify / correlate / translate on the message path | 1 | L | 🔧 First slice: inline summarize/classify with pass-through landed |
 | 4 | [Digests & briefings](phase-4-digests-briefings.md) | Scheduled AI digests per user | 3 | M | ☐ Not started |
 | 5 | [Chat with your notifications](phase-5-chat-with-notifications.md) | Conversational Q&A / search over history (streaming) | 1 | M | ☐ Not started |
-| 6 | [Agents & MCP](phase-6-agents-mcp.md) | `ntfy mcp`, scoped agent tokens, agent docs | 1, 2 | M | ☐ Not started |
+| 6 | [Agents & MCP](phase-6-agents-mcp.md) | `ntfy mcp`, scoped agent tokens, agent docs | 1, 2 | M | 🔧 First slice: `ntfy mcp` (publish, read, wait, list, plan) + [docs/agents.md](../agents.md); scoped tokens pending |
 | 7 | [Mobile, hardening & release](phase-7-mobile-privacy-release.md) | Mobile AI settings (separate repos), security review, 1.0 | 2–4 | L | ☐ Not started |
 
 \* Size for 1–2 familiar engineers: S ≈ 1 week, M ≈ 2–4 weeks, L ≈ 4–8 weeks.
