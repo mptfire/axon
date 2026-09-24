@@ -41,6 +41,8 @@ import AccountContext from "./AccountContext";
 import { usePrefCache } from "./PrefCache";
 import { ReserveAddDialog, ReserveDeleteDialog, ReserveEditDialog } from "./ReserveDialogs";
 import { UnauthorizedError } from "../app/errors";
+import AiTuneDialog from "./AiTuneDialog";
+import AutoFixNormal from "@mui/icons-material/AutoFixNormal";
 
 export const SubscriptionPopup = (props) => {
   const { t } = useTranslation();
@@ -48,6 +50,7 @@ export const SubscriptionPopup = (props) => {
   const { account } = useContext(AccountContext);
   const navigate = useNavigate();
   const [displayNameDialogOpen, setDisplayNameDialogOpen] = useState(false);
+  const [aiTuneDialogOpen, setAiTuneDialogOpen] = useState(false);
   const [reserveAddDialogOpen, setReserveAddDialogOpen] = useState(false);
   const [reserveEditDialogOpen, setReserveEditDialogOpen] = useState(false);
   const [reserveDeleteDialogOpen, setReserveDeleteDialogOpen] = useState(false);
@@ -56,6 +59,7 @@ export const SubscriptionPopup = (props) => {
   const placement = props.placement ?? "left";
   const reservations = account?.reservations || [];
 
+  const showAiTune = config.enable_ai && session.exists() && !subscription?.internal; // axon: tune needs a synced subscription
   const showReservationAdd = config.enable_reservations && !subscription?.reservation && account?.stats.reservations_remaining > 0;
   const showReservationAddDisabled =
     !showReservationAdd &&
@@ -184,6 +188,14 @@ export const SubscriptionPopup = (props) => {
           </ListItemIcon>
           {t("action_bar_change_display_name")}
         </MenuItem>
+        {showAiTune && (
+          <MenuItem onClick={() => setAiTuneDialogOpen(true)}>
+            <ListItemIcon>
+              <AutoFixNormal fontSize="small" />
+            </ListItemIcon>
+            {t("ai_tune_menu_item")}
+          </MenuItem>
+        )}
         {showReservationAdd && (
           <MenuItem onClick={handleReserveAdd}>
             <ListItemIcon>
@@ -260,6 +272,9 @@ export const SubscriptionPopup = (props) => {
           message={t("message_bar_error_publishing")}
         />
         <DisplayNameDialog open={displayNameDialogOpen} subscription={subscription} onClose={() => setDisplayNameDialogOpen(false)} />
+        {showAiTune && (
+          <AiTuneDialog open={aiTuneDialogOpen} subscription={subscription} onClose={() => setAiTuneDialogOpen(false)} />
+        )}
         {showReservationAdd && (
           <ReserveAddDialog
             open={reserveAddDialogOpen}

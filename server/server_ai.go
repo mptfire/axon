@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"heckel.io/ntfy/v2/ai"
@@ -65,10 +66,18 @@ func (s *Server) handleAIUsage(w http.ResponseWriter, r *http.Request, v *visito
 	return s.writeJSON(w, s.ai.Report(visitorID(v.ip, v.user, v.config)))
 }
 
-// apiAIPlanRequest is the body of POST /v1/ai/plan.
+// apiAIPlanRequest is the body of POST /v1/ai/plan. Context optionally carries prior
+// turns of the planning conversation (user/assistant alternating) so the web app can
+// refine a plan; each turn is sanitized and hard-capped server-side.
 type apiAIPlanRequest struct {
-	Prompt string `json:"prompt"`
-	Locale string `json:"locale"`
+	Prompt  string             `json:"prompt"`
+	Locale  string             `json:"locale"`
+	Context []apiAIPlanContext `json:"context"`
+}
+
+type apiAIPlanContext struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
 // handleAIPlan turns a natural-language wish into a reviewable subscription plan
@@ -92,7 +101,7 @@ func (s *Server) handleAIPlan(w http.ResponseWriter, r *http.Request, v *visitor
 	}
 	existingTopics := visitorTopics(v)
 	planner := ai.NewPlanner(s.ai)
-	plan, err := planner.Plan(r.Context(), visitorID(v.ip, v.user, v.config), s.config.BaseURL, body.Prompt, body.Locale, existingTopics)
+	plan, err := planner.Plan(r.Context(), visitorID(v.ip, v.user, v.config), s.config.BaseURL, body.Prompt, body.Locale, existingTopics, sanitizePlanContext(body.Context))
 	if err != nil {
 		return s.mapAIError(err)
 	}
@@ -152,6 +161,30 @@ func (s *Server) mapAIError(err error) error {
 		return errHTTPInternalError // provider misbehavior is not user error
 	}
 	return errHTTPBadRequestAIRequest
+}
+
+// sanitizePlanContext bounds and sanitizes the client-supplied conversation turns:
+// at most 6 turns, each at most PlannerMaxPromptChars, and only user/assistant roles.
+// Everything else is dropped — context is untrusted input.
+func sanitizePlanContext(context []apiAIPlanContext) (turns []ai.Message) {
+	for i, turn := range context {
+		if i >= 6 {
+			break
+		}
+		role := ai.Role(turn.Role)
+		if role != ai.RoleUser && role != ai.RoleAssistant {
+			continue
+		}
+		content := turn.Content
+		if len(content) > ai.PlannerMaxPromptChars {
+			content = content[:ai.PlannerMaxPromptChars]
+		}
+		if strings.TrimSpace(content) == "" {
+			continue
+		}
+		turns = append(turns, ai.Message{Role: role, Content: content})
+	}
+	return turns
 }
 
 // visitorTopics returns the topics of the visitor's synced subscriptions (empty for

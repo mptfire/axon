@@ -91,14 +91,17 @@ func ValidatePrompt(prompt string) error {
 }
 
 // Plan generates a subscription plan for a natural-language prompt.
-func (p *Planner) Plan(ctx context.Context, userKey, baseURL, prompt, locale string, existingTopics []string) (*Plan, error) {
+func (p *Planner) Plan(ctx context.Context, userKey, baseURL, prompt, locale string, existingTopics []string, priorTurns []Message) (*Plan, error) {
 	if err := ValidatePrompt(prompt); err != nil {
 		return nil, err
 	}
+	messages := make([]Message, 0, len(priorTurns)+1)
+	messages = append(messages, priorTurns...)
+	messages = append(messages, Message{Role: RoleUser, Content: prompt})
 	request := &Request{
 		Feature:     FeaturePlan,
 		System:      planSystemPrompt(baseURL, locale, existingTopics),
-		Prompt:      prompt,
+		Messages:    messages,
 		JSONSchema:  PlanSchema,
 		MaxTokens:   2048,
 		Temperature: 0.2,

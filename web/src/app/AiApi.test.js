@@ -32,7 +32,21 @@ describe("AiApi.plan", () => {
     expect(fetchMock).toHaveBeenCalledWith("https://axon.example.com/v1/ai/plan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: "notify me when CI fails", locale: "en" }),
+      body: JSON.stringify({ prompt: "notify me when CI fails", locale: "en", context: [] }),
+    });
+  });
+
+  it("passes prior turns as refinement context", async () => {
+    fetchMock.mockResolvedValue({ status: 200, json: async () => ({}) });
+    const context = [
+      { role: "user", content: "notify me about CI" },
+      { role: "assistant", content: "{plan}" },
+    ];
+    await aiApi.plan("less noise", "en", context);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
+      prompt: "less noise",
+      locale: "en",
+      context,
     });
   });
 

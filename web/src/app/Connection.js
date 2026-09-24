@@ -17,13 +17,14 @@ export class ConnectionState {
  * Incoming messages and state changes are forwarded via listeners.
  */
 class Connection {
-  constructor(connectionId, subscriptionId, baseUrl, topic, user, since, onNotification, onStateChanged) {
+  constructor(connectionId, subscriptionId, baseUrl, topic, user, since, onNotification, onStateChanged, filter) {
     this.connectionId = connectionId;
     this.subscriptionId = subscriptionId;
     this.baseUrl = baseUrl;
     this.topic = topic;
     this.user = user;
     this.since = since;
+    this.filter = filter; // axon: server-side query filter (subscription.filter), may be undefined
     this.shortUrl = topicShortUrl(baseUrl, topic);
     this.onNotification = onNotification;
     this.onStateChanged = onStateChanged;
@@ -101,6 +102,9 @@ class Connection {
     const params = [];
     if (this.since) {
       params.push(`since=${this.since}`);
+    }
+    if (this.filter) {
+      params.push(`q=${encodeURIComponent(this.filter)}`); // axon: server-side query filter
     }
     if (this.user) {
       params.push(`auth=${this.authParam()}`);

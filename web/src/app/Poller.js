@@ -43,7 +43,7 @@ class Poller {
     console.log(`[Poller] Polling ${subscription.id}`);
 
     const since = subscription.last;
-    const notifications = await api.poll(subscription.baseUrl, subscription.topic, since);
+    const notifications = await api.poll(subscription.baseUrl, subscription.topic, since, subscription.filter); // axon: filter
 
     // Filter out notifications older than the prune threshold
     const deleteAfterSeconds = await prefs.deleteAfter();

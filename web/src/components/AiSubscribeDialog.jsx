@@ -44,14 +44,19 @@ export const AiSubscribePage = (props) => {
   const [prompt, setPrompt] = useState("");
   const [planning, setPlanning] = useState(false);
   const [plan, setPlan] = useState(null);
+  const [turns, setTurns] = useState([]); // Prior user/assistant turns for refinement
+  const [refinement, setRefinement] = useState("");
   const [error, setError] = useState("");
 
-  const handlePlan = async () => {
+  const planFromServer = async (wish, priorTurns) => {
     setPlanning(true);
     setError("");
     try {
-      const generated = await aiApi.plan(prompt, i18n.language || "en");
+      const generated = await aiApi.plan(wish, i18n.language || "en", priorTurns);
+      setTurns([...priorTurns, { role: "user", content: wish }, { role: "assistant", content: JSON.stringify(generated) }]);
       setPlan(generated);
+      setPrompt(wish); // Show the full conversation thread in the input for editing
+      setRefinement("");
     } catch (e) {
       console.log(`[AiSubscribeDialog] Planning failed`, e);
       setError(e.message);
@@ -59,6 +64,10 @@ export const AiSubscribePage = (props) => {
       setPlanning(false);
     }
   };
+
+  const handlePlan = async () => planFromServer(prompt, turns);
+
+  const handleRefine = async () => planFromServer(refinement, turns);
 
   const handleApply = async () => {
     const applicable = applicableSubscriptions(plan);
@@ -104,6 +113,23 @@ export const AiSubscribePage = (props) => {
           }}
         />
         {plan && <PlanReview plan={plan} />}
+        {plan && (
+          <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "8px" }}>
+            <TextField
+              margin="dense"
+              placeholder={t("ai_refine_placeholder")}
+              value={refinement}
+              onChange={(ev) => setRefinement(ev.target.value)}
+              fullWidth
+              variant="standard"
+              disabled={planning}
+              slotProps={{ htmlInput: { maxLength: 1000, "aria-label": t("ai_refine_placeholder") } }}
+            />
+            <Button onClick={handleRefine} disabled={planning || refinement.trim().length === 0}>
+              {t("ai_refine_button")}
+            </Button>
+          </div>
+        )}
       </DialogContent>
       <DialogFooter status={error}>
         <Button onClick={props.onCancel} disabled={planning}>

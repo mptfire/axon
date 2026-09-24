@@ -31,7 +31,7 @@ func newTestPlanner(t *testing.T, responseText string) *Planner {
 
 func TestPlanner_Plan(t *testing.T) {
 	planner := newTestPlanner(t, validPlanJSON)
-	plan, err := planner.Plan(context.Background(), "", "http://127.0.0.1:12345", "notify me when CI fails", "en", []string{"misc"})
+	plan, err := planner.Plan(context.Background(), "", "http://127.0.0.1:12345", "notify me when CI fails", "en", []string{"misc"}, nil)
 	require.Nil(t, err)
 
 	// BaseURL and disclaimer are server-stamped, never model text
@@ -52,7 +52,7 @@ func TestPlanner_Plan(t *testing.T) {
 
 func TestPlanner_PlanAcceptsFences(t *testing.T) {
 	planner := newTestPlanner(t, "```json\n"+validPlanJSON+"\n```")
-	plan, err := planner.Plan(context.Background(), "", "http://x", "wish", "", nil)
+	plan, err := planner.Plan(context.Background(), "", "http://x", "wish", "", nil, nil)
 	require.Nil(t, err)
 	require.Len(t, plan.Subscriptions, 1)
 }
@@ -60,11 +60,11 @@ func TestPlanner_PlanAcceptsFences(t *testing.T) {
 func TestPlanner_PlanRejectsGarbage(t *testing.T) {
 	for _, garbage := range []string{"", "sorry I cannot help with that", "here you go: {...}"} {
 		planner := newTestPlanner(t, garbage)
-		_, err := planner.Plan(context.Background(), "", "http://x", "wish", "", nil)
+		_, err := planner.Plan(context.Background(), "", "http://x", "wish", "", nil, nil)
 		require.Error(t, err, garbage)
 	}
 	planner := newTestPlanner(t, `{"subscriptions": []}`)
-	_, err := planner.Plan(context.Background(), "", "http://x", "wish", "", nil)
+	_, err := planner.Plan(context.Background(), "", "http://x", "wish", "", nil, nil)
 	require.ErrorContains(t, err, "no subscriptions")
 }
 
@@ -72,7 +72,7 @@ func TestPlanner_PlanRejectsInvalidTopic(t *testing.T) {
 	// Topics must be [-_A-Za-z0-9]{1,64} — anything else (paths, spaces, injection) is rejected
 	for _, topic := range []string{"", "a/b", "my topic", "../etc", strings.Repeat("x", 65), "topıcos"} {
 		planner := newTestPlanner(t, `{"subscriptions": [{"topic": "`+topic+`"}]}`)
-		_, err := planner.Plan(context.Background(), "", "http://x", "wish", "", nil)
+		_, err := planner.Plan(context.Background(), "", "http://x", "wish", "", nil, nil)
 		require.ErrorContains(t, err, "invalid topic", topic)
 	}
 }
@@ -86,7 +86,7 @@ func TestPlanner_PlanSanitizes(t *testing.T) {
 	}
 	raw = strings.TrimSuffix(raw, ",") + `]}`
 	planner := newTestPlanner(t, raw)
-	plan, err := planner.Plan(context.Background(), "", "http://x", "wish", "", nil)
+	plan, err := planner.Plan(context.Background(), "", "http://x", "wish", "", nil, nil)
 	require.Nil(t, err)
 	require.Len(t, plan.Subscriptions, PlannerMaxSubscriptions)
 	for _, sub := range plan.Subscriptions {
@@ -98,9 +98,9 @@ func TestPlanner_PlanSanitizes(t *testing.T) {
 func TestPlanner_PlanPromptLimits(t *testing.T) {
 	client := newTestClient(t, &Config{Provider: "mock"})
 	planner := NewPlanner(client)
-	_, err := planner.Plan(context.Background(), "", "http://x", strings.Repeat("x", PlannerMaxPromptChars+1), "", nil)
+	_, err := planner.Plan(context.Background(), "", "http://x", strings.Repeat("x", PlannerMaxPromptChars+1), "", nil, nil)
 	require.ErrorContains(t, err, "prompt too long")
-	_, err = planner.Plan(context.Background(), "", "http://x", "   ", "", nil)
+	_, err = planner.Plan(context.Background(), "", "http://x", "   ", "", nil, nil)
 	require.ErrorContains(t, err, "required")
 	// Nothing was sent to the provider
 	report := client.Report("")
@@ -115,7 +115,7 @@ func TestPlanner_PlanPromptContainsCapabilityMap(t *testing.T) {
 		return &Response{Text: validPlanJSON}, nil
 	})
 	planner := NewPlanner(client)
-	_, err := planner.Plan(context.Background(), "", "http://ntfy.example.com", "wish", "en", []string{"one", "two"})
+	_, err := planner.Plan(context.Background(), "", "http://ntfy.example.com", "wish", "en", []string{"one", "two"}, nil)
 	require.Nil(t, err)
 	require.Contains(t, seenSystem, "http://ntfy.example.com/mytopic")
 	require.Contains(t, seenSystem, "CANNOT")       // capability honesty
@@ -157,4 +157,23 @@ func TestSanitizeSingleLineText(t *testing.T) {
 	require.Equal(t, "ab", sanitizeSingleLineText("a\x00b\x1f", 100))
 	require.Equal(t, "0123456789", sanitizeSingleLineText("0123456789", 10))
 	require.Equal(t, "", sanitizeSingleLineText("\n\t", 10))
+}
+
+func TestPlanner_PlanWithPriorTurns(t *testing.T) {
+	var seenRequest *Request
+	client := newTestClient(t, &Config{Provider: "mock"})
+	client.Mock().SetHandler(func(req *Request) (*Response, error) {
+		seenRequest = req
+		return &Response{Text: validPlanJSON}, nil
+	})
+	planner := NewPlanner(client)
+	turns := []Message{
+		{Role: RoleUser, Content: "notify me about CI"},
+		{Role: RoleAssistant, Content: `{"subscriptions": [{"topic": "ci"}]}`},
+	}
+	_, err := planner.Plan(context.Background(), "user:phil", "http://x", "less noise please", "en", nil, turns)
+	require.Nil(t, err)
+	require.Len(t, seenRequest.Messages, 3) // 2 prior turns + the new user message
+	require.Equal(t, "less noise please", seenRequest.Messages[2].Content)
+	require.Equal(t, "user:phil", seenRequest.UserKey)
 }

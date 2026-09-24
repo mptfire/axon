@@ -479,5 +479,18 @@
   "ai_subscribe_topic_label": "Topic",
   "ai_subscribe_filter_label": "Filter",
   "ai_subscribe_priority_label": "Min. priority",
-  "ai_subscribe_error_invalid_topic": "One of the proposed topics is invalid. Go back and regenerate the plan."
+  "ai_subscribe_error_invalid_topic": "One of the proposed topics is invalid. Go back and regenerate the plan.",
+  "ai_tune_menu_item": "AI tune this subscription…",
+  "ai_tune_title": "AI tune subscription",
+  "ai_tune_description": "Tell the assistant how the subscription \"{{topic}}\" should behave. Proposed settings are shown for review before anything is applied.",
+  "ai_tune_placeholder": "e.g. Only page me for real emergencies at night",
+  "ai_tune_filter_label": "Message filter",
+  "ai_tune_filter_help": "Substring or regular expression matched against title + message. Empty = all messages.",
+  "ai_tune_priority_label": "Minimum priority (0–5)",
+  "ai_tune_priority_help": "Only messages with at least this publisher priority will notify. 0 = no minimum.",
+  "ai_tune_button_suggest": "Suggest settings",
+  "ai_tune_button_back": "Edit goal",
+  "ai_tune_button_apply": "Apply settings",
+  "ai_refine_placeholder": "Not quite? Describe what to change…",
+  "ai_refine_button": "Refine plan"
 }

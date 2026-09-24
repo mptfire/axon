@@ -2,7 +2,9 @@ import Connection from "./Connection";
 import { hashCode } from "./utils";
 
 const makeConnectionId = (subscription, user) =>
-  user ? hashCode(`${subscription.id}|${user.username}|${user.password ?? ""}|${user.token ?? ""}`) : hashCode(`${subscription.id}`);
+  user
+    ? hashCode(`${subscription.id}|${user.username}|${user.password ?? ""}|${user.token ?? ""}|${subscription.filter ?? ""}`)
+    : hashCode(`${subscription.id}|${subscription.filter ?? ""}`);
 
 /**
  * The connection manager keeps track of active connections (WebSocket connections, see Connection).
@@ -71,6 +73,7 @@ class ConnectionManager {
           since,
           (subId, notification) => this.notificationReceived(subId, notification),
           (subId, state) => this.stateChanged(subId, state),
+          subscription.filter, // axon
         );
         this.connections.set(connectionId, connection);
         console.log(

@@ -12,10 +12,13 @@ import userManager from "./UserManager";
 import { fetchOrThrow } from "./errors";
 
 class Api {
-  async poll(baseUrl, topic, since) {
+  async poll(baseUrl, topic, since, filter) {
     const user = await userManager.get(baseUrl);
     const shortUrl = topicShortUrl(baseUrl, topic);
-    const url = since ? topicUrlJsonPollWithSince(baseUrl, topic, since) : topicUrlJsonPoll(baseUrl, topic);
+    let url = since ? topicUrlJsonPollWithSince(baseUrl, topic, since) : topicUrlJsonPoll(baseUrl, topic);
+    if (filter) {
+      url += `&q=${encodeURIComponent(filter)}`; // axon: server-side query filter
+    }
     const messages = [];
     const headers = maybeWithAuth({}, user);
     console.log(`[Api] Polling ${url}`);
