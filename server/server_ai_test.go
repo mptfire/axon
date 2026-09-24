@@ -122,3 +122,131 @@ func TestServer_AI_ClientWiring(t *testing.T) {
 	require.Nil(t, s.ai.Mock())
 	require.Equal(t, "", s.ai.ProviderName())
 }
+
+func TestServer_AI_Plan(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
+		c.AIEnabled = true
+		c.AIProvider = "mock"
+		c.BaseURL = "http://axon.example.com"
+		s := newTestServer(t, c)
+		defer s.closeDatabases()
+		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+		s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
+			// The server must tell the planner its own base URL
+			require.Contains(t, req.System, "http://axon.example.com/mytopic")
+			require.Equal(t, ai.FeaturePlan, req.Feature)
+			require.NotNil(t, req.JSONSchema)
+			return &ai.Response{Text: `{"subscriptions": [{"topic": "phil-ci", "search": "failed", "min_priority": 4, "justification": "j"}], "publisher_instructions": "curl -d \"failed\" http://axon.example.com/phil-ci", "follow_up_questions": ["q?"]}`, FinishReason: "stop"}, nil
+		})
+
+		// Anonymous planning works and never mutates anything
+		rr := request(t, s, "POST", "/v1/ai/plan", `{"prompt":"notify me when CI fails","locale":"en"}`, nil)
+		require.Equal(t, 200, rr.Code)
+		var plan ai.Plan
+		require.Nil(t, json.NewDecoder(rr.Body).Decode(&plan))
+		require.Equal(t, "http://axon.example.com", plan.BaseURL)
+		require.Equal(t, ai.PlannerDisclaimer, plan.Disclaimer)
+		require.Len(t, plan.Subscriptions, 1)
+		require.Equal(t, "phil-ci", plan.Subscriptions[0].Topic)
+		require.Equal(t, 4, plan.Subscriptions[0].Filters.MinPriority)
+
+		// Logged-in users get their topics as context
+		rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"github"}`, map[string]string{
+			"Authorization": util.BasicAuth("phil", "phil"),
+		})
+		require.Equal(t, 200, rr.Code)
+
+		// Empty prompt rejected without calling the provider
+		rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"  "}`, nil)
+		require.Equal(t, 400, rr.Code)
+		require.Equal(t, 40060, toHTTPError(t, rr.Body.String()).Code)
+	})
+}
+
+func TestServer_AI_Plan_QuotaPerVisitor(t *testing.T) {
+	// Quota test on a fresh server so the per-visitor count is exact
+	c := newTestConfig(t, "")
+	c.AIEnabled = true
+	c.AIProvider = "mock"
+	c.BaseURL = "http://axon.example.com"
+	s := newTestServer(t, c)
+	defer s.closeDatabases()
+	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
+		return &ai.Response{Text: `{"subscriptions": [{"topic": "t"}]}`}, nil
+	})
+	// Invalid requests do not consume quota
+	rr := request(t, s, "POST", "/v1/ai/plan", `{"prompt":"  "}`, nil)
+	require.Equal(t, 400, rr.Code)
+	// Exactly aiPlanRequestsPerDay plans fit into the daily burst
+	for i := 0; i < aiPlanRequestsPerDay; i++ {
+		rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish"}`, nil)
+		require.Equal(t, 200, rr.Code, "plan %d should pass", i)
+	}
+	rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"one too many"}`, nil)
+	require.Equal(t, 429, rr.Code)
+	require.Equal(t, 42912, toHTTPError(t, rr.Body.String()).Code)
+}
+
+func TestServer_AI_Plan_ProviderGarbageIs500(t *testing.T) {
+	c := newTestConfig(t, "")
+	c.AIEnabled = true
+	c.AIProvider = "mock"
+	c.BaseURL = "http://axon.example.com"
+	s := newTestServer(t, c)
+	defer s.closeDatabases()
+	s.ai.Mock().EnqueueText("I cannot answer in JSON, sorry!")
+	rr := request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish"}`, nil)
+	require.Equal(t, 500, rr.Code) // provider misbehavior is an internal error, not user error
+}
+
+func TestServer_AI_Plan_BudgetExceededIs429(t *testing.T) {
+	c := newTestConfig(t, "")
+	c.AIEnabled = true
+	c.AIProvider = "mock"
+	c.BaseURL = "http://axon.example.com"
+	c.AIGlobalDailyTokenBudget = 10
+	s := newTestServer(t, c)
+	defer s.closeDatabases()
+	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
+		return &ai.Response{Text: `{"subscriptions": [{"topic": "t"}]}`, InputTokens: 100, OutputTokens: 100}, nil
+	})
+	rr := request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish"}`, nil)
+	require.Equal(t, 200, rr.Code) // first call overshoots the budget, charged after the fact
+
+	// Every subsequent call is refused with 429 before hitting the provider
+	rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish2"}`, nil)
+	require.Equal(t, 429, rr.Code)
+	require.Equal(t, 42912, toHTTPError(t, rr.Body.String()).Code)
+}
+
+func TestServer_AI_Tune(t *testing.T) {
+	c := newTestConfigWithAuthFile(t, "")
+	c.AIEnabled = true
+	c.AIProvider = "mock"
+	c.BaseURL = "http://axon.example.com"
+	s := newTestServer(t, c)
+	defer s.closeDatabases()
+	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
+		require.Equal(t, ai.FeatureTune, req.Feature)
+		require.Contains(t, req.Prompt, "prod-alerts")
+		return &ai.Response{Text: `{"display_name": "Night pages", "min_priority": 4, "justification": "j"}`}, nil
+	})
+
+	// Requires a user
+	rr := request(t, s, "POST", "/v1/ai/tune", `{"topic":"prod-alerts","goal":"quieter"}`, nil)
+	require.Equal(t, 401, rr.Code)
+
+	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
+	rr = request(t, s, "POST", "/v1/ai/tune", `{"topic":"prod-alerts","search":"old","min_priority":2,"goal":"only critical at night"}`, auth)
+	require.Equal(t, 200, rr.Code)
+	var tune ai.TuneResult
+	require.Nil(t, json.NewDecoder(rr.Body).Decode(&tune))
+	require.Equal(t, "Night pages", tune.DisplayName)
+	require.Equal(t, 4, tune.Filters.MinPriority)
+
+	// Invalid topic rejected client-side
+	rr = request(t, s, "POST", "/v1/ai/tune", `{"topic":"no/slashes","goal":"g"}`, auth)
+	require.Equal(t, 400, rr.Code)
+}

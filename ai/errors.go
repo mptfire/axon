@@ -14,6 +14,11 @@ var (
 	// ErrBudgetExceeded is returned when a request would exceed the visitor or global
 	// daily token budget. Wrapped with details about which budget was hit.
 	ErrBudgetExceeded = errors.New("ai token budget exceeded")
+
+	// ErrInvalidResponse is returned when a provider response cannot be parsed into the
+	// expected structure (e.g. the planner asked for JSON and got prose). This is a
+	// provider-side failure, not user error.
+	ErrInvalidResponse = errors.New("invalid ai response")
 )
 
 // ProviderError is an error response from a provider API, with its HTTP status code.

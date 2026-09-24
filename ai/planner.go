@@ -78,13 +78,22 @@ func NewPlanner(client *Client) *Planner {
 	return &Planner{client: client}
 }
 
-// Plan generates a subscription plan for a natural-language prompt.
-func (p *Planner) Plan(ctx context.Context, baseURL, prompt, locale string, existingTopics []string) (*Plan, error) {
+// ValidatePrompt checks the shared prompt rules (present, within the length cap) without
+// calling the provider. Handlers use it before consuming the per-visitor plan quota.
+func ValidatePrompt(prompt string) error {
 	if len(prompt) > PlannerMaxPromptChars {
-		return nil, fmt.Errorf("prompt too long, max %d characters", PlannerMaxPromptChars)
+		return fmt.Errorf("prompt too long, max %d characters", PlannerMaxPromptChars)
 	}
 	if strings.TrimSpace(prompt) == "" {
-		return nil, fmt.Errorf("prompt is required")
+		return fmt.Errorf("prompt is required")
+	}
+	return nil
+}
+
+// Plan generates a subscription plan for a natural-language prompt.
+func (p *Planner) Plan(ctx context.Context, baseURL, prompt, locale string, existingTopics []string) (*Plan, error) {
+	if err := ValidatePrompt(prompt); err != nil {
+		return nil, err
 	}
 	request := &Request{
 		Feature:     FeaturePlan,
@@ -103,11 +112,8 @@ func (p *Planner) Plan(ctx context.Context, baseURL, prompt, locale string, exis
 
 // Tune proposes adjustments to an existing subscription, given a natural-language goal.
 func (p *Planner) Tune(ctx context.Context, input *TuneInput, goal string) (*TuneResult, error) {
-	if len(goal) > PlannerMaxPromptChars {
-		return nil, fmt.Errorf("goal too long, max %d characters", PlannerMaxPromptChars)
-	}
-	if strings.TrimSpace(goal) == "" {
-		return nil, fmt.Errorf("goal is required")
+	if err := ValidatePrompt(goal); err != nil {
+		return nil, err
 	}
 	current, _ := json.MarshalIndent(input, "", "  ")
 	request := &Request{
@@ -128,7 +134,7 @@ func (p *Planner) Tune(ctx context.Context, input *TuneInput, goal string) (*Tun
 // parsePlan validates and sanitizes raw model output into a Plan.
 func parsePlan(baseURL, text string) (*Plan, error) {
 	if err := ValidateJSONObject(text); err != nil {
-		return nil, fmt.Errorf("planner returned invalid output: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidResponse, err)
 	}
 	var raw struct {
 		Subscriptions []*struct {
@@ -142,7 +148,7 @@ func parsePlan(baseURL, text string) (*Plan, error) {
 		FollowUpQuestions     []string `json:"follow_up_questions"`
 	}
 	if err := json.Unmarshal([]byte(stripFences(text)), &raw); err != nil {
-		return nil, fmt.Errorf("planner returned invalid JSON: %w", err)
+		return nil, fmt.Errorf("%w: invalid JSON: %w", ErrInvalidResponse, err)
 	}
 	if len(raw.Subscriptions) == 0 {
 		return nil, fmt.Errorf("planner returned no subscriptions")
@@ -188,7 +194,7 @@ func parsePlan(baseURL, text string) (*Plan, error) {
 // parseTune validates and sanitizes raw tune output.
 func parseTune(text string) (*TuneResult, error) {
 	if err := ValidateJSONObject(text); err != nil {
-		return nil, fmt.Errorf("planner returned invalid output: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidResponse, err)
 	}
 	var raw struct {
 		DisplayName   string `json:"display_name"`
@@ -197,7 +203,7 @@ func parseTune(text string) (*TuneResult, error) {
 		Justification string `json:"justification"`
 	}
 	if err := json.Unmarshal([]byte(stripFences(text)), &raw); err != nil {
-		return nil, fmt.Errorf("planner returned invalid JSON: %w", err)
+		return nil, fmt.Errorf("%w: invalid JSON: %w", ErrInvalidResponse, err)
 	}
 	result := &TuneResult{
 		DisplayName:   sanitizeSingleLineText(raw.DisplayName, 128),

@@ -115,6 +115,8 @@ var (
 	apiTiersPath                                         = "/v1/tiers"
 	apiAIStatusPath                                      = "/v1/ai/status" // axon
 	apiAIUsagePath                                       = "/v1/ai/usage"  // axon
+	apiAIPlanPath                                        = "/v1/ai/plan"   // axon
+	apiAITunePath                                        = "/v1/ai/tune"   // axon
 	apiUsersPath                                         = "/v1/users"
 	apiUsersAccessPath                                   = "/v1/users/access"
 	apiAccountPath                                       = "/v1/account"
@@ -687,7 +689,11 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 	} else if r.Method == http.MethodGet && r.URL.Path == apiAIStatusPath {
 		return s.ensureAdmin(s.ensureAIEnabled(s.handleAIStatus))(w, r, v) // axon
 	} else if r.Method == http.MethodGet && r.URL.Path == apiAIUsagePath {
-		return s.ensureAIEnabled(s.handleAIUsage)(w, r, v) // axon: allowed anonymously, attribution by visitor
+		return s.ensureAIEnabled(s.limitRequests(s.handleAIUsage))(w, r, v) // axon: allowed anonymously, attribution by visitor
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAIPlanPath {
+		return s.ensureAIEnabled(s.limitRequests(s.handleAIPlan))(w, r, v) // axon: allowed anonymously, plans are never applied server-side
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAITunePath {
+		return s.ensureAIEnabled(s.ensureUser(s.limitRequests(s.handleAITune)))(w, r, v) // axon: tunes a synced subscription
 	} else if r.Method == http.MethodGet && r.URL.Path == matrixPushPath {
 		return s.handleMatrixDiscovery(w)
 	} else if r.Method == http.MethodGet && r.URL.Path == metricsPath && s.metricsHandler != nil {
