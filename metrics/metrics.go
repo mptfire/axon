@@ -75,6 +75,26 @@ var (
 	HTTPRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "ntfy_http_requests_total",
 	}, []string{"http_code", "ntfy_code", "http_method"})
+	// axon (AI fork): provider call outcomes, token usage, latency and cache hits, labeled
+	// by AI feature ("plan", "enrich", ...). See ai/ and docs/ai-plan/.
+	AIRequestsSuccess = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "ntfy_ai_requests_success_total",
+	}, []string{"feature"})
+	AIRequestsFailure = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "ntfy_ai_requests_failure_total",
+	}, []string{"feature"})
+	AITokensInput = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "ntfy_ai_tokens_input_total",
+	}, []string{"feature"})
+	AITokensOutput = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "ntfy_ai_tokens_output_total",
+	}, []string{"feature"})
+	AIRequestDuration = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "ntfy_ai_request_duration_ms",
+	}, []string{"feature"})
+	AICacheHits = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "ntfy_ai_cache_hits_total",
+	}, []string{"feature"})
 )
 
 // init registers all collectors with the default Prometheus registry. Registration is
@@ -103,5 +123,11 @@ func init() {
 		Subscribers,
 		Topics,
 		HTTPRequests,
+		AIRequestsSuccess,
+		AIRequestsFailure,
+		AITokensInput,
+		AITokensOutput,
+		AIRequestDuration,
+		AICacheHits,
 	)
 }

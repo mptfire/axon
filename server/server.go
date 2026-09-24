@@ -30,6 +30,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/sync/errgroup"
 	"heckel.io/ntfy/v2/action"
+	"heckel.io/ntfy/v2/ai"
 	"heckel.io/ntfy/v2/attachment"
 	"heckel.io/ntfy/v2/ban"
 	"heckel.io/ntfy/v2/db"
@@ -72,6 +73,7 @@ type Server struct {
 	stripe            stripeAPI                           // Stripe API, can be replaced with a mock
 	priceCache        *util.LookupCache[map[string]int64] // Stripe price ID -> price as cents (USD implied!)
 	metricsHandler    http.Handler                        // Handles /metrics if enable-metrics set, and listen-metrics-http not set
+	ai                *ai.Client                          // axon: AI layer; nil when disabled (see docs/ai-plan/)
 	closeChan         chan bool
 	mu                sync.RWMutex
 }
@@ -111,6 +113,8 @@ var (
 	apiStatsPath                                         = "/v1/stats"
 	apiWebPushPath                                       = "/v1/webpush"
 	apiTiersPath                                         = "/v1/tiers"
+	apiAIStatusPath                                      = "/v1/ai/status" // axon
+	apiAIUsagePath                                       = "/v1/ai/usage"  // axon
 	apiUsersPath                                         = "/v1/users"
 	apiUsersAccessPath                                   = "/v1/users/access"
 	apiAccountPath                                       = "/v1/account"
@@ -189,6 +193,30 @@ func New(conf *Config) (*Server, error) {
 	var stripe stripeAPI
 	if payments.Available && conf.StripeSecretKey != "" {
 		stripe = newStripeAPI()
+	}
+	// axon (AI fork): AI layer, nil unless ai-enabled is set. See ai/ and docs/ai-plan/.
+	var aiClient *ai.Client
+	if conf.AIEnabled {
+		var err error
+		aiClient, err = ai.New(&ai.Config{
+			Provider: conf.AIProvider,
+			BaseURL:  conf.AIBaseURL,
+			APIKey:   conf.AIAPIKey,
+			Model:    conf.AIModel,
+			FeatureModels: map[ai.Feature]string{
+				ai.FeaturePlan:   conf.AIModelPlan,
+				ai.FeatureEnrich: conf.AIModelEnrich,
+				ai.FeatureDigest: conf.AIModelDigest,
+				ai.FeatureChat:   conf.AIModelChat,
+			},
+			RequestTimeout:          conf.AIRequestTimeout,
+			VisitorDailyTokenBudget: conf.AIVisitorDailyTokenBudget,
+			GlobalDailyTokenBudget:  conf.AIGlobalDailyTokenBudget,
+			CacheSize:               conf.AICacheSize,
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 	// Open shared PostgreSQL connection pool if configured
 	var pool *db.DB
@@ -319,6 +347,7 @@ func New(conf *Config) (*Server, error) {
 		messagesHistory: []int64{messages},
 		visitors:        make(map[string]*visitor),
 		stripe:          stripe,
+		ai:              aiClient,
 	}
 	s.priceCache = util.NewLookupCache(s.fetchStripePrices, conf.StripePriceCacheDuration)
 	return s, nil
@@ -655,6 +684,10 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.handleStats(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == apiTiersPath {
 		return s.ensurePaymentsEnabled(s.handleBillingTiersGet)(w, r, v)
+	} else if r.Method == http.MethodGet && r.URL.Path == apiAIStatusPath {
+		return s.ensureAdmin(s.ensureAIEnabled(s.handleAIStatus))(w, r, v) // axon
+	} else if r.Method == http.MethodGet && r.URL.Path == apiAIUsagePath {
+		return s.ensureAIEnabled(s.handleAIUsage)(w, r, v) // axon: allowed anonymously, attribution by visitor
 	} else if r.Method == http.MethodGet && r.URL.Path == matrixPushPath {
 		return s.handleMatrixDiscovery(w)
 	} else if r.Method == http.MethodGet && r.URL.Path == metricsPath && s.metricsHandler != nil {

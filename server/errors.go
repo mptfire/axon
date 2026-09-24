@@ -177,6 +177,8 @@ var (
 	errHTTPTooManyRequestsLimitAuthFailure           = &errHTTP{42909, http.StatusTooManyRequests, "limit reached: too many auth failures", "https://ntfy.sh/docs/publish/#limitations", nil} // FIXME document limit
 	errHTTPTooManyRequestsLimitCalls                 = &errHTTP{42910, http.StatusTooManyRequests, "limit reached: daily phone call quota reached", "https://ntfy.sh/docs/publish/#limitations", nil}
 	errHTTPTooManyRequestsLimitTopicCreation         = &errHTTP{42911, http.StatusTooManyRequests, "limit reached: too many new topics, please wait", "https://ntfy.sh/docs/publish/#limitations", nil}
+	errHTTPBadRequestAIDisabled                      = &errHTTP{40059, http.StatusBadRequest, "ai endpoints are not enabled on this server", "", nil}  // axon
+	errHTTPTooManyRequestsLimitAIRequests            = &errHTTP{42912, http.StatusTooManyRequests, "limit reached: ai token budget exceeded", "", nil} // axon
 	errHTTPInternalError                             = &errHTTP{50001, http.StatusInternalServerError, "internal server error", "", nil}
 	errHTTPInternalErrorInvalidPath                  = &errHTTP{50002, http.StatusInternalServerError, "internal server error: invalid path", "", nil}
 	errHTTPInternalErrorMissingBaseURL               = &errHTTP{50003, http.StatusInternalServerError, "internal server error: base-url must be be configured for this feature", "https://ntfy.sh/docs/config/", nil}

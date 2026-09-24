@@ -43,6 +43,14 @@ const (
 	DefaultWebPushExpiryDuration        = 60 * 24 * time.Hour
 )
 
+// Defines default AI settings (axon fork, see docs/ai-plan/)
+const (
+	DefaultAIRequestTimeout          = 10 * time.Second
+	DefaultAIVisitorDailyTokenBudget = 20000
+	DefaultAIGlobalDailyTokenBudget  = 2000000
+	DefaultAICacheSize               = 100 * 1024 * 1024 // 100 MB
+)
+
 // Defines default abuse ban-feed settings (see BanFile, BanWindow, BanThreshold, BanWeights)
 const (
 	DefaultBanWindow    = 10 * time.Minute
@@ -233,6 +241,22 @@ type Config struct {
 	BuildVersion                         string        // Injected by App
 	BuildDate                            string        // Injected by App
 	BuildCommit                          string        // Injected by App
+
+	// axon (AI fork): see docs/ai-plan/. All defaults keep AI off and behavior
+	// identical to upstream ntfy.
+	AIEnabled                 bool          // Master switch for the AI layer and the /v1/ai endpoints
+	AIProvider                string        // "openai", "anthropic", "openai-compatible", "ollama", "mock"
+	AIBaseURL                 string        // Provider API base URL; empty = provider default
+	AIAPIKey                  string        `hash:"-"` // Provider API key (never feeds the config hash)
+	AIModel                   string        // Default model for all AI features
+	AIModelPlan               string        // Model override: subscription planning
+	AIModelEnrich             string        // Model override: message enrichment
+	AIModelDigest             string        // Model override: digests
+	AIModelChat               string        // Model override: chat over notification history
+	AIRequestTimeout          time.Duration // Hard deadline per AI completion
+	AIVisitorDailyTokenBudget int64         // Daily token budget per visitor (input+output); 0 = unlimited
+	AIGlobalDailyTokenBudget  int64         // Daily token budget server-wide (input+output); 0 = unlimited
+	AICacheSize               int64         // AI response cache size in bytes
 }
 
 // NewConfig instantiates a default new server config
@@ -341,6 +365,21 @@ func NewConfig() *Config {
 		BuildVersion:                         "",
 		BuildDate:                            "",
 		BuildCommit:                          "",
+
+		// axon (AI fork): disabled by default
+		AIEnabled:                 false,
+		AIProvider:                "",
+		AIBaseURL:                 "",
+		AIAPIKey:                  "",
+		AIModel:                   "",
+		AIModelPlan:               "",
+		AIModelEnrich:             "",
+		AIModelDigest:             "",
+		AIModelChat:               "",
+		AIRequestTimeout:          DefaultAIRequestTimeout,
+		AIVisitorDailyTokenBudget: DefaultAIVisitorDailyTokenBudget,
+		AIGlobalDailyTokenBudget:  DefaultAIGlobalDailyTokenBudget,
+		AICacheSize:               DefaultAICacheSize,
 	}
 }
 

@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -120,6 +121,21 @@ var flagsServe = append(
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "web-push-startup-queries", Aliases: []string{"web_push_startup_queries"}, EnvVars: []string{"NTFY_WEB_PUSH_STARTUP_QUERIES"}, Usage: "queries run when the web push database is initialized"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "web-push-expiry-duration", Aliases: []string{"web_push_expiry_duration"}, EnvVars: []string{"NTFY_WEB_PUSH_EXPIRY_DURATION"}, Value: util.FormatDuration(server.DefaultWebPushExpiryDuration), Usage: "automatically expire unused subscriptions after this time"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "web-push-expiry-warning-duration", Aliases: []string{"web_push_expiry_warning_duration"}, EnvVars: []string{"NTFY_WEB_PUSH_EXPIRY_WARNING_DURATION"}, Value: util.FormatDuration(server.DefaultWebPushExpiryWarningDuration), Usage: "send web push warning notification after this time before expiring unused subscriptions"}),
+	// axon (AI fork): see docs/ai-plan/
+	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "ai-enabled", Aliases: []string{"ai_enabled"}, EnvVars: []string{"NTFY_AI_ENABLED"}, Value: false, Usage: "if set, enables the AI layer (AI subscription setup, enrichment, digests, chat, MCP)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-provider", Aliases: []string{"ai_provider"}, EnvVars: []string{"NTFY_AI_PROVIDER"}, Usage: "AI provider: openai, anthropic, openai-compatible, ollama, or mock"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-base-url", Aliases: []string{"ai_base_url"}, EnvVars: []string{"NTFY_AI_BASE_URL"}, Usage: "AI provider API base URL, e.g. http://localhost:11434/v1 for Ollama"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-api-key", Aliases: []string{"ai_api_key"}, EnvVars: []string{"NTFY_AI_API_KEY"}, Usage: "AI provider API key (not required for local providers)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-api-key-file", Aliases: []string{"ai_api_key_file"}, EnvVars: []string{"NTFY_AI_API_KEY_FILE"}, Usage: "file containing the AI provider API key"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-model", Aliases: []string{"ai_model"}, EnvVars: []string{"NTFY_AI_MODEL"}, Usage: "default AI model for all features, e.g. llama3.1, gpt-4o-mini, claude-3-5-haiku-latest"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-model-plan", Aliases: []string{"ai_model_plan"}, EnvVars: []string{"NTFY_AI_MODEL_PLAN"}, Usage: "AI model override for subscription planning"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-model-enrich", Aliases: []string{"ai_model_enrich"}, EnvVars: []string{"NTFY_AI_MODEL_ENRICH"}, Usage: "AI model override for message enrichment"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-model-digest", Aliases: []string{"ai_model_digest"}, EnvVars: []string{"NTFY_AI_MODEL_DIGEST"}, Usage: "AI model override for digests"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-model-chat", Aliases: []string{"ai_model_chat"}, EnvVars: []string{"NTFY_AI_MODEL_CHAT"}, Usage: "AI model override for chat over notification history"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-request-timeout", Aliases: []string{"ai_request_timeout"}, EnvVars: []string{"NTFY_AI_REQUEST_TIMEOUT"}, Value: util.FormatDuration(server.DefaultAIRequestTimeout), Usage: "timeout for AI provider requests"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-visitor-daily-token-budget", Aliases: []string{"ai_visitor_daily_token_budget"}, EnvVars: []string{"NTFY_AI_VISITOR_DAILY_TOKEN_BUDGET"}, Value: fmt.Sprintf("%d", server.DefaultAIVisitorDailyTokenBudget), Usage: "daily AI token budget per visitor (0 = unlimited)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-global-daily-token-budget", Aliases: []string{"ai_global_daily_token_budget"}, EnvVars: []string{"NTFY_AI_GLOBAL_DAILY_TOKEN_BUDGET"}, Value: fmt.Sprintf("%d", server.DefaultAIGlobalDailyTokenBudget), Usage: "daily AI token budget server-wide (0 = unlimited)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-cache-size", Aliases: []string{"ai_cache_size"}, EnvVars: []string{"NTFY_AI_CACHE_SIZE"}, Value: fmt.Sprintf("%d", server.DefaultAICacheSize), Usage: "size of the AI response cache, e.g. 100M"}),
 )
 
 var cmdServe = &cli.Command{
@@ -164,6 +180,27 @@ func execServe(c *cli.Context) error {
 	webPushStartupQueries := c.String("web-push-startup-queries")
 	webPushExpiryDurationStr := c.String("web-push-expiry-duration")
 	webPushExpiryWarningDurationStr := c.String("web-push-expiry-warning-duration")
+	aiEnabled := c.Bool("ai-enabled")
+	aiProvider := c.String("ai-provider")
+	aiBaseURL := strings.TrimSuffix(c.String("ai-base-url"), "/")
+	aiAPIKey := strings.TrimSpace(c.String("ai-api-key"))
+	aiAPIKeyFile := c.String("ai-api-key-file")
+	if aiAPIKey == "" && aiAPIKeyFile != "" {
+		b, err := os.ReadFile(aiAPIKeyFile)
+		if err != nil {
+			return fmt.Errorf("unable to read ai-api-key-file: %w", err)
+		}
+		aiAPIKey = strings.TrimSpace(string(b))
+	}
+	aiModel := c.String("ai-model")
+	aiModelPlan := c.String("ai-model-plan")
+	aiModelEnrich := c.String("ai-model-enrich")
+	aiModelDigest := c.String("ai-model-digest")
+	aiModelChat := c.String("ai-model-chat")
+	aiRequestTimeoutStr := c.String("ai-request-timeout")
+	aiVisitorDailyTokenBudget := c.Int64("ai-visitor-daily-token-budget")
+	aiGlobalDailyTokenBudget := c.Int64("ai-global-daily-token-budget")
+	aiCacheSizeStr := c.String("ai-cache-size")
 	cacheFile := c.String("cache-file")
 	cacheDurationStr := c.String("cache-duration")
 	cacheStartupQueries := c.String("cache-startup-queries")
@@ -284,6 +321,14 @@ func execServe(c *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("invalid ban window: %s", banWindowStr)
 	}
+	aiRequestTimeout, err := util.ParseDuration(aiRequestTimeoutStr)
+	if err != nil {
+		return fmt.Errorf("invalid ai request timeout: %s", aiRequestTimeoutStr)
+	}
+	aiCacheSize, err := util.ParseSize(aiCacheSizeStr)
+	if err != nil {
+		return fmt.Errorf("invalid ai cache size: %s", aiCacheSizeStr)
+	}
 
 	// Parse abuse ban-feed weights ("KEY:WEIGHT" list, "*" fallback)
 	banWeights, err := ban.ParseWeights(banWeightsRaw)
@@ -386,6 +431,10 @@ func execServe(c *cli.Context) error {
 		return errors.New("cannot enable WebPush, support is not available in this build (nowebpush)")
 	} else if webPushExpiryWarningDuration > 0 && webPushExpiryWarningDuration > webPushExpiryDuration {
 		return errors.New("web push expiry warning duration cannot be higher than web push expiry duration")
+	} else if aiEnabled && aiProvider == "" {
+		return errors.New("if ai-enabled is set, ai-provider must also be set")
+	} else if aiEnabled && aiRequestTimeout < time.Second {
+		return errors.New("ai-request-timeout cannot be lower than one second")
 	} else if behindProxy && proxyForwardedHeader == "" {
 		return errors.New("if behind-proxy is set, proxy-forwarded-header must also be set")
 	} else if visitorPrefixBitsIPv4 < 1 || visitorPrefixBitsIPv4 > 32 {
@@ -566,6 +615,19 @@ func execServe(c *cli.Context) error {
 	conf.WebPushStartupQueries = webPushStartupQueries
 	conf.WebPushExpiryDuration = webPushExpiryDuration
 	conf.WebPushExpiryWarningDuration = webPushExpiryWarningDuration
+	conf.AIEnabled = aiEnabled
+	conf.AIProvider = aiProvider
+	conf.AIBaseURL = aiBaseURL
+	conf.AIAPIKey = aiAPIKey
+	conf.AIModel = aiModel
+	conf.AIModelPlan = aiModelPlan
+	conf.AIModelEnrich = aiModelEnrich
+	conf.AIModelDigest = aiModelDigest
+	conf.AIModelChat = aiModelChat
+	conf.AIRequestTimeout = aiRequestTimeout
+	conf.AIVisitorDailyTokenBudget = aiVisitorDailyTokenBudget
+	conf.AIGlobalDailyTokenBudget = aiGlobalDailyTokenBudget
+	conf.AICacheSize = aiCacheSize
 	conf.BuildVersion = c.App.Version
 	conf.BuildDate = maybeFromMetadata(c.App.Metadata, MetadataKeyDate)
 	conf.BuildCommit = maybeFromMetadata(c.App.Metadata, MetadataKeyCommit)

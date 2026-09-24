@@ -511,3 +511,58 @@
 # log-level-overrides:
 # log-format: text
 # log-file:
+
+# ------------------------------------------------------------------
+# AI features (nfty fork)
+#
+# nfty can optionally use an LLM provider for AI features: natural-language
+# subscription setup, message enrichment/digests, chat over notification
+# history, and an MCP server for AI agents.
+#
+# All AI features are OFF by default. With ai-enabled unset, nfty behaves
+# identically to upstream ntfy.
+#
+# Privacy: the recommended setup is a local provider (Ollama) so that message
+# content never leaves your server:
+#
+#   ai-enabled: true
+#   ai-provider: ollama
+#   ai-base-url: http://localhost:11434/v1
+#   ai-model: llama3.1
+#
+# Cloud providers:
+#
+#   ai-enabled: true
+#   ai-provider: openai                  # or anthropic, openai-compatible
+#   ai-api-key: <api key>                # or ai-api-key-file: /etc/ntfy/ai-key
+#   ai-model: gpt-4o-mini
+#
+# Every outbound AI call is logged locally (feature, model, token counts,
+# duration) so you can audit what was sent. Token budgets return HTTP 429.
+#
+# - ai-enabled enables the AI layer and the /v1/ai/* endpoints
+# - ai-provider is one of "openai", "anthropic", "openai-compatible", "ollama", "mock"
+# - ai-base-url is the provider API base URL (defaults per provider; required
+#   for "openai-compatible", e.g. http://localhost:11434/v1 for Ollama)
+# - ai-model sets the default model for all AI features
+# - ai-model-plan / ai-model-enrich / ai-model-digest / ai-model-chat override
+#   the model per feature
+# - ai-request-timeout is the hard deadline per provider request
+# - ai-visitor-daily-token-budget / ai-global-daily-token-budget are daily
+#   token budgets (input+output); 0 disables the limit
+# - ai-cache-size bounds the in-memory response cache (identical requests,
+#   e.g. alert storms, hit the provider only once)
+#
+# ai-enabled: false
+# ai-provider: ollama
+# ai-base-url: http://localhost:11434/v1
+# ai-api-key:
+# ai-model:
+# ai-model-plan:
+# ai-model-enrich:
+# ai-model-digest:
+# ai-model-chat:
+# ai-request-timeout: 10s
+# ai-visitor-daily-token-budget: 20000
+# ai-global-daily-token-budget: 2000000
+# ai-cache-size: 100M
