@@ -19,7 +19,6 @@ import { useLiveQuery } from "dexie-react-hooks";
 import api from "../app/Api";
 import { randomAlphanumericString, topicUrl, validTopic, validUrl } from "../app/utils";
 import userManager from "../app/UserManager";
-import subscriptionManager from "../app/SubscriptionManager";
 import poller from "../app/Poller";
 import DialogFooter from "./DialogFooter";
 import session from "../app/Session";
@@ -30,29 +29,19 @@ import AccountContext from "./AccountContext";
 import { TopicReservedError, UnauthorizedError } from "../app/errors";
 import { ReserveLimitChip } from "./SubscriptionPopup";
 import prefs from "../app/Prefs";
+import { subscribeTopic } from "../app/subscribe";
+import { AiSubscribePage } from "./AiSubscribeDialog";
 
 const publicBaseUrl = "https://ntfy.sh";
 
-export const subscribeTopic = async (baseUrl, topic, opts) => {
-  const subscription = await subscriptionManager.upsert(baseUrl, topic, opts);
-  if (session.exists()) {
-    try {
-      await accountApi.addSubscription(baseUrl, topic);
-    } catch (e) {
-      console.log(`[SubscribeDialog] Subscribing to topic ${topic} failed`, e);
-      if (e instanceof UnauthorizedError) {
-        await session.resetAndRedirect(routes.login);
-      }
-    }
-  }
-  return subscription;
-};
+export { subscribeTopic }; // Kept here for existing import sites (e.g. Preferences)
 
 const SubscribeDialog = (props) => {
   const theme = useTheme();
   const [baseUrl, setBaseUrl] = useState("");
   const [topic, setTopic] = useState("");
   const [showLoginPage, setShowLoginPage] = useState(false);
+  const [showAiPage, setShowAiPage] = useState(false); // axon: AI subscription assistant
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
   const handleSuccess = async () => {
@@ -65,7 +54,8 @@ const SubscribeDialog = (props) => {
 
   return (
     <Dialog open={props.open} onClose={props.onCancel} fullScreen={fullScreen}>
-      {!showLoginPage && (
+      {showAiPage && <AiSubscribePage onCancel={props.onCancel} onSuccess={props.onSuccess} />}
+      {!showAiPage && !showLoginPage && (
         <SubscribePage
           baseUrl={baseUrl}
           setBaseUrl={setBaseUrl}
@@ -74,10 +64,13 @@ const SubscribeDialog = (props) => {
           subscriptions={props.subscriptions}
           onCancel={props.onCancel}
           onNeedsLogin={() => setShowLoginPage(true)}
+          onAi={() => setShowAiPage(true)}
           onSuccess={handleSuccess}
         />
       )}
-      {showLoginPage && <LoginPage baseUrl={baseUrl} topic={topic} onBack={() => setShowLoginPage(false)} onSuccess={handleSuccess} />}
+      {!showAiPage && showLoginPage && (
+        <LoginPage baseUrl={baseUrl} topic={topic} onBack={() => setShowLoginPage(false)} onSuccess={handleSuccess} />
+      )}
     </Dialog>
   );
 };
@@ -168,6 +161,11 @@ const SubscribePage = (props) => {
       <DialogTitle>{t("subscribe_dialog_subscribe_title")}</DialogTitle>
       <DialogContent>
         <DialogContentText>{t("subscribe_dialog_subscribe_description")}</DialogContentText>
+        {config.enable_ai && (
+          <Button onClick={props.onAi} variant="outlined" size="small" sx={{ mb: 1 }}>
+            {t("ai_subscribe_entry_button")}
+          </Button>
+        )}
         <div style={{ display: "flex", paddingBottom: "8px" }} role="row">
           <TextField
             autoFocus
