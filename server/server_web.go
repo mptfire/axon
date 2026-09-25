@@ -44,14 +44,14 @@ func (s *Server) handleWebConfig(w http.ResponseWriter, _ *http.Request, _ *visi
 // handleWebManifest serves the web app manifest for the progressive web app (PWA)
 func (s *Server) handleWebManifest(w http.ResponseWriter, _ *http.Request, _ *visitor) error {
 	response := &webManifestResponse{
-		Name:            "ntfy",
-		Description:     "ntfy lets you send push notifications via scripts from any computer or phone",
-		ShortName:       "ntfy",
+		Name:            "axon",
+		Description:     "axon — AI-native push notifications, a fork of ntfy. Send push notifications via scripts from any computer or phone",
+		ShortName:       "axon",
 		Scope:           "/",
 		StartURL:        s.config.WebRoot,
 		Display:         "standalone",
 		BackgroundColor: "#ffffff",
-		ThemeColor:      "#317f6f",
+		ThemeColor:      "#4F46E5",
 		Icons: []*webManifestIcon{
 			{SRC: "/static/images/pwa-192x192.png", Sizes: "192x192", Type: "image/png"},
 			{SRC: "/static/images/pwa-512x512.png", Sizes: "512x512", Type: "image/png"},

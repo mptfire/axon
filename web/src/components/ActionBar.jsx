@@ -13,7 +13,7 @@ import Logout from "@mui/icons-material/Logout";
 import Person from "@mui/icons-material/Person";
 import Settings from "@mui/icons-material/Settings";
 import session from "../app/Session";
-import logo from "../img/ntfy.svg";
+import logo from "../img/axon.svg";
 import subscriptionManager from "../app/SubscriptionManager";
 import routes from "./routes";
 import db from "../app/db";
