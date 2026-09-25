@@ -29,6 +29,9 @@ import Notifications from "@mui/icons-material/Notifications";
 import NotificationsOff from "@mui/icons-material/NotificationsOff";
 import RemoveCircle from "@mui/icons-material/RemoveCircle";
 import Send from "@mui/icons-material/Send";
+import AutoFixNormal from "@mui/icons-material/AutoFixNormal";
+import Summarize from "@mui/icons-material/Summarize";
+import QuestionAnswer from "@mui/icons-material/QuestionAnswer";
 import subscriptionManager from "../app/SubscriptionManager";
 import DialogFooter from "./DialogFooter";
 import accountApi, { Role } from "../app/AccountApi";
@@ -44,9 +47,6 @@ import { UnauthorizedError } from "../app/errors";
 import AiTuneDialog from "./AiTuneDialog";
 import AiDigestDialog from "./AiDigestDialog";
 import AiChatDialog from "./AiChatDialog";
-import AutoFixNormal from "@mui/icons-material/AutoFixNormal";
-import Summarize from "@mui/icons-material/Summarize";
-import QuestionAnswer from "@mui/icons-material/QuestionAnswer";
 
 export const SubscriptionPopup = (props) => {
   const { t } = useTranslation();

@@ -162,7 +162,7 @@ const PlanReview = ({ plan }) => {
   const { t } = useTranslation();
   return (
     <>
-      {plan.subscriptions.map((sub, i) => (
+      {plan.subscriptions.map((sub) => (
         <PlanSubscriptionCard key={sub.topic} subscription={sub} />
       ))}
       {plan.publisher_instructions && (

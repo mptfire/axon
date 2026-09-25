@@ -12,6 +12,7 @@ import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import Logout from "@mui/icons-material/Logout";
 import Person from "@mui/icons-material/Person";
 import Settings from "@mui/icons-material/Settings";
+import SummarizeIcon from "@mui/icons-material/Summarize";
 import session from "../app/Session";
 import logo from "../img/axon.svg";
 import subscriptionManager from "../app/SubscriptionManager";
@@ -24,7 +25,6 @@ import accountApi from "../app/AccountApi";
 import PopupMenu from "./PopupMenu";
 import { SubscriptionPopup } from "./SubscriptionPopup";
 import AiBriefingDialog from "./AiBriefingDialog";
-import SummarizeIcon from "@mui/icons-material/Summarize";
 import { useIsLaunchedPWA } from "./hooks";
 
 const ActionBar = (props) => {
