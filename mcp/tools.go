@@ -85,6 +85,19 @@ func toolDefinitions() []toolDefinition {
 			},
 		},
 		{
+			Name:        "ask_history",
+			Description: "Ask a question about recent notification history (one topic, or all the account's topics) and get an answer. AI layer required on the server.",
+			InputSchema: &inputSchema{
+				Type: "object",
+				Properties: map[string]propertySchema{
+					"question": {Type: "string", Description: "The question, e.g. \"what failed last night?\""},
+					"topic":    {Type: "string", Description: "Topic name. Omit to search across all the account's topics."},
+					"since":    {Type: "string", Description: `History window: "168h" (default), "720h", ... (max 30 days)`},
+				},
+				Required: []string{"question"},
+			},
+		},
+		{
 			Name:        "digest_topic",
 			Description: "Summarize the recent messages of a topic into a short briefing (AI layer required on the server).",
 			InputSchema: &inputSchema{
@@ -287,6 +300,43 @@ func (s *Server) toolSubscribeWait(ctx context.Context, args map[string]any) *to
 		return errorResult(err)
 	}
 	return textResult(fmt.Sprintf("timeout: no message arrived on topic %q within %s", topic, wait))
+}
+
+// toolAskHistory asks a question over notification history via the server's AI layer.
+func (s *Server) toolAskHistory(ctx context.Context, args map[string]any) *toolResult {
+	question, _ := args["question"].(string)
+	if strings.TrimSpace(question) == "" {
+		return errorResult(fmt.Errorf("argument 'question' is required"))
+	}
+	topic, _ := args["topic"].(string)
+	if topic != "" && !validTopic(topic) {
+		return errorResult(errTopicRequired)
+	}
+	if topic == "" && s.config.AccessToken == "" {
+		return errorResult(errNoToken) // cross-topic mode is account-scoped
+	}
+	since, _ := args["since"].(string)
+	if since == "" {
+		since = "168h"
+	}
+	payload := map[string]any{"question": question, "since": since, "all": topic == ""}
+	if topic != "" {
+		payload["topic"] = topic
+	}
+	body, _ := json.Marshal(payload)
+	resp, err := s.do(ctx, http.MethodPost, "/v1/ai/chat", strings.NewReader(string(body)), http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return errorResult(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return errorResult(fmt.Errorf("server returned %s: %s", resp.Status, firstKB(resp.Body)))
+	}
+	answer, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errorResult(err)
+	}
+	return textResult("Answer:\n" + string(answer))
 }
 
 // toolDigestTopic summarizes a topic via the server's AI layer. Requires an

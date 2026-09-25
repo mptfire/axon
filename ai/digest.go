@@ -19,9 +19,11 @@ const (
 	DigestMaxHeadlineChars = 200
 )
 
-// DigestMessage is one message in a digest request.
+// DigestMessage is one message in a digest/chat request. Topic is only set for
+// cross-topic contexts (chat across all subscriptions).
 type DigestMessage struct {
 	ID       string `json:"id"`
+	Topic    string `json:"topic,omitempty"`
 	Title    string `json:"title,omitempty"`
 	Message  string `json:"message"`
 	Priority int    `json:"priority,omitempty"`

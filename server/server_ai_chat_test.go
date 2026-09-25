@@ -92,3 +92,44 @@ func TestServer_AI_Chat_InvalidQuestion(t *testing.T) {
 	rr = request(t, s, "POST", "/v1/ai/chat", `{"topic":"backups","question":"what?","since":"nonsense"}`, auth)
 	require.Equal(t, 400, rr.Code)
 }
+
+func TestServer_AI_Chat_AllTopics(t *testing.T) {
+	c := newTestConfigWithAuthFile(t, "")
+	c.AIEnabled = true
+	c.AIProvider = "mock"
+	s := newTestServer(t, c)
+	defer s.closeDatabases()
+	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
+	for _, topic := range []string{"backups", "home-alerts"} {
+		rr := request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"`+topic+`"}`, auth)
+		require.Equal(t, 200, rr.Code)
+	}
+	request(t, s, "PUT", "/backups", "backup failed exit 2", nil)
+	request(t, s, "PUT", "/home-alerts", "garage door open", nil)
+
+	var seenPrompt string
+	var seenTopicParam string
+	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
+		seenPrompt = req.Prompt
+		seenTopicParam = req.Prompt[:0]
+		_ = seenTopicParam
+		return &ai.Response{Text: `{"answer": "Backup failed and the garage is open.", "citations": []}`}, nil
+	})
+
+	// Cross-topic question: messages from both topics, each tagged with its topic
+	rr := request(t, s, "POST", "/v1/ai/chat", `{"all":true,"question":"anything broken at home or in backups?"}`, auth)
+	require.Equal(t, 200, rr.Code)
+	require.Contains(t, seenPrompt, "topic=backups")
+	require.Contains(t, seenPrompt, "topic=home-alerts")
+	require.Contains(t, seenPrompt, "backup failed exit 2")
+	require.Contains(t, seenPrompt, "garage door open")
+
+	var chatResponse apiAIChatResponse
+	require.Nil(t, json.NewDecoder(rr.Body).Decode(&chatResponse))
+	require.Equal(t, "Backup failed and the garage is open.", chatResponse.Answer)
+
+	// all + topic together: invalid
+	rr = request(t, s, "POST", "/v1/ai/chat", `{"all":true,"topic":"backups","question":"q"}`, auth)
+	require.Equal(t, 400, rr.Code)
+}

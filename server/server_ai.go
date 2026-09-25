@@ -20,6 +20,9 @@ import (
 // aiPingTimeout bounds the provider health check in the status endpoint.
 const aiPingTimeout = 2 * time.Second
 
+// aiChatMaxTopics caps how many topics one cross-topic chat may draw from.
+const aiChatMaxTopics = 12
+
 // aiRequestsPerDay caps AI feature requests (plans, tunes, digests) per visitor per day
 // (burst = the full daily allowance). The token budget in the ai.Client is the real cost
 // control; this keeps prompt spam from wasting even cached budget.
@@ -312,7 +315,8 @@ func (s *Server) handleAIDigest(w http.ResponseWriter, r *http.Request, v *visit
 // apiAIChatRequest is the body of POST /v1/ai/chat. History carries prior question/
 // answer pairs for follow-up questions; it is sanitized and hard-capped.
 type apiAIChatRequest struct {
-	Topic    string             `json:"topic"`
+	Topic    string             `json:"topic"` // Used when All is false
+	All      bool               `json:"all"`   // axon: ask across ALL synced subscriptions on this server
 	Question string             `json:"question"`
 	Since    string             `json:"since"` // Retrieval window; default 7d, max 30d
 	History  []apiAIChatHistory `json:"history"`
@@ -343,11 +347,14 @@ func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request, v *visitor
 		return err
 	}
 	question := strings.TrimSpace(body.Question)
-	if !topicRegex.MatchString(body.Topic) || question == "" || len(question) > 1000 {
+	if question == "" || len(question) > 1000 || (body.All && body.Topic != "") {
+		return errHTTPBadRequestAIRequest
+	}
+	if !body.All && !topicRegex.MatchString(body.Topic) {
 		return errHTTPBadRequestAIRequest
 	}
 	u := v.User()
-	if !userSubscribesTo(u, s.config.BaseURL, body.Topic) {
+	if !body.All && !userSubscribesTo(u, s.config.BaseURL, body.Topic) {
 		return errHTTPForbidden
 	}
 	if !v.aiQuotaAllowed() {
@@ -362,9 +369,35 @@ func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request, v *visitor
 		sinceDuration = parsed
 	}
 	sinceMarker := model.NewSinceTime(time.Now().Add(-1 * sinceDuration).Unix())
-	cachedMessages, _, err := s.messageCache.MessagesCapped(body.Topic, sinceMarker, false, 512*1024)
-	if err != nil {
-		return err
+	messageTopics := map[string]string{} // axon: message id -> topic (cross-topic mode)
+	var cachedMessages []*model.Message
+	if body.All {
+		if u.Prefs != nil {
+			topicsSeen := 0
+			for _, sub := range u.Prefs.Subscriptions {
+				if topicsSeen >= aiChatMaxTopics {
+					break
+				}
+				if sub.Topic == "" || (sub.BaseURL != "" && sub.BaseURL != s.config.BaseURL) {
+					continue
+				}
+				messages, _, err := s.messageCache.MessagesCapped(sub.Topic, sinceMarker, false, 128*1024)
+				if err != nil || len(messages) == 0 {
+					continue // A broken topic must not break the chat
+				}
+				topicsSeen++
+				for _, m := range messages {
+					messageTopics[m.ID] = sub.Topic
+					cachedMessages = append(cachedMessages, m)
+				}
+			}
+		}
+	} else {
+		var err error
+		cachedMessages, _, err = s.messageCache.MessagesCapped(body.Topic, sinceMarker, false, 512*1024)
+		if err != nil {
+			return err
+		}
 	}
 	if len(cachedMessages) == 0 {
 		return s.writeJSON(w, &apiAIChatResponse{
@@ -379,7 +412,11 @@ func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request, v *visitor
 		"ai_chat_topic":   body.Topic,
 		"ai_chat_context": len(context),
 	}).Debug("AI chat requested")
-	answer, err := ai.NewChatter(s.ai).Chat(r.Context(), visitorID(v.ip, v.user, v.config), body.Topic, question, toDigestMessages(context), sanitizeChatHistory(body.History))
+	chatMessages := make([]ai.DigestMessage, 0, len(context))
+	for _, m := range context {
+		chatMessages = append(chatMessages, ai.DigestMessage{ID: m.ID, Topic: messageTopics[m.ID], Title: m.Title, Message: m.Message, Priority: m.Priority, Time: m.Time})
+	}
+	answer, err := ai.NewChatter(s.ai).Chat(r.Context(), visitorID(v.ip, v.user, v.config), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
 	if err != nil {
 		return s.mapAIError(err)
 	}

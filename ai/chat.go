@@ -31,8 +31,9 @@ var ChatSchema = &Schema{
 	},
 }
 
-const chatSystemPrompt = `You answer questions about a user's notification history in one topic, based only on
-the messages provided. Respond with a single JSON object only — no prose, no markdown fences.
+const chatSystemPrompt = `You answer questions about a user's notification history, based only on
+the messages provided (they may span several topics; each message names its topic when
+relevant). Respond with a single JSON object only — no prose, no markdown fences.
 
 - "answer": a concise answer (plain text). If the messages don't contain the answer, say
   so honestly instead of guessing.
@@ -69,8 +70,9 @@ func NewChatter(client *Client) *Chatter {
 	return &Chatter{client: client}
 }
 
-// Chat answers a question given topic + context messages. Message IDs in the answer's
-// citations are validated against the provided context; invented IDs are stripped.
+// Chat answers a question given a topic ("_" or "" for cross-topic mode) and context
+// messages. Message IDs in the answer's citations are validated against the provided
+// context; invented IDs are stripped.
 func (c *Chatter) Chat(ctx context.Context, userKey, topic, question string, messages []DigestMessage, priorTurns []ChatTurn) (*ChatAnswer, error) {
 	if strings.TrimSpace(question) == "" {
 		return nil, fmt.Errorf("question is required")
@@ -105,10 +107,14 @@ func (c *Chatter) Chat(ctx context.Context, userKey, topic, question string, mes
 			text = text[:ChatMaxMessageChars]
 		}
 		timestamp := time.Unix(m.Time, 0).UTC().Format(time.RFC3339)
+		topicPrefix := ""
+		if m.Topic != "" {
+			topicPrefix = "topic=" + m.Topic + " "
+		}
 		if m.Title != "" {
-			fmt.Fprintf(&prompt, "- id=%s [%s] %s: %s\n", m.ID, timestamp, m.Title, text)
+			fmt.Fprintf(&prompt, "- id=%s %s[%s] %s: %s\n", m.ID, topicPrefix, timestamp, m.Title, text)
 		} else {
-			fmt.Fprintf(&prompt, "- id=%s [%s] %s\n", m.ID, timestamp, text)
+			fmt.Fprintf(&prompt, "- id=%s %s[%s] %s\n", m.ID, topicPrefix, timestamp, text)
 		}
 	}
 	request := &Request{

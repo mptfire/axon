@@ -103,7 +103,7 @@ func TestToolsList(t *testing.T) {
 	for _, tool := range tools {
 		names = append(names, tool.(map[string]any)["name"].(string))
 	}
-	require.Equal(t, []string{"publish", "read_messages", "subscribe_wait", "digest_topic", "briefing", "list_subscriptions", "plan_subscription"}, names)
+	require.Equal(t, []string{"publish", "read_messages", "subscribe_wait", "ask_history", "digest_topic", "briefing", "list_subscriptions", "plan_subscription"}, names)
 }
 
 func TestToolPublish(t *testing.T) {
@@ -231,6 +231,45 @@ func TestToolSubscribeWait_Timeout(t *testing.T) {
 	})
 	require.Less(t, time.Since(start), time.Second) // capped by WaitMax, not 300s
 	require.Contains(t, resultText(t, response), "timeout")
+}
+
+func TestToolAskHistory(t *testing.T) {
+	fake := fakeNtfy(t, func(w http.ResponseWriter, r *http.Request) bool {
+		if r.URL.Path == "/v1/ai/chat" && r.Method == http.MethodPost {
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			if body["all"] == true {
+				fmt.Fprintln(w, `{"answer":"All quiet.","citations":[]}`)
+				return true
+			}
+			require.Equal(t, "backups", body["topic"])
+			fmt.Fprintln(w, `{"answer":"Backup failed at 02:00.","citations":[]}`)
+			return true
+		}
+		return false
+	})
+	defer fake.Close()
+
+	s := New(Config{ServiceBaseURL: fake.URL, AccessToken: "tk_x"})
+	response := rpcCall(t, s, "1", "tools/call", map[string]any{
+		"name": "ask_history", "arguments": map[string]any{"topic": "backups", "question": "what failed?"},
+	})
+	require.False(t, isErrorResult(t, response))
+	require.Contains(t, resultText(t, response), "Backup failed")
+
+	// Cross-topic (no topic argument)
+	response = rpcCall(t, s, "2", "tools/call", map[string]any{
+		"name": "ask_history", "arguments": map[string]any{"question": "anything broken?"},
+	})
+	require.False(t, isErrorResult(t, response))
+	require.Contains(t, resultText(t, response), "All quiet")
+
+	// Anonymous + cross-topic: needs a token
+	s2 := New(Config{ServiceBaseURL: fake.URL})
+	response = rpcCall(t, s2, "3", "tools/call", map[string]any{
+		"name": "ask_history", "arguments": map[string]any{"question": "q"},
+	})
+	require.True(t, isErrorResult(t, response))
 }
 
 func TestToolDigestTopic(t *testing.T) {

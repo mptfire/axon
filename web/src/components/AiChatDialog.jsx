@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogContentText,
   DialogTitle,
+  MenuItem,
   TextField,
   Typography,
   useMediaQuery,
@@ -37,11 +38,16 @@ const AiChatPage = (props) => {
   const [answer, setAnswer] = useState(null);
   const [error, setError] = useState("");
 
+  const [allTopics, setAllTopics] = useState(false); // axon: ask across all subscriptions
+  const [thread, setThread] = useState([]); // Prior Q/A pairs, sent as history for follow-ups
+
   const handleAsk = async () => {
     setLoading(true);
     setError("");
+    const asked = question;
     try {
-      const result = await aiApi.chat(subscription.topic, question);
+      const result = await aiApi.chat(subscription.topic, asked, thread, "168h", allTopics);
+      setThread((prev) => [...prev.slice(-4), { question: asked, answer: result.answer }]);
       setAnswer(result);
       setQuestion("");
     } catch (e) {
@@ -57,6 +63,19 @@ const AiChatPage = (props) => {
       <DialogTitle>{t("ai_chat_title")}</DialogTitle>
       <DialogContent>
         <DialogContentText>{t("ai_chat_description", { topic: subscription.topic })}</DialogContentText>
+        <TextField
+          select
+          margin="dense"
+          label={t("ai_chat_scope_label")}
+          value={allTopics ? "all" : "topic"}
+          onChange={(ev) => setAllTopics(ev.target.value === "all")}
+          fullWidth
+          variant="standard"
+          disabled={loading}
+        >
+          <MenuItem value="topic">{t("ai_chat_scope_topic")}</MenuItem>
+          <MenuItem value="all">{t("ai_chat_scope_all")}</MenuItem>
+        </TextField>
         <TextField
           autoFocus
           margin="dense"
@@ -75,6 +94,11 @@ const AiChatPage = (props) => {
           disabled={loading}
           slotProps={{ htmlInput: { maxLength: 1000, "aria-label": t("ai_chat_placeholder") } }}
         />
+        {thread.length > 0 && (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            {t("ai_chat_followup_hint")}
+          </Typography>
+        )}
         {answer && (
           <div style={{ marginTop: "16px" }}>
             <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
