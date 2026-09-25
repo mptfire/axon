@@ -103,7 +103,7 @@ func TestToolsList(t *testing.T) {
 	for _, tool := range tools {
 		names = append(names, tool.(map[string]any)["name"].(string))
 	}
-	require.Equal(t, []string{"publish", "read_messages", "subscribe_wait", "digest_topic", "list_subscriptions", "plan_subscription"}, names)
+	require.Equal(t, []string{"publish", "read_messages", "subscribe_wait", "digest_topic", "briefing", "list_subscriptions", "plan_subscription"}, names)
 }
 
 func TestToolPublish(t *testing.T) {
@@ -261,6 +261,34 @@ func TestToolDigestTopic(t *testing.T) {
 	s2 := New(Config{ServiceBaseURL: fake.URL})
 	response = rpcCall(t, s2, "2", "tools/call", map[string]any{
 		"name": "digest_topic", "arguments": map[string]any{"topic": "alerts"},
+	})
+	require.True(t, isErrorResult(t, response))
+}
+
+func TestToolBriefing(t *testing.T) {
+	fake := fakeNtfy(t, func(w http.ResponseWriter, r *http.Request) bool {
+		if r.URL.Path == "/v1/ai/briefing" && r.Method == http.MethodPost {
+			if r.Header.Get("Authorization") == "" {
+				w.WriteHeader(http.StatusUnauthorized)
+				return true
+			}
+			fmt.Fprintln(w, `{"headline":"One incident","sections":[],"message_count":2,"topic_count":2,"disclaimer":"d"}`)
+			return true
+		}
+		return false
+	})
+	defer fake.Close()
+
+	s := New(Config{ServiceBaseURL: fake.URL, AccessToken: "tk_x"})
+	response := rpcCall(t, s, "1", "tools/call", map[string]any{
+		"name": "briefing", "arguments": map[string]any{"since": "168h"},
+	})
+	require.False(t, isErrorResult(t, response))
+	require.Contains(t, resultText(t, response), "One incident")
+
+	s2 := New(Config{ServiceBaseURL: fake.URL})
+	response = rpcCall(t, s2, "2", "tools/call", map[string]any{
+		"name": "briefing", "arguments": map[string]any{},
 	})
 	require.True(t, isErrorResult(t, response))
 }

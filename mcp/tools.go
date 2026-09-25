@@ -97,6 +97,16 @@ func toolDefinitions() []toolDefinition {
 			},
 		},
 		{
+			Name:        "briefing",
+			Description: "Summarize recent messages across ALL of the account's topics on this server into one briefing (AI layer required; token required).",
+			InputSchema: &inputSchema{
+				Type: "object",
+				Properties: map[string]propertySchema{
+					"since": {Type: "string", Description: `Summary window: "24h" (default), "168h", "720h", ... (max 30 days)`},
+				},
+			},
+		},
+		{
 			Name:        "list_subscriptions",
 			Description: "List the account's synced topic subscriptions. Requires an access token (--token).",
 			InputSchema: &inputSchema{Type: "object", Properties: map[string]propertySchema{}},
@@ -307,6 +317,31 @@ func (s *Server) toolDigestTopic(ctx context.Context, args map[string]any) *tool
 		return errorResult(err)
 	}
 	return textResult("Digest of topic " + strconv.Quote(topic) + ":\n" + string(digest))
+}
+
+// toolBriefing summarizes all of the account's topics via the server's AI layer.
+func (s *Server) toolBriefing(ctx context.Context, args map[string]any) *toolResult {
+	if s.config.AccessToken == "" {
+		return errorResult(errNoToken)
+	}
+	since, _ := args["since"].(string)
+	if since == "" {
+		since = "24h"
+	}
+	body, _ := json.Marshal(map[string]string{"since": since})
+	resp, err := s.do(ctx, http.MethodPost, "/v1/ai/briefing", strings.NewReader(string(body)), http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return errorResult(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return errorResult(fmt.Errorf("server returned %s: %s", resp.Status, firstKB(resp.Body)))
+	}
+	briefing, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errorResult(err)
+	}
+	return textResult("Briefing across your topics:\n" + string(briefing))
 }
 
 // toolListSubscriptions lists the account's synced subscriptions.

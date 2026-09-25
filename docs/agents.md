@@ -48,6 +48,8 @@ claude mcp add ntfy -- ntfy mcp --server https://ntfy.example.com --token tk_...
 | `read_messages`      | -           | Replay recent cached messages from a topic (`since=all`, duration, or unix time) |
 | `subscribe_wait`     | -           | Block until the next live message arrives on a topic (timeout-capped) |
 | `list_subscriptions` | token       | List the account's synced subscriptions |
+| `digest_topic`       | token       | AI summary of one topic's recent messages |
+| `briefing`           | token       | AI summary across all of the account's topics ("what did I miss?") |
 | `plan_subscription`  | -           | Turn a wish like "notify me when backups fail" into a subscription plan (AI layer required on the server) |
 
 ### Human-in-the-loop pattern
