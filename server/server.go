@@ -113,12 +113,13 @@ var (
 	apiStatsPath                                         = "/v1/stats"
 	apiWebPushPath                                       = "/v1/webpush"
 	apiTiersPath                                         = "/v1/tiers"
-	apiAIStatusPath                                      = "/v1/ai/status" // axon
-	apiAIUsagePath                                       = "/v1/ai/usage"  // axon
-	apiAIPlanPath                                        = "/v1/ai/plan"   // axon
-	apiAITunePath                                        = "/v1/ai/tune"   // axon
-	apiAIDigestPath                                      = "/v1/ai/digest" // axon
-	apiAIChatPath                                        = "/v1/ai/chat"   // axon
+	apiAIStatusPath                                      = "/v1/ai/status"   // axon
+	apiAIUsagePath                                       = "/v1/ai/usage"    // axon
+	apiAIPlanPath                                        = "/v1/ai/plan"     // axon
+	apiAITunePath                                        = "/v1/ai/tune"     // axon
+	apiAIDigestPath                                      = "/v1/ai/digest"   // axon
+	apiAIChatPath                                        = "/v1/ai/chat"     // axon
+	apiAIBriefingPath                                    = "/v1/ai/briefing" // axon
 	apiUsersPath                                         = "/v1/users"
 	apiUsersAccessPath                                   = "/v1/users/access"
 	apiAccountPath                                       = "/v1/account"
@@ -700,6 +701,8 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.limitRequests(s.handleAIDigest))))(w, r, v) // axon: digests a synced subscription
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAIChatPath {
 		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.limitRequests(s.handleAIChat))))(w, r, v) // axon: asks about a synced subscription
+	} else if r.Method == http.MethodPost && r.URL.Path == apiAIBriefingPath {
+		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.limitRequests(s.handleAIBriefing))))(w, r, v) // axon: briefing across all subscriptions
 	} else if r.Method == http.MethodGet && r.URL.Path == matrixPushPath {
 		return s.handleMatrixDiscovery(w)
 	} else if r.Method == http.MethodGet && r.URL.Path == metricsPath && s.metricsHandler != nil {

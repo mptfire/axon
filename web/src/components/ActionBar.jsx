@@ -23,6 +23,8 @@ import Navigation from "./Navigation";
 import accountApi from "../app/AccountApi";
 import PopupMenu from "./PopupMenu";
 import { SubscriptionPopup } from "./SubscriptionPopup";
+import AiBriefingDialog from "./AiBriefingDialog";
+import SummarizeIcon from "@mui/icons-material/Summarize";
 import { useIsLaunchedPWA } from "./hooks";
 
 const ActionBar = (props) => {
@@ -54,6 +56,8 @@ const ActionBar = (props) => {
         return "linear-gradient(150deg, #338574 0%, #56bda8 100%)";
     }
   };
+
+  const showBriefing = !props.selected && config.enable_ai && session.exists(); // axon: briefing across topics
 
   return (
     <AppBar
@@ -93,10 +97,25 @@ const ActionBar = (props) => {
           {title}
         </Typography>
         {isLaunchedPWA && <ReloadIcon />}
+        {showBriefing && <BriefingIcon />}
         {props.selected && <SettingsIcons subscription={props.selected} onUnsubscribe={props.onUnsubscribe} />}
         <ProfileIcon />
       </Toolbar>
     </AppBar>
+  );
+};
+
+// BriefingIcon opens the cross-topic AI briefing dialog (axon, main screen only).
+const BriefingIcon = () => {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <IconButton color="inherit" size="large" edge="end" onClick={() => setOpen(true)} aria-label={t("ai_briefing_action_bar_label")}>
+        <SummarizeIcon />
+      </IconButton>
+      <AiBriefingDialog open={open} onClose={() => setOpen(false)} />
+    </>
   );
 };
 

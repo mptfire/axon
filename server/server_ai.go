@@ -480,6 +480,71 @@ func questionTokens(question string) []string {
 	return tokens
 }
 
+// apiAIBriefingRequest is the body of POST /v1/ai/briefing.
+type apiAIBriefingRequest struct {
+	Since string `json:"since"` // Duration like "24h" or "7d"; default 24h, max 30d
+}
+
+// handleAIBriefing summarizes recent messages across ALL of the user's subscriptions on
+// this server (POST /v1/ai/briefing) — the "what did I miss?" view. Requires an account.
+func (s *Server) handleAIBriefing(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	body, err := readJSONWithLimit[apiAIBriefingRequest](r.Body, jsonBodyBytesLimit, false)
+	if err != nil {
+		return err
+	}
+	if !v.aiQuotaAllowed() {
+		return errHTTPTooManyRequestsLimitAIRequests
+	}
+	sinceDuration := 24 * time.Hour
+	if body.Since != "" {
+		parsed, err := time.ParseDuration(body.Since)
+		if err != nil || parsed < time.Hour || parsed > 30*24*time.Hour {
+			return errHTTPBadRequestAIRequest
+		}
+		sinceDuration = parsed
+	}
+	sinceMarker := model.NewSinceTime(time.Now().Add(-1 * sinceDuration).Unix())
+	u := v.User()
+	topics := make([]ai.BriefingTopicMessages, 0, len(u.Prefs.Subscriptions))
+	totalMessages := 0
+	if u.Prefs != nil {
+		for _, sub := range u.Prefs.Subscriptions {
+			if len(topics) >= ai.BriefingMaxTopics {
+				break // Cost cap: a briefing covers at most BriefingMaxTopics topics
+			}
+			if sub.Topic == "" || (sub.BaseURL != "" && sub.BaseURL != s.config.BaseURL) {
+				continue // Other-server subscriptions are not ours to read
+			}
+			cachedMessages, _, err := s.messageCache.MessagesCapped(sub.Topic, sinceMarker, false, 128*1024)
+			if err != nil {
+				return err
+			}
+			if len(cachedMessages) == 0 {
+				continue
+			}
+			topics = append(topics, ai.BriefingTopicMessages{Topic: sub.Topic, Messages: toDigestMessages(cachedMessages)})
+			totalMessages += len(cachedMessages)
+		}
+	}
+	log.Tag(tagAI).With(v).Fields(log.Context{
+		"ai_feature":         string(ai.FeatureDigest),
+		"ai_briefing_topics": len(topics),
+		"ai_briefing_count":  totalMessages,
+	}).Debug("AI briefing requested")
+	if totalMessages == 0 {
+		// Nothing in the window: answer without spending provider budget
+		return s.writeJSON(w, &ai.BriefingResult{
+			Headline:   "No messages in this period.",
+			Disclaimer: ai.BriefingDisclaimer,
+		})
+	}
+	briefing, err := ai.NewBriefinger(s.ai).Briefing(r.Context(), visitorID(v.ip, v.user, v.config), &ai.BriefingInput{Topics: topics})
+	if err != nil {
+		return s.mapAIError(err)
+	}
+	return s.writeJSON(w, briefing)
+}
+
 // userSubscribesTo reports whether the user has a synced subscription for the topic.
 func userSubscribesTo(u *user.User, baseURL, topic string) bool {
 	if u == nil || u.Prefs == nil {
