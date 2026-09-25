@@ -511,5 +511,11 @@
   "ai_chat_button": "Ask",
   "ai_chat_button_again": "Ask again",
   "ai_chat_citations_label": "Cited messages:",
-  "ai_chat_disclaimer_prefix": "AI-generated"
+  "ai_chat_disclaimer_prefix": "AI-generated",
+  "ai_briefing_button": "Brief me",
+  "ai_briefing_title": "AI briefing",
+  "ai_briefing_description": "Summarize the recent messages across all your topics on this server into one briefing.",
+  "ai_briefing_range_label": "Cover the last",
+  "ai_briefing_button_again": "Brief me again",
+  "ai_briefing_action_bar_label": "AI briefing across your topics"
 }
