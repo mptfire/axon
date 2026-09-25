@@ -96,7 +96,7 @@ func (p *anthropicProvider) Complete(ctx context.Context, req *Request) (*Respon
 			system += m.Content
 			continue
 		}
-		messages = append(messages, anthropicMessage{Role: m.Role, Content: m.Content})
+		messages = append(messages, anthropicMessage(m)) // identical field layout (S1016)
 	}
 	if len(req.Messages) == 0 && req.Prompt != "" {
 		messages = append(messages, anthropicMessage{Role: RoleUser, Content: req.Prompt})

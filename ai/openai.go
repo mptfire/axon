@@ -115,7 +115,7 @@ func (p *openAIProvider) Complete(ctx context.Context, req *Request) (*Response,
 		messages = append(messages, openAIMessage{Role: RoleSystem, Content: req.System})
 	}
 	for _, m := range req.Messages {
-		messages = append(messages, openAIMessage{Role: m.Role, Content: m.Content})
+		messages = append(messages, openAIMessage(m)) // identical field layout (S1016)
 	}
 	if len(req.Messages) == 0 && req.Prompt != "" {
 		messages = append(messages, openAIMessage{Role: RoleUser, Content: req.Prompt})
@@ -177,7 +177,7 @@ func (p *openAIProvider) Stream(ctx context.Context, req *Request) (<-chan Strea
 		messages = append(messages, openAIMessage{Role: RoleSystem, Content: req.System})
 	}
 	for _, m := range req.Messages {
-		messages = append(messages, openAIMessage{Role: m.Role, Content: m.Content})
+		messages = append(messages, openAIMessage(m)) // identical field layout (S1016)
 	}
 	if len(req.Messages) == 0 && req.Prompt != "" {
 		messages = append(messages, openAIMessage{Role: RoleUser, Content: req.Prompt})
