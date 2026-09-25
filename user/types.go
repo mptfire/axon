@@ -148,10 +148,11 @@ type Prefs struct {
 // by the server; clients set Enabled, Hour (UTC 0-23) and SinceHours (24-720).
 type DigestPrefs struct {
 	Enabled    *bool   `json:"enabled,omitempty"`
-	Hour       *int    `json:"hour,omitempty"`        // UTC hour of delivery
+	Hour       *int    `json:"hour,omitempty"`        // Delivery hour in Timezone (default 8)
+	Timezone   *string `json:"timezone,omitempty"`    // IANA name, e.g. "Europe/Berlin" (default UTC)
 	SinceHours *int    `json:"since_hours,omitempty"` // Briefing window
 	Topic      *string `json:"topic,omitempty"`       // Private delivery topic (server-provisioned)
-	LastDaily  *string `json:"last_daily,omitempty"`  // Last delivered day, "2006-01-02" (UTC)
+	LastDaily  *string `json:"last_daily,omitempty"`  // Last delivered day, "2006-01-02" in Timezone
 }
 
 // Tier represents a user's account type, including its account limits

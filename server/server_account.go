@@ -435,6 +435,21 @@ func (s *Server) handleAccountSettingsChange(w http.ResponseWriter, r *http.Requ
 			}
 			prefs.Digest.Hour = &hour
 		}
+		if newPrefs.Digest.Timezone != nil {
+			tz := strings.TrimSpace(*newPrefs.Digest.Timezone)
+			if tz == "" {
+				log.Tag("axon-debug").Field("tz_in", tz).Info("TZ RESET BRANCH HIT")
+				prefs.Digest.Timezone = nil // Reset to UTC
+			} else {
+				if len(tz) > 64 {
+					return errHTTPBadRequestAIRequest
+				}
+				if _, err := time.LoadLocation(tz); err != nil {
+					return errHTTPBadRequestAIRequest // Unknown IANA zone
+				}
+				prefs.Digest.Timezone = &tz
+			}
+		}
 		if newPrefs.Digest.SinceHours != nil {
 			hours := *newPrefs.Digest.SinceHours
 			if hours < 24 || hours > 720 {

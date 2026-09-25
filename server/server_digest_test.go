@@ -120,3 +120,51 @@ func TestServer_AI_DigestScheduler_QuietDay(t *testing.T) {
 	require.Nil(t, json.NewDecoder(rr.Body).Decode(&account))
 	require.NotNil(t, account.Digest.LastDaily) // Marked sent even though nothing was delivered
 }
+
+func TestServer_AI_DigestScheduler_Timezone(t *testing.T) {
+	// Berlin is UTC+2 in September: local hour 8 == 06:00 UTC
+	c := newTestConfigWithAuthFile(t, "")
+	c.AIEnabled = true
+	c.AIProvider = "mock"
+	s := newTestServer(t, c)
+	defer s.closeDatabases()
+	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
+	request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"backups"}`, auth)
+	request(t, s, "PUT", "/backups", "backup failed", nil)
+
+	rr := request(t, s, "PATCH", "/v1/account/settings", `{"digest":{"enabled":true,"hour":8,"timezone":"Europe/Berlin"}}`, auth)
+	require.Equal(t, 200, rr.Code)
+
+	// 05:00 UTC = 07:00 Berlin: not due
+	nowUTC := time.Date(2026, 9, 25, 5, 0, 0, 0, time.UTC)
+	u, _ := s.userManager.User("phil")
+	_, due := digestDue(u, nowUTC)
+	require.False(t, due)
+
+	// 06:00 UTC = 08:00 Berlin: due
+	nowUTC = time.Date(2026, 9, 25, 6, 0, 0, 0, time.UTC)
+	_, due = digestDue(u, nowUTC)
+	require.True(t, due)
+
+	// Invalid timezone rejected
+	rr = request(t, s, "PATCH", "/v1/account/settings", `{"digest":{"timezone":"Mars/Olympus"}}`, auth)
+	require.Equal(t, 400, rr.Code)
+
+	// Valid timezone stored, empty resets to UTC
+	rr = request(t, s, "PATCH", "/v1/account/settings", `{"digest":{"timezone":"Asia/Tokyo"}}`, auth)
+	require.Equal(t, 200, rr.Code)
+	rr = request(t, s, "GET", "/v1/account", "", auth)
+	var account apiAccountResponse
+	require.Nil(t, json.NewDecoder(rr.Body).Decode(&account))
+	require.Equal(t, "Asia/Tokyo", *account.Digest.Timezone)
+	rr = request(t, s, "PATCH", "/v1/account/settings", `{"digest":{"timezone":""}}`, auth)
+	require.Equal(t, 200, rr.Code)
+	rr = request(t, s, "GET", "/v1/account", "", auth)
+	account = apiAccountResponse{} // fresh decode target: absent JSON fields must not retain old values
+	require.Nil(t, json.NewDecoder(rr.Body).Decode(&account))
+	freshUser, _ := s.userManager.User("phil")
+	require.Nil(t, freshUser.Prefs.Digest.Timezone) // DB: timezone cleared
+	require.Nil(t, account.Digest.Timezone)         // API: timezone cleared, other prefs preserved
+	require.True(t, *account.Digest.Enabled)
+}

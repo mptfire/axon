@@ -529,5 +529,7 @@
   "prefs_digest_since_description": "How far back the briefing looks.",
   "prefs_digest_since_24h": "Last 24 hours",
   "prefs_digest_since_7d": "Last 7 days",
-  "prefs_digest_since_30d": "Last 30 days"
+  "prefs_digest_since_30d": "Last 30 days",
+  "prefs_digest_tz_title": "Timezone",
+  "prefs_digest_tz_description": "The delivery hour is evaluated in this timezone."
 }

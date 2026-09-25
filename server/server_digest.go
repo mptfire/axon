@@ -60,33 +60,51 @@ func (s *Server) sendDueBriefings() {
 		return
 	}
 	now := time.Now().UTC()
-	today := now.Format(digestDayFormat)
 	for _, u := range users {
-		if !digestDue(u, now, today) {
+		localNow, due := digestDue(u, now)
+		if !due {
 			continue
 		}
+		today := localNow.Format(digestDayFormat) // User-local day: the dedup marker
 		if err := s.sendDailyBriefing(u, today); err != nil {
 			log.Tag(tagAI).Err(err).Field("user", u.Name).Warn("Daily briefing failed")
 			continue
 		}
-		log.Tag(tagAI).Field("user", u.Name).Info("Daily briefing delivered")
+		log.Tag(tagAI).Field("user", u.Name).Field("digest_tz", localNow.Location().String()).Info("Daily briefing delivered")
 	}
 }
 
 // digestDue reports whether the user's briefing is due this hour and hasn't been
-// delivered today.
-func digestDue(u *user.User, now time.Time, today string) bool {
+// delivered on their local day yet. The hour (and the "day" boundary) are evaluated in
+// the user's IANA timezone when set, UTC otherwise.
+func digestDue(u *user.User, nowUTC time.Time) (time.Time, bool) {
 	if u == nil || u.Prefs == nil || u.Prefs.Digest == nil || u.Prefs.Digest.Enabled == nil || !*u.Prefs.Digest.Enabled {
-		return false
+		return nowUTC, false
 	}
+	loc := digestLocation(u)
+	localNow := nowUTC.In(loc)
 	hour := digestHourFallback
 	if u.Prefs.Digest.Hour != nil {
 		hour = *u.Prefs.Digest.Hour
 	}
-	if now.Hour() != hour {
-		return false
+	if localNow.Hour() != hour {
+		return localNow, false
 	}
-	return u.Prefs.Digest.LastDaily == nil || *u.Prefs.Digest.LastDaily != today
+	today := localNow.Format(digestDayFormat)
+	if u.Prefs.Digest.LastDaily != nil && *u.Prefs.Digest.LastDaily == today {
+		return localNow, false
+	}
+	return localNow, true
+}
+
+// digestLocation resolves the user's configured IANA timezone, falling back to UTC.
+func digestLocation(u *user.User) *time.Location {
+	if u != nil && u.Prefs != nil && u.Prefs.Digest != nil && u.Prefs.Digest.Timezone != nil {
+		if loc, err := time.LoadLocation(*u.Prefs.Digest.Timezone); err == nil {
+			return loc
+		}
+	}
+	return time.UTC
 }
 
 // sendDailyBriefing gathers, generates, delivers, and marks today's briefing for one

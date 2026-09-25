@@ -82,16 +82,44 @@ const Preferences = () => (
 // DailyBriefing (axon): the scheduled cross-topic briefing. Settings live in the
 // account (prefs.digest) and sync to all devices; the server delivers the briefing
 // to a private per-user topic at the configured UTC hour.
+const browserTimezone = () => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+};
+
+const COMMON_TIMEZONES = [
+  "UTC",
+  "Europe/Berlin",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Madrid",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Sao_Paulo",
+  "Asia/Dubai",
+  "Asia/Kolkata",
+  "Asia/Singapore",
+  "Asia/Tokyo",
+  "Australia/Sydney",
+];
+
 const DailyBriefing = () => {
   const { t } = useTranslation();
   const { account } = useContext(AccountContext);
   const digest = account?.digest ?? {};
+  const detectedTz = browserTimezone();
   const [enabled, setEnabled] = useState(digest.enabled ?? false);
   const [hour, setHour] = useState(digest.hour ?? 8);
+  const [timezone, setTimezone] = useState(digest.timezone ?? detectedTz);
   const [sinceHours, setSinceHours] = useState(digest.since_hours ?? 24);
 
   const update = async (patch) => {
-    await maybeUpdateAccountSettings({ digest: { enabled, hour, since_hours: sinceHours, ...patch } });
+    await maybeUpdateAccountSettings({ digest: { enabled, hour, timezone, since_hours: sinceHours, ...patch } });
   };
 
   return (
@@ -118,6 +146,25 @@ const DailyBriefing = () => {
         </Pref>
         {enabled && (
           <>
+            <Pref labelId="prefDigestTimezone" title={t("prefs_digest_tz_title")} description={t("prefs_digest_tz_description")}>
+              <FormControl variant="standard" sx={{ m: 1, minWidth: 220 }}>
+                <Select
+                  value={timezone}
+                  onChange={(ev) => {
+                    const next = ev.target.value;
+                    setTimezone(next);
+                    update({ timezone: next });
+                  }}
+                  aria-label={t("prefs_digest_tz_title")}
+                >
+                  {(COMMON_TIMEZONES.includes(timezone) ? COMMON_TIMEZONES : [timezone, ...COMMON_TIMEZONES]).map((tz) => (
+                    <MenuItem key={tz} value={tz}>
+                      {tz}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Pref>
             <Pref labelId="prefDigestHour" title={t("prefs_digest_hour_title")} description={t("prefs_digest_hour_description")}>
               <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
                 <Select
