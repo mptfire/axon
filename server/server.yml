@@ -573,6 +573,13 @@
 #    - home-alerts
 # ai-inline-timeout: 2s
 #
+# Optional translation (axon): topics listed here get their enriched messages
+# translated into ai-translate-lang; the translated body precedes the original.
+#
+# ai-translate-topics:
+#    - prod-alerts
+# ai-translate-lang: de
+#
 # ai-request-timeout: 10s
 # ai-visitor-daily-token-budget: 20000
 # ai-global-daily-token-budget: 2000000

@@ -258,6 +258,8 @@ type Config struct {
 	AIInlineTimeout           time.Duration // Hard deadline for inline (publish-path) AI calls
 	AIEnrichmentEnabled       bool          // Enable inline AI enrichment on the publish path
 	AIEnrichTopics            []string      // Topics eligible for AI enrichment (exact match)
+	AITranslateTopics         []string      // axon: Topics whose enriched messages are also translated
+	AITranslateLang           string        // axon: Target language for ai-translate-topics, e.g. "de" or "German"
 	AIVisitorDailyTokenBudget int64         // Daily token budget per visitor (input+output); 0 = unlimited
 	AIGlobalDailyTokenBudget  int64         // Daily token budget server-wide (input+output); 0 = unlimited
 	AICacheSize               int64         // AI response cache size in bytes
@@ -384,6 +386,8 @@ func NewConfig() *Config {
 		AIInlineTimeout:           DefaultAIInlineTimeout,
 		AIEnrichmentEnabled:       false,
 		AIEnrichTopics:            nil,
+		AITranslateTopics:         nil,
+		AITranslateLang:           "",
 		AIVisitorDailyTokenBudget: DefaultAIVisitorDailyTokenBudget,
 		AIGlobalDailyTokenBudget:  DefaultAIGlobalDailyTokenBudget,
 		AICacheSize:               DefaultAICacheSize,

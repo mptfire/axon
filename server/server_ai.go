@@ -112,9 +112,13 @@ func (s *Server) maybeEnrichMessage(m *model.Message) {
 	if len(m.Message) < aiEnrichMinMessageLen || m.Title != "" {
 		return // Nothing to summarize, or the publisher already chose a title
 	}
+	translateTo := ""
+	if slices.Contains(s.config.AITranslateTopics, m.Topic) {
+		translateTo = s.config.AITranslateLang
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), s.config.AIInlineTimeout)
 	defer cancel()
-	enrichment, err := ai.NewEnricher(s.ai).Enrich(ctx, m.Topic, m.Title, m.Message)
+	enrichment, err := ai.NewEnricher(s.ai).Enrich(ctx, &ai.EnrichRequest{Topic: m.Topic, Title: m.Title, Message: m.Message, TranslateTo: translateTo})
 	if err != nil {
 		log.Tag(tagAI).Err(err).Field("topic", m.Topic).Field("message_id", m.ID).Debug("AI enrichment skipped, passing through")
 		metrics.AIEnrichmentPassThrough.Inc()
@@ -124,6 +128,10 @@ func (s *Server) maybeEnrichMessage(m *model.Message) {
 		m.Priority = enrichment.Priority // Never override an explicit publisher priority
 	}
 	m.Title = enrichment.Summary
+	if enrichment.Translation != "" {
+		// Translated body first, original preserved below
+		m.Message = enrichment.Translation + "\n\n" + m.Message
+	}
 	metrics.AIEnrichmentApplied.Inc()
 	log.Tag(tagAI).Field("topic", m.Topic).Field("message_id", m.ID).Field("ai_feature", string(ai.FeatureEnrich)).Debug("AI enrichment applied")
 }

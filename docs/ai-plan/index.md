@@ -75,7 +75,7 @@ New pieces introduced by this plan (nothing upstream is replaced):
 | 0 | [Foundation & fork plumbing](phase-0-foundation.md) | Identity, CI, docs home, upstream-sync policy | — | S | ✅ Done (name: `axon`) |
 | 1 | [AI provider layer](phase-1-ai-provider-layer.md) | `ai/` package, provider config, budgets, `/v1/ai/status` | 0 | M | ✅ Done |
 | 2 | [AI subscription setup](phase-2-ai-subscription-setup.md) | **Headline:** natural-language subscription wizard in web app + `/v1/ai/plan` | 1 | M | ✅ Done (wizard, tune UI, refinement, per-subscription `?q=` filters) |
-| 3 | [Smart delivery](phase-3-smart-delivery.md) | Summarize / classify / correlate / translate on the message path | 1 | L | 🔧 First slice: inline summarize/classify with pass-through landed |
+| 3 | [Smart delivery](phase-3-smart-delivery.md) | Summarize / classify / correlate / translate on the message path | 1 | L | ✅ Summarize/classify/translate landed; correlation (needs embeddings/semantics) is the one open item |
 | 4 | [Digests & briefings](phase-4-digests-briefings.md) | Scheduled AI digests per user | 3 | M | 🔧 On-demand digest + cross-topic briefing (`/v1/ai/digest`, `/v1/ai/briefing`) landed; scheduled delivery pending |
 | 5 | [Chat with your notifications](phase-5-chat-with-notifications.md) | Conversational Q&A / search over history (streaming) | 1 | M | ✅ Cited multi-turn Q&A per topic and cross-topic, SSE-streamed answers with inline citations, web dialog, MCP `ask_history` (embeddings optional future) |
 | 6 | [Agents & MCP](phase-6-agents-mcp.md) | `ntfy mcp`, scoped agent tokens, agent docs | 1, 2 | M | ✅ Done: `ntfy mcp` + `--scope` agent tokens (fork migration 9→10) + [docs/agents.md](../agents.md) |

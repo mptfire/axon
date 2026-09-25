@@ -2462,7 +2462,9 @@ variable before running the `ntfy` command (e.g. `export NTFY_LISTEN_HTTP=:80`).
 | `ai-request-timeout`                       | `NTFY_AI_REQUEST_TIMEOUT`                       | *duration*                                          | 10s               | AI: Hard deadline per AI provider request                                                                                                                                                                                                |
 | `ai-inline-timeout`                        | `NTFY_AI_INLINE_TIMEOUT`                        | *duration*                                          | 2s                | AI: Budget for inline AI calls on the publish path. If the provider is slower, the original message is delivered unchanged.                                                                                                               |
 | `ai-enrichment-enabled`                    | `NTFY_AI_ENRICHMENT_ENABLED`                    | *boolean* (`true` or `false`)                       | `false`           | AI: If set, publishes to `ai-enrich-topics` are summarized and importance-classified inline (summary becomes the message title). See [AI features](#ai-features-nfty-fork).                                                               |
-| `ai-enrich-topics`                         | `NTFY_AI_ENRICH_TOPICS`                         | *list of topics*                                    | -                 | AI: Topics eligible for inline AI enrichment (exact match)                                                                                                                                                                                                |
+| `ai-enrich-topics`                         | `NTFY_AI_ENRICH_TOPICS`                         | *list of topics*                                    | -                 | AI: Topics eligible for inline AI enrichment (exact match)                                                                                                                                                                                |
+| `ai-translate-topics`                      | `NTFY_AI_TRANSLATE_TOPICS`                      | *list of topics*                                    | -                 | AI: Topics whose enriched messages are also translated (subset of `ai-enrich-topics`; requires `ai-translate-lang`)                                                                                                                       |
+| `ai-translate-lang`                        | `NTFY_AI_TRANSLATE_LANG`                        | *string*                                            | -                 | AI: Target language for `ai-translate-topics`, e.g. `de` or `German`. The translated body precedes the original message.                                                                                                                                                                                                |
 | `ai-visitor-daily-token-budget`            | `NTFY_AI_VISITOR_DAILY_TOKEN_BUDGET`            | *number*                                            | 20000             | AI: Daily token budget per visitor (input+output). `0` disables the limit. Breaches return HTTP 429.                                                                                                                                     |
 | `ai-global-daily-token-budget`             | `NTFY_AI_GLOBAL_DAILY_TOKEN_BUDGET`             | *number*                                            | 2000000           | AI: Daily token budget server-wide (input+output). `0` disables the limit.                                                                                                                                                               |
 | `ai-cache-size`                            | `NTFY_AI_CACHE_SIZE`                            | *size*                                              | 100M              | AI: Size of the in-memory AI response cache. Identical requests (e.g. alert storms) hit the provider only once.                                                                                                                          |
@@ -2474,6 +2476,142 @@ The format for a *duration* is: `<number>(smhd)`, e.g. 30s, 20m, 1h or 3d.
 The format for a *size* is: `<number>(GMK)`, e.g. 1G, 200M or 4000k.
 
 ## Command line options
+```
+NAME:
+   ntfy serve - Run the ntfy server
+
+USAGE:
+   ntfy serve [OPTIONS..]
+
+CATEGORY:
+   Server commands
+
+DESCRIPTION:
+   Run the ntfy server and listen for incoming requests
+
+   The command will load the configuration from /etc/ntfy/server.yml. Config options can 
+   be overridden using the command line options.
+
+   Examples:
+     ntfy serve                      # Starts server in the foreground (on port 80)
+     ntfy serve --listen-http :8080  # Starts server with alternate port
+
+OPTIONS:
+   --debug, -d                                                                                                                    enable debug logging (default: false) [$NTFY_DEBUG]
+   --trace                                                                                                                        enable tracing (very verbose, be careful) (default: false) [$NTFY_TRACE]
+   --no-log-dates, --no_log_dates                                                                                                 disable the date/time prefix (default: false) [$NTFY_NO_LOG_DATES]
+   --log-level value, --log_level value                                                                                           set log level (default: "INFO") [$NTFY_LOG_LEVEL]
+   --log-level-overrides value, --log_level_overrides value [ --log-level-overrides value, --log_level_overrides value ]          set log level overrides [$NTFY_LOG_LEVEL_OVERRIDES]
+   --log-format value, --log_format value                                                                                         set log format (default: "text") [$NTFY_LOG_FORMAT]
+   --log-file value, --log_file value                                                                                             set log file, default is STDOUT [$NTFY_LOG_FILE]
+   --config value, -c value                                                                                                       config file (default: "/etc/ntfy/server.yml") [$NTFY_CONFIG_FILE]
+   --base-url value, --base_url value, -B value                                                                                   externally visible base URL for this host (e.g. https://ntfy.sh) [$NTFY_BASE_URL]
+   --listen-http value, --listen_http value, -l value                                                                             ip:port used as HTTP listen address (default: ":80") [$NTFY_LISTEN_HTTP]
+   --listen-https value, --listen_https value, -L value                                                                           ip:port used as HTTPS listen address [$NTFY_LISTEN_HTTPS]
+   --listen-unix value, --listen_unix value, -U value                                                                             listen on unix socket path [$NTFY_LISTEN_UNIX]
+   --listen-unix-mode value, --listen_unix_mode value                                                                             file permissions of unix socket, e.g. 0700 (default: system default) [$NTFY_LISTEN_UNIX_MODE]
+   --key-file value, --key_file value, -K value                                                                                   private key file, if listen-https is set [$NTFY_KEY_FILE]
+   --cert-file value, --cert_file value, -E value                                                                                 certificate file, if listen-https is set [$NTFY_CERT_FILE]
+   --firebase-key-file value, --firebase_key_file value, -F value                                                                 Firebase credentials file; if set additionally publish to FCM topic [$NTFY_FIREBASE_KEY_FILE]
+   --database-url value, --database_url value                                                                                     PostgreSQL connection string for database-backed stores (e.g. postgres://user:pass@host:5432/ntfy) [$NTFY_DATABASE_URL]
+   --database-replica-urls value, --database_replica_urls value [ --database-replica-urls value, --database_replica_urls value ]  PostgreSQL read replica connection strings for offloading read queries [$NTFY_DATABASE_REPLICA_URLS]
+   --cache-file value, --cache_file value, -C value                                                                               cache file used for message caching [$NTFY_CACHE_FILE]
+   --cache-duration since, --cache_duration since, -b since                                                                       buffer messages for this time to allow since requests (default: "12h") [$NTFY_CACHE_DURATION]
+   --cache-batch-size value, --cache_batch_size value                                                                             max size of messages to batch together when writing to message cache (if zero, writes are synchronous) (default: 0) [$NTFY_BATCH_SIZE]
+   --cache-batch-timeout value, --cache_batch_timeout value                                                                       timeout for batched async writes to the message cache (if zero, writes are synchronous) (default: "0s") [$NTFY_CACHE_BATCH_TIMEOUT]
+   --cache-startup-queries value, --cache_startup_queries value                                                                   queries run when the cache database is initialized [$NTFY_CACHE_STARTUP_QUERIES]
+   --auth-file value, --auth_file value, -H value                                                                                 auth database file used for access control [$NTFY_AUTH_FILE]
+   --auth-startup-queries value, --auth_startup_queries value                                                                     queries run when the auth database is initialized [$NTFY_AUTH_STARTUP_QUERIES]
+   --auth-default-access value, --auth_default_access value, -p value                                                             default permissions if no matching entries in the auth database are found (default: "read-write") [$NTFY_AUTH_DEFAULT_ACCESS]
+   --auth-users value, --auth_users value [ --auth-users value, --auth_users value ]                                              pre-provisioned declarative users [$NTFY_AUTH_USERS]
+   --auth-access value, --auth_access value [ --auth-access value, --auth_access value ]                                          pre-provisioned declarative access control entries [$NTFY_AUTH_ACCESS]
+   --auth-tokens value, --auth_tokens value [ --auth-tokens value, --auth_tokens value ]                                          pre-provisioned declarative access tokens [$NTFY_AUTH_TOKENS]
+   --auth-access-cache, --auth_access_cache                                                                                       enables the in-memory ACL cache (high-volume servers only) (default: false) [$NTFY_AUTH_ACCESS_CACHE]
+   --attachment-cache-dir value, --attachment_cache_dir value                                                                     cache directory for attached files, or S3 URL (s3://ACCESS_KEY:SECRET_KEY@BUCKET[/PREFIX]?region=REGION[&endpoint=ENDPOINT]) [$NTFY_ATTACHMENT_CACHE_DIR]
+   --attachment-total-size-limit value, --attachment_total_size_limit value, -A value                                             limit of the on-disk attachment cache (default: "5G") [$NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT]
+   --attachment-file-size-limit value, --attachment_file_size_limit value, -Y value                                               per-file attachment size limit (e.g. 300k, 2M, 100M) (default: "15M") [$NTFY_ATTACHMENT_FILE_SIZE_LIMIT]
+   --attachment-expiry-duration value, --attachment_expiry_duration value, -X value                                               duration after which uploaded attachments will be deleted (e.g. 3h, 20h) (default: "3h") [$NTFY_ATTACHMENT_EXPIRY_DURATION]
+   --template-dir value, --template_dir value                                                                                     directory to load named message templates from (default: "/etc/ntfy/templates") [$NTFY_TEMPLATE_DIR]
+   --keepalive-interval value, --keepalive_interval value, -k value                                                               interval of keepalive messages (default: "45s") [$NTFY_KEEPALIVE_INTERVAL]
+   --manager-interval value, --manager_interval value, -m value                                                                   interval of for message pruning and stats printing (default: "1m") [$NTFY_MANAGER_INTERVAL]
+   --disallowed-topics value, --disallowed_topics value [ --disallowed-topics value, --disallowed_topics value ]                  topics that are not allowed to be used [$NTFY_DISALLOWED_TOPICS]
+   --web-root value, --web_root value                                                                                             sets root of the web app (e.g. /, or /app), or disables it (disable) (default: "/") [$NTFY_WEB_ROOT]
+   --enable-signup, --enable_signup                                                                                               allows users to sign up via the web app, or API (default: false) [$NTFY_ENABLE_SIGNUP]
+   --enable-login, --enable_login                                                                                                 allows users to log in via the web app, or API (default: false) [$NTFY_ENABLE_LOGIN]
+   --enable-reservations, --enable_reservations                                                                                   allows users to reserve topics (if their tier allows it) (default: false) [$NTFY_ENABLE_RESERVATIONS]
+   --require-login, --require_login                                                                                               all actions via the web app requires a login (default: false) [$NTFY_REQUIRE_LOGIN]
+   --upstream-base-url value, --upstream_base_url value                                                                           forward poll request to an upstream server, this is needed for iOS push notifications for self-hosted servers [$NTFY_UPSTREAM_BASE_URL]
+   --upstream-access-token value, --upstream_access_token value                                                                   access token to use for the upstream server; needed only if upstream rate limits are exceeded or upstream server requires auth [$NTFY_UPSTREAM_ACCESS_TOKEN]
+   --smtp-sender-addr value, --smtp_sender_addr value                                                                             SMTP server address (host:port) for outgoing emails [$NTFY_SMTP_SENDER_ADDR]
+   --smtp-sender-user value, --smtp_sender_user value                                                                             SMTP user (if e-mail sending is enabled) [$NTFY_SMTP_SENDER_USER]
+   --smtp-sender-pass value, --smtp_sender_pass value                                                                             SMTP password (if e-mail sending is enabled) [$NTFY_SMTP_SENDER_PASS]
+   --smtp-sender-from value, --smtp_sender_from value                                                                             SMTP sender address (if e-mail sending is enabled) [$NTFY_SMTP_SENDER_FROM]
+   --smtp-sender-verify, --smtp_sender_verify                                                                                     require verified email addresses for sending email notifications (default: false) [$NTFY_SMTP_SENDER_VERIFY]
+   --smtp-server-listen value, --smtp_server_listen value                                                                         SMTP server address (ip:port) for incoming emails, e.g. :25 [$NTFY_SMTP_SERVER_LISTEN]
+   --smtp-server-domain value, --smtp_server_domain value                                                                         SMTP domain for incoming e-mail, e.g. ntfy.sh [$NTFY_SMTP_SERVER_DOMAIN]
+   --smtp-server-addr-prefix value, --smtp_server_addr_prefix value                                                               SMTP email address prefix for topics to prevent spam (e.g. 'ntfy-') [$NTFY_SMTP_SERVER_ADDR_PREFIX]
+   --twilio-account value, --twilio_account value                                                                                 Twilio account SID, used for phone calls, e.g. AC123... [$NTFY_TWILIO_ACCOUNT]
+   --twilio-auth-token value, --twilio_auth_token value                                                                           Twilio auth token [$NTFY_TWILIO_AUTH_TOKEN]
+   --twilio-phone-number value, --twilio_phone_number value                                                                       Twilio number to use for outgoing calls [$NTFY_TWILIO_PHONE_NUMBER]
+   --twilio-verify-service value, --twilio_verify_service value                                                                   Twilio Verify service ID, used for phone number verification [$NTFY_TWILIO_VERIFY_SERVICE]
+   --twilio-call-format value, --twilio_call_format value                                                                         Twilio/TwiML format string for phone calls [$NTFY_TWILIO_CALL_FORMAT]
+   --message-size-limit value, --message_size_limit value                                                                         size limit for the message (see docs for limitations) (default: "4K") [$NTFY_MESSAGE_SIZE_LIMIT]
+   --message-delay-limit value, --message_delay_limit value                                                                       max duration a message can be scheduled into the future (default: "3d") [$NTFY_MESSAGE_DELAY_LIMIT]
+   --global-topic-limit value, --global_topic_limit value, -T value                                                               total number of topics allowed (default: 15000) [$NTFY_GLOBAL_TOPIC_LIMIT]
+   --visitor-subscription-limit value, --visitor_subscription_limit value                                                         number of subscriptions per visitor (default: 30) [$NTFY_VISITOR_SUBSCRIPTION_LIMIT]
+   --visitor-subscriber-rate-limiting, --visitor_subscriber_rate_limiting                                                         enables subscriber-based rate limiting (default: false) [$NTFY_VISITOR_SUBSCRIBER_RATE_LIMITING]
+   --visitor-attachment-total-size-limit value, --visitor_attachment_total_size_limit value                                       total storage limit used for attachments per visitor (default: "100M") [$NTFY_VISITOR_ATTACHMENT_TOTAL_SIZE_LIMIT]
+   --visitor-attachment-daily-bandwidth-limit value, --visitor_attachment_daily_bandwidth_limit value                             total daily bandwidth limit per visitor, for attachment downloads/uploads and messages replayed from the cache by poll requests (default: "500M") [$NTFY_VISITOR_ATTACHMENT_DAILY_BANDWIDTH_LIMIT]
+   --visitor-request-limit-burst value, --visitor_request_limit_burst value                                                       initial limit of requests per visitor (default: 60) [$NTFY_VISITOR_REQUEST_LIMIT_BURST]
+   --visitor-request-limit-replenish value, --visitor_request_limit_replenish value                                               interval at which burst limit is replenished (one per x) (default: "5s") [$NTFY_VISITOR_REQUEST_LIMIT_REPLENISH]
+   --visitor-request-limit-exempt-hosts value, --visitor_request_limit_exempt_hosts value                                         hostnames and/or IP addresses of hosts that will be exempt from the visitor request limit [$NTFY_VISITOR_REQUEST_LIMIT_EXEMPT_HOSTS]
+   --visitor-message-daily-limit value, --visitor_message_daily_limit value                                                       max messages per visitor per day, derived from request limit if unset (default: 0) [$NTFY_VISITOR_MESSAGE_DAILY_LIMIT]
+   --visitor-email-limit-burst value, --visitor_email_limit_burst value                                                           initial limit of e-mails per visitor (default: 16) [$NTFY_VISITOR_EMAIL_LIMIT_BURST]
+   --visitor-email-limit-replenish value, --visitor_email_limit_replenish value                                                   interval at which burst limit is replenished (one per x) (default: "1h") [$NTFY_VISITOR_EMAIL_LIMIT_REPLENISH]
+   --visitor-topic-creation-limit-burst value, --visitor_topic_creation_limit_burst value                                         burst of new topic creations per visitor (0 = disabled) (default: 100) [$NTFY_VISITOR_TOPIC_CREATION_LIMIT_BURST]
+   --visitor-topic-creation-limit-replenish value, --visitor_topic_creation_limit_replenish value                                 interval at which topic-creation tokens are refilled (one per x) (default: "1m") [$NTFY_VISITOR_TOPIC_CREATION_LIMIT_REPLENISH]
+   --visitor-prefix-bits-ipv4 value, --visitor_prefix_bits_ipv4 value                                                             number of bits of the IPv4 address to use for rate limiting (default: 32, full address) (default: 32) [$NTFY_VISITOR_PREFIX_BITS_IPV4]
+   --visitor-prefix-bits-ipv6 value, --visitor_prefix_bits_ipv6 value                                                             number of bits of the IPv6 address to use for rate limiting (default: 64, /64 subnet) (default: 64) [$NTFY_VISITOR_PREFIX_BITS_IPV6]
+   --ban-file value, --ban_file value                                                                                             if set, append IPs of abusive visitors to this file for fail2ban to tail (empty disables) [$NTFY_BAN_FILE]
+   --ban-window value, --ban_window value                                                                                         rolling window over which weighted strikes are counted for the ban file (default: "10m") [$NTFY_BAN_WINDOW]
+   --ban-threshold value, --ban_threshold value                                                                                   weighted strikes per window before an offender is banned (default: 100) [$NTFY_BAN_THRESHOLD]
+   --ban-weights value, --ban_weights value [ --ban-weights value, --ban_weights value ]                                          per-code strike weights as KEY:WEIGHT, where KEY is an ntfy code, an HTTP status, a PREFIX*, or '*' (weight 0 exempts) (default: "42909:10") [$NTFY_BAN_WEIGHTS]
+   --behind-proxy, --behind_proxy, -P                                                                                             if set, use forwarded header (e.g. X-Forwarded-For, X-Client-IP) to determine visitor IP address (for rate limiting) (default: false) [$NTFY_BEHIND_PROXY]
+   --proxy-forwarded-header value, --proxy_forwarded_header value                                                                 use specified header to determine visitor IP address (for rate limiting) (default: "X-Forwarded-For") [$NTFY_PROXY_FORWARDED_HEADER]
+   --proxy-trusted-hosts value, --proxy_trusted_hosts value                                                                       comma-separated list of trusted IP addresses, hosts, or CIDRs to remove from forwarded header [$NTFY_PROXY_TRUSTED_HOSTS]
+   --stripe-secret-key value, --stripe_secret_key value                                                                           key used for the Stripe API communication, this enables payments [$NTFY_STRIPE_SECRET_KEY]
+   --stripe-webhook-key value, --stripe_webhook_key value                                                                         key required to validate the authenticity of incoming webhooks from Stripe [$NTFY_STRIPE_WEBHOOK_KEY]
+   --billing-contact value, --billing_contact value                                                                               e-mail or website to display in upgrade dialog (only if payments are enabled) [$NTFY_BILLING_CONTACT]
+   --enable-metrics, --enable_metrics                                                                                             if set, Prometheus metrics are exposed via the /metrics endpoint (default: false) [$NTFY_ENABLE_METRICS]
+   --metrics-listen-http value, --metrics_listen_http value                                                                       ip:port used to expose the metrics endpoint (implicitly enables metrics) [$NTFY_METRICS_LISTEN_HTTP]
+   --profile-listen-http value, --profile_listen_http value                                                                       ip:port used to expose the profiling endpoints (implicitly enables profiling) [$NTFY_PROFILE_LISTEN_HTTP]
+   --web-push-public-key value, --web_push_public_key value                                                                       public key used for web push notifications [$NTFY_WEB_PUSH_PUBLIC_KEY]
+   --web-push-private-key value, --web_push_private_key value                                                                     private key used for web push notifications [$NTFY_WEB_PUSH_PRIVATE_KEY]
+   --web-push-file value, --web_push_file value                                                                                   file used to store web push subscriptions [$NTFY_WEB_PUSH_FILE]
+   --web-push-email-address value, --web_push_email_address value                                                                 e-mail address of sender, required to use browser push services [$NTFY_WEB_PUSH_EMAIL_ADDRESS]
+   --web-push-startup-queries value, --web_push_startup_queries value                                                             queries run when the web push database is initialized [$NTFY_WEB_PUSH_STARTUP_QUERIES]
+   --web-push-expiry-duration value, --web_push_expiry_duration value                                                             automatically expire unused subscriptions after this time (default: "60d") [$NTFY_WEB_PUSH_EXPIRY_DURATION]
+   --web-push-expiry-warning-duration value, --web_push_expiry_warning_duration value                                             send web push warning notification after this time before expiring unused subscriptions (default: "55d") [$NTFY_WEB_PUSH_EXPIRY_WARNING_DURATION]
+   --ai-enabled, --ai_enabled                                                                                                     if set, enables the AI layer (AI subscription setup, enrichment, digests, chat, MCP) (default: false) [$NTFY_AI_ENABLED]
+   --ai-provider value, --ai_provider value                                                                                       AI provider: openai, anthropic, openai-compatible, ollama, or mock [$NTFY_AI_PROVIDER]
+   --ai-base-url value, --ai_base_url value                                                                                       AI provider API base URL, e.g. http://localhost:11434/v1 for Ollama [$NTFY_AI_BASE_URL]
+   --ai-api-key value, --ai_api_key value                                                                                         AI provider API key (not required for local providers) [$NTFY_AI_API_KEY]
+   --ai-api-key-file value, --ai_api_key_file value                                                                               file containing the AI provider API key [$NTFY_AI_API_KEY_FILE]
+   --ai-model value, --ai_model value                                                                                             default AI model for all features, e.g. llama3.1, gpt-4o-mini, claude-3-5-haiku-latest [$NTFY_AI_MODEL]
+   --ai-model-plan value, --ai_model_plan value                                                                                   AI model override for subscription planning [$NTFY_AI_MODEL_PLAN]
+   --ai-model-enrich value, --ai_model_enrich value                                                                               AI model override for message enrichment [$NTFY_AI_MODEL_ENRICH]
+   --ai-model-digest value, --ai_model_digest value                                                                               AI model override for digests [$NTFY_AI_MODEL_DIGEST]
+   --ai-model-chat value, --ai_model_chat value                                                                                   AI model override for chat over notification history [$NTFY_AI_MODEL_CHAT]
+   --ai-request-timeout value, --ai_request_timeout value                                                                         timeout for AI provider requests (default: "10s") [$NTFY_AI_REQUEST_TIMEOUT]
+   --ai-inline-timeout value, --ai_inline_timeout value                                                                           budget for inline AI calls on the publish path (messages pass through unchanged on breach) (default: "2s") [$NTFY_AI_INLINE_TIMEOUT]
+   --ai-enrichment-enabled, --ai_enrichment_enabled                                                                               if set, publishes to ai-enrich-topics are summarized/classified inline by the AI provider (default: false) [$NTFY_AI_ENRICHMENT_ENABLED]
+   --ai-enrich-topics value, --ai_enrich_topics value [ --ai-enrich-topics value, --ai_enrich_topics value ]                      topics eligible for inline AI enrichment, e.g. prod-alerts [$NTFY_AI_ENRICH_TOPICS]
+   --ai-translate-topics value, --ai_translate_topics value [ --ai-translate-topics value, --ai_translate_topics value ]          topics whose enriched messages are also translated (requires ai-translate-lang) [$NTFY_AI_TRANSLATE_TOPICS]
+   --ai-translate-lang value, --ai_translate_lang value                                                                           target language for ai-translate-topics, e.g. de or German [$NTFY_AI_TRANSLATE_LANG]
+   --ai-visitor-daily-token-budget value, --ai_visitor_daily_token_budget value                                                   daily AI token budget per visitor (0 = unlimited) (default: "20000") [$NTFY_AI_VISITOR_DAILY_TOKEN_BUDGET]
+   --ai-global-daily-token-budget value, --ai_global_daily_token_budget value                                                     daily AI token budget server-wide (0 = unlimited) (default: "2000000") [$NTFY_AI_GLOBAL_DAILY_TOKEN_BUDGET]
+   --ai-cache-size value, --ai_cache_size value                                                                                   size of the AI response cache, e.g. 100M (default: "104857600") [$NTFY_AI_CACHE_SIZE]
+   --help, -h                                                                                                                     show help
 ```
 NAME:
    ntfy serve - Run the ntfy server

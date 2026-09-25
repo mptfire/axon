@@ -136,6 +136,8 @@ var flagsServe = append(
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-inline-timeout", Aliases: []string{"ai_inline_timeout"}, EnvVars: []string{"NTFY_AI_INLINE_TIMEOUT"}, Value: util.FormatDuration(server.DefaultAIInlineTimeout), Usage: "budget for inline AI calls on the publish path (messages pass through unchanged on breach)"}),
 	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "ai-enrichment-enabled", Aliases: []string{"ai_enrichment_enabled"}, EnvVars: []string{"NTFY_AI_ENRICHMENT_ENABLED"}, Value: false, Usage: "if set, publishes to ai-enrich-topics are summarized/classified inline by the AI provider"}),
 	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "ai-enrich-topics", Aliases: []string{"ai_enrich_topics"}, EnvVars: []string{"NTFY_AI_ENRICH_TOPICS"}, Usage: "topics eligible for inline AI enrichment, e.g. prod-alerts"}),
+	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "ai-translate-topics", Aliases: []string{"ai_translate_topics"}, EnvVars: []string{"NTFY_AI_TRANSLATE_TOPICS"}, Usage: "topics whose enriched messages are also translated (requires ai-translate-lang)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-translate-lang", Aliases: []string{"ai_translate_lang"}, EnvVars: []string{"NTFY_AI_TRANSLATE_LANG"}, Usage: "target language for ai-translate-topics, e.g. de or German"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-visitor-daily-token-budget", Aliases: []string{"ai_visitor_daily_token_budget"}, EnvVars: []string{"NTFY_AI_VISITOR_DAILY_TOKEN_BUDGET"}, Value: fmt.Sprintf("%d", server.DefaultAIVisitorDailyTokenBudget), Usage: "daily AI token budget per visitor (0 = unlimited)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-global-daily-token-budget", Aliases: []string{"ai_global_daily_token_budget"}, EnvVars: []string{"NTFY_AI_GLOBAL_DAILY_TOKEN_BUDGET"}, Value: fmt.Sprintf("%d", server.DefaultAIGlobalDailyTokenBudget), Usage: "daily AI token budget server-wide (0 = unlimited)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-cache-size", Aliases: []string{"ai_cache_size"}, EnvVars: []string{"NTFY_AI_CACHE_SIZE"}, Value: fmt.Sprintf("%d", server.DefaultAICacheSize), Usage: "size of the AI response cache, e.g. 100M"}),
@@ -204,6 +206,8 @@ func execServe(c *cli.Context) error {
 	aiInlineTimeoutStr := c.String("ai-inline-timeout")
 	aiEnrichmentEnabled := c.Bool("ai-enrichment-enabled")
 	aiEnrichTopics := c.StringSlice("ai-enrich-topics")
+	aiTranslateTopics := c.StringSlice("ai-translate-topics")
+	aiTranslateLang := c.String("ai-translate-lang")
 	aiVisitorDailyTokenBudget := c.Int64("ai-visitor-daily-token-budget")
 	aiGlobalDailyTokenBudget := c.Int64("ai-global-daily-token-budget")
 	aiCacheSizeStr := c.String("ai-cache-size")
@@ -445,6 +449,8 @@ func execServe(c *cli.Context) error {
 		return errors.New("if ai-enabled is set, ai-provider must also be set")
 	} else if aiEnabled && aiRequestTimeout < time.Second {
 		return errors.New("ai-request-timeout cannot be lower than one second")
+	} else if len(aiTranslateTopics) > 0 && aiTranslateLang == "" {
+		return errors.New("if ai-translate-topics is set, ai-translate-lang must also be set")
 	} else if behindProxy && proxyForwardedHeader == "" {
 		return errors.New("if behind-proxy is set, proxy-forwarded-header must also be set")
 	} else if visitorPrefixBitsIPv4 < 1 || visitorPrefixBitsIPv4 > 32 {
@@ -638,6 +644,8 @@ func execServe(c *cli.Context) error {
 	conf.AIInlineTimeout = aiInlineTimeout
 	conf.AIEnrichmentEnabled = aiEnrichmentEnabled
 	conf.AIEnrichTopics = aiEnrichTopics
+	conf.AITranslateTopics = aiTranslateTopics
+	conf.AITranslateLang = aiTranslateLang
 	conf.AIVisitorDailyTokenBudget = aiVisitorDailyTokenBudget
 	conf.AIGlobalDailyTokenBudget = aiGlobalDailyTokenBudget
 	conf.AICacheSize = aiCacheSize

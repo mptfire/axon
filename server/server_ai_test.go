@@ -302,6 +302,8 @@ func newAIEnrichTestServer(t *testing.T, handler func(*ai.Request) (*ai.Response
 	c.AIProvider = "mock"
 	c.AIEnrichmentEnabled = true
 	c.AIEnrichTopics = []string{"prod-alerts"}
+	c.AITranslateTopics = []string{"prod-alerts"}
+	c.AITranslateLang = "de"
 	c.AIInlineTimeout = 2 * time.Second
 	s := newTestServer(t, c)
 	s.ai.Mock().SetHandler(handler)
@@ -440,4 +442,22 @@ func TestServer_AI_TokenScopes(t *testing.T) {
 		"Authorization": util.BearerAuth(scopedToken.Value),
 	})
 	require.Equal(t, 403, rr.Code)
+}
+
+func TestServer_AI_Enrichment_Translation(t *testing.T) {
+	s := newAIEnrichTestServer(t, func(req *ai.Request) (*ai.Response, error) {
+		require.Contains(t, req.System, "translated into de")
+		return &ai.Response{Text: `{"summary": "Festplatte voll", "priority": 4, "translation": "Disk almost full on db-1"}`}, nil
+	})
+	defer s.closeDatabases()
+
+	rr := request(t, s, "PUT", "/prod-alerts", strings.Repeat("Festplatte fast voll auf db-1. ", 5), nil)
+	require.Equal(t, 200, rr.Code)
+	rr = request(t, s, "GET", "/prod-alerts/json?poll=1", "", nil)
+	messages := toMessages(t, rr.Body.String())
+	require.Len(t, messages, 1)
+	require.Equal(t, "Festplatte voll", messages[0].Title)
+	// Translated body first, original preserved below
+	require.True(t, strings.HasPrefix(messages[0].Message, "Disk almost full on db-1"))
+	require.Contains(t, messages[0].Message, "Festplatte fast voll")
 }
