@@ -35,8 +35,10 @@ func NewMockProvider(defaultModel string) *MockProvider {
 	return &MockProvider{defaultModel: defaultModel}
 }
 
+// Name returns the provider name.
 func (p *MockProvider) Name() string { return "mock" }
 
+// DefaultModel returns the model name reported in responses.
 func (p *MockProvider) DefaultModel() string { return p.defaultModel }
 
 // Enqueue appends a scripted result, consumed FIFO by subsequent Complete calls.
@@ -81,6 +83,7 @@ func (p *MockProvider) SetPingError(err error) {
 	p.pingErr = err
 }
 
+// Complete produces the scripted response: handler first, then queue, then echo.
 func (p *MockProvider) Complete(ctx context.Context, req *Request) (*Response, error) {
 	p.mu.Lock()
 	var result MockResult
@@ -154,6 +157,7 @@ func (p *MockProvider) Stream(ctx context.Context, req *Request) (<-chan StreamE
 	return events, nil
 }
 
+// Ping always succeeds unless a ping error was set.
 func (p *MockProvider) Ping(_ context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()

@@ -142,7 +142,7 @@ func toolDefinitions() []toolDefinition {
 // callToolParams / errors
 var (
 	errTopicRequired = fmt.Errorf("argument 'topic' is required (1-64 chars: letters, digits, '-', '_')")
-	errNoToken       = fmt.Errorf("this tool requires an access token; restart with --token tk_...")
+	errNoToken       = fmt.Errorf("this tool requires an access token: restart with --token tk_<value>")
 )
 
 func validTopic(topic string) bool { return topicNameRegex.MatchString(topic) }
