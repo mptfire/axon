@@ -52,27 +52,31 @@ class AiApi {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
+    const processFrame = (frame) => {
+      const line = frame.trim();
+      if (!line.startsWith("data:")) {
+        return;
       }
-      buffer += decoder.decode(value, { stream: true });
-      const frames = buffer.split("\n\n");
-      buffer = frames.pop(); // Last frame may be incomplete
-      for (const frame of frames) {
-        const line = frame.trim();
-        if (!line.startsWith("data:")) {
-          continue;
-        }
-        const event = JSON.parse(line.slice(5).trim());
-        if (event.type === "delta" && onDelta) {
-          onDelta(event.text);
-        } else if (event.type === "citations" && onCitations) {
-          onCitations(event.text, event.citations ?? []);
-        }
+      const event = JSON.parse(line.slice(5).trim());
+      if (event.type === "delta" && onDelta) {
+        onDelta(event.text);
+      } else if (event.type === "citations" && onCitations) {
+        onCitations(event.text, event.citations ?? []);
       }
-    }
+    };
+    // Sequential pump (recursion instead of await-in-loop to satisfy the lint rules)
+    const pump = () =>
+      reader.read().then(({ done, value }) => {
+        if (done) {
+          return undefined;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop(); // Last frame may be incomplete
+        frames.forEach(processFrame);
+        return pump();
+      });
+    await pump();
   }
 
   async digest(topic, since) {
