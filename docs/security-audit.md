@@ -1,4 +1,4 @@
-# Security audit — axon deployment (ntfy.example.com)
+# Security audit — axon deployment
 
 **Scope:** axon server (fork of ntfy v2.28.0-23-g1d2b9c36) with the full AI layer compiled in,
 audited against a live local instance identical to the planned deployment (deny-all auth, AI
@@ -60,9 +60,9 @@ verified that the bodies contain only the anonymous visitor's own limits/counter
 | F-3 | **Low** | `POST /v1/ai/plan` is available anonymously (by design) — 10/day/visitor quota + token budget + response cache bound the abuse ceiling, but a determined attacker can still burn the global daily budget from many IPs | Accepted for a personal instance. If needed: require auth for plan (route change, one line) or front with Caddy rate limiting |
 | F-4 | **Low** | `enable-signup: true` on a public instance lets anyone create accounts and consume AI budget from their IP | Personal-instance tradeoff. Recommend closing signup once your own account exists (`enable-signup: false`) |
 | F-5 | **Info** | Prompt injection via notification bodies is possible **by construction** (attacker-controlled content reaches the LLM) | Defense-in-depth enforced server-side and tested: schema-constrained outputs, length caps, control-char stripping, citation allow-lists, no tool execution from model output, destructive actions require human review. Residual risk: a successfully-injected model could produce a *wrong summary/answer* — it cannot execute actions or exfiltrate beyond the prompted window |
-| F-6 | **Info** | Deployment origin: ensure DNS matches the actual origin (static IP or DDNS) | Operator-specific infrastructure details omitted from this public report |
+| F-6 | **Info** | Deployment origin: ensure DNS for your hostname matches the actual origin, and that a static IP / DDNS is used if running on a dynamic connection | Documented; operator-specific infrastructure details intentionally omitted from this public report |
 
-## VPS deployment checklist (ntfy.example.com)
+## VPS deployment checklist
 
 1. [ ] Run the bundle installer (`./install.sh`) — creates `axon` system user, hardened unit included
 2. [ ] Create admin: `axon user add --config=/etc/axon/server.yml --role=admin <name>`
@@ -78,7 +78,7 @@ verified that the bodies contain only the anonymous visitor's own limits/counter
        }
    }
    ```
-   (Caddy issues/renews the Let's Encrypt certificate automatically — port 80/443 already serve)
+   (Caddy issues/renews the Let's Encrypt certificate automatically)
 4. [ ] After your own account exists: set `enable-signup: false` in `/etc/axon/server.yml`, restart
 5. [ ] Enable AI deliberately: Ollama on the VPS (`ollama pull llama3.1`) or a hosted endpoint; then `systemctl restart axon`
 6. [ ] Optional: `axon webpush keys` + web-push config for phone delivery without the ntfy apps
