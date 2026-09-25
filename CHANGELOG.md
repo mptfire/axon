@@ -8,8 +8,9 @@ are planned as `v2.<upstream-minor>.<upstream-patch>-axon.N` (see docs/ai-plan/p
 
 ### Added — AI layer (all opt-in, off by default via `ai-enabled: false`)
 - AI provider abstraction (`ai/` package): OpenAI-compatible (also covers Ollama,
-  OpenRouter, vLLM), Anthropic, and a scripted mock provider, with an LRU response
-  cache, per-visitor + global daily token budgets, and Prometheus metrics.
+  OpenRouter, vLLM), Anthropic, **Poolside** (`poolside`, inference.poolside.ai,
+  Laguna models), and a scripted mock provider, with an LRU response cache,
+  per-visitor + global daily token budgets, and Prometheus metrics.
 - Natural-language subscription planning: `POST /v1/ai/plan` (+ `/v1/ai/tune`), web
   "Describe it with AI" assistant with plan review and multi-turn refinement.
 - Inline message enrichment on opted-in topics (`ai-enrich-topics`): AI summary as the

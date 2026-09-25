@@ -192,11 +192,13 @@ func newProvider(name, baseURL, apiKey, defaultModel string, httpClient *http.Cl
 		return newOpenAIProvider("ollama", defaultOllamaBaseURL, baseURL, apiKey, defaultModel, httpClient)
 	case "anthropic":
 		return newAnthropicProvider(defaultAnthropicBaseURL, baseURL, apiKey, defaultModel, httpClient)
+	case "poolside": // axon: Poolside (poolside.ai) speaks the OpenAI-compatible protocol
+		return newOpenAIProvider("poolside", defaultPoolsideBaseURL, baseURL, apiKey, defaultModel, httpClient)
 	case "mock":
 		return NewMockProvider(defaultModel), nil
 	case "":
 		return nil, fmt.Errorf("%w: ai-provider is required", ErrDisabled)
 	default:
-		return nil, fmt.Errorf("unknown ai-provider %q, must be one of: openai, anthropic, openai-compatible, ollama, mock", name)
+		return nil, fmt.Errorf("unknown ai-provider %q, must be one of: openai, anthropic, openai-compatible, ollama, poolside, mock", name)
 	}
 }

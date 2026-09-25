@@ -13,8 +13,9 @@ import (
 
 // Default provider base URLs
 const (
-	defaultOpenAIBaseURL = "https://api.openai.com/v1"
-	defaultOllamaBaseURL = "http://localhost:11434/v1"
+	defaultOpenAIBaseURL   = "https://api.openai.com/v1"
+	defaultOllamaBaseURL   = "http://localhost:11434/v1"
+	defaultPoolsideBaseURL = "https://inference.poolside.ai/v1" // axon
 )
 
 // openAIProvider speaks the OpenAI Chat Completions API. It also covers every
@@ -38,6 +39,9 @@ func newOpenAIProvider(name, defaultBaseURL, baseURL, apiKey, defaultModel strin
 	baseURL = strings.TrimSuffix(baseURL, "/")
 	if defaultModel == "" {
 		defaultModel = "gpt-4o-mini" // A safe, cheap default; operators should set ai-model
+		if name == "poolside" {
+			defaultModel = "poolside/laguna-s-2.1" // axon: Poolside's default model
+		}
 	}
 	return &openAIProvider{
 		name:         name,

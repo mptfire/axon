@@ -135,6 +135,11 @@ func TestNew_ProviderValidation(t *testing.T) {
 	_, err = New(&Config{Provider: "anthropic"})
 	require.ErrorContains(t, err, "ai-api-key is required")
 
+	client, err = New(&Config{Provider: "poolside"})
+	require.Nil(t, err)
+	require.Equal(t, "poolside", client.ProviderName())
+	require.Equal(t, "poolside/laguna-s-2.1", client.DefaultModel())
+
 	client, err = New(&Config{Provider: "mock"})
 	require.Nil(t, err)
 	require.NotNil(t, client.Mock())
