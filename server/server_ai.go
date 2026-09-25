@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
@@ -337,34 +338,166 @@ type apiAIChatResponse struct {
 	Disclaimer string           `json:"disclaimer"`
 }
 
-// handleAIChat answers a question about one of the user's topics (POST /v1/ai/chat).
-// Retrieval is deliberately simple and classical: messages from the topic's cache,
-// scored by question-term overlap and recency; the model only ever sees the selected
-// window and may cite only IDs from it (invented citations are stripped in ai/).
+// handleAIChat answers a question about one of the user's topics or across all of them
+// (POST /v1/ai/chat). Non-streaming: the full answer comes back as JSON with citations.
 func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	body, err := readJSONWithLimit[apiAIChatRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
 	}
+	question, context, messageTopics, err := s.chatContext(v, body)
+	if err != nil {
+		return err
+	}
+	if len(context) == 0 {
+		return s.writeJSON(w, s.emptyChatResponse(body, question))
+	}
+	context = selectChatContext(question, context)
+	log.Tag(tagAI).With(v).Fields(log.Context{
+		"ai_feature":      string(ai.FeatureChat),
+		"ai_chat_topic":   body.Topic,
+		"ai_chat_all":     body.All,
+		"ai_chat_context": len(context),
+	}).Debug("AI chat requested")
+	chatMessages := make([]ai.DigestMessage, 0, len(context))
+	for _, m := range context {
+		chatMessages = append(chatMessages, ai.DigestMessage{ID: m.ID, Topic: messageTopics[m.ID], Title: m.Title, Message: m.Message, Priority: m.Priority, Time: m.Time})
+	}
+	answer, err := ai.NewChatter(s.ai).Chat(r.Context(), visitorID(v.ip, v.user, v.config), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
+	if err != nil {
+		return s.mapAIError(err)
+	}
+	response := &apiAIChatResponse{
+		Topic: body.Topic, Question: question, Answer: answer.Answer,
+		Citations: make([]*model.Message, 0, len(answer.Citations)), Disclaimer: ai.ChatDisclaimer,
+	}
+	byID := make(map[string]*model.Message, len(context))
+	for _, m := range context {
+		byID[m.ID] = m
+	}
+	for _, id := range answer.Citations {
+		if m, ok := byID[id]; ok {
+			response.Citations = append(response.Citations, m)
+		}
+	}
+	return s.writeJSON(w, response)
+}
+
+// handleAIChatStream is the SSE variant of handleAIChat (POST /v1/ai/chat/stream):
+// delta events as the answer streams in, then a citations event (markers like [1] in
+// the text refer to the numbered context and are resolved server-side), then done.
+// Providers without streaming support degrade to a single-delta response.
+func (s *Server) handleAIChatStream(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	body, err := readJSONWithLimit[apiAIChatRequest](r.Body, jsonBodyBytesLimit, false)
+	if err != nil {
+		return err
+	}
+	question, context, messageTopics, err := s.chatContext(v, body)
+	if err != nil {
+		return err
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		return errHTTPInternalError
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no")
+	writeEvent := func(payload map[string]any) error {
+		serialized, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		if _, err := w.Write(append([]byte("data: "), append(serialized, '\n', '\n')...)); err != nil {
+			return err
+		}
+		flusher.Flush()
+		return nil
+	}
+	if len(context) == 0 {
+		_ = writeEvent(map[string]any{"type": "delta", "text": "There are no messages in this topic for the selected period."})
+		return writeEvent(map[string]any{"type": "done"})
+	}
+	context = selectChatContext(question, context)
+	chatMessages := make([]ai.DigestMessage, 0, len(context))
+	for _, m := range context {
+		chatMessages = append(chatMessages, ai.DigestMessage{ID: m.ID, Topic: messageTopics[m.ID], Title: m.Title, Message: m.Message, Priority: m.Priority, Time: m.Time})
+	}
+	var full strings.Builder
+	appendCitations := func() error {
+		answerText, citedIDs := ai.ExtractChatCitations(full.String(), chatMessages)
+		citations := make([]*model.Message, 0, len(citedIDs))
+		for _, id := range citedIDs {
+			for _, m := range context {
+				if m.ID == id {
+					citations = append(citations, m)
+					break
+				}
+			}
+		}
+		return writeEvent(map[string]any{"type": "citations", "text": answerText, "citations": citations})
+	}
+	events, err := ai.NewChatter(s.ai).ChatStream(r.Context(), visitorID(v.ip, v.user, v.config), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
+	if err != nil {
+		if !errors.Is(err, ai.ErrStreamingNotSupported) {
+			return s.mapAIError(err)
+		}
+		// Graceful degradation: provider cannot stream, answer in one shot
+		answer, err := ai.NewChatter(s.ai).Chat(r.Context(), visitorID(v.ip, v.user, v.config), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
+		if err != nil {
+			return s.mapAIError(err)
+		}
+		full.WriteString(answer.Answer)
+		if err := writeEvent(map[string]any{"type": "delta", "text": answer.Answer}); err != nil {
+			return err
+		}
+		if err := appendCitations(); err != nil {
+			return err
+		}
+		return writeEvent(map[string]any{"type": "done"})
+	}
+	for event := range events {
+		if event.Err != nil {
+			return s.mapAIError(event.Err)
+		}
+		if event.Delta == "" {
+			continue
+		}
+		full.WriteString(event.Delta)
+		if err := writeEvent(map[string]any{"type": "delta", "text": event.Delta}); err != nil {
+			return err
+		}
+	}
+	if err := appendCitations(); err != nil {
+		return err
+	}
+	return writeEvent(map[string]any{"type": "done"})
+}
+
+// chatContext performs the shared gates and retrieval for the chat endpoints: auth is
+// enforced by the route decorators; this enforces the request shape and the
+// subscription rule, and gathers the context window (single topic or cross-topic).
+// A nil context return means "no messages in the window" (not an error).
+func (s *Server) chatContext(v *visitor, body *apiAIChatRequest) (string, []*model.Message, map[string]string, error) {
 	question := strings.TrimSpace(body.Question)
 	if question == "" || len(question) > 1000 || (body.All && body.Topic != "") {
-		return errHTTPBadRequestAIRequest
+		return "", nil, nil, errHTTPBadRequestAIRequest
 	}
 	if !body.All && !topicRegex.MatchString(body.Topic) {
-		return errHTTPBadRequestAIRequest
+		return "", nil, nil, errHTTPBadRequestAIRequest
 	}
 	u := v.User()
 	if !body.All && !userSubscribesTo(u, s.config.BaseURL, body.Topic) {
-		return errHTTPForbidden
+		return "", nil, nil, errHTTPForbidden
 	}
 	if !v.aiQuotaAllowed() {
-		return errHTTPTooManyRequestsLimitAIRequests
+		return "", nil, nil, errHTTPTooManyRequestsLimitAIRequests
 	}
 	sinceDuration := 7 * 24 * time.Hour
 	if body.Since != "" {
 		parsed, err := time.ParseDuration(body.Since)
 		if err != nil || parsed < time.Hour || parsed > 30*24*time.Hour {
-			return errHTTPBadRequestAIRequest
+			return "", nil, nil, errHTTPBadRequestAIRequest
 		}
 		sinceDuration = parsed
 	}
@@ -396,66 +529,19 @@ func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request, v *visitor
 		var err error
 		cachedMessages, _, err = s.messageCache.MessagesCapped(body.Topic, sinceMarker, false, 512*1024)
 		if err != nil {
-			return err
+			return "", nil, nil, err
 		}
 	}
-	if len(cachedMessages) == 0 {
-		return s.writeJSON(w, &apiAIChatResponse{
-			Topic: body.Topic, Question: question,
-			Answer:     "There are no messages in this topic for the selected period.",
-			Disclaimer: ai.ChatDisclaimer,
-		})
-	}
-	context := selectChatContext(question, cachedMessages)
-	log.Tag(tagAI).With(v).Fields(log.Context{
-		"ai_feature":      string(ai.FeatureChat),
-		"ai_chat_topic":   body.Topic,
-		"ai_chat_context": len(context),
-	}).Debug("AI chat requested")
-	chatMessages := make([]ai.DigestMessage, 0, len(context))
-	for _, m := range context {
-		chatMessages = append(chatMessages, ai.DigestMessage{ID: m.ID, Topic: messageTopics[m.ID], Title: m.Title, Message: m.Message, Priority: m.Priority, Time: m.Time})
-	}
-	answer, err := ai.NewChatter(s.ai).Chat(r.Context(), visitorID(v.ip, v.user, v.config), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
-	if err != nil {
-		return s.mapAIError(err)
-	}
-	response := &apiAIChatResponse{
-		Topic: body.Topic, Question: question, Answer: answer.Answer,
-		Citations: make([]*model.Message, 0, len(answer.Citations)), Disclaimer: ai.ChatDisclaimer,
-	}
-	byID := make(map[string]*model.Message, len(context))
-	for _, m := range context {
-		byID[m.ID] = m
-	}
-	for _, id := range answer.Citations {
-		if m, ok := byID[id]; ok {
-			response.Citations = append(response.Citations, m)
-		}
-	}
-	return s.writeJSON(w, response)
+	return question, cachedMessages, messageTopics, nil
 }
 
-// sanitizeChatHistory caps the client-supplied conversation history: at most 5 turns,
-// each question/answer trimmed and length-capped. History is untrusted input.
-func sanitizeChatHistory(history []apiAIChatHistory) (turns []ai.ChatTurn) {
-	for i, turn := range history {
-		if i >= 5 {
-			break
-		}
-		question, answer := strings.TrimSpace(turn.Question), strings.TrimSpace(turn.Answer)
-		if question == "" || answer == "" {
-			continue
-		}
-		if len(question) > 1000 {
-			question = question[:1000]
-		}
-		if len(answer) > ai.ChatMaxAnswerChars {
-			answer = answer[:ai.ChatMaxAnswerChars]
-		}
-		turns = append(turns, ai.ChatTurn{Question: question, Answer: answer})
+// emptyChatResponse is the shared "nothing in the window" answer.
+func (s *Server) emptyChatResponse(body *apiAIChatRequest, question string) *apiAIChatResponse {
+	return &apiAIChatResponse{
+		Topic: body.Topic, Question: question,
+		Answer:     "There are no messages in this topic for the selected period.",
+		Disclaimer: ai.ChatDisclaimer,
 	}
-	return turns
 }
 
 // toDigestMessages converts cached messages to the ai package's context type.
@@ -580,6 +666,28 @@ func (s *Server) handleAIBriefing(w http.ResponseWriter, r *http.Request, v *vis
 		return s.mapAIError(err)
 	}
 	return s.writeJSON(w, briefing)
+}
+
+// sanitizeChatHistory caps the client-supplied conversation history: at most 5 turns,
+// each question/answer trimmed and length-capped. History is untrusted input.
+func sanitizeChatHistory(history []apiAIChatHistory) (turns []ai.ChatTurn) {
+	for i, turn := range history {
+		if i >= 5 {
+			break
+		}
+		question, answer := strings.TrimSpace(turn.Question), strings.TrimSpace(turn.Answer)
+		if question == "" || answer == "" {
+			continue
+		}
+		if len(question) > 1000 {
+			question = question[:1000]
+		}
+		if len(answer) > ai.ChatMaxAnswerChars {
+			answer = answer[:ai.ChatMaxAnswerChars]
+		}
+		turns = append(turns, ai.ChatTurn{Question: question, Answer: answer})
+	}
+	return turns
 }
 
 // userSubscribesTo reports whether the user has a synced subscription for the topic.

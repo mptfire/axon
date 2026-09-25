@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -67,6 +68,7 @@ type openAIChatRequest struct {
 	MaxTokens      int                   `json:"max_tokens,omitempty"`
 	Temperature    *float64              `json:"temperature,omitempty"`
 	ResponseFormat *openAIResponseFormat `json:"response_format,omitempty"`
+	Stream         bool                  `json:"stream,omitempty"`
 }
 
 type openAIMessage struct {
@@ -160,6 +162,89 @@ func (p *openAIProvider) Complete(ctx context.Context, req *Request) (*Response,
 		OutputTokens: chatResp.Usage.CompletionTokens,
 		FinishReason: chatResp.Choices[0].FinishReason,
 	}, nil
+}
+
+// Stream implements the Streamer interface using the Chat Completions SSE protocol:
+// lines of "data: {...}" terminated by "data: [DONE]", with deltas in
+// choices[0].delta.content.
+func (p *openAIProvider) Stream(ctx context.Context, req *Request) (<-chan StreamEvent, error) {
+	messages := make([]openAIMessage, 0, len(req.Messages)+1)
+	if req.System != "" {
+		messages = append(messages, openAIMessage{Role: RoleSystem, Content: req.System})
+	}
+	for _, m := range req.Messages {
+		messages = append(messages, openAIMessage{Role: m.Role, Content: m.Content})
+	}
+	if len(req.Messages) == 0 && req.Prompt != "" {
+		messages = append(messages, openAIMessage{Role: RoleUser, Content: req.Prompt})
+	}
+	chatReq := openAIChatRequest{
+		Model:       p.modelOr(req),
+		Messages:    messages,
+		MaxTokens:   req.MaxTokens,
+		Temperature: temperaturePtr(req.Temperature),
+		Stream:      true,
+	}
+	body, err := json.Marshal(chatReq)
+	if err != nil {
+		return nil, err
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if p.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
+	httpResp, err := p.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	if httpResp.StatusCode != http.StatusOK {
+		defer httpResp.Body.Close()
+		_, _ = io.Copy(io.Discard, io.LimitReader(httpResp.Body, 4096))
+		return nil, &ProviderError{Provider: p.name, Status: httpResp.StatusCode, Message: httpResp.Status}
+	}
+	events := make(chan StreamEvent)
+	go func() {
+		defer close(events)
+		defer httpResp.Body.Close()
+		scanner := bufio.NewScanner(httpResp.Body)
+		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+		finish := ""
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if !strings.HasPrefix(line, "data:") {
+				continue
+			}
+			payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+			if payload == "[DONE]" {
+				break
+			}
+			var chunk struct {
+				Choices []struct {
+					Delta struct {
+						Content string `json:"content"`
+					} `json:"delta"`
+					FinishReason string `json:"finish_reason"`
+				} `json:"choices"`
+			}
+			if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+				continue // Keepalives/comments and unparseable chunks are skipped
+			}
+			if len(chunk.Choices) > 0 {
+				if delta := chunk.Choices[0].Delta.Content; delta != "" {
+					events <- StreamEvent{Delta: delta}
+				}
+				if chunk.Choices[0].FinishReason != "" {
+					finish = chunk.Choices[0].FinishReason
+				}
+			}
+		}
+		events <- StreamEvent{FinishReason: finish}
+	}()
+	return events, nil
 }
 
 func (p *openAIProvider) Ping(ctx context.Context) error {

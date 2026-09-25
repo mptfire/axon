@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -132,4 +133,64 @@ func TestServer_AI_Chat_AllTopics(t *testing.T) {
 	// all + topic together: invalid
 	rr = request(t, s, "POST", "/v1/ai/chat", `{"all":true,"topic":"backups","question":"q"}`, auth)
 	require.Equal(t, 400, rr.Code)
+}
+
+func TestServer_AI_ChatStream(t *testing.T) {
+	c := newTestConfigWithAuthFile(t, "")
+	c.AIEnabled = true
+	c.AIProvider = "mock"
+	s := newTestServer(t, c)
+	defer s.closeDatabases()
+	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
+	request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"backups"}`, auth)
+	request(t, s, "PUT", "/backups", "backup failed exit 2", map[string]string{"Title": "failure"})
+
+	// The mock streams in [n]-citing plain text; markers resolve to real messages.
+	// NOTE: no require inside the handler — FailNow from the mock goroutine would
+	// deadlock the stream. Assertions on the request happen after the fact.
+	var seenSystem string
+	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
+		seenSystem = req.System
+		return &ai.Response{Text: "The failure at [1] was exit code 2. Also see [9]."}, nil
+	})
+
+	rr := request(t, s, "POST", "/v1/ai/chat/stream", `{"topic":"backups","question":"what failed?"}`, auth)
+	require.Equal(t, 200, rr.Code)
+	require.Contains(t, rr.Header().Get("Content-Type"), "text/event-stream")
+	require.NotContains(t, seenSystem, "single JSON object") // streamed answers are plain text
+
+	body := rr.Body.String()
+	require.Contains(t, body, `"type":"delta"`)
+	require.Contains(t, body, `"type":"citations"`)
+	require.Contains(t, body, `"type":"done"`)
+	require.Contains(t, body, "backup failed exit 2") // citation carries the real message
+	// The citations event's text has the out-of-range marker [9] stripped
+	citationsStart := strings.LastIndex(body, `data: {"citations":`)
+	require.GreaterOrEqual(t, citationsStart, 0)
+	citationsLine := body[citationsStart:]
+	require.Contains(t, citationsLine, "Also see .")
+	require.NotContains(t, citationsLine, "[9]")
+}
+
+func TestServer_AI_ChatStream_Gates(t *testing.T) {
+	c := newTestConfigWithAuthFile(t, "")
+	c.AIEnabled = true
+	c.AIProvider = "mock"
+	s := newTestServer(t, c)
+	defer s.closeDatabases()
+	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
+
+	// Anonymous: 401; unsubscribed: 403
+	rr := request(t, s, "POST", "/v1/ai/chat/stream", `{"topic":"backups","question":"q"}`, nil)
+	require.Equal(t, 401, rr.Code)
+	rr = request(t, s, "POST", "/v1/ai/chat/stream", `{"topic":"backups","question":"q"}`, auth)
+	require.Equal(t, 403, rr.Code)
+
+	// Empty window: streamed delta without provider call
+	request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"quiet"}`, auth)
+	rr = request(t, s, "POST", "/v1/ai/chat/stream", `{"topic":"quiet","question":"q"}`, auth)
+	require.Equal(t, 200, rr.Code)
+	require.Contains(t, rr.Body.String(), "no messages")
 }

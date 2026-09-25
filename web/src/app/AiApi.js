@@ -1,6 +1,6 @@
 import { maybeWithBearerAuth } from "./utils";
 import session from "./Session";
-import { fetchOrThrow } from "./errors";
+import { fetchOrThrow, throwAppError } from "./errors";
 
 // AiApi talks to the axon AI endpoints (/v1/ai/*). They only exist when the server
 // operator enabled the AI layer (config.enable_ai); the UI must hide itself otherwise.
@@ -36,6 +36,43 @@ class AiApi {
       body: JSON.stringify({ since }),
     });
     return response.json(); // May throw SyntaxError
+  }
+
+  async chatStream(topic, question, { history = [], since = "168h", all = false, onDelta, onCitations }) {
+    const url = `${config.base_url}/v1/ai/chat/stream`;
+    console.log(`[AiApi] Streaming chat about ${all ? "all topics" : topic}`);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: maybeWithBearerAuth({ "Content-Type": "application/json" }, session.token()),
+      body: JSON.stringify({ topic, question, since, history, all }),
+    });
+    if (!response.ok) {
+      await throwAppError(response);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop(); // Last frame may be incomplete
+      for (const frame of frames) {
+        const line = frame.trim();
+        if (!line.startsWith("data:")) {
+          continue;
+        }
+        const event = JSON.parse(line.slice(5).trim());
+        if (event.type === "delta" && onDelta) {
+          onDelta(event.text);
+        } else if (event.type === "citations" && onCitations) {
+          onCitations(event.text, event.citations ?? []);
+        }
+      }
+    }
   }
 
   async digest(topic, since) {

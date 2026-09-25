@@ -126,6 +126,34 @@ func (p *MockProvider) Complete(ctx context.Context, req *Request) (*Response, e
 	return result.Response, nil
 }
 
+// Stream satisfies the Streamer interface: it produces the same result as Complete
+// but emits it in small chunks, so streaming consumers can be tested end to end.
+func (p *MockProvider) Stream(ctx context.Context, req *Request) (<-chan StreamEvent, error) {
+	response, err := p.Complete(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	events := make(chan StreamEvent)
+	go func() {
+		defer close(events)
+		runes := []rune(response.Text)
+		for i := 0; i < len(runes); i += 8 {
+			end := i + 8
+			if end > len(runes) {
+				end = len(runes)
+			}
+			select {
+			case <-ctx.Done():
+				events <- StreamEvent{Err: ctx.Err()}
+				return
+			case events <- StreamEvent{Delta: string(runes[i:end])}:
+			}
+		}
+		events <- StreamEvent{FinishReason: response.FinishReason}
+	}()
+	return events, nil
+}
+
 func (p *MockProvider) Ping(_ context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()

@@ -36,6 +36,7 @@ const AiChatPage = (props) => {
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [answer, setAnswer] = useState(null);
+  const [streamText, setStreamText] = useState(""); // Live answer while streaming
   const [error, setError] = useState("");
 
   const [allTopics, setAllTopics] = useState(false); // axon: ask across all subscriptions
@@ -44,11 +45,23 @@ const AiChatPage = (props) => {
   const handleAsk = async () => {
     setLoading(true);
     setError("");
+    setStreamText("");
+    setAnswer(null);
     const asked = question;
     try {
-      const result = await aiApi.chat(subscription.topic, asked, thread, "168h", allTopics);
-      setThread((prev) => [...prev.slice(-4), { question: asked, answer: result.answer }]);
-      setAnswer(result);
+      let finalText = "";
+      let citations = [];
+      await aiApi.chatStream(subscription.topic, asked, {
+        history: thread,
+        all: allTopics,
+        onDelta: (text) => setStreamText((prev) => prev + text),
+        onCitations: (text, cites) => {
+          finalText = text;
+          citations = cites;
+        },
+      });
+      setThread((prev) => [...prev.slice(-4), { question: asked, answer: finalText }]);
+      setAnswer({ answer: finalText || streamText, citations });
       setQuestion("");
     } catch (e) {
       console.log(`[AiChatDialog] Chat failed`, e);
@@ -98,6 +111,13 @@ const AiChatPage = (props) => {
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
             {t("ai_chat_followup_hint")}
           </Typography>
+        )}
+        {loading && streamText && (
+          <div style={{ marginTop: "16px" }}>
+            <Typography variant="body1" sx={{ whiteSpace: "pre-wrap" }}>
+              {streamText}
+            </Typography>
+          </div>
         )}
         {answer && (
           <div style={{ marginTop: "16px" }}>

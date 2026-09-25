@@ -158,6 +158,20 @@ func (p *anthropicProvider) Complete(ctx context.Context, req *Request) (*Respon
 	}, nil
 }
 
+// Stream satisfies the Streamer interface using a non-streaming Complete: Anthropic
+// SSE support is a future enhancement, and callers degrade gracefully to one delta.
+func (p *anthropicProvider) Stream(ctx context.Context, req *Request) (<-chan StreamEvent, error) {
+	response, err := p.Complete(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	events := make(chan StreamEvent, 2)
+	events <- StreamEvent{Delta: response.Text}
+	events <- StreamEvent{FinishReason: response.FinishReason}
+	close(events)
+	return events, nil
+}
+
 func (p *anthropicProvider) Ping(ctx context.Context) error {
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/v1/models", nil)
 	if err != nil {

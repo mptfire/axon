@@ -15,6 +15,11 @@ var (
 	// daily token budget. Wrapped with details about which budget was hit.
 	ErrBudgetExceeded = errors.New("ai token budget exceeded")
 
+	// ErrStreamingNotSupported is returned when a caller requests streaming but the
+	// configured provider does not implement the Streamer interface. Callers should
+	// fall back to a non-streaming Complete.
+	ErrStreamingNotSupported = errors.New("provider does not support streaming")
+
 	// ErrInvalidResponse is returned when a provider response cannot be parsed into the
 	// expected structure (e.g. the planner asked for JSON and got prose). This is a
 	// provider-side failure, not user error.
