@@ -101,6 +101,9 @@ var (
 	AIEnrichmentPassThrough = prometheus.NewCounter(prometheus.CounterOpts{
 		Name: "ntfy_ai_enrichment_passthrough_total",
 	})
+	AIBriefingsDelivered = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "ntfy_ai_briefings_delivered_total",
+	}, []string{"kind"})
 )
 
 // init registers all collectors with the default Prometheus registry. Registration is
@@ -137,5 +140,6 @@ func init() {
 		AICacheHits,
 		AIEnrichmentApplied,
 		AIEnrichmentPassThrough,
+		AIBriefingsDelivered,
 	)
 }
