@@ -139,7 +139,19 @@ type Prefs struct {
 	DateFormat    *string            `json:"date_format,omitempty"`
 	TimeFormat    *string            `json:"time_format,omitempty"`
 	Notification  *NotificationPrefs `json:"notification,omitempty"`
+	Digest        *DigestPrefs       `json:"digest,omitempty"` // axon: daily briefing schedule
 	Subscriptions []*Subscription    `json:"subscriptions,omitempty"`
+}
+
+// DigestPrefs configures the axon daily briefing (axon fork). All fields are pointers
+// for merge semantics via PATCH /v1/account/settings. Topic and LastDaily are managed
+// by the server; clients set Enabled, Hour (UTC 0-23) and SinceHours (24-720).
+type DigestPrefs struct {
+	Enabled    *bool   `json:"enabled,omitempty"`
+	Hour       *int    `json:"hour,omitempty"`        // UTC hour of delivery
+	SinceHours *int    `json:"since_hours,omitempty"` // Briefing window
+	Topic      *string `json:"topic,omitempty"`       // Private delivery topic (server-provisioned)
+	LastDaily  *string `json:"last_daily,omitempty"`  // Last delivered day, "2006-01-02" (UTC)
 }
 
 // Tier represents a user's account type, including its account limits

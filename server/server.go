@@ -474,6 +474,7 @@ func (s *Server) Run() error {
 	}
 	s.mu.Unlock()
 	go s.runManager()
+	go s.runDigestScheduler() // axon: scheduled daily briefings (no-op unless AI enabled)
 	go s.runStatsResetter()
 	go s.runDelayedSender()
 	go s.runFirebaseKeepaliver()

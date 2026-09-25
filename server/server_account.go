@@ -117,6 +117,9 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 			if u.Prefs.Notification != nil {
 				response.Notification = u.Prefs.Notification
 			}
+			if u.Prefs.Digest != nil { // axon: daily briefing schedule
+				response.Digest = u.Prefs.Digest
+			}
 			if u.Prefs.Subscriptions != nil {
 				response.Subscriptions = u.Prefs.Subscriptions
 			}
@@ -417,6 +420,29 @@ func (s *Server) handleAccountSettingsChange(w http.ResponseWriter, r *http.Requ
 		if newPrefs.Notification.MinPriority != nil {
 			prefs.Notification.MinPriority = newPrefs.Notification.MinPriority
 		}
+	}
+	if newPrefs.Digest != nil { // axon: daily briefing schedule
+		if prefs.Digest == nil {
+			prefs.Digest = &user.DigestPrefs{}
+		}
+		if newPrefs.Digest.Enabled != nil {
+			prefs.Digest.Enabled = newPrefs.Digest.Enabled
+		}
+		if newPrefs.Digest.Hour != nil {
+			hour := *newPrefs.Digest.Hour
+			if hour < 0 || hour > 23 {
+				return errHTTPBadRequestAIRequest
+			}
+			prefs.Digest.Hour = &hour
+		}
+		if newPrefs.Digest.SinceHours != nil {
+			hours := *newPrefs.Digest.SinceHours
+			if hours < 24 || hours > 720 {
+				return errHTTPBadRequestAIRequest
+			}
+			prefs.Digest.SinceHours = &hours
+		}
+		// Digest.Topic and Digest.LastDaily are server-managed; client values are ignored
 	}
 	logvr(v, r).Tag(tagAccount).Debug("Changing account settings for user %s", u.Name)
 	if err := s.userManager.ChangeSettings(u.ID, prefs); err != nil {

@@ -71,12 +71,95 @@ const Preferences = () => (
   <Container maxWidth="md" sx={{ marginTop: 3, marginBottom: 3 }}>
     <Stack spacing={3}>
       <Notifications />
+      {session.exists() && config.enable_ai && <DailyBriefing />}
       <Reservations />
       <Users />
       <Appearance />
     </Stack>
   </Container>
 );
+
+// DailyBriefing (axon): the scheduled cross-topic briefing. Settings live in the
+// account (prefs.digest) and sync to all devices; the server delivers the briefing
+// to a private per-user topic at the configured UTC hour.
+const DailyBriefing = () => {
+  const { t } = useTranslation();
+  const { account } = useContext(AccountContext);
+  const digest = account?.digest ?? {};
+  const [enabled, setEnabled] = useState(digest.enabled ?? false);
+  const [hour, setHour] = useState(digest.hour ?? 8);
+  const [sinceHours, setSinceHours] = useState(digest.since_hours ?? 24);
+
+  const update = async (patch) => {
+    await maybeUpdateAccountSettings({ digest: { enabled, hour, since_hours: sinceHours, ...patch } });
+  };
+
+  return (
+    <Card sx={{ p: 3 }} aria-label={t("prefs_digest_title")}>
+      <Typography variant="h5" sx={{ marginBottom: 2 }}>
+        {t("prefs_digest_title")}
+      </Typography>
+      <PrefGroup>
+        <Pref labelId="prefDigestEnabled" title={t("prefs_digest_enabled_title")} description={t("prefs_digest_enabled_description")}>
+          <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
+            <Select
+              value={enabled ? "on" : "off"}
+              onChange={(ev) => {
+                const next = ev.target.value === "on";
+                setEnabled(next);
+                update({ enabled: next });
+              }}
+              aria-label={t("prefs_digest_enabled_title")}
+            >
+              <MenuItem value="on">{t("prefs_digest_enabled_on")}</MenuItem>
+              <MenuItem value="off">{t("prefs_digest_enabled_off")}</MenuItem>
+            </Select>
+          </FormControl>
+        </Pref>
+        {enabled && (
+          <>
+            <Pref labelId="prefDigestHour" title={t("prefs_digest_hour_title")} description={t("prefs_digest_hour_description")}>
+              <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
+                <Select
+                  value={hour}
+                  onChange={(ev) => {
+                    const next = Number(ev.target.value);
+                    setHour(next);
+                    update({ hour: next });
+                  }}
+                  aria-label={t("prefs_digest_hour_title")}
+                >
+                  {Array.from({ length: 24 }, (_, h) => (
+                    <MenuItem key={h} value={h}>
+                      {String(h).padStart(2, "0")}:00 UTC
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Pref>
+            <Pref labelId="prefDigestSince" title={t("prefs_digest_since_title")} description={t("prefs_digest_since_description")}>
+              <FormControl variant="standard" sx={{ m: 1, minWidth: 120 }}>
+                <Select
+                  value={sinceHours}
+                  onChange={(ev) => {
+                    const next = Number(ev.target.value);
+                    setSinceHours(next);
+                    update({ since_hours: next });
+                  }}
+                  aria-label={t("prefs_digest_since_title")}
+                >
+                  <MenuItem value={24}>{t("prefs_digest_since_24h")}</MenuItem>
+                  <MenuItem value={168}>{t("prefs_digest_since_7d")}</MenuItem>
+                  <MenuItem value={720}>{t("prefs_digest_since_30d")}</MenuItem>
+                </Select>
+              </FormControl>
+            </Pref>
+          </>
+        )}
+      </PrefGroup>
+    </Card>
+  );
+};
 
 const Notifications = () => {
   const { t } = useTranslation();

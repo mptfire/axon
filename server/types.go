@@ -334,6 +334,7 @@ type apiAccountResponse struct {
 	DateFormat    string                     `json:"date_format,omitempty"`
 	TimeFormat    string                     `json:"time_format,omitempty"`
 	Notification  *user.NotificationPrefs    `json:"notification,omitempty"`
+	Digest        *user.DigestPrefs          `json:"digest,omitempty"` // axon
 	Subscriptions []*user.Subscription       `json:"subscriptions,omitempty"`
 	Reservations  []*apiAccountReservation   `json:"reservations,omitempty"`
 	Tokens        []*apiAccountTokenResponse `json:"tokens,omitempty"`

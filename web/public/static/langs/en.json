@@ -517,5 +517,17 @@
   "ai_briefing_description": "Summarize the recent messages across all your topics on this server into one briefing.",
   "ai_briefing_range_label": "Cover the last",
   "ai_briefing_button_again": "Brief me again",
-  "ai_briefing_action_bar_label": "AI briefing across your topics"
+  "ai_briefing_action_bar_label": "AI briefing across your topics",
+  "prefs_digest_title": "Daily briefing (AI)",
+  "prefs_digest_enabled_title": "Daily briefing",
+  "prefs_digest_enabled_description": "Once a day, the AI summarizes the recent messages across all your topics on this server and delivers them here.",
+  "prefs_digest_enabled_on": "On",
+  "prefs_digest_enabled_off": "Off",
+  "prefs_digest_hour_title": "Delivery time",
+  "prefs_digest_hour_description": "The UTC hour at which the briefing is generated and delivered.",
+  "prefs_digest_since_title": "Coverage",
+  "prefs_digest_since_description": "How far back the briefing looks.",
+  "prefs_digest_since_24h": "Last 24 hours",
+  "prefs_digest_since_7d": "Last 7 days",
+  "prefs_digest_since_30d": "Last 30 days"
 }

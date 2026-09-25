@@ -21,6 +21,9 @@ are planned as `v2.<upstream-minor>.<upstream-patch>-axon.N` (see docs/ai-plan/p
 - Chat over notification history: `POST /v1/ai/chat` (cited multi-turn answers, per-topic
   or cross-topic) and `POST /v1/ai/chat/stream` (SSE with delta/citations/done events and
   server-validated `[n]` citations); web dialog with progressive rendering.
+- Scheduled daily briefings: opt in via account settings (delivery hour + window); the
+  server summarizes recent activity across all your topics once a day and delivers it to
+  a private per-user topic (`dg_*`, read-only ACL, auto-subscribed).
 - MCP server for AI agents (`ntfy mcp`): publish, read_messages, subscribe_wait,
   ask_history, digest_topic, briefing, list_subscriptions, plan_subscription.
 - Scoped agent tokens: `ntfy token add --scope=...`; the `ai` scope gates the

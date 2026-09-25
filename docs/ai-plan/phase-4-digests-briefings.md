@@ -1,6 +1,6 @@
 # Phase 4 — Digests & briefings
 
-**Depends on:** Phase 3 (correlation input; per-subscription AI settings UI) · **Size:** M (2–3 weeks) · **Status:** 🔧 Slices landed: on-demand per-topic digest + cross-topic briefing (`POST /v1/ai/digest`, `POST /v1/ai/briefing` + web UIs). Only the scheduler + delivery-topic design remains for full briefings
+**Depends on:** Phase 3 (correlation input; per-subscription AI settings UI) · **Size:** M (2–3 weeks) · **Status:** ✅ Done (`POST /v1/ai/digest`, `POST /v1/ai/briefing`, scheduled daily briefings via `prefs.digest`: minute scheduler, private `dg_*` delivery topics with read ACL + auto-subscription, quiet-day skip, last-daily dedup, Preferences UI. Open tail: timezone picker (UTC-only), Firebase-carrying delivery is on by default
 
 **Goal:** scheduled, AI-written digests per user — "morning briefing" and on-demand rollups — so noisy topics can be muted entirely without fear of missing what matters.
 
