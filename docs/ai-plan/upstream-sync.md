@@ -1,11 +1,11 @@
 # Upstream sync policy
 
-The fork trunk is `ai/main`. Upstream is the `upstream` remote pointing at
+The fork trunk is `main`. Upstream is the `upstream` remote pointing at
 [binwiederhier/ntfy](https://github.com/binwiederhier/ntfy).
 
 ## Cadence
 
-Merge `upstream/main` into `ai/main` **quarterly**, or immediately for security
+Merge `upstream/main` into `main` **quarterly**, or immediately for security
 releases affecting `server/`, `user/`, or `message/`.
 
 ```bash

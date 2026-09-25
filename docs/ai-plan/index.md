@@ -1,6 +1,6 @@
 # axon — AI-native notifications (a fork of ntfy)
 
-**Branch:** `ai/main` · **Upstream:** [binwiederhier/ntfy](https://github.com/binwiederhier/ntfy) (Apache-2.0) · **Name:** `axon` — *notifications with a brain.*
+**Branch:** `main` · **Upstream:** [binwiederhier/ntfy](https://github.com/binwiederhier/ntfy) (Apache-2.0) · **Name:** `axon` — *notifications with a brain.*
 
 axon takes ntfy — a simple, battle-tested HTTP pub-sub notification service (Go server, React web app, mobile apps in separate repos) — and makes AI a first-class citizen in all three directions of the notification flow:
 
@@ -116,7 +116,7 @@ Notification bodies are attacker-controllable input. Rules for any prompt that e
 Every new option follows upstream's triplet: struct field in `server/config.go`, yml/env/flag wiring in `cmd/config_loader.go` + `server/server.yml`, and a row in `docs/config.md`. Web feature flags flow through `configResponse` (`server/server_web.go:76`) so the web app can hide AI UI when the server has no provider configured.
 
 ### Upstream sync
-Merge `upstream/main` into `ai/main` quarterly. Conflict risk is minimized by Principle 7 (isolated files). Before each merge, re-verify the integration seams listed in each phase doc, since upstream may move lines cited here (e.g. `dispatch()` at `server/server.go:824`).
+Merge `upstream/main` into `main` quarterly. Conflict risk is minimized by Principle 7 (isolated files). Before each merge, re-verify the integration seams listed in each phase doc, since upstream may move lines cited here (e.g. `dispatch()` at `server/server.go:824`).
 
 ### Licensing
 Upstream is Apache-2.0 (with a GPLv2 option for the Android app, which lives elsewhere). The fork stays Apache-2.0, keeps upstream copyright notices, and adds a `NOTICE` entry crediting ntfy/Philipp Heckel. Rebranding choices (name, logo) happen in Phase 0 and must not imply endorsement.
