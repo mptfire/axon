@@ -169,7 +169,7 @@ const (
 	postgresSelectTokenQuery                = `SELECT token, label, last_access, last_origin, expires, provisioned, scopes FROM user_token WHERE user_id = $1 AND token = $2`
 	postgresSelectTokensQuery               = `SELECT token, label, last_access, last_origin, expires, provisioned, scopes FROM user_token WHERE user_id = $1`
 	postgresSelectTokenCountQuery           = `SELECT COUNT(*) FROM user_token WHERE user_id = $1`
-	postgresSelectAllProvisionedTokensQuery = `SELECT token, label, last_access, last_origin, expires, provisioned FROM user_token WHERE provisioned = true`
+	postgresSelectAllProvisionedTokensQuery = `SELECT token, label, last_access, last_origin, expires, provisioned, scopes FROM user_token WHERE provisioned = true`
 	postgresUpsertTokenQuery                = `
 		INSERT INTO user_token (user_id, token, label, last_access, last_origin, expires, provisioned, scopes)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
