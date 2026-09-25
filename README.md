@@ -36,6 +36,19 @@ an LRU response cache, and per-visitor + global daily token budgets. See
 [docs/ai-plan](docs/ai-plan/index.md) for the phased plan and
 [docs/agents.md](docs/agents.md) for the agent quickstart.
 
+## Install
+
+Prebuilt static Linux binaries (amd64 + arm64, web app and docs embedded) are on the
+[Releases page](https://github.com/mptfire/axon/releases):
+
+```bash
+curl -LO https://github.com/mptfire/axon/releases/latest/download/axon-linux-amd64.gz
+gunzip axon-linux-amd64.gz && chmod +x axon-linux-amd64 && sudo mv axon-linux-amd64 /usr/local/bin/axon
+axon serve --listen-http :8080   # http://127.0.0.1:8080 — AI off (plain ntfy) until enabled
+```
+
+Tags matching `v*-axon*` automatically produce a release with binaries via GitHub Actions.
+
 ![ntfy](web/public/static/images/ntfy.png)
 
 # ntfy.sh | Send push notifications to your phone or desktop via PUT/POST
