@@ -1,6 +1,6 @@
 module heckel.io/ntfy/v2
 
-go 1.25.8
+go 1.26.0
 
 require (
 	cloud.google.com/go/firestore v1.25.0 // indirect
@@ -14,10 +14,10 @@ require (
 	github.com/olebedev/when v1.1.0
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli/v2 v2.27.7
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.57.0
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.22.0
-	golang.org/x/term v0.45.0
+	golang.org/x/sync v0.23.0
+	golang.org/x/term v0.46.0
 	golang.org/x/time v0.15.0
 	google.golang.org/api v0.294.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -34,8 +34,8 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/prometheus/client_golang v1.24.1
 	github.com/stripe/stripe-go/v74 v74.30.0
-	golang.org/x/sys v0.47.0
-	golang.org/x/text v0.41.0
+	golang.org/x/sys v0.48.0
+	golang.org/x/text v0.42.0
 )
 
 require (
