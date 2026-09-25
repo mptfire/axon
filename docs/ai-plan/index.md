@@ -79,7 +79,7 @@ New pieces introduced by this plan (nothing upstream is replaced):
 | 4 | [Digests & briefings](phase-4-digests-briefings.md) | Scheduled AI digests per user | 3 | M | 🔧 On-demand digest + cross-topic briefing (`/v1/ai/digest`, `/v1/ai/briefing`) landed; scheduled delivery pending |
 | 5 | [Chat with your notifications](phase-5-chat-with-notifications.md) | Conversational Q&A / search over history (streaming) | 1 | M | ✅ Cited multi-turn Q&A per topic and cross-topic, SSE-streamed answers with inline citations, web dialog, MCP `ask_history` (embeddings optional future) |
 | 6 | [Agents & MCP](phase-6-agents-mcp.md) | `ntfy mcp`, scoped agent tokens, agent docs | 1, 2 | M | ✅ Done: `ntfy mcp` + `--scope` agent tokens (fork migration 9→10) + [docs/agents.md](../agents.md) |
-| 7 | [Mobile, hardening & release](phase-7-mobile-privacy-release.md) | Mobile AI settings (separate repos), security review, 1.0 | 2–4 | L | ☐ Not started |
+| 7 | [Mobile, hardening & release](phase-7-mobile-privacy-release.md) | Mobile AI settings (separate repos), security review, 1.0 | 2–4 | L | ☐ Open: mobile apps (separate repos) + release engineering; CHANGELOG and docs are in place |
 
 \* Size for 1–2 familiar engineers: S ≈ 1 week, M ≈ 2–4 weeks, L ≈ 4–8 weeks.
 

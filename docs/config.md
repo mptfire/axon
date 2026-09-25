@@ -1877,10 +1877,20 @@ so you can audit exactly what was sent, and every request counts against per-vis
 token budgets (`ai-visitor-daily-token-budget`, `ai-global-daily-token-budget`); breached budgets
 return HTTP 429.
 
-| Endpoint            | Auth          | Description                                                                    |
-|---------------------|---------------|--------------------------------------------------------------------------------|
-| `GET /v1/ai/status` | admin         | Provider, model, health, today's global usage vs budgets                       |
-| `GET /v1/ai/usage`  | any visitor   | Today's token usage for the requesting visitor                                 |
+| Endpoint                 | Auth              | Description                                                                                             |
+|--------------------------|-------------------|---------------------------------------------------------------------------------------------------------|
+| `GET /v1/ai/status`      | admin             | Provider, model, health, today's global usage vs budgets                                                |
+| `GET /v1/ai/usage`       | any visitor       | Today's token usage for the requesting visitor                                                          |
+| `POST /v1/ai/plan`       | any visitor       | Natural language → proposed subscription plan (review-only; applied via the normal subscribe endpoints) |
+| `POST /v1/ai/tune`       | user (+ai scope)  | Proposed filter/display-name adjustments for one subscription                                           |
+| `POST /v1/ai/digest`     | user (+ai scope)  | Structured summary of one subscribed topic's recent messages                                            |
+| `POST /v1/ai/briefing`   | user (+ai scope)  | Structured summary across all subscribed topics                                                         |
+| `POST /v1/ai/chat`       | user (+ai scope)  | Question about recent history, answered with validated citations                                        |
+| `POST /v1/ai/chat/stream`| user (+ai scope)  | SSE variant of chat: `delta`, `citations`, `done` events                                                |
+
+All AI endpoints count against the per-visitor daily request limit and the token budgets.
+`ai scope` refers to [scoped agent tokens](agents.md): tokens created with `ntfy token add --scope=...`
+must include `ai` to call the LLM-costing endpoints; scope-less tokens are unrestricted.
 
 The web app exposes AI UI (e.g. the AI subscription assistant) only when the server reports
 `enable_ai` via `/v1/config` — i.e. when `ai-enabled` is set and a provider is configured.
