@@ -295,15 +295,9 @@ export const SubscriptionPopup = (props) => {
           message={t("message_bar_error_publishing")}
         />
         <DisplayNameDialog open={displayNameDialogOpen} subscription={subscription} onClose={() => setDisplayNameDialogOpen(false)} />
-        {showAiTune && (
-          <AiTuneDialog open={aiTuneDialogOpen} subscription={subscription} onClose={() => setAiTuneDialogOpen(false)} />
-        )}
-        {showAi && (
-          <AiDigestDialog open={aiDigestDialogOpen} subscription={subscription} onClose={() => setAiDigestDialogOpen(false)} />
-        )}
-        {showAi && (
-          <AiChatDialog open={aiChatDialogOpen} subscription={subscription} onClose={() => setAiChatDialogOpen(false)} />
-        )}
+        {showAiTune && <AiTuneDialog open={aiTuneDialogOpen} subscription={subscription} onClose={() => setAiTuneDialogOpen(false)} />}
+        {showAi && <AiDigestDialog open={aiDigestDialogOpen} subscription={subscription} onClose={() => setAiDigestDialogOpen(false)} />}
+        {showAi && <AiChatDialog open={aiChatDialogOpen} subscription={subscription} onClose={() => setAiChatDialogOpen(false)} />}
         {showReservationAdd && (
           <ReserveAddDialog
             open={reserveAddDialogOpen}
