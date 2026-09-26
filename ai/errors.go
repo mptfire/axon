@@ -20,6 +20,11 @@ var (
 	// fall back to a non-streaming Complete.
 	ErrStreamingNotSupported = errors.New("provider does not support streaming")
 
+	// ErrEmbeddingsNotSupported is returned when embeddings are requested from a
+	// provider that does not implement the TextEmbedder capability. Callers should
+	// fall back to keyword-only retrieval.
+	ErrEmbeddingsNotSupported = errors.New("provider does not support embeddings")
+
 	// ErrInvalidResponse is returned when a provider response cannot be parsed into the
 	// expected structure (e.g. the planner asked for JSON and got prose). This is a
 	// provider-side failure, not user error.

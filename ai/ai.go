@@ -170,6 +170,17 @@ func (c *Client) Mock() *MockProvider {
 	return nil
 }
 
+// embedTexts computes embeddings via the provider's embeddings endpoint. Only
+// OpenAI-compatible providers implement it; others return ErrStreamingNotSupported-style
+// capability errors which callers map to keyword-only fallbacks.
+func (c *Client) embedTexts(ctx context.Context, model string, texts []string) ([][]float32, error) {
+	te, ok := c.provider.(TextEmbedder)
+	if !ok {
+		return nil, ErrEmbeddingsNotSupported
+	}
+	return te.EmbedTexts(ctx, model, texts)
+}
+
 // modelFor resolves the per-feature model override, falling back to the default model.
 func (c *Client) modelFor(feature Feature) string {
 	if m, ok := c.featureModel[feature]; ok && m != "" {

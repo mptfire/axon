@@ -194,3 +194,39 @@ func TestServer_AI_ChatStream_Gates(t *testing.T) {
 	require.Equal(t, 200, rr.Code)
 	require.Contains(t, rr.Body.String(), "no messages")
 }
+
+func TestServer_AI_Chat_HybridRetrieval(t *testing.T) {
+	c := newTestConfigWithAuthFile(t, "")
+	c.AIEnabled = true
+	c.AIProvider = "mock"
+	c.AIEmbeddingsModel = "nomic-embed-test"
+	s := newTestServer(t, c)
+	defer s.closeDatabases()
+	require.NotNil(t, s.embedder) // wired when ai-embeddings-model is set
+	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
+	request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"ops"}`, auth)
+	request(t, s, "PUT", "/ops", "the database migration failed at 03:00", map[string]string{"Title": "migration failure"})
+	request(t, s, "PUT", "/ops", "someone pushed a poetry blog post", nil)
+
+	// Semantic embedding: "migration" text scores high, poetry low; the embedding path
+	// must be exercised (cost accounting) and the prompt must contain the right message.
+	var promptSeen string
+	embedCalls := 0
+	s.ai.Mock().SetEmbedHandler(func(text string) ([]float32, error) {
+		embedCalls++
+		if strings.Contains(text, "migration failed") {
+			return []float32{0.95, 0.1}, nil
+		}
+		return []float32{0.05, 0.05}, nil
+	})
+	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
+		promptSeen = req.Prompt
+		return &ai.Response{Text: `{"answer": "The migration failed.", "citations": []}`}, nil
+	})
+
+	rr := request(t, s, "POST", "/v1/ai/chat", `{"topic":"ops","question":"what happened with the migration?"}`, auth)
+	require.Equal(t, 200, rr.Code)
+	require.Contains(t, promptSeen, "migration failure")
+	require.Greater(t, embedCalls, 0)
+}

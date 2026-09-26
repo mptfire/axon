@@ -259,7 +259,8 @@ type Config struct {
 	AIEnrichmentEnabled       bool          // Enable inline AI enrichment on the publish path
 	AIEnrichTopics            []string      // Topics eligible for AI enrichment (exact match)
 	AITranslateTopics         []string      // axon: Topics whose enriched messages are also translated
-	AITranslateLang           string        // axon: Target language for ai-translate-topics, e.g. "de" or "German"
+	AITranslateLang           string        // axon: Target language for ai-translate-topics
+	AIEmbeddingsModel         string        // axon: Embeddings model for semantic chat retrieval ("" = keyword-only), e.g. "de" or "German"
 	AIVisitorDailyTokenBudget int64         // Daily token budget per visitor (input+output); 0 = unlimited
 	AIGlobalDailyTokenBudget  int64         // Daily token budget server-wide (input+output); 0 = unlimited
 	AICacheSize               int64         // AI response cache size in bytes
@@ -388,6 +389,7 @@ func NewConfig() *Config {
 		AIEnrichTopics:            nil,
 		AITranslateTopics:         nil,
 		AITranslateLang:           "",
+		AIEmbeddingsModel:         "",
 		AIVisitorDailyTokenBudget: DefaultAIVisitorDailyTokenBudget,
 		AIGlobalDailyTokenBudget:  DefaultAIGlobalDailyTokenBudget,
 		AICacheSize:               DefaultAICacheSize,

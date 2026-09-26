@@ -360,7 +360,7 @@ func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request, v *visitor
 	if len(context) == 0 {
 		return s.writeJSON(w, s.emptyChatResponse(body, question))
 	}
-	context = selectChatContext(question, context)
+	context = selectChatContext(r.Context(), question, context, s.embedder)
 	log.Tag(tagAI).With(v).Fields(log.Context{
 		"ai_feature":      string(ai.FeatureChat),
 		"ai_chat_topic":   body.Topic,
@@ -426,7 +426,7 @@ func (s *Server) handleAIChatStream(w http.ResponseWriter, r *http.Request, v *v
 		_ = writeEvent(map[string]any{"type": "delta", "text": "There are no messages in this topic for the selected period."})
 		return writeEvent(map[string]any{"type": "done"})
 	}
-	context = selectChatContext(question, context)
+	context = selectChatContext(r.Context(), question, context, s.embedder)
 	chatMessages := make([]ai.DigestMessage, 0, len(context))
 	for _, m := range context {
 		chatMessages = append(chatMessages, ai.DigestMessage{ID: m.ID, Topic: messageTopics[m.ID], Title: m.Title, Message: m.Message, Priority: m.Priority, Time: m.Time})
@@ -561,10 +561,11 @@ func toDigestMessages(messages []*model.Message) []ai.DigestMessage {
 	return out
 }
 
-// selectChatContext picks the messages most likely to answer the question: term overlap
-// with title/message (titles weigh double) plus a mild recency bias. Deterministic and
-// cheap — no embeddings in v1.
-func selectChatContext(question string, messages []*model.Message) []*model.Message {
+// selectChatContext picks the messages most likely to answer the question. With an
+// embedder, retrieval is hybrid: 0.6 * cosine(question, message) + 0.4 * normalized
+// term overlap. Without one, it falls back to term overlap and recency only.
+// Deterministic and cheap; embeddings are batched and cached per text.
+func selectChatContext(ctx context.Context, question string, messages []*model.Message, embedder *ai.Embedder) []*model.Message {
 	const k = 60
 	tokens := questionTokens(question)
 	scores := make(map[string]float64, len(messages)) // id -> score
@@ -592,9 +593,52 @@ func selectChatContext(question string, messages []*model.Message) []*model.Mess
 	if len(messages) > k {
 		messages = messages[:k]
 	}
-	// Keep chronological order for the model's readability
-	sort.SliceStable(messages, func(i, j int) bool { return messages[i].Time < messages[j].Time })
+	if embedder == nil {
+		// Keep chronological order for the model's readability
+		sort.SliceStable(messages, func(i, j int) bool { return messages[i].Time < messages[j].Time })
+		return messages
+	}
+	return hybridReorder(ctx, question, messages, scores, embedder)
+}
+
+// hybridReorder re-ranks the top candidates by blending cosine(question, message) with
+// the term-overlap score. Embedding failures degrade silently to the term order.
+func hybridReorder(ctx context.Context, question string, messages []*model.Message, scores map[string]float64, embedder *ai.Embedder) []*model.Message {
+	texts := make([]string, 0, len(messages)+1)
+	maxTerm := 0.0
+	for _, m := range messages {
+		texts = append(texts, m.Title+"\n"+m.Message)
+		if scores[m.ID] > maxTerm {
+			maxTerm = scores[m.ID]
+		}
+	}
+	texts = append(texts, question)
+	vectors, err := embedder.Embed(ctx, texts)
+	if err != nil {
+		log.Tag(tagAI).Err(err).Debug("Embedding failed, keeping keyword order")
+		return messages
+	}
+	qvec := vectors[len(vectors)-1]
+	cosines := make(map[string]float64, len(messages))
+	for i, m := range messages {
+		cosines[m.ID] = ai.Cosine(qvec, vectors[i])
+	}
+	sort.SliceStable(messages, func(i, j int) bool {
+		hi, hj := hybridScore(cosines[messages[i].ID], scores[messages[i].ID], maxTerm), hybridScore(cosines[messages[j].ID], scores[messages[j].ID], maxTerm)
+		if hi != hj {
+			return hi > hj
+		}
+		return messages[i].Time > messages[j].Time
+	})
 	return messages
+}
+
+// hybridScore blends normalized cosine similarity with the term-overlap score.
+func hybridScore(cosine, termScore, maxTerm float64) float64 {
+	if maxTerm <= 0 {
+		return cosine
+	}
+	return 0.6*cosine + 0.4*(termScore/maxTerm)
 }
 
 // questionTokens lowercases and splits the question, dropping short noise words.

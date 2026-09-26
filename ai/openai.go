@@ -251,6 +251,54 @@ func (p *openAIProvider) Stream(ctx context.Context, req *Request) (<-chan Strea
 	return events, nil
 }
 
+// EmbedTexts computes embeddings via the OpenAI-compatible /embeddings endpoint
+// (OpenAI, Ollama with embedding models, Poolside, ...).
+func (p *openAIProvider) EmbedTexts(ctx context.Context, model string, texts []string) ([][]float32, error) {
+	if len(texts) == 0 {
+		return nil, nil
+	}
+	body, err := json.Marshal(struct {
+		Model string   `json:"model"`
+		Input []string `json:"input"`
+	}{Model: model, Input: texts})
+	if err != nil {
+		return nil, err
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/embeddings", bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	if p.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+p.apiKey)
+	}
+	httpResp, err := p.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+	defer httpResp.Body.Close()
+	if httpResp.StatusCode != http.StatusOK {
+		_, _ = io.Copy(io.Discard, io.LimitReader(httpResp.Body, 4096))
+		return nil, &ProviderError{Provider: p.name, Status: httpResp.StatusCode, Message: httpResp.Status}
+	}
+	var embResp struct {
+		Data []struct {
+			Index     int       `json:"index"`
+			Embedding []float32 `json:"embedding"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(httpResp.Body).Decode(&embResp); err != nil {
+		return nil, fmt.Errorf("invalid embeddings response: %w", err)
+	}
+	out := make([][]float32, len(texts))
+	for _, item := range embResp.Data {
+		if item.Index >= 0 && item.Index < len(out) {
+			out[item.Index] = item.Embedding
+		}
+	}
+	return out, nil
+}
+
 func (p *openAIProvider) Ping(ctx context.Context) error {
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, p.baseURL+"/models", nil)
 	if err != nil {

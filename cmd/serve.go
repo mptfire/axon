@@ -138,6 +138,7 @@ var flagsServe = append(
 	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "ai-enrich-topics", Aliases: []string{"ai_enrich_topics"}, EnvVars: []string{"NTFY_AI_ENRICH_TOPICS"}, Usage: "topics eligible for inline AI enrichment, e.g. prod-alerts"}),
 	altsrc.NewStringSliceFlag(&cli.StringSliceFlag{Name: "ai-translate-topics", Aliases: []string{"ai_translate_topics"}, EnvVars: []string{"NTFY_AI_TRANSLATE_TOPICS"}, Usage: "topics whose enriched messages are also translated (requires ai-translate-lang)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-translate-lang", Aliases: []string{"ai_translate_lang"}, EnvVars: []string{"NTFY_AI_TRANSLATE_LANG"}, Usage: "target language for ai-translate-topics, e.g. de or German"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-embeddings-model", Aliases: []string{"ai_embeddings_model"}, EnvVars: []string{"NTFY_AI_EMBEDDINGS_MODEL"}, Usage: "embeddings model for semantic chat retrieval, e.g. nomic-embed-text (empty = keyword-only)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-visitor-daily-token-budget", Aliases: []string{"ai_visitor_daily_token_budget"}, EnvVars: []string{"NTFY_AI_VISITOR_DAILY_TOKEN_BUDGET"}, Value: fmt.Sprintf("%d", server.DefaultAIVisitorDailyTokenBudget), Usage: "daily AI token budget per visitor (0 = unlimited)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-global-daily-token-budget", Aliases: []string{"ai_global_daily_token_budget"}, EnvVars: []string{"NTFY_AI_GLOBAL_DAILY_TOKEN_BUDGET"}, Value: fmt.Sprintf("%d", server.DefaultAIGlobalDailyTokenBudget), Usage: "daily AI token budget server-wide (0 = unlimited)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-cache-size", Aliases: []string{"ai_cache_size"}, EnvVars: []string{"NTFY_AI_CACHE_SIZE"}, Value: fmt.Sprintf("%d", server.DefaultAICacheSize), Usage: "size of the AI response cache, e.g. 100M"}),
@@ -208,6 +209,7 @@ func execServe(c *cli.Context) error {
 	aiEnrichTopics := c.StringSlice("ai-enrich-topics")
 	aiTranslateTopics := c.StringSlice("ai-translate-topics")
 	aiTranslateLang := c.String("ai-translate-lang")
+	aiEmbeddingsModel := c.String("ai-embeddings-model")
 	aiVisitorDailyTokenBudget := c.Int64("ai-visitor-daily-token-budget")
 	aiGlobalDailyTokenBudget := c.Int64("ai-global-daily-token-budget")
 	aiCacheSizeStr := c.String("ai-cache-size")
@@ -646,6 +648,7 @@ func execServe(c *cli.Context) error {
 	conf.AIEnrichTopics = aiEnrichTopics
 	conf.AITranslateTopics = aiTranslateTopics
 	conf.AITranslateLang = aiTranslateLang
+	conf.AIEmbeddingsModel = aiEmbeddingsModel
 	conf.AIVisitorDailyTokenBudget = aiVisitorDailyTokenBudget
 	conf.AIGlobalDailyTokenBudget = aiGlobalDailyTokenBudget
 	conf.AICacheSize = aiCacheSize

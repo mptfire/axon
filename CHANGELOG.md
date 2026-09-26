@@ -44,7 +44,9 @@ timezone-aware scheduling, security audit (docs/security-audit.md).
   with web dialogs ("AI summarize this topic…", "AI briefing").
 - Chat over notification history: `POST /v1/ai/chat` (cited multi-turn answers, per-topic
   or cross-topic) and `POST /v1/ai/chat/stream` (SSE with delta/citations/done events and
-  server-validated `[n]` citations); web dialog with progressive rendering.
+  server-validated `[n]` citations); web dialog with progressive rendering. Optional
+  semantic retrieval via `ai-embeddings-model` — hybrid keyword + vector ranking with an
+  in-memory embedding cache.
 - Scheduled daily briefings: opt in via account settings (delivery hour + timezone +
   window); the server summarizes recent activity across all your topics once a day and
   delivers it to a private per-user topic (`dg_*`, read-only ACL, auto-subscribed).

@@ -74,6 +74,7 @@ type Server struct {
 	priceCache        *util.LookupCache[map[string]int64] // Stripe price ID -> price as cents (USD implied!)
 	metricsHandler    http.Handler                        // Handles /metrics if enable-metrics set, and listen-metrics-http not set
 	ai                *ai.Client                          // axon: AI layer; nil when disabled (see docs/ai-plan/)
+	embedder          *ai.Embedder                        // axon: embeddings for semantic chat retrieval; nil when disabled
 	closeChan         chan bool
 	mu                sync.RWMutex
 }
@@ -356,6 +357,9 @@ func New(conf *Config) (*Server, error) {
 		ai:              aiClient,
 	}
 	s.priceCache = util.NewLookupCache(s.fetchStripePrices, conf.StripePriceCacheDuration)
+	if aiClient != nil && conf.AIEmbeddingsModel != "" {
+		s.embedder = aiClient.Embedder(conf.AIEmbeddingsModel) // axon: semantic chat retrieval
+	}
 	return s, nil
 }
 

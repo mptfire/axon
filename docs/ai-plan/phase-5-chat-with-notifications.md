@@ -1,6 +1,6 @@
 # Phase 5 — Chat with your notifications
 
-**Depends on:** Phase 1 · **Size:** M (3 weeks) · **Status:** ✅ Done (SSE streaming: `POST /v1/ai/chat/stream` with delta/citations/done events, `[n]` inline markers resolved and validated server-side, graceful degradation for non-streaming providers, web progressive rendering; embeddings remain an optional future enhancement)
+**Depends on:** Phase 1 · **Size:** M (3 weeks) · **Status:** ✅ Done (SSE streaming: `POST /v1/ai/chat/stream` with delta/citations/done events, `[n]` inline markers resolved and validated server-side, graceful degradation for non-streaming providers, web progressive rendering; embeddings shipped: hybrid retrieval via `ai-embeddings-model`)
 
 **Goal:** conversational search and Q&A over your notification history — "what did the backups topic say last night?", "summarize this week's alerts", "when was the last time prod-alerts was quiet for 24h?" — streamed, with answers that cite the underlying messages.
 

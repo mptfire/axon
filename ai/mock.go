@@ -24,6 +24,8 @@ type MockProvider struct {
 	queue        []MockResult
 	handler      func(req *Request) (*Response, error)
 	pingErr      error
+	embedCalls   int
+	embedHandler func(text string) ([]float32, error)
 }
 
 // NewMockProvider creates a MockProvider. The defaultModel is reported in responses
@@ -155,6 +157,59 @@ func (p *MockProvider) Stream(ctx context.Context, req *Request) (<-chan StreamE
 		events <- StreamEvent{FinishReason: response.FinishReason}
 	}()
 	return events, nil
+}
+
+// EmbedTexts returns deterministic per-text vectors so embedding-backed tests run
+// without a real model. Similar texts do NOT produce similar vectors; use
+// SetEmbedHandler when similarity semantics matter.
+func (p *MockProvider) EmbedTexts(ctx context.Context, model string, texts []string) ([][]float32, error) {
+	p.mu.Lock()
+	p.embedCalls++
+	handler := p.embedHandler
+	p.mu.Unlock()
+	out := make([][]float32, len(texts))
+	for i, text := range texts {
+		if handler != nil {
+			vec, err := handler(text)
+			if err != nil {
+				return nil, err
+			}
+			out[i] = vec
+			continue
+		}
+		out[i] = deterministicVector(text)
+	}
+	return out, nil
+}
+
+// EmbedCalls reports how many texts were embedded (for cost assertions in tests).
+func (p *MockProvider) EmbedCalls() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.embedCalls
+}
+
+// SetEmbedHandler installs a per-text embedding function (used by tests to control
+// similarity semantics).
+func (p *MockProvider) SetEmbedHandler(fn func(text string) ([]float32, error)) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.embedHandler = fn
+}
+
+// deterministicVector derives an 8-dimensional test vector from text via FNV-1a.
+func deterministicVector(text string) []float32 {
+	const dims = 8
+	vec := make([]float32, dims)
+	h := uint64(14695981039346656037)
+	for _, b := range []byte(strings.ToLower(strings.TrimSpace(text))) {
+		h ^= uint64(b)
+		h *= 1099511628211
+		for i := 0; i < dims; i++ {
+			vec[i] += float32((h >> (uint(i) * 5)) & 0x0F)
+		}
+	}
+	return vec
 }
 
 // Ping always succeeds unless a ping error was set.
