@@ -147,7 +147,9 @@ var (
 
 func validTopic(topic string) bool { return topicNameRegex.MatchString(topic) }
 
-// do performs an authenticated request against the configured ntfy service.
+// do performs a request against the configured ntfy service. The auth value is the
+// caller's raw Authorization header (HTTP transport) or empty (stdio transport, which
+// falls back to the server-wide configured access token).
 func (s *Server) do(ctx context.Context, method, path string, body io.Reader, header http.Header) (*http.Response, error) {
 	httpReq, err := http.NewRequestWithContext(ctx, method, strings.TrimSuffix(s.config.ServiceBaseURL, "/")+path, body)
 	if err != nil {
@@ -158,7 +160,11 @@ func (s *Server) do(ctx context.Context, method, path string, body io.Reader, he
 			httpReq.Header.Add(k, v)
 		}
 	}
-	if s.config.AccessToken != "" {
+	// HTTP transport: caller's own credentials via context value; stdio: config token
+	switch {
+	case authTokenFrom(ctx) != "":
+		httpReq.Header.Set("Authorization", authTokenFrom(ctx))
+	case s.config.AccessToken != "":
 		httpReq.Header.Set("Authorization", "Bearer "+s.config.AccessToken)
 	}
 	return s.client.Do(httpReq)
