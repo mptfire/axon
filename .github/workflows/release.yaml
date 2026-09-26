@@ -66,14 +66,17 @@ jobs:
           ./axon-linux-amd64 --help > /dev/null
           echo "amd64 OK"
 
+      - name: Compress binaries
+        run: gzip -f axon-linux-amd64 axon-linux-arm64
+
       - name: Create release and attach artifacts
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" axon-linux-amd64 axon-linux-arm64 --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$GITHUB_REF_NAME" axon-linux-amd64.gz axon-linux-arm64.gz --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" axon-linux-amd64 axon-linux-arm64 \
+            gh release create "$GITHUB_REF_NAME" axon-linux-amd64.gz axon-linux-arm64.gz \
               --repo "$GITHUB_REPOSITORY" \
               --title "axon $GITHUB_REF_NAME" \
               --generate-notes
