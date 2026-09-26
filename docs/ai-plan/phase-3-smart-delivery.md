@@ -1,6 +1,6 @@
 # Phase 3 — Smart delivery (AI on the message path)
 
-**Depends on:** Phase 1 (and pairs with Phase 2's per-subscription settings UI) · **Size:** L (4–6 weeks) · **Status:** ✅ Publisher-side summarize/classify/translate landed (`ai-enrich-topics`, `ai-translate-topics`+`ai-translate-lang`, `ai-inline-timeout` pass-through). Open item: correlate (incident grouping needs embeddings/semantics — deterministic v1 deemed risky for delivery behavior); subscriber-side transforms deliberately skipped (publisher-side covers the shared-cache case)
+**Depends on:** Phase 1 (and pairs with Phase 2's per-subscription settings UI) · **Size:** L (4–6 weeks) · **Status:** ✅ Publisher-side summarize/classify/translate landed (`ai-enrich-topics`, `ai-translate-topics`+`ai-translate-lang`, `ai-inline-timeout` pass-through). Correlate shipped as embedding-based clustering inside the digest pipeline (delivery behavior unchanged — clustering only shapes the AI prompt). Subscriber-side transforms deliberately skipped (publisher-side covers the shared-cache case)
 
 **Goal:** optional, per-subscription AI processing of messages as they flow through the server: summarize, classify importance, correlate bursts, translate — without breaking ntfy's core promise of instant delivery.
 

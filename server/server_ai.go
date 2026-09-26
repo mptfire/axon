@@ -312,7 +312,11 @@ func (s *Server) handleAIDigest(w http.ResponseWriter, r *http.Request, v *visit
 			Disclaimer: ai.DigestDisclaimer,
 		})
 	}
-	digest, err := ai.NewDigester(s.ai).Digest(r.Context(), visitorID(v.ip, v.user, v.config), &ai.DigestInput{
+	digester := ai.NewDigester(s.ai)
+	if s.embedder != nil {
+		digester = ai.NewDigesterWithEmbedder(s.ai, s.embedder) // axon: semantic pre-clustering
+	}
+	digest, err := digester.Digest(r.Context(), visitorID(v.ip, v.user, v.config), &ai.DigestInput{
 		Topic: body.Topic, Messages: digestMessages,
 	})
 	if err != nil {
