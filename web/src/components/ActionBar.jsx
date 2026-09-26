@@ -44,7 +44,7 @@ const ActionBar = (props) => {
 
   const getActionBarBackground = () => {
     if (isLaunchedPWA) {
-      return "#317f6f";
+      return "#4F46E5";
     }
 
     switch (theme.palette.mode) {
@@ -53,7 +53,7 @@ const ActionBar = (props) => {
 
       case "light":
       default:
-        return "linear-gradient(150deg, #338574 0%, #56bda8 100%)";
+        return "linear-gradient(150deg, #4F46E5 0%, #8B5CF6 100%)";
     }
   };
 

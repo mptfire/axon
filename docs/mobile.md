@@ -6,7 +6,9 @@ unmodified — point them at your axon server and log in.
 ## Android / iOS apps
 
 1. Install the open-source ntfy app ([Google Play](https://play.google.com/store/apps/details?id=io.heckel.ntfy),
-   [F-Droid](https://f-droid.org/en/packages/io.heckel.ntfy/)) or the iOS app.
+   [F-Droid](https://f-droid.org/en/packages/io.heckel.ntfy/)) — or the **axon-branded
+   Android build** from the [axon.3 release assets](https://github.com/mptfire/axon/releases/tag/v2.28.0-axon.3)
+   (`axon-fdroid-debug.apk`: indigo theme, `axon.rtard.de` pre-set, sideload-ready).
 2. Add server: `https://axon.rtard.de` (or your own axon host).
 3. Log in with your axon account (needed for reserved/protected topics; public topics
    work without login).
