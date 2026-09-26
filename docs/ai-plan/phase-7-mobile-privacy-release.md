@@ -1,6 +1,6 @@
 # Phase 7 — Mobile apps, hardening & 1.0 release
 
-**Depends on:** Phases 2–4 shipped (settings/data model stable) · **Size:** L (4–8 weeks, partly parallelizable) · **Status:** 🔧 Release slice done: tag-triggered release automation (static amd64+arm64 binaries auto-attached to GitHub Releases), first releases shipped (v2.28.0-axon.1/.2). Open: mobile apps, goreleaser expansion
+**Depends on:** Phases 2–4 shipped (settings/data model stable) · **Size:** L (4–8 weeks, partly parallelizable) · **Status:** 🔧 Release slice done: tag-triggered release automation (static amd64+arm64 binaries auto-attached to GitHub Releases), first releases shipped (v2.28.0-axon.1/.2). Mobile: axon-android fork repo + branded fdroid debug APK shipped (upstream apps also work unchanged). Open: Play/F-Droid store publishing, iOS
 
 **Goal:** bring the AI experience to the mobile apps (separate repos), pass a security/privacy review, and ship a coherent 1.0.
 
