@@ -4,7 +4,30 @@ axon tracks upstream ntfy; the entries below cover fork-specific changes only.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com); fork versions
 are planned as `v2.<upstream-minor>.<upstream-patch>-axon.N` (see docs/ai-plan/phase-7).
 
-## [Unreleased]
+## v2.28.0-axon.2 (2026-09-26)
+
+### Fixed
+- **Postgres**: provisioned-tokens query was missing the `scopes` column added by the
+  scoped-tokens migration — provisioned-token reads failed on the Postgres backend
+  (SQLite was unaffected; caught by CI on the Postgres test backend).
+
+### Changed
+- `.go-version` bumped to 1.27.1 (required by goreleaser v2.18.2 in CI);
+  `template/gotext` regeneration marker updated to match.
+- golint/revive + staticcheck clean across all packages (mock provider method docs,
+  MCP error-string style, identical struct conversions).
+- Web app formatting brought in line with prettier; eslint errors in AI components fixed.
+
+### Added
+- Release automation: `v*-axon*` tags now build static amd64 + arm64 binaries in CI and
+  attach them to a GitHub Release automatically.
+
+## v2.28.0-axon.1 (2026-09-25)
+
+First public release: AI provider layer (Poolside/Ollama/OpenAI-compatible/Anthropic/mock),
+subscription wizard + tuning, inline enrichment + translation, digests + cross-topic
+briefings + scheduled briefings, streaming cited chat, MCP server, scoped agent tokens,
+timezone-aware scheduling, security audit (docs/security-audit.md).
 
 ### Added — AI layer (all opt-in, off by default via `ai-enabled: false`)
 - AI provider abstraction (`ai/` package): OpenAI-compatible (also covers Ollama,
