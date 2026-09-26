@@ -11,6 +11,7 @@ package mcp
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -18,6 +19,9 @@ import (
 	"net/http"
 	"time"
 )
+
+// maxHTTPBodyBytes bounds the MCP HTTP request body (generous; tool arguments are small).
+const maxHTTPBodyBytes = 4 * 1024 * 1024
 
 // ProtocolVersion is the MCP protocol version this server speaks.
 const ProtocolVersion = "2024-11-05"
@@ -59,6 +63,25 @@ func New(conf Config) *Server {
 		config: conf,
 		client: &http.Client{Timeout: conf.ClientTimeout},
 	}
+}
+
+// authTokenKey is the context key for the caller's raw Authorization header value
+// (HTTP transport). Empty means "no caller credentials" — stdio mode uses the
+// server-wide configured token instead.
+type authTokenKey struct{}
+
+func withAuthToken(ctx context.Context, auth string) context.Context {
+	if auth == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, authTokenKey{}, auth)
+}
+
+func authTokenFrom(ctx context.Context) string {
+	if v, ok := ctx.Value(authTokenKey{}).(string); ok {
+		return v
+	}
+	return ""
 }
 
 // rpcRequest is an incoming JSON-RPC 2.0 request or notification.
@@ -129,6 +152,64 @@ func writeResponse(writer *bufio.Writer, out io.Writer, response *rpcResponse) e
 		return err
 	}
 	return writer.Flush()
+}
+
+// HTTPHandler implements the MCP streamable HTTP transport on top of the same tool
+// dispatch used by stdio. Clients POST JSON-RPC messages (single object or batch);
+// responses come back as JSON. Notification-only requests return HTTP 202. Unlike
+// stdio, auth is per-request: pass your ntfy access token as `Authorization: Bearer tk_...`
+// (or Basic) and every tool call is made with those credentials.
+func (s *Server) HTTPHandler() http.Handler {
+	return http.HandlerFunc(s.serveHTTP)
+}
+
+func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, "MCP endpoint: use POST with a JSON-RPC message", http.StatusMethodNotAllowed)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxHTTPBodyBytes))
+	if err != nil {
+		http.Error(w, "cannot read request body", http.StatusBadRequest)
+		return
+	}
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		http.Error(w, "empty request body", http.StatusBadRequest)
+		return
+	}
+	authHeader := r.Header.Get("Authorization")
+	ctx := withAuthToken(r.Context(), authHeader)
+	// Batch: JSON array of messages. Responses (in order, notifications excluded) as a JSON array.
+	if trimmed[0] == '[' {
+		var requests []rpcRequest
+		if err := json.Unmarshal(trimmed, &requests); err != nil {
+			http.Error(w, "parse error", http.StatusBadRequest)
+			return
+		}
+		responses := make([]*rpcResponse, 0, len(requests))
+		for i := range requests {
+			if len(requests[i].ID) == 0 {
+				continue
+			}
+			responses = append(responses, s.dispatch(ctx, &requests[i]))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(responses)
+		return
+	}
+	var req rpcRequest
+	if err := json.Unmarshal(trimmed, &req); err != nil {
+		http.Error(w, "parse error", http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if len(req.ID) == 0 {
+		w.WriteHeader(http.StatusAccepted) // Notification-only request
+		return
+	}
+	_ = json.NewEncoder(w).Encode(s.dispatch(ctx, &req))
 }
 
 // dispatch routes a single request to its handler.
