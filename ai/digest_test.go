@@ -89,3 +89,31 @@ func TestDigester_GarbageRejectedAndSanitized(t *testing.T) {
 	require.LessOrEqual(t, len(result.Sections[0].Points), DigestMaxPoints)
 	require.LessOrEqual(t, len(result.Sections[0].Points[0]), DigestMaxPointChars)
 }
+
+func TestNewDigesterWithEmbedder_PromptContainsClusterHints(t *testing.T) {
+	var seenPrompt string
+	client := newTestClient(t, &Config{Provider: "mock"})
+	client.Mock().SetHandler(func(req *Request) (*Response, error) {
+		seenPrompt = req.Prompt
+		return &Response{Text: `{"headline": "h", "sections": []}`}, nil
+	})
+	client.Mock().SetEmbedHandler(func(text string) ([]float32, error) {
+		if strings.Contains(text, "disk") {
+			return []float32{1, 0.05}, nil
+		}
+		return []float32{0.05, 1}, nil
+	})
+	embedder := client.Embedder("embed-model")
+	digester := NewDigesterWithEmbedder(client, embedder)
+	_, err := digester.Digest(context.Background(), "", &DigestInput{
+		Topic: "ops",
+		Messages: []DigestMessage{
+			{Message: "disk alert one"},
+			{Message: "disk alert two"},
+			{Message: "garden gate open"},
+			{Message: "garden gate still open"},
+		},
+	})
+	require.Nil(t, err)
+	require.Contains(t, seenPrompt, "Semantic pre-clustering")
+}
