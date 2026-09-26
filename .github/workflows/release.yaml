@@ -35,6 +35,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gcc-aarch64-linux-gnu
 
+      - name: Build docs (embedded in binary)
+        run: make docs
+
       - name: Build web app (embedded in binary)
         run: make web
 
