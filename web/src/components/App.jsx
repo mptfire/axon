@@ -103,7 +103,7 @@ const App = () => {
 };
 
 const updateTitle = (newNotificationsCount) => {
-  document.title = newNotificationsCount > 0 ? `(${newNotificationsCount}) ntfy` : "ntfy";
+  document.title = newNotificationsCount > 0 ? `(${newNotificationsCount}) axon` : "axon";
   window.navigator.setAppBadge?.(newNotificationsCount);
   updateFavicon(newNotificationsCount);
 };

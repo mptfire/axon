@@ -38,10 +38,10 @@ export const lightTheme = {
   palette: {
     mode: "light",
     primary: {
-      main: "#338574",
+      main: "#4F46E5", // axon indigo
     },
     secondary: {
-      main: "#6cead0",
+      main: "#8B5CF6", // axon violet
     },
     error: {
       main: "#c30000",
@@ -69,10 +69,10 @@ export const darkTheme = {
       paper: "#1b2124",
     },
     primary: {
-      main: "#65b5a3",
+      main: "#818CF8", // axon indigo (dark mode)
     },
     secondary: {
-      main: "#6cead0",
+      main: "#A78BFA", // axon violet (dark mode)
     },
     error: {
       main: "#fe4d2e",
