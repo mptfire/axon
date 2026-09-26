@@ -33,7 +33,7 @@ const ActionBar = (props) => {
   const location = useLocation();
   const isLaunchedPWA = useIsLaunchedPWA();
 
-  let title = "ntfy";
+  let title = "axon";
   if (props.selected) {
     title = topicDisplayName(props.selected);
   } else if (location.pathname === routes.settings) {
@@ -49,7 +49,7 @@ const ActionBar = (props) => {
 
     switch (theme.palette.mode) {
       case "dark":
-        return "linear-gradient(150deg, #203631 0%, #2a6e60 100%)";
+        return "linear-gradient(150deg, #312E81 0%, #4F46E5 100%)";
 
       case "light":
       default:
