@@ -62,6 +62,24 @@ verified that the bodies contain only the anonymous visitor's own limits/counter
 | F-5 | **Info** | Prompt injection via notification bodies is possible **by construction** (attacker-controlled content reaches the LLM) | Defense-in-depth enforced server-side and tested: schema-constrained outputs, length caps, control-char stripping, citation allow-lists, no tool execution from model output, destructive actions require human review. Residual risk: a successfully-injected model could produce a *wrong summary/answer* — it cannot execute actions or exfiltrate beyond the prompted window |
 | F-6 | **Info** | Deployment origin: ensure DNS for your hostname matches the actual origin, and that a static IP / DDNS is used if running on a dynamic connection | Documented; operator-specific infrastructure details intentionally omitted from this public report |
 
+## Addendum — post-audit additions (re-verified)
+
+Features shipped after the initial audit, with their security posture:
+
+- **MCP over HTTP** (`POST /mcp`, gated by `enable-mcp`): JSON-RPC transport for AI agents.
+  - Rate limited by the same per-visitor `limitRequests` middleware as every endpoint
+  - Per-request auth: tools run with the **caller's** Authorization header; the server's
+    configured token is never exposed to HTTP callers (stdio mode uses it locally)
+  - Without credentials on a deny-all server, every tool call fails at the ACL layer
+  - Topic `mcp` is reserved (disallowed list) to avoid endpoint/topic collision
+  - Batch JSON-RPC supported; notification-only requests return 202 with no body
+- **Timezone-aware briefings**: IANA timezone strings validated server-side
+  (`time.LoadLocation`), stored per-user, scheduler evaluates local hour/day
+- **Embedding-backed retrieval** (`ai-embeddings-model`): embeddings cached in memory
+  (5,000-entry LRU, keyed by normalized text); provider failures degrade to keyword-only
+- **Correlation** (`buildClusterHints`): embedding similarity only shapes the digest
+  prompt; failure returns empty hints (plain summarization)
+
 ## VPS deployment checklist
 
 1. [ ] Run the bundle installer (`./install.sh`) — creates `axon` system user, hardened unit included
