@@ -37,6 +37,7 @@ import (
 	"heckel.io/ntfy/v2/db/pg"
 	"heckel.io/ntfy/v2/log"
 	"heckel.io/ntfy/v2/mail"
+	"heckel.io/ntfy/v2/mcp"
 	"heckel.io/ntfy/v2/message"
 	"heckel.io/ntfy/v2/metrics"
 	"heckel.io/ntfy/v2/model"
@@ -75,6 +76,7 @@ type Server struct {
 	metricsHandler    http.Handler                        // Handles /metrics if enable-metrics set, and listen-metrics-http not set
 	ai                *ai.Client                          // axon: AI layer; nil when disabled (see docs/ai-plan/)
 	embedder          *ai.Embedder                        // axon: embeddings for semantic chat retrieval; nil when disabled
+	mcpHandler        http.Handler                        // axon: MCP endpoint for AI agents; nil when disabled
 	closeChan         chan bool
 	mu                sync.RWMutex
 }
@@ -122,6 +124,7 @@ var (
 	apiAIChatPath                                        = "/v1/ai/chat"        // axon
 	apiAIBriefingPath                                    = "/v1/ai/briefing"    // axon
 	apiAIChatStreamPath                                  = "/v1/ai/chat/stream" // axon
+	apiMCPPath                                           = "/mcp"               // axon: MCP endpoint
 	apiUsersPath                                         = "/v1/users"
 	apiUsersAccessPath                                   = "/v1/users/access"
 	apiAccountPath                                       = "/v1/account"
@@ -359,6 +362,9 @@ func New(conf *Config) (*Server, error) {
 	s.priceCache = util.NewLookupCache(s.fetchStripePrices, conf.StripePriceCacheDuration)
 	if aiClient != nil && conf.AIEmbeddingsModel != "" {
 		s.embedder = aiClient.Embedder(conf.AIEmbeddingsModel) // axon: semantic chat retrieval
+	}
+	if conf.EnableMCP {
+		s.mcpHandler = mcp.New(mcp.Config{ServiceBaseURL: conf.BaseURL, Version: conf.BuildVersion}).HTTPHandler() // axon
 	}
 	return s, nil
 }
@@ -727,6 +733,10 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.transformBodyJSON(s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish)))(w, r, v)
 	} else if r.Method == http.MethodPost && r.URL.Path == matrixPushPath {
 		return s.transformMatrixJSON(s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublishMatrix)))(w, r, v)
+	} else if r.Method == http.MethodPost && r.URL.Path == apiMCPPath && s.mcpHandler != nil {
+		// axon: MCP endpoint for AI agents (raw http.Handler; JSON-RPC over POST)
+		s.mcpHandler.ServeHTTP(w, r)
+		return nil
 	} else if (r.Method == http.MethodPut || r.Method == http.MethodPost) && (topicPathRegex.MatchString(r.URL.Path) || updatePathRegex.MatchString(r.URL.Path)) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)
 	} else if (r.Method == http.MethodDelete && updatePathRegex.MatchString(r.URL.Path)) || (r.Method == http.MethodGet && deletePathRegex.MatchString(r.URL.Path)) {

@@ -9,6 +9,31 @@ The MCP layer is a **thin client of the public ntfy API**: it authenticates with
 access token, inherits all rate limits, access control and AI budgets, and never touches
 server internals.
 
+### Remote MCP (HTTP transport)
+
+The axon server can also serve the MCP endpoint itself over HTTP — no local binary
+needed. Enable it server-side:
+
+``` yaml
+# server.yml
+ai-enabled: true
+enable-mcp: true
+```
+
+Then point any HTTP MCP client at `https://your-axon-host/mcp`:
+
+```bash
+curl -X POST https://axon.rtard.de/mcp \
+  -H "Authorization: Bearer tk_..." \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+- POST-only (JSON-RPC in, JSON out); notification-only requests return 202
+- Batches (JSON arrays) are supported
+- Every tool call uses the caller's `Authorization` header — rate limits, ACLs and AI
+  budgets apply per token, exactly like the REST API
+
 ## Quick start
 
 ```bash

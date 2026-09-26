@@ -125,7 +125,7 @@ var (
 
 	// DefaultDisallowedTopics defines the topics that are forbidden, because they are used elsewhere. This array can be
 	// extended using the server.yml config. If updated, also update in Android and web app.
-	DefaultDisallowedTopics = []string{"docs", "static", "file", "app", "metrics", "account", "settings", "signup", "login", "v1"}
+	DefaultDisallowedTopics = []string{"docs", "static", "file", "app", "metrics", "account", "settings", "signup", "login", "v1", "mcp"}
 )
 
 // Config is the main config struct for the application. Use New to instantiate a default config struct.
@@ -260,7 +260,8 @@ type Config struct {
 	AIEnrichTopics            []string      // Topics eligible for AI enrichment (exact match)
 	AITranslateTopics         []string      // axon: Topics whose enriched messages are also translated
 	AITranslateLang           string        // axon: Target language for ai-translate-topics
-	AIEmbeddingsModel         string        // axon: Embeddings model for semantic chat retrieval ("" = keyword-only), e.g. "de" or "German"
+	AIEmbeddingsModel         string        // axon: Embeddings model for semantic chat retrieval ("" = keyword-only)
+	EnableMCP                 bool          // axon: Serve the MCP endpoint at /mcp for AI agents over HTTP
 	AIVisitorDailyTokenBudget int64         // Daily token budget per visitor (input+output); 0 = unlimited
 	AIGlobalDailyTokenBudget  int64         // Daily token budget server-wide (input+output); 0 = unlimited
 	AICacheSize               int64         // AI response cache size in bytes
@@ -390,6 +391,7 @@ func NewConfig() *Config {
 		AITranslateTopics:         nil,
 		AITranslateLang:           "",
 		AIEmbeddingsModel:         "",
+		EnableMCP:                 false,
 		AIVisitorDailyTokenBudget: DefaultAIVisitorDailyTokenBudget,
 		AIGlobalDailyTokenBudget:  DefaultAIGlobalDailyTokenBudget,
 		AICacheSize:               DefaultAICacheSize,

@@ -86,6 +86,7 @@ nav:
       - "Sending messages": publish.md
   - "Subscribing":
       - "From your phone": subscribe/phone.md
+      - "Phone & desktop apps (axon)": mobile.md
       - "From the Web app": subscribe/web.md
       - "From the Desktop": subscribe/pwa.md
       - "From the CLI": subscribe/cli.md
