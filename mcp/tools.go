@@ -318,7 +318,7 @@ func (s *Server) toolAskHistory(ctx context.Context, args map[string]any) *toolR
 	if topic != "" && !validTopic(topic) {
 		return errorResult(errTopicRequired)
 	}
-	if topic == "" && s.config.AccessToken == "" {
+	if topic == "" && authTokenFrom(ctx) == "" && s.config.AccessToken == "" {
 		return errorResult(errNoToken) // cross-topic mode is account-scoped
 	}
 	since, _ := args["since"].(string)
@@ -352,7 +352,7 @@ func (s *Server) toolDigestTopic(ctx context.Context, args map[string]any) *tool
 	if !validTopic(topic) {
 		return errorResult(errTopicRequired)
 	}
-	if s.config.AccessToken == "" {
+	if authTokenFrom(ctx) == "" && s.config.AccessToken == "" {
 		return errorResult(errNoToken)
 	}
 	since, _ := args["since"].(string)
@@ -377,7 +377,7 @@ func (s *Server) toolDigestTopic(ctx context.Context, args map[string]any) *tool
 
 // toolBriefing summarizes all of the account's topics via the server's AI layer.
 func (s *Server) toolBriefing(ctx context.Context, args map[string]any) *toolResult {
-	if s.config.AccessToken == "" {
+	if authTokenFrom(ctx) == "" && s.config.AccessToken == "" {
 		return errorResult(errNoToken)
 	}
 	since, _ := args["since"].(string)
@@ -402,7 +402,7 @@ func (s *Server) toolBriefing(ctx context.Context, args map[string]any) *toolRes
 
 // toolListSubscriptions lists the account's synced subscriptions.
 func (s *Server) toolListSubscriptions(ctx context.Context, _ map[string]any) *toolResult {
-	if s.config.AccessToken == "" {
+	if authTokenFrom(ctx) == "" && s.config.AccessToken == "" {
 		return errorResult(errNoToken)
 	}
 	resp, err := s.do(ctx, http.MethodGet, "/v1/account", nil, nil)
