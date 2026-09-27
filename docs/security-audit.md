@@ -121,8 +121,11 @@ An independent code review of the fork confirmed the audit above and raised two 
 low-severity findings, both fixed:
 
 - **Docker image ran as root** → the image now creates an unprivileged `ntfy` user
-  (uid/gid 10001) and drops privileges via `USER`. Operators bind-mounting cache/config
-  directories from the host must `chown` them to 10001 (or run with `--user`).
+  and drops privileges via `USER`. The binary keeps `cap_net_bind_service` so the
+  default `:80` listen address still works (verified: container serves as uid 100).
+  Operators bind-mounting cache/config directories from the host must `chown` them to
+  the image's `ntfy` uid/gid (or run with `--user`); rootless runtimes that ignore
+  file capabilities should publish to an unprivileged container port instead.
 - **Checkout-success callback unthrottled** (upstream `FIXME`) → the Stripe
   checkout-success handler now applies a dedicated per-IP sliding-window rate limit
   (10 lookups/hour) inside the handler, before any Stripe API call. Deliberately *not*
