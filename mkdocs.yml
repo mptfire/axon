@@ -94,6 +94,7 @@ nav:
   - "Self-hosting":
       - "Installation": install.md
       - "Configuration": config.md
+      - "VPS deployment runbook (Caddy + Docker)": vps-deployment.md
   - "AI fork plan":
       - "Overview & phase index": ai-plan/index.md
       - "Phase 0 — Foundation": ai-plan/phase-0-foundation.md
