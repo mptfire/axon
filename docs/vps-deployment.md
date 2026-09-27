@@ -97,7 +97,35 @@ Key rules:
 
 ## 6. Container
 
-`docker-compose.yml` (place next to the binary):
+Two supported variants:
+
+**a) Hardened image (recommended)** — non-root user, built by CI on every `v*-axon*`
+tag and published to GHCR:
+
+``` yaml
+services:
+  axon:
+    image: ghcr.io/mptfire/axon:latest
+    restart: unless-stopped
+    command: ["serve", "--config", "/etc/ntfy/server.yml"]
+    user: "100:101"                        # match the image's ntfy uid/gid (docker run --rm IMAGE id)
+    volumes:
+      - ./server.yml:/etc/ntfy/server.yml:ro
+      - ./data:/var/lib/ntfy
+    networks:
+      - caddy_net
+
+networks:
+  caddy_net:
+    external: true
+    name: <the network your Caddy container is on>
+```
+
+The bind-mounted `./data` must be writable by the container uid:
+`sudo chown -R 100:101 ./data` (once, after first pull).
+
+**b) Debian wrapper (binary swap)** — if you prefer copying static binaries instead
+of pulling images:
 
 ``` yaml
 services:
@@ -188,6 +216,9 @@ docker image prune -f
 ```
 
 - Data lives in the bind mounts — nothing to migrate.
+- Image variant (a): after pulling a new image, confirm the `ntfy` uid/gid hasn't
+  changed (`docker run --rm ghcr.io/mptfire/axon:latest id`) and re-`chown` `./data`
+  if needed. Upgrading from variant (b) to (a): `chown -R 100:101 ./data` once.
 - Config changes: edit `server.yml`, `docker compose restart axon`.
 - Watch release notes for `server.yml` deprecations before upgrading across minors.
 
