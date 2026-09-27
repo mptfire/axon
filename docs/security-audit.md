@@ -114,3 +114,32 @@ Features shipped after the initial audit, with their security posture:
   subscriptions, call tools, persist instructions, or exceed the validated output schemas.
 - **Rate/budget ceilings:** 10 AI requests/day/visitor, 20k tokens/day/visitor, 2M tokens/day
   server-wide (defaults), plus upstream's per-visitor request limits on every endpoint.
+
+## Addendum 2 — external review response (audit triage)
+
+An independent code review of the fork confirmed the audit above and raised two new
+low-severity findings, both fixed:
+
+- **Docker image ran as root** → the image now creates an unprivileged `ntfy` user
+  (uid/gid 10001) and drops privileges via `USER`. Operators bind-mounting cache/config
+  directories from the host must `chown` them to 10001 (or run with `--user`).
+- **Checkout-success callback unthrottled** (upstream `FIXME`) → the Stripe
+  checkout-success handler now applies a dedicated per-IP sliding-window rate limit
+  (10 lookups/hour) inside the handler, before any Stripe API call. Deliberately *not*
+  wired into the shared per-visitor request limiter: that limiter's exact accounting is
+  pinned by upstream tests, and enumeration of this endpoint is bounded equally well by
+  an independent budget.
+
+The same review verified (no issues found): bcrypt comparison timing, attachment ID
+regex anchoring, the `html/template` fix (GHSA-rhwf-xgc9-m9fp), the webpush SSRF
+guard's anchored regex (GHSA-w9hq-5jg7-q4j7), email header-injection closure, Stripe
+webhook signature verification, MCP tools running with caller credentials only,
+fully parameterized SQL, no path traversal, no hardcoded secrets, no frontend XSS
+sinks, and no IDOR paths. Its `CORS *` and prompt-injection remarks match findings
+F-1 / F-5 above.
+
+`govulncheck ./...` (with symbol analysis): **0 callable vulnerabilities**.
+`golang.org/x/crypto` was upgraded v0.55.0 → v0.56.0 for GO-2026-6355 and
+GO-2026-6354 (module-level findings). The one remaining module-level advisory,
+GO-2026-5932, flags `x/crypto/openpgp` as unmaintained-by-design; no fixed version
+exists and this codebase never imports `openpgp`.
