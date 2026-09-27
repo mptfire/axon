@@ -1,6 +1,6 @@
 module heckel.io/ntfy/v2
 
-go 1.25.8
+go 1.26.0
 
 require (
 	cloud.google.com/go/firestore v1.25.0 // indirect
@@ -14,7 +14,7 @@ require (
 	github.com/olebedev/when v1.1.0
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli/v2 v2.27.7
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.56.0
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.22.0
 	golang.org/x/term v0.45.0

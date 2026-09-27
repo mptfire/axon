@@ -20,6 +20,7 @@ import (
 	"io"
 	"net/http"
 	"net/netip"
+	"sync"
 	"time"
 )
 
@@ -179,17 +180,48 @@ func (s *Server) handleAccountBillingSubscriptionCreate(w http.ResponseWriter, r
 	return s.writeJSON(w, response)
 }
 
+// checkoutSuccessMaxAttempts bounds unauthenticated checkout-success lookups per IP per hour.
+// Session IDs are high-entropy Stripe objects, but this closes online enumeration of the endpoint.
+const checkoutSuccessMaxAttempts = 10
+
+var (
+	checkoutSuccessMu       sync.Mutex
+	checkoutSuccessAttempts = map[string][]time.Time{} // ip -> attempt times
+)
+
+// checkoutSuccessAllowed reports whether this IP may attempt another checkout-success
+// lookup within the current hour.
+func checkoutSuccessAllowed(ip string) bool {
+	now := time.Now()
+	windowStart := now.Add(-time.Hour)
+	kept := checkoutSuccessAttempts[ip][:0]
+	for _, t := range checkoutSuccessAttempts[ip] {
+		if t.After(windowStart) {
+			kept = append(kept, t)
+		}
+	}
+	if len(kept) >= checkoutSuccessMaxAttempts {
+		checkoutSuccessAttempts[ip] = kept
+		return false
+	}
+	checkoutSuccessAttempts[ip] = append(kept, now)
+	return true
+}
+
 // handleAccountBillingSubscriptionCreateSuccess is called after the Stripe checkout session has succeeded. We use
 // the session ID in the URL to retrieve the Stripe subscription and update the local database. This is the first
 // and only time we can map the local username with the Stripe customer ID.
 func (s *Server) handleAccountBillingSubscriptionCreateSuccess(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	// We don't have v.User() in this endpoint, only a userManager!
+	if !checkoutSuccessAllowed(v.ip.String()) {
+		return errHTTPTooManyRequestsLimitRequests
+	}
 	matches := apiAccountBillingSubscriptionCheckoutSuccessRegex.FindStringSubmatch(r.URL.Path)
 	if len(matches) != 2 {
 		return errHTTPInternalErrorInvalidPath
 	}
 	sessionID := matches[1]
-	sess, err := s.stripe.GetSession(sessionID) // FIXME How do we rate limit this?
+	sess, err := s.stripe.GetSession(sessionID) // Per-IP rate limiting above (closes the upstream FIXME about this call)
 	if err != nil {
 		return err
 	} else if sess.Customer == nil || sess.Subscription == nil || sess.ClientReferenceID == "" {

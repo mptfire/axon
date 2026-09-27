@@ -884,3 +884,22 @@ const subscriptionDeletedEventJSON = `
 		}
 	}
 }`
+
+func TestPayments_CheckoutSuccess_IPRateLimit(t *testing.T) {
+	// Package-level limiter state: use an IP unique to this test to stay isolated
+	ip := "192.0.2.77"
+	for i := 0; i < checkoutSuccessMaxAttempts; i++ {
+		require.True(t, checkoutSuccessAllowed(ip), "attempt %d should be allowed", i+1)
+	}
+	require.False(t, checkoutSuccessAllowed(ip), "attempt beyond the hourly limit must be denied")
+	require.False(t, checkoutSuccessAllowed(ip), "denials must not consume or reset the window")
+
+	// Sliding window: aging out all attempts must allow the IP again
+	checkoutSuccessMu.Lock()
+	checkoutSuccessAttempts[ip] = []time.Time{time.Now().Add(-2 * time.Hour)}
+	checkoutSuccessMu.Unlock()
+	require.True(t, checkoutSuccessAllowed(ip), "IP must be allowed again after the window expires")
+
+	// Other IPs are unaffected
+	require.True(t, checkoutSuccessAllowed("192.0.2.78"))
+}
