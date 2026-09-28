@@ -173,7 +173,7 @@
   "prefs_notifications_delete_after_three_hours": "Через три години",
   "prefs_users_add_button": "Додати користувача",
   "prefs_users_dialog_title_edit": "Редагувати користувача",
-  "prefs_users_dialog_base_url_label": "URL-адреса служби, наприклад https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "URL-адреса служби, наприклад https://notifications.example.com",
   "prefs_users_delete_button": "Видалити користувача",
   "prefs_users_table_user_header": "Користувач",
   "prefs_users_dialog_title_add": "Додати користувача",

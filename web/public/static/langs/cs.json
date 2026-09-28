@@ -40,7 +40,7 @@
   "prefs_users_dialog_password_label": "Heslo",
   "prefs_users_dialog_title_add": "Přidat uživatele",
   "prefs_users_dialog_title_edit": "Upravit uživatele",
-  "prefs_users_dialog_base_url_label": "URL služby, např. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "URL služby, např. https://notifications.example.com",
   "prefs_users_dialog_username_label": "Uživatelské jméno, např. phil",
   "notifications_actions_open_url_title": "Přejít na {{url}}",
   "notifications_none_for_any_title": "Neobdrželi jste žádná oznámení.",

@@ -32,8 +32,6 @@ import prefs from "../app/Prefs";
 import { subscribeTopic } from "../app/subscribe";
 import { AiSubscribePage } from "./AiSubscribeDialog";
 
-const publicBaseUrl = "https://ntfy.sh";
-
 export { subscribeTopic }; // Kept here for existing import sites (e.g. Preferences)
 
 const SubscribeDialog = (props) => {
@@ -85,7 +83,7 @@ const SubscribePage = (props) => {
   const baseUrl = anotherServerVisible ? props.baseUrl : config.base_url;
   const { topic } = props;
   const existingTopicUrls = props.subscriptions.map((s) => topicUrl(s.baseUrl, s.topic));
-  const existingBaseUrls = Array.from(new Set([publicBaseUrl, ...props.subscriptions.map((s) => s.baseUrl)])).filter(
+  const existingBaseUrls = Array.from(new Set(props.subscriptions.map((s) => s.baseUrl))).filter(
     (s) => s !== config.base_url,
   );
   const showReserveTopicCheckbox = config.enable_reservations && !anotherServerVisible && (config.enable_payments || account);

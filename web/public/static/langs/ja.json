@@ -123,7 +123,7 @@
   "prefs_users_table_user_header": "ユーザー名",
   "prefs_users_dialog_title_add": "ユーザー追加",
   "prefs_users_dialog_title_edit": "ユーザー編集",
-  "prefs_users_dialog_base_url_label": "サービスURL, 例) https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "サービスURL, 例) https://notifications.example.com",
   "prefs_appearance_title": "外観",
   "prefs_appearance_language_title": "言語",
   "prefs_users_table_base_url_header": "サービスURL",

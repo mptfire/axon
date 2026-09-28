@@ -177,7 +177,7 @@
   "prefs_users_table_base_url_header": "URL de serviço",
   "prefs_users_dialog_title_add": "Adicionar utilizador",
   "prefs_users_dialog_title_edit": "Editar utilizador",
-  "prefs_users_dialog_base_url_label": "URL de serviço, por exemplo: https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "URL de serviço, por exemplo: https://notifications.example.com",
   "common_save": "Gravar",
   "prefs_appearance_title": "Aparência",
   "prefs_appearance_language_title": "Idioma",

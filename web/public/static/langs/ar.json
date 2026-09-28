@@ -135,7 +135,7 @@
   "prefs_users_title": "إدارة المستخدمين",
   "prefs_users_dialog_title_add": "أضف مستخدم",
   "prefs_users_dialog_title_edit": "تعديل المستخدم",
-  "prefs_users_dialog_base_url_label": "عنوان URL للخدمة، على سبيل المثال، https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "عنوان URL للخدمة، على سبيل المثال، https://notifications.example.com",
   "publish_dialog_button_cancel": "ألغِ",
   "publish_dialog_message_published": "تم نشر الإشعار",
   "prefs_users_dialog_password_label": "كلمة السر",

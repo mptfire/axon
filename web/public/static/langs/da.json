@@ -376,7 +376,7 @@
   "publish_dialog_chip_click_label": "Klik på URL",
   "account_basics_phone_numbers_dialog_verify_button_call": "Ring til mig",
   "publish_dialog_call_item": "Ring til tlf. {{number}}",
-  "prefs_users_dialog_base_url_label": "Tjeneste-URL, f.eks. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "Tjeneste-URL, f.eks. https://notifications.example.com",
   "account_basics_phone_numbers_dialog_channel_sms": "SMS",
   "account_delete_dialog_billing_warning": "Hvis du sletter din konto, så annulleres dit abonnement med det samme. Du vil ikke længere have adgang til faktureringspanelet.",
   "prefs_notifications_min_priority_description_max": "Vis notifikationer, hvis prioritet er 5 (maks.)",

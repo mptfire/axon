@@ -368,7 +368,7 @@
   "account_usage_attachment_storage_description": "{{filesize}} na súbor, vymazaný po {{expiry}}",
   "prefs_notifications_delete_after_one_month_description": "Oznámenia sa automaticky odstránia po jednom mesiaci",
   "account_basics_phone_numbers_dialog_verify_button_call": "Zavolajte mi",
-  "prefs_users_dialog_base_url_label": "URL adresa služby, napr. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "URL adresa služby, napr. https://notifications.example.com",
   "account_usage_emails_title": "Odoslané emaily",
   "account_basics_phone_numbers_dialog_channel_sms": "SMS",
   "account_upgrade_dialog_tier_selected_label": "Vybrané",

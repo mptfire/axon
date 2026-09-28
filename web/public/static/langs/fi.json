@@ -338,7 +338,7 @@
   "login_title": "Kirjaudu sisään axon-tilillesi",
   "notifications_list": "Ilmoitusluettelo",
   "common_save": "Tallenna",
-  "prefs_users_dialog_base_url_label": "Palvelun URL, esim. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "Palvelun URL, esim. https://notifications.example.com",
   "account_usage_emails_title": "Sähköpostit lähetetty",
   "account_basics_phone_numbers_dialog_channel_sms": "SMS",
   "action_bar_reservation_add": "Varalla oleva aihe",

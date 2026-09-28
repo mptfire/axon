@@ -745,7 +745,7 @@ const PublishDialog = (props) => {
             <Trans
               i18nKey="publish_dialog_details_examples_description"
               components={{
-                docsLink: <Link href="https://ntfy.sh/docs" target="_blank" rel="noopener" />,
+                docsLink: <Link href="/docs" target="_blank" rel="noopener" />,
               }}
             />
           </Typography>

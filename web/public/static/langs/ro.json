@@ -335,7 +335,7 @@
   "prefs_users_table_base_url_header": "URL-ul serviciului",
   "prefs_users_dialog_title_add": "Adaugă utilizator",
   "prefs_users_dialog_title_edit": "Modifică utilizatorul",
-  "prefs_users_dialog_base_url_label": "URL-ul serviciului, de exemplu https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "URL-ul serviciului, de exemplu https://notifications.example.com",
   "prefs_users_dialog_username_label": "Nume de utilizator, de ex. ionel",
   "prefs_users_dialog_password_label": "Parolă",
   "prefs_appearance_title": "Aspect",

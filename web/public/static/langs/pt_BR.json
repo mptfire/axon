@@ -105,7 +105,7 @@
   "prefs_users_table_base_url_header": "URL de serviço",
   "prefs_users_dialog_title_add": "Adicionar usuário",
   "prefs_users_dialog_title_edit": "Editar usuário",
-  "prefs_users_dialog_base_url_label": "URL de serviço, exemplo https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "URL de serviço, exemplo https://notifications.example.com",
   "prefs_users_dialog_username_label": "Usuário, por exemplo phil",
   "prefs_users_dialog_password_label": "Senha",
   "common_cancel": "Cancelar",

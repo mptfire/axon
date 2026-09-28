@@ -109,7 +109,7 @@
   "prefs_users_dialog_username_label": "Felhasználónév, pl. phil",
   "prefs_users_dialog_password_label": "Jelszó",
   "common_add": "Hozzáadás",
-  "prefs_users_dialog_base_url_label": "Szolgáltatási URL, pl. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "Szolgáltatási URL, pl. https://notifications.example.com",
   "notifications_loading": "Értesítések betöltése …",
   "publish_dialog_progress_uploading": "Feltöltés…",
   "notifications_click_copy_url_button": "Link másolása",

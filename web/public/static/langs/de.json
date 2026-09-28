@@ -127,7 +127,7 @@
   "prefs_users_title": "Benutzer verwalten",
   "prefs_users_table_user_header": "Benutzer",
   "prefs_users_table_base_url_header": "Service-URL",
-  "prefs_users_dialog_base_url_label": "Service-URL, z.B. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "Service-URL, z.B. https://notifications.example.com",
   "prefs_users_dialog_username_label": "Benutzername, z.B. phil",
   "prefs_users_description": "Benutzer für kennwort-geschützte Themen hinzufügen/löschen. Achtung: Benutzername und Kennwort werden im lokalen Browser-Speicher abgelegt.",
   "prefs_users_dialog_title_add": "Benutzer hinzufügen",

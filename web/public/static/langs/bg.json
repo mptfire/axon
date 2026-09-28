@@ -113,7 +113,7 @@
   "prefs_notifications_delete_after_one_day": "След един ден",
   "prefs_users_table_user_header": "Потребител",
   "prefs_users_dialog_title_edit": "Промяна на потребител",
-  "prefs_users_dialog_base_url_label": "Адрес на услугата, e.g. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "Адрес на услугата, e.g. https://notifications.example.com",
   "common_cancel": "Отказ",
   "common_save": "Запазване",
   "prefs_appearance_language_title": "Език",

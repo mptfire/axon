@@ -175,7 +175,7 @@
   "prefs_users_edit_button": "Gebruiker bewerken",
   "prefs_users_table_user_header": "Gebruiker",
   "prefs_users_table_base_url_header": "Service URL",
-  "prefs_users_dialog_base_url_label": "Service URL, bijv. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "Service URL, bijv. https://notifications.example.com",
   "prefs_users_dialog_username_label": "Gebruikersnaam, bijv. phil",
   "common_cancel": "Annuleren",
   "common_add": "Toevoegen",

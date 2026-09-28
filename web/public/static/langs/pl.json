@@ -179,7 +179,7 @@
   "priority_default": "podstawowy",
   "priority_max": "maksymalny",
   "prefs_notifications_delete_after_three_hours": "Po trzech godzinach",
-  "prefs_users_dialog_base_url_label": "Adres URL usługi, np. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "Adres URL usługi, np. https://notifications.example.com",
   "prefs_notifications_sound_no_sound": "Bez dzwięku",
   "prefs_users_dialog_username_label": "Nazwa użytkownika, np. phil",
   "priority_high": "wysoki",

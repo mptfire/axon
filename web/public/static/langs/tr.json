@@ -118,7 +118,7 @@
   "prefs_notifications_min_priority_max_only": "Yalnızca en yüksek öncelik",
   "prefs_users_title": "Kullanıcıları yönet",
   "prefs_users_dialog_title_edit": "Kullanıcıyı düzenle",
-  "prefs_users_dialog_base_url_label": "Hizmet URL'si, örn. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "Hizmet URL'si, örn. https://notifications.example.com",
   "prefs_users_description": "Burada korunan konularınız için kullanıcı ekleyin/kaldırın. Lütfen kullanıcı adı ve parolanın tarayıcının yerel deposunda saklandığını unutmayın.",
   "prefs_users_add_button": "Kullanıcı ekle",
   "prefs_users_table_base_url_header": "Hizmet URL'si",

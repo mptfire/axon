@@ -250,7 +250,7 @@
   "prefs_users_table_base_url_header": "Teenuse võrguaadress",
   "prefs_users_dialog_title_add": "Lisa kasutaja",
   "prefs_users_dialog_title_edit": "Muuda kasutajat",
-  "prefs_users_dialog_base_url_label": "Teenuse võrguaadress, nt. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "Teenuse võrguaadress, nt. https://notifications.example.com",
   "prefs_users_dialog_username_label": "Kasutajanimi, nt. kadri",
   "prefs_notifications_delete_after_three_hours": "Kolme tunni möödumisel",
   "prefs_notifications_delete_after_three_hours_description": "Teavitused kustutatakse automaatselt kolme tunni möödumisel",

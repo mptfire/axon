@@ -288,7 +288,7 @@
   "prefs_users_delete_button": "刪除使用者",
   "prefs_users_description_no_sync": "使用者和密碼不會同步到你的帳戶。",
   "prefs_users_description": "在此新增或刪除受保護主題的使用者。請注意，使用者名稱和密碼會儲存在瀏覽器的本機儲存空間中。",
-  "prefs_users_dialog_base_url_label": "服務 URL，例如 https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "服務 URL，例如 https://notifications.example.com",
   "prefs_users_dialog_password_label": "密碼",
   "prefs_users_dialog_title_add": "新增使用者",
   "prefs_users_dialog_title_edit": "編輯使用者",

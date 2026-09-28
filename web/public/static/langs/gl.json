@@ -300,7 +300,7 @@
   "reservation_delete_dialog_action_delete_title": "Eliminar mensaxes e anexos gardados",
   "reservation_delete_dialog_action_delete_description": "As mensaxes e anexos vanse borrar definitivamente. Esta acción non ten volta.",
   "prefs_notifications_delete_after_one_month_description": "As notificacións autoelimínanse após un mes",
-  "prefs_users_dialog_base_url_label": "URL do servizo, ex. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "URL do servizo, ex. https://notifications.example.com",
   "account_upgrade_dialog_tier_selected_label": "Seleccionado",
   "account_upgrade_dialog_button_update_subscription": "Actualizar subscrición",
   "priority_high": "alta",

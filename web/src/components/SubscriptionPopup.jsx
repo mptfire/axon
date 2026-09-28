@@ -120,7 +120,7 @@ export const SubscriptionPopup = (props) => {
       "", // Higher chance of no title
       "Oh my, another test message?",
       "Titles are optional, did you know that?",
-      "ntfy is open source, and will always be free. Cool, right?",
+      "axon is open source, and self-hostable. Cool, right?",
       "I don't really like apples",
       "My favorite TV show is The Wire. You should watch it!",
       "You can attach files and URLs to messages too",
@@ -128,21 +128,21 @@ export const SubscriptionPopup = (props) => {
     ])[0];
     const nowSeconds = Math.round(Date.now() / 1000);
     const message = shuffle([
-      `Hello friend, this is a test notification from ntfy web. It's ${formatDateTime(
+      `Hello friend, this is a test notification from the axon web app. It's ${formatDateTime(
         nowSeconds,
         dateFormat,
         timeFormat,
       )} right now. Is that early or late?`,
-      `So I heard you like ntfy? If that's true, go to GitHub and star it, or to the Play store and rate it. Thanks! Oh yeah, this is a test notification.`,
-      `It's almost like you want to hear what I have to say. I'm not even a machine. I'm just a sentence that Phil typed on a random Thursday.`,
+      `This is a test notification. In production you would not be reading this, but here we are.`,
+      `It's almost like you want to hear what I have to say. I'm not even a machine. I'm just a sentence someone typed on a random Thursday.`,
       `Alright then, it's ${formatDateTime(
         nowSeconds,
         dateFormat,
         timeFormat,
       )} already. Boy oh boy, where did the time go? I hope you're alright, friend.`,
       `There are nine million bicycles in Beijing That's a fact; It's a thing we can't deny. I wonder if that's true ...`,
-      `I'm really excited that you're trying out ntfy. Did you know that there are a few public topics, such as ntfy.sh/stats and ntfy.sh/announcements.`,
-      `It's interesting to hear what people use ntfy for. I've heard people talk about using it for so many cool things. What do you use it for?`,
+      `This little popup keeps a topic alive with the occasional hello. Nothing else to see here, move along.`,
+      `Notifications are like postcards: short, occasionally important, and best when expected.`,
     ])[0];
     try {
       await api.publish(baseUrl, topic, message, {
@@ -424,7 +424,7 @@ const LimitReachedChip = () => {
 
 export const ProChip = () => (
   <Chip
-    label="ntfy Pro"
+    label="axon Pro"
     variant="outlined"
     color="primary"
     sx={{

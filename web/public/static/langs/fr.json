@@ -119,7 +119,7 @@
   "subscribe_dialog_error_user_not_authorized": "L'utilisateur {{username}} n'est pas autorisé",
   "prefs_notifications_min_priority_any": "N'importe quelle priorité",
   "prefs_notifications_min_priority_high_and_higher": "Priorité haute et au-dessus",
-  "prefs_users_dialog_base_url_label": "URL du service, par ex. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "URL du service, par ex. https://notifications.example.com",
   "prefs_notifications_delete_after_one_week_description": "Les notifications sont supprimées automatiquement après une semaine",
   "prefs_users_dialog_username_label": "Nom d'utilisateur, par ex. phil",
   "prefs_users_dialog_password_label": "Mot de passe",

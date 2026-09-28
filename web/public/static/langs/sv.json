@@ -197,7 +197,7 @@
   "prefs_users_edit_button": "Redigera användare",
   "prefs_users_dialog_title_add": "Lägg till användare",
   "prefs_users_dialog_title_edit": "Redigera användare",
-  "prefs_users_dialog_base_url_label": "Tjänstens URL, t.ex. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "Tjänstens URL, t.ex. https://notifications.example.com",
   "prefs_users_dialog_password_label": "Lösenord",
   "prefs_appearance_title": "Utseende",
   "prefs_appearance_language_title": "Språk",

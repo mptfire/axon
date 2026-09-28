@@ -100,7 +100,7 @@
   "prefs_users_description": "Añada/elimine usuarios para sus tópicos protegidos aquí. Tenga en cuenta que el nombre de usuario y la contraseña se guardan en el almacenamiento local del navegador.",
   "prefs_users_add_button": "Añadir usuario",
   "prefs_users_dialog_title_edit": "Editar usuario",
-  "prefs_users_dialog_base_url_label": "URL del servicio, ej. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "URL del servicio, ej. https://notifications.example.com",
   "common_add": "Añadir",
   "common_save": "Guardar",
   "prefs_appearance_title": "Apariencia",

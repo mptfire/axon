@@ -88,7 +88,7 @@
   "prefs_users_table_user_header": "Bruker",
   "prefs_users_dialog_title_add": "Legg til bruker",
   "prefs_users_dialog_title_edit": "Rediger bruker",
-  "prefs_users_dialog_base_url_label": "Tjeneste-nettadresse, f.eks. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "Tjeneste-nettadresse, f.eks. https://notifications.example.com",
   "prefs_users_dialog_password_label": "Passord",
   "common_save": "Lagre",
   "prefs_appearance_title": "Utseende",

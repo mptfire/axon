@@ -112,7 +112,7 @@
   "prefs_notifications_title": "Notifikasi",
   "prefs_notifications_sound_no_sound": "Tidak ada suara",
   "prefs_users_table_user_header": "Pengguna",
-  "prefs_users_dialog_base_url_label": "URL Layanan, mis. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "URL Layanan, mis. https://notifications.example.com",
   "common_save": "Simpan",
   "prefs_appearance_title": "Tampilan",
   "subscribe_dialog_login_password_label": "Kata sandi",

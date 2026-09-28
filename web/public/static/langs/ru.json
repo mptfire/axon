@@ -132,7 +132,7 @@
   "prefs_users_table_base_url_header": "URL сервера",
   "prefs_users_dialog_title_add": "Добавить пользователя",
   "prefs_users_dialog_title_edit": "Редактировать пользователя",
-  "prefs_users_dialog_base_url_label": "URL-адрес сервера. Например, https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "URL-адрес сервера. Например, https://notifications.example.com",
   "prefs_users_dialog_username_label": "Имя пользователя. Например, oleg",
   "prefs_users_dialog_password_label": "Пароль",
   "common_cancel": "Отмена",

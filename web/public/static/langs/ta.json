@@ -229,7 +229,7 @@
   "prefs_users_table_base_url_header": "பணி முகவரி",
   "prefs_users_dialog_title_add": "பயனரைச் சேர்க்கவும்",
   "prefs_users_dialog_title_edit": "பயனரைத் திருத்து",
-  "prefs_users_dialog_base_url_label": "பணி முகவரி, எ.கா. https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "பணி முகவரி, எ.கா. https://notifications.example.com",
   "prefs_users_dialog_username_label": "பயனர்பெயர், எ.கா. பில்",
   "prefs_users_dialog_password_label": "கடவுச்சொல்",
   "prefs_appearance_title": "தோற்றம்",

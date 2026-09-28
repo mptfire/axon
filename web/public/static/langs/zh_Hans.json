@@ -162,7 +162,7 @@
   "priority_max": "最高",
   "error_boundary_title": "天啊，axon 崩溃了",
   "prefs_users_table_base_url_header": "服务链接地址",
-  "prefs_users_dialog_base_url_label": "服务链接地址，例如 https://ntfy.sh",
+  "prefs_users_dialog_base_url_label": "服务链接地址，例如 https://notifications.example.com",
   "error_boundary_button_copy_stack_trace": "复制堆栈跟踪",
   "error_boundary_button_reload_ntfy": "重新加载 axon",
   "error_boundary_stack_trace": "堆栈跟踪",
