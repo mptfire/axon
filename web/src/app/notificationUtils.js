@@ -48,8 +48,8 @@ export const isImage = (attachment) => {
   return attachment.name?.match(imageRegex) || attachment.url?.match(imageRegex);
 };
 
-export const icon = "/static/images/ntfy.png";
-export const badge = "/static/images/ntfy-mask.svg";
+export const icon = "/static/images/axon.png";
+export const badge = "/static/images/axon-splash.svg";
 
 /**
  * Computes a unique notification tag scoped by baseUrl, topic, and sequence ID.

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { Avatar, Box, styled } from "@mui/material";
 import { useNavigate } from "react-router-dom";
-import logo from "../img/ntfy-filled.svg";
+import logo from "../img/axon.svg";
 import routes from "./routes";
 import { fadeNavigate } from "../app/transition";
 

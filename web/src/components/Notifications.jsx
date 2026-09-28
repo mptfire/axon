@@ -33,7 +33,7 @@ import priority1 from "../img/priority-1.svg";
 import priority2 from "../img/priority-2.svg";
 import priority4 from "../img/priority-4.svg";
 import priority5 from "../img/priority-5.svg";
-import logoOutline from "../img/ntfy-outline.svg";
+import logoOutline from "../img/axon.svg";
 import AttachmentIcon from "./AttachmentIcon";
 import { useAutoSubscribe } from "./hooks";
 import { usePrefCache } from "./PrefCache";
@@ -643,8 +643,8 @@ const ForMoreDetails = () => (
   <Trans
     i18nKey="notifications_more_details"
     components={{
-      websiteLink: <Link href="https://ntfy.sh" target="_blank" rel="noopener" />,
-      docsLink: <Link href="https://ntfy.sh/docs" target="_blank" rel="noopener" />,
+      websiteLink: <Link href="/" target="_blank" rel="noopener" />,
+      docsLink: <Link href="/docs" target="_blank" rel="noopener" />,
     }}
   />
 );

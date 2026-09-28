@@ -14,7 +14,7 @@
     <meta name="msapplication-navbutton-color" content="#4F46E5" />
     <meta name="apple-mobile-web-app-status-bar-style" content="#4F46E5" />
     <link rel="apple-touch-icon" href="/static/images/apple-touch-icon.png" sizes="180x180" />
-    <link rel="mask-icon" href="/static/images/ntfy-mask.svg" color="#4F46E5" />
+    <link rel="mask-icon" href="/static/images/axon-splash.svg" color="#4F46E5" />
 
     <!-- Favicon, see favicon.io -->
     <link rel="icon" type="image/png" href="/static/images/favicon.ico" />
@@ -22,7 +22,7 @@
     <!-- Previews in Google, Slack, WhatsApp, etc. -->
     <meta
       name="description"
-      content="ntfy lets you send push notifications via scripts from any computer or phone. Made with ❤ by Philipp C. Heckel, Apache License 2.0, source at https://heckel.io/ntfy."
+      content="axon sends AI-native push notifications from any computer or phone. Fork of ntfy, Apache License 2.0."
     />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="en_US" />
@@ -30,10 +30,10 @@
     <meta property="og:title" content="axon — AI-native push notifications" />
     <meta
       property="og:description"
-      content="ntfy lets you send push notifications via scripts from any computer or phone. Made with ❤ by Philipp C. Heckel, Apache License 2.0, source at https://heckel.io/ntfy."
+      content="axon sends AI-native push notifications from any computer or phone. Fork of ntfy, Apache License 2.0."
     />
-    <meta property="og:image" content="/static/images/ntfy.png" />
-    <meta property="og:url" content="https://ntfy.sh" />
+    <meta property="og:image" content="/static/images/axon.png" />
+    <meta property="og:url" content="/" />
 
     <!-- Never index -->
     <meta name="robots" content="noindex, nofollow" />
@@ -127,13 +127,13 @@
   <body>
     <noscript>
       axon requires JavaScript, but you can also use the
-      <a href="https://ntfy.sh/docs/subscribe/cli/">CLI</a> or <a href="https://ntfy.sh/docs/subscribe/phone/">Android/iOS app</a> to
+      <a href="/docs/subscribe/cli/">CLI</a> or <a href="/docs/subscribe/phone/">Android/iOS app</a> to
       subscribe.
     </noscript>
 
     <!-- Static splash, removed by src/app/splash.js once ready. Logo is a same-origin SVG (precached by the SW). -->
     <div id="splash" aria-hidden="true">
-      <img src="/static/images/ntfy-splash.svg" alt="" />
+      <img src="/static/images/axon-splash.svg" alt="" />
     </div>
     <div id="root"></div>
     <script src="/config.js"></script>
