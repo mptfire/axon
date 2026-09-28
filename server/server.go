@@ -744,7 +744,6 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 			s.mcpHandler.ServeHTTP(w, r)
 			return nil
 		})(w, r, v)
-		return nil
 	} else if (r.Method == http.MethodPut || r.Method == http.MethodPost) && (topicPathRegex.MatchString(r.URL.Path) || updatePathRegex.MatchString(r.URL.Path)) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)
 	} else if (r.Method == http.MethodDelete && updatePathRegex.MatchString(r.URL.Path)) || (r.Method == http.MethodGet && deletePathRegex.MatchString(r.URL.Path)) {
