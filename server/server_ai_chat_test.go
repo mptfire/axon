@@ -230,3 +230,60 @@ func TestServer_AI_Chat_HybridRetrieval(t *testing.T) {
 	require.Contains(t, promptSeen, "migration failure")
 	require.Greater(t, embedCalls, 0)
 }
+
+func TestServer_AI_ACLs_EnforcedAtReadTime(t *testing.T) {
+	// Audit F-A regression: the synced subscription list is client-writable, so it
+	// must never be the authz gate. On a deny-all server, user B subscribing to
+	// user A's topic must NOT grant read access through the AI endpoints.
+	c := newTestConfigWithAuthFile(t, "")
+	c.AuthDefault = user.PermissionDenyAll
+	c.AIEnabled = true
+	c.AIProvider = "mock"
+	s := newTestServer(t, c)
+	defer s.closeDatabases()
+	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false)) // owns the topic
+	require.Nil(t, s.userManager.AddUser("maria", "maria", user.RoleUser, false))
+	phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
+	maria := map[string]string{"Authorization": util.BasicAuth("maria", "maria")}
+
+	// Seed history on a topic only phil can read (admin may write under deny-all)
+	rr := request(t, s, "PUT", "/s3cr3t", "the secret launch code is 1234", phil)
+	require.Equal(t, 200, rr.Code)
+	// And a topic maria is explicitly allowed to read
+	require.Nil(t, s.userManager.AllowAccess("maria", "public1", user.PermissionRead))
+	rr = request(t, s, "PUT", "/public1", "public standup notes", phil)
+	require.Equal(t, 200, rr.Code)
+
+	// maria poisons her subscription list with phil's topic (the audit's repro)
+	rr = request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"s3cr3t"}`, maria)
+	require.Equal(t, 200, rr.Code)
+	rr = request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"public1"}`, maria)
+	require.Equal(t, 200, rr.Code)
+
+	// Chat: subscribed-but-unauthorized must be 403
+	rr = request(t, s, "POST", "/v1/ai/chat", `{"topic":"s3cr3t","question":"what is the code?"}`, maria)
+	require.Equal(t, 403, rr.Code)
+	// Digest: same
+	rr = request(t, s, "POST", "/v1/ai/digest", `{"topic":"s3cr3t"}`, maria)
+	require.Equal(t, 403, rr.Code)
+
+	// Briefing (cross-topic): unauthorized topics are skipped, not read
+	var seenPrompt string
+	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
+		seenPrompt = req.Prompt
+		return &ai.Response{Text: `{"headline":"Standup happened."}`}, nil
+	})
+	rr = request(t, s, "POST", "/v1/ai/briefing", `{}`, maria)
+	require.Equal(t, 200, rr.Code)
+	require.Contains(t, seenPrompt, "public standup notes")
+	require.NotContains(t, seenPrompt, "secret launch code")
+
+	// The owner still gets chat on his own topic
+	rr = request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"s3cr3t"}`, phil)
+	require.Equal(t, 200, rr.Code)
+	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
+		return &ai.Response{Text: `{"answer": "The code is 1234."}`}, nil
+	})
+	rr = request(t, s, "POST", "/v1/ai/chat", `{"topic":"s3cr3t","question":"what is the code?"}`, phil)
+	require.Equal(t, 200, rr.Code)
+}

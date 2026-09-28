@@ -274,7 +274,7 @@ func (s *Server) handleAIDigest(w http.ResponseWriter, r *http.Request, v *visit
 		return errHTTPBadRequestAIRequest
 	}
 	u := v.User()
-	if !userSubscribesTo(u, s.config.BaseURL, body.Topic) {
+	if !userSubscribesTo(u, s.config.BaseURL, body.Topic) || !s.canReadTopic(u, body.Topic) {
 		return errHTTPForbidden // Only your own subscriptions, keeps the quota honest
 	}
 	if !v.aiQuotaAllowed() {
@@ -499,7 +499,7 @@ func (s *Server) chatContext(v *visitor, body *apiAIChatRequest) (string, []*mod
 		return "", nil, nil, errHTTPBadRequestAIRequest
 	}
 	u := v.User()
-	if !body.All && !userSubscribesTo(u, s.config.BaseURL, body.Topic) {
+	if !body.All && (!userSubscribesTo(u, s.config.BaseURL, body.Topic) || !s.canReadTopic(u, body.Topic)) {
 		return "", nil, nil, errHTTPForbidden
 	}
 	if !v.aiQuotaAllowed() {
@@ -525,6 +525,9 @@ func (s *Server) chatContext(v *visitor, body *apiAIChatRequest) (string, []*mod
 				}
 				if sub.Topic == "" || (sub.BaseURL != "" && sub.BaseURL != s.config.BaseURL) {
 					continue
+				}
+				if !s.canReadTopic(u, sub.Topic) {
+					continue // Subscribed is not authorized: skip topics outside the ACL
 				}
 				messages, _, err := s.messageCache.MessagesCapped(sub.Topic, sinceMarker, false, 128*1024)
 				if err != nil || len(messages) == 0 {
@@ -684,8 +687,8 @@ func (s *Server) handleAIBriefing(w http.ResponseWriter, r *http.Request, v *vis
 	}
 	sinceMarker := model.NewSinceTime(time.Now().Add(-1 * sinceDuration).Unix())
 	u := v.User()
-	topics := make([]ai.BriefingTopicMessages, 0, len(u.Prefs.Subscriptions))
 	totalMessages := 0
+	topics := make([]ai.BriefingTopicMessages, 0)
 	if u.Prefs != nil {
 		for _, sub := range u.Prefs.Subscriptions {
 			if len(topics) >= ai.BriefingMaxTopics {
@@ -693,6 +696,9 @@ func (s *Server) handleAIBriefing(w http.ResponseWriter, r *http.Request, v *vis
 			}
 			if sub.Topic == "" || (sub.BaseURL != "" && sub.BaseURL != s.config.BaseURL) {
 				continue // Other-server subscriptions are not ours to read
+			}
+			if !s.canReadTopic(u, sub.Topic) {
+				continue // Subscribed is not authorized: skip topics outside the ACL
 			}
 			cachedMessages, _, err := s.messageCache.MessagesCapped(sub.Topic, sinceMarker, false, 128*1024)
 			if err != nil {
@@ -744,6 +750,13 @@ func sanitizeChatHistory(history []apiAIChatHistory) (turns []ai.ChatTurn) {
 		turns = append(turns, ai.ChatTurn{Question: question, Answer: answer})
 	}
 	return turns
+}
+
+// canReadTopic reports whether u (nil = anonymous) may read topic under the ACL.
+// The synced subscription list is client-writable, so it is never a security
+// boundary: read access is authorized at read time (audit F-A).
+func (s *Server) canReadTopic(u *user.User, topic string) bool {
+	return s.userManager == nil || s.userManager.Authorize(u, topic, user.PermissionRead) == nil
 }
 
 // userSubscribesTo reports whether the user has a synced subscription for the topic.

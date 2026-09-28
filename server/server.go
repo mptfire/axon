@@ -734,8 +734,16 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 	} else if r.Method == http.MethodPost && r.URL.Path == matrixPushPath {
 		return s.transformMatrixJSON(s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublishMatrix)))(w, r, v)
 	} else if r.Method == http.MethodPost && r.URL.Path == apiMCPPath && s.mcpHandler != nil {
-		// axon: MCP endpoint for AI agents (raw http.Handler; JSON-RPC over POST)
-		s.mcpHandler.ServeHTTP(w, r)
+		// axon: MCP endpoint for AI agents (raw http.Handler; JSON-RPC over POST).
+		// Rate-limited like every endpoint (audit F-B). The visitor's resolved IP is
+		// passed to the transport so inner self-calls attribute to the real caller
+		// instead of the server/proxy address; overwriting the header means a client
+		// cannot spoof it.
+		r.Header.Set("X-Forwarded-For", v.ip.String())
+		return s.limitRequests(func(w http.ResponseWriter, r *http.Request, _ *visitor) error {
+			s.mcpHandler.ServeHTTP(w, r)
+			return nil
+		})(w, r, v)
 		return nil
 	} else if (r.Method == http.MethodPut || r.Method == http.MethodPost) && (topicPathRegex.MatchString(r.URL.Path) || updatePathRegex.MatchString(r.URL.Path)) {
 		return s.limitRequestsWithTopic(s.authorizeTopicWrite(s.handlePublish))(w, r, v)

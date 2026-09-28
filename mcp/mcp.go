@@ -65,6 +65,11 @@ func New(conf Config) *Server {
 	}
 }
 
+// maxBatchRequests caps the JSON-RPC batch length: a batch fans out into one inner
+// HTTP call each, so an unbounded batch would hold the request open and burn the
+// shared inner rate-limit budget (audit F-B).
+const maxBatchRequests = 10
+
 // authTokenKey is the context key for the caller's raw Authorization header value
 // (HTTP transport). Empty means "no caller credentials" — stdio mode uses the
 // server-wide configured token instead.
@@ -75,6 +80,20 @@ func withAuthToken(ctx context.Context, auth string) context.Context {
 		return ctx
 	}
 	return context.WithValue(ctx, authTokenKey{}, auth)
+}
+
+// callerIPKey is the context key for the resolved caller IP (HTTP transport only)
+type callerIPKey struct{}
+
+func withCallerIP(ctx context.Context, ip string) context.Context {
+	return context.WithValue(ctx, callerIPKey{}, ip)
+}
+
+func callerIPFrom(ctx context.Context) string {
+	if v, ok := ctx.Value(callerIPKey{}).(string); ok {
+		return v
+	}
+	return ""
 }
 
 func authTokenFrom(ctx context.Context) string {
@@ -181,11 +200,18 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	authHeader := r.Header.Get("Authorization")
 	ctx := withAuthToken(r.Context(), authHeader)
+	// Caller IP for attribution on inner self-calls; set by the server route,
+	// which overwrites any client-supplied value.
+	ctx = withCallerIP(ctx, r.Header.Get("X-Forwarded-For"))
 	// Batch: JSON array of messages. Responses (in order, notifications excluded) as a JSON array.
 	if trimmed[0] == '[' {
 		var requests []rpcRequest
 		if err := json.Unmarshal(trimmed, &requests); err != nil {
 			http.Error(w, "parse error", http.StatusBadRequest)
+			return
+		}
+		if len(requests) > maxBatchRequests {
+			http.Error(w, "batch too large", http.StatusRequestEntityTooLarge)
 			return
 		}
 		responses := make([]*rpcResponse, 0, len(requests))

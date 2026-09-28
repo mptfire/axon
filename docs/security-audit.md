@@ -18,7 +18,7 @@ build, runs as the unprivileged `axon` user under a hardened systemd unit.
 | Anonymous publish under `auth-default-access: deny-all` | ✅ 403 |
 | Anonymous access to admin endpoints (`/v1/users`, `/v1/version`) | ✅ 401 |
 | Invalid bearer token | ✅ 401 |
-| Digest topics: other users cannot read (deny-all + per-user read ACL) | ✅ 403 |
+| Digest delivery topic: other users cannot read (deny-all + per-user read ACL) | ✅ 403 |
 | Scoped tokens: token with `publish` scope calling `POST /v1/ai/plan` | ✅ 403 |
 | Scoped token with `ai` scope / unscoped token / password auth | ✅ 200 |
 | MCP server network exposure | ✅ none — stdio only, no HTTP route |
@@ -67,7 +67,11 @@ verified that the bodies contain only the anonymous visitor's own limits/counter
 Features shipped after the initial audit, with their security posture:
 
 - **MCP over HTTP** (`POST /mcp`, gated by `enable-mcp`): JSON-RPC transport for AI agents.
-  - Rate limited by the same per-visitor `limitRequests` middleware as every endpoint
+  - Rate limited by the per-visitor `limitRequests` middleware (audit F-B: this
+    wrapping was added later — the original claim that it always was rate-limited was wrong)
+  - Batches are capped at 10 JSON-RPC messages per request; the caller's resolved
+    IP is forwarded on inner self-calls so traffic and ban strikes attribute to the
+    real caller, not the server/proxy bucket
   - Per-request auth: tools run with the **caller's** Authorization header; the server's
     configured token is never exposed to HTTP callers (stdio mode uses it locally)
   - Without credentials on a deny-all server, every tool call fails at the ACL layer
@@ -111,7 +115,9 @@ Features shipped after the initial audit, with their security posture:
   the machine. Every outbound call is logged locally with feature/model/token counts.
 - **What a prompt injection can do:** at worst, produce a misleading summary/title/answer that a
   human reads. It cannot: publish as someone else, read topics outside the requesting user's
-  subscriptions, call tools, persist instructions, or exceed the validated output schemas.
+  **ACL-authorized** subscriptions (audited at read time, not at subscribe time — see
+  Addendum 3 / F-A; the subscription list itself is client-writable and was never a
+  boundary), call tools, persist instructions, or exceed the validated output schemas.
 - **Rate/budget ceilings:** 10 AI requests/day/visitor, 20k tokens/day/visitor, 2M tokens/day
   server-wide (defaults), plus upstream's per-visitor request limits on every endpoint.
 
@@ -146,3 +152,45 @@ F-1 / F-5 above.
 GO-2026-6354 (module-level findings). The one remaining module-level advisory,
 GO-2026-5932, flags `x/crypto/openpgp` as unmaintained-by-design; no fixed version
 exists and this codebase never imports `openpgp`.
+
+
+## Addendum 3 — second external review (AI-layer and MCP focus)
+
+A follow-up code review found one High and one Medium issue, both fixed:
+
+- **F-A (High) — AI endpoints enforced the subscription list, not the ACL.** The
+  synced subscription list is client-writable (`POST /v1/account/subscription`
+  accepts any topic), and chat/digest/briefing read the message cache directly
+  after only checking membership in that list. On a deny-all server, any
+  authenticated user could read any topic's cached messages by subscribing to it
+  and asking the chat endpoint to "cite every message". **Fixed:** all four AI
+  handlers (chat, chat-stream, digest, briefing) and the scheduled-briefing
+  collector now call `userManager.Authorize(u, topic, PermissionRead)` at read
+  time — 403 for explicit-topic requests, silent skip in cross-topic loops and
+  the scheduler. Admins and topic owners are unaffected. Regression test:
+  `TestServer_AI_ACLs_EnforcedAtReadTime` (the reviewer's exact repro: user B
+  subscribes to A's topic → chat 403, digest 403, briefing excludes).
+- **F-B (Medium) — `/mcp` was unmetered and misattributed.** The outer request
+  had no rate limiter, and inner self-calls carried no caller identity, so all
+  MCP users shared the server's own rate-limit bucket and could accrue ban-feed
+  strikes against the proxy IP. **Fixed:** the route is wrapped in
+  `limitRequests`; batches are capped at 10 requests; the resolved visitor IP
+  is forwarded (server-set, not client-spoofable) on inner calls for
+  attribution. Residual: if `BaseURL` resolves through a proxy, final
+  attribution depends on the proxy appending the hop correctly (ours does).
+- **Low — MCP `read_messages` `since` was interpolated unescaped** into the
+  inner request path. Now validated (`all` | duration | unix ts | message ID)
+  and `url.QueryEscape`d.
+- **Info — `handleAIBriefing` read `len(u.Prefs.Subscriptions)` before its nil
+  guard.** Unreachable in practice (Prefs is always initialized); reordered.
+- **Low (accepted) — `/metrics` on the main listener has no auth** when
+  `enable-metrics` is set without `metrics-listen-http` (upstream behavior).
+  This instance does not enable metrics; if you do, bind a separate
+  metrics listener or block `/metrics` at the proxy.
+- **Info (accepted, upstream) — Twilio and default S3 clients use
+  `http.DefaultClient`** (no timeout). Not exercised in this deployment.
+
+The same review confirmed: admin routes all pass `ensureAdmin` (nil-safe),
+`handleUsersUpdate`/`handleUsersDelete` refuse privileged mutations, no
+`InsecureSkipVerify` anywhere, no secrets in S3/AI provider logging, and the
+web frontend renders markdown through react-remark without raw HTML.

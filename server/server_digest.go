@@ -157,6 +157,9 @@ func (s *Server) gatherBriefingTopics(u *user.User, sinceMarker model.SinceMarke
 		if sub.Topic == "" || (sub.BaseURL != "" && sub.BaseURL != s.config.BaseURL) {
 			continue
 		}
+		if !s.canReadTopic(u, sub.Topic) {
+			continue // Subscribed is not authorized: skip topics outside the ACL
+		}
 		cachedMessages, _, err := s.messageCache.MessagesCapped(sub.Topic, sinceMarker, false, 128*1024)
 		if err != nil {
 			return nil, 0, err

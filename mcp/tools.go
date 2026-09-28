@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -147,6 +148,14 @@ var (
 
 func validTopic(topic string) bool { return topicNameRegex.MatchString(topic) }
 
+// validSince accepts the documented since= forms: "all", a Go-style duration with
+// d/h/m/s units, a unix timestamp, or a message ID. Anything else (including
+// URL metacharacters) is rejected before it reaches the inner request path
+// (audit: unescaped since could alter the inner request's query).
+var sinceRegex = regexp.MustCompile(`^(all|\d{1,13}|\d+(\.\d+)?(ms|s|m|h|d)|[A-Za-z0-9_-]{4,64})$`)
+
+func validSince(since string) bool { return sinceRegex.MatchString(since) }
+
 // do performs a request against the configured ntfy service. The auth value is the
 // caller's raw Authorization header (HTTP transport) or empty (stdio transport, which
 // falls back to the server-wide configured access token).
@@ -159,6 +168,11 @@ func (s *Server) do(ctx context.Context, method, path string, body io.Reader, he
 		for _, v := range vs {
 			httpReq.Header.Add(k, v)
 		}
+	}
+	// Attribute inner self-calls to the real caller (audit F-B): without this,
+	// every MCP user shares the server/proxy rate-limit bucket and ban strikes.
+	if ip := callerIPFrom(ctx); ip != "" {
+		httpReq.Header.Set("X-Forwarded-For", ip)
 	}
 	// HTTP transport: caller's own credentials via context value; stdio: config token
 	switch {
@@ -225,7 +239,10 @@ func (s *Server) toolReadMessages(ctx context.Context, args map[string]any) *too
 	if limit > maxReadMessages {
 		limit = maxReadMessages
 	}
-	resp, err := s.do(ctx, http.MethodGet, "/"+topic+"/json?poll=1&since="+since, nil, nil)
+	if !validSince(since) {
+		return errorResult(fmt.Errorf("invalid since: must be \"all\", a duration (e.g. 12h), a unix timestamp, or a message ID"))
+	}
+	resp, err := s.do(ctx, http.MethodGet, "/"+topic+"/json?poll=1&since="+url.QueryEscape(since), nil, nil)
 	if err != nil {
 		return errorResult(err)
 	}

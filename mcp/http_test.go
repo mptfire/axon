@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -104,4 +105,22 @@ func isErrResp(t *testing.T, rr *httptest.ResponseRecorder) bool {
 	}
 	_ = json.Unmarshal(rr.Body.Bytes(), &parsed)
 	return parsed.Result.IsError
+}
+
+func TestHTTPHandler_BatchCapped(t *testing.T) {
+	// Audit F-B regression: an unbounded batch would fan out into one inner HTTP
+	// call per entry and hold the request open (subscribe_wait blocks per call).
+	s := New(Config{ServiceBaseURL: "https://ntfy.sh"})
+	big := make([]string, maxBatchRequests+1)
+	for i := range big {
+		big[i] = `{"jsonrpc":"2.0","id":` + strconv.Itoa(i) + `,"method":"ping"}`
+	}
+	payload := "[" + strings.Join(big, ",") + "]"
+	rr := httpPOST(t, s.HTTPHandler(), payload, nil)
+	require.Equal(t, http.StatusRequestEntityTooLarge, rr.Code)
+
+	// Exactly at the cap is still accepted
+	payload = "[" + strings.Join(big[:maxBatchRequests], ",") + "]"
+	rr = httpPOST(t, s.HTTPHandler(), payload, nil)
+	require.Equal(t, 200, rr.Code)
 }
