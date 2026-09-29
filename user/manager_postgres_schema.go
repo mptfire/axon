@@ -102,7 +102,7 @@ const (
 			created_at INT NOT NULL,
 			updated_at INT NOT NULL,
 			last_seen INT NOT NULL DEFAULT 0,
-			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
+			FOREIGN KEY (user_id) REFERENCES "user" (id) ON DELETE CASCADE
 		);
 		CREATE UNIQUE INDEX idx_user_device_token ON user_device (token) WHERE token IS NOT NULL;
 		CREATE INDEX idx_user_device_user ON user_device (user_id);
@@ -113,7 +113,7 @@ const (
 			expires_at INT NOT NULL,
 			used INT NOT NULL DEFAULT 0,
 			created_at INT NOT NULL,
-			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
+			FOREIGN KEY (user_id) REFERENCES "user" (id) ON DELETE CASCADE
 		);
 		CREATE INDEX idx_user_pairing_code_expiry ON user_pairing_code (expires_at);
 `
@@ -182,7 +182,7 @@ const postgresMigrate10To11UpdateQueries = `
 			created_at INT NOT NULL,
 			updated_at INT NOT NULL,
 			last_seen INT NOT NULL DEFAULT 0,
-			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
+			FOREIGN KEY (user_id) REFERENCES "user" (id) ON DELETE CASCADE
 		);
 		CREATE UNIQUE INDEX idx_user_device_token ON user_device (token) WHERE token IS NOT NULL;
 		CREATE INDEX idx_user_device_user ON user_device (user_id);
@@ -193,7 +193,7 @@ const postgresMigrate10To11UpdateQueries = `
 			expires_at INT NOT NULL,
 			used INT NOT NULL DEFAULT 0,
 			created_at INT NOT NULL,
-			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
+			FOREIGN KEY (user_id) REFERENCES "user" (id) ON DELETE CASCADE
 		);
 		CREATE INDEX idx_user_pairing_code_expiry ON user_pairing_code (expires_at);
 	`
