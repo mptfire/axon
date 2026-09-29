@@ -17,18 +17,23 @@ import (
 // device apart from an unrestricted user token.
 
 const (
-	deviceIDPrefix       = "dv_"
-	deviceIDLength       = 8
-	pairingCodeLen       = 8 // human-typed; short-lived and one-time
-	PairingCodeTTL       = 5 * time.Minute
-	DeviceConfigMaxBytes = 64 * 1024 // PUT /v1/device/{id}/config body cap
+	deviceIDPrefix = "dv_"
+	deviceIDLength = 8
+	pairingCodeLen = 8 // human-typed; short-lived and one-time
+	// PairingCodeTTL is how long a minted pairing code can be claimed.
+	PairingCodeTTL = 5 * time.Minute
+	// DeviceConfigMaxBytes caps the PUT /v1/device/{id}/config body.
+	DeviceConfigMaxBytes = 64 * 1024
 	deviceMaxPerUser     = 10
 )
 
 var (
+	// ErrPairingCodeInvalid means the code is unknown, expired, or already used.
 	ErrPairingCodeInvalid = errors.New("pairing code invalid, expired, or already used")
-	ErrDeviceNotFound     = errors.New("device not found")
-	ErrTooManyDevices     = errors.New("too many devices")
+	// ErrDeviceNotFound means no such device for that user.
+	ErrDeviceNotFound = errors.New("device not found")
+	// ErrTooManyDevices means the per-user device budget is exhausted.
+	ErrTooManyDevices = errors.New("too many devices")
 )
 
 // CreatePairingCode mints a one-time, short-lived code for the given user. The

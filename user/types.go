@@ -498,9 +498,10 @@ type queries struct {
 	updateBilling string
 }
 
-// axon: Device is a paired app instance (agent channel participant). The optional
-// token links a device-scoped access token to the device row; config is an opaque
-// JSON blob the app applies on sync (subscriptions, per-topic settings).
+// Device is a paired app instance (axon agent channel participant). The
+// optional token links a device-scoped access token to the device row; config
+// is an opaque JSON blob the app applies on sync (subscriptions, per-topic
+// settings).
 type Device struct {
 	ID        string    `json:"id"`
 	UserID    string    `json:"-"`
@@ -512,7 +513,7 @@ type Device struct {
 	LastSeen  time.Time `json:"last_seen"`
 }
 
-// axon: PairingCode is a short-lived one-time code that a human taps into the app
+// PairingCode is a short-lived one-time code that a human taps into the app
 // (axon://pair/<code>) to exchange for a device-scoped token. Minting a code
 // requires an authenticated user; claiming it requires nothing but the code.
 type PairingCode struct {
