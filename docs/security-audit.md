@@ -194,3 +194,41 @@ The same review confirmed: admin routes all pass `ensureAdmin` (nil-safe),
 `handleUsersUpdate`/`handleUsersDelete` refuse privileged mutations, no
 `InsecureSkipVerify` anywhere, no secrets in S3/AI provider logging, and the
 web frontend renders markdown through react-remark without raw HTML.
+
+## Addendum 4 — self-audit of the agent channel (pairing + device config)
+
+A full review of everything shipped through v1.25.2-axon.9, focused on the
+device-pairing code no external pass had covered.
+
+**Findings (all fixed, pinned by tests, live-verified):**
+
+- **Sandbox self-enforcement gaps (Medium).** The `/v1/device/*` allow-list for
+  device-scoped tokens assumes handlers self-enforce device isolation. Three
+  did not: a device token could (a) mint pairing codes — provisioning more
+  devices, bounded but violating "devices never grant tokens"; (b) enumerate
+  the user's device fleet (ids, labels, last-seen); (c) unpair a *sibling*
+  device (denial of service on the user's other phones). All three now return
+  403 for device-scoped tokens; self-unpairing (self-revocation) remains
+  allowed. Regression: `TestServer_Device_SandboxNoSelfEnforcementGaps`.
+
+**Verified clean:**
+
+- Pairing codes: 36^8 ≈ 2.8T keyspace, 5-minute TTL, single-use via atomic
+  conditional UPDATE (racing claims cannot both win), claim endpoint
+  rate-limited per IP. Brute force infeasible.
+- Claim transaction: minting is never possible with a device token; the claim
+  itself needs only the code (by design — the human tap is the consent).
+- Device-config validation: 64 KB cap, topic-name regex, no credential-shaped
+  fields, foreign `base_url` rejected.
+- Token stripping on `GET /v1/account` for device callers (no harvesting of
+  unrestricted tokens, including an admin's).
+- Revocation: device deletion removes the token row; the next request 401s.
+- Full test suites pass on sqlite **and** postgres backends; `gofmt`, `go vet`,
+  golint, prettier clean; `govulncheck`: 0 callable vulnerabilities (only the
+  unmaintained-openpgp module advisory remains; never imported).
+- Privacy: zero occurrences of operator domain/keys/IPs in both repos'
+  histories and release artifacts.
+- Android: no new permissions for pairing (byte-identical permission list to
+  the previous release), release-signed, non-debuggable, `allowBackup=false`;
+  device token stored in the app DB like upstream credentials (mitigated by
+  backups being disabled).
