@@ -70,6 +70,10 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 	if err != nil {
 		return err
 	}
+	// axon: a device-scoped token (pairing flow) must never see the account's
+	// token values — that would let a paired phone escalate to unrestricted
+	// credentials. The app only needs prefs/limits here.
+	stripTokens := isDeviceScopedToken(v.User())
 	logvr(v, r).Tag(tagAccount).Fields(visitorExtendedInfoContext(info)).Debug("Retrieving account stats")
 	limits, stats := info.Limits, info.Stats
 	response := &apiAccountResponse{
@@ -159,7 +163,7 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 		if err != nil {
 			return err
 		}
-		if len(tokens) > 0 {
+		if len(tokens) > 0 && !stripTokens {
 			response.Tokens = make([]*apiAccountTokenResponse, 0)
 			for _, t := range tokens {
 				var lastOrigin string

@@ -310,6 +310,19 @@ var sqliteQueries = queries{
 	selectTokenCount:               sqliteSelectTokenCountQuery,
 	selectAllProvisionedTokens:     sqliteSelectAllProvisionedTokensQuery,
 	upsertToken:                    sqliteUpsertTokenQuery,
+	insertDevice:                   sqliteInsertDeviceQuery,
+	selectDevices:                  sqliteSelectDevicesQuery,
+	selectDeviceByID:               sqliteSelectDeviceByIDQuery,
+	selectDeviceByToken:            sqliteSelectDeviceByTokenQuery,
+	updateDeviceConfig:             sqliteUpdateDeviceConfigQuery,
+	updateDeviceLastSeen:           sqliteUpdateDeviceLastSeenQuery,
+	deleteDevice:                   sqliteDeleteDeviceQuery,
+	insertPairingCode:              sqliteInsertPairingCodeQuery,
+	selectPairingCode:              sqliteSelectPairingCodeQuery,
+	usePairingCode:                 sqliteUsePairingCodeQuery,
+	deleteExpiredPairing:           sqliteDeleteExpiredPairingQuery,
+	selectPairingUserID:            sqliteSelectPairingUserIDQuery,
+	selectDeviceCount:              sqliteSelectDeviceCountQuery,
 	updateToken:                    sqliteUpdateTokenQuery,
 	updateTokenLastAccess:          sqliteUpdateTokenLastAccessQuery,
 	deleteToken:                    sqliteDeleteTokenQuery,
@@ -372,3 +385,38 @@ func NewSQLiteManager(filename, startupQueries string, config *Config) (*Manager
 	}
 	return newManager(db.New(&db.Host{DB: d}, nil), sqliteQueries, config)
 }
+
+// axon: device registry + pairing code queries (agent channel). Placeholders use
+// the same positional style as the queries above.
+const (
+	sqliteInsertDeviceQuery = `
+		INSERT INTO user_device (id, user_id, token, label, config, created_at, updated_at, last_seen)
+		VALUES (?, ?, ?, ?, '{}', ?, ?, ?)`
+	sqliteSelectDevicesQuery = `
+		SELECT id, user_id, IFNULL(token, ''), label, config, created_at, updated_at, last_seen
+		FROM user_device WHERE user_id = ? ORDER BY created_at`
+	sqliteSelectDeviceByIDQuery = `
+		SELECT id, user_id, IFNULL(token, ''), label, config, created_at, updated_at, last_seen
+		FROM user_device WHERE id = ? AND user_id = ?`
+	sqliteSelectDeviceByTokenQuery = `
+		SELECT id, user_id, IFNULL(token, ''), label, config, created_at, updated_at, last_seen
+		FROM user_device WHERE token = ?`
+	sqliteUpdateDeviceConfigQuery = `
+		UPDATE user_device SET config = ?, updated_at = ? WHERE id = ? AND user_id = ?`
+	sqliteUpdateDeviceLastSeenQuery = `
+		UPDATE user_device SET last_seen = ?, updated_at = CASE WHEN last_seen = 0 THEN ? ELSE updated_at END WHERE id = ?`
+	sqliteDeleteDeviceQuery = `
+		DELETE FROM user_device WHERE id = ? AND user_id = ?`
+	sqliteInsertPairingCodeQuery = `
+		INSERT INTO user_pairing_code (code, user_id, label, expires_at, used, created_at)
+		VALUES (?, ?, ?, ?, 0, ?)`
+	sqliteSelectPairingCodeQuery = `
+		SELECT code, user_id, label, expires_at FROM user_pairing_code
+		WHERE code = ? AND used = 0 AND expires_at > ?`
+	sqliteUsePairingCodeQuery = `
+		UPDATE user_pairing_code SET used = 1 WHERE code = ? AND used = 0 AND expires_at > ?`
+	sqliteDeleteExpiredPairingQuery = `
+		DELETE FROM user_pairing_code WHERE expires_at < ? OR (used = 1 AND created_at < ?)`
+	sqliteSelectPairingUserIDQuery = `SELECT user_id FROM user_pairing_code WHERE code = ?`
+	sqliteSelectDeviceCountQuery   = `SELECT COUNT(*) FROM user_device WHERE user_id = ?`
+)

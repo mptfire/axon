@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -135,6 +136,16 @@ func toolDefinitions() []toolDefinition {
 					"locale": {Type: "string", Description: "Language for the plan, e.g. \"en\""},
 				},
 				Required: []string{"prompt"},
+			},
+		},
+		{
+			Name:        "request_pairing",
+			Description: "Mint a one-time pairing code so the user can pair their phone's axon app with a device-scoped token (tap axon://pair/<code> within 5 minutes). The code grants nothing by itself — the human tap on the phone is the consent step.",
+			InputSchema: &inputSchema{
+				Type: "object",
+				Properties: map[string]propertySchema{
+					"label": {Type: "string", Description: "Optional device label, e.g. \"Pixel 9\""},
+				},
 			},
 		},
 	}
@@ -502,4 +513,51 @@ func stringSliceArg(args map[string]any, name string) []string {
 func firstKB(r io.Reader) string {
 	b, _ := io.ReadAll(io.LimitReader(r, 1024))
 	return strings.TrimSpace(string(b))
+}
+
+// toolRequestPairing mints a device pairing code via POST /v1/device/pairing
+// with the caller's credentials. The agent relays the code/deep link to the
+// human; the tap on the phone completes the pairing (POST /v1/device/claim).
+func (s *Server) toolRequestPairing(ctx context.Context, args map[string]any) *toolResult {
+	if authTokenFrom(ctx) == "" && s.config.AccessToken == "" {
+		return errorResult(errNoToken)
+	}
+	body := map[string]any{}
+	if label, _ := args["label"].(string); label != "" {
+		body["label"] = label
+	}
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return errorResult(err)
+	}
+	resp, err := s.do(ctx, http.MethodPost, "/v1/device/pairing", bytes.NewReader(payload), http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return errorResult(err)
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return errorResult(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return errorResult(fmt.Errorf("pairing request failed: HTTP %d: %s", resp.StatusCode, string(b)))
+	}
+	text := "Pairing code minted. Have the user tap or open this link ON THE PHONE within 5 minutes: " + pairDeepLink(b) + " (code: " + pairCode(b) + "). After the tap, the app is paired with its own device-scoped token."
+	return &toolResult{Content: []toolContent{{Type: "text", Text: text}}}
+}
+
+func pairCode(pairingResponse []byte) string {
+	var parsed struct {
+		Code string `json:"code"`
+	}
+	_ = json.Unmarshal(pairingResponse, &parsed)
+	return parsed.Code
+}
+
+func pairDeepLink(pairingResponse []byte) string {
+	var parsed struct {
+		DeepLink string `json:"deep_link"`
+	}
+	_ = json.Unmarshal(pairingResponse, &parsed)
+	return parsed.DeepLink
 }

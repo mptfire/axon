@@ -107,6 +107,29 @@ const (
 		INSERT INTO user (id, user, pass, role, sync_topic, provisioned, created)
 		VALUES ('` + everyoneID + `', '*', '', 'anonymous', '', false, UNIXEPOCH())
 		ON CONFLICT (id) DO NOTHING;
+		CREATE TABLE IF NOT EXISTS user_device (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			token TEXT,
+			label TEXT NOT NULL DEFAULT (''),
+			config TEXT NOT NULL DEFAULT ('{}'),
+			created_at INT NOT NULL,
+			updated_at INT NOT NULL,
+			last_seen INT NOT NULL DEFAULT (0),
+			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
+		);
+		CREATE UNIQUE INDEX idx_user_device_token ON user_device (token) WHERE token IS NOT NULL;
+		CREATE INDEX idx_user_device_user ON user_device (user_id);
+		CREATE TABLE IF NOT EXISTS user_pairing_code (
+			code TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			label TEXT NOT NULL DEFAULT (''),
+			expires_at INT NOT NULL,
+			used INT NOT NULL DEFAULT (0),
+			created_at INT NOT NULL,
+			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_user_pairing_code_expiry ON user_pairing_code (expires_at);
 	`
 )
 
@@ -118,7 +141,9 @@ const (
 	// axon: fork migration 9 -> 10 adds token scopes. When upstream claims 9 -> 10 in a
 	// future release, renumber ours to the next free version on merge (see
 	// docs/ai-plan/upstream-sync.md).
-	sqliteCurrentSchemaVersion = 10
+	// axon: fork migration 10 -> 11 adds the device registry + pairing codes
+	// (agent channel, see docs/agents.md).
+	sqliteCurrentSchemaVersion = 11
 )
 
 // Schema migrations for SQLite
@@ -383,15 +408,16 @@ var (
 	`
 
 	sqliteMigrations = map[int]schema.MigrateFunc{
-		1: sqliteMigrateFrom1,
-		2: schema.AsMigrateFunc(sqliteMigrate2To3UpdateQueries),
-		3: schema.AsMigrateFunc(sqliteMigrate3To4UpdateQueries),
-		4: schema.AsMigrateFunc(sqliteMigrate4To5UpdateQueries),
-		5: schema.AsMigrateFunc(sqliteMigrate5To6UpdateQueries),
-		6: schema.AsMigrateFunc(sqliteMigrate6To7UpdateQueries),
-		7: schema.AsMigrateFunc(sqliteMigrate7To8UpdateQueries),
-		8: schema.AsMigrateFunc(sqliteMigrate8To9UpdateQueries),
-		9: schema.AsMigrateFunc(sqliteMigrate9To10UpdateQueries), // axon
+		1:  sqliteMigrateFrom1,
+		2:  schema.AsMigrateFunc(sqliteMigrate2To3UpdateQueries),
+		3:  schema.AsMigrateFunc(sqliteMigrate3To4UpdateQueries),
+		4:  schema.AsMigrateFunc(sqliteMigrate4To5UpdateQueries),
+		5:  schema.AsMigrateFunc(sqliteMigrate5To6UpdateQueries),
+		6:  schema.AsMigrateFunc(sqliteMigrate6To7UpdateQueries),
+		7:  schema.AsMigrateFunc(sqliteMigrate7To8UpdateQueries),
+		8:  schema.AsMigrateFunc(sqliteMigrate8To9UpdateQueries),
+		9:  schema.AsMigrateFunc(sqliteMigrate9To10UpdateQueries),  // axon
+		10: schema.AsMigrateFunc(sqliteMigrate10To11UpdateQueries), // axon: devices + pairing
 	}
 )
 
@@ -440,3 +466,32 @@ func sqliteMigrateFrom1(tx *sql.Tx) error {
 	_, err = tx.Exec(sqliteMigrate1To2InsertFromOldTablesAndDropNoTxQuery)
 	return err
 }
+
+// axon: migration 10 -> 11 — device registry (agent channel) and one-time
+// pairing codes. A paired device owns a device-scoped token; the link is the
+// token value stored on the device row, so user_token needs no new column.
+const sqliteMigrate10To11UpdateQueries = `
+		CREATE TABLE IF NOT EXISTS user_device (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			token TEXT,
+			label TEXT NOT NULL DEFAULT (''),
+			config TEXT NOT NULL DEFAULT ('{}'),
+			created_at INT NOT NULL,
+			updated_at INT NOT NULL,
+			last_seen INT NOT NULL DEFAULT (0),
+			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
+		);
+		CREATE UNIQUE INDEX idx_user_device_token ON user_device (token) WHERE token IS NOT NULL;
+		CREATE INDEX idx_user_device_user ON user_device (user_id);
+		CREATE TABLE IF NOT EXISTS user_pairing_code (
+			code TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			label TEXT NOT NULL DEFAULT (''),
+			expires_at INT NOT NULL,
+			used INT NOT NULL DEFAULT (0),
+			created_at INT NOT NULL,
+			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
+		);
+		CREATE INDEX idx_user_pairing_code_expiry ON user_pairing_code (expires_at);
+	`

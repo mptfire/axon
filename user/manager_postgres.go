@@ -314,6 +314,19 @@ var postgresQueries = queries{
 	selectTokenCount:               postgresSelectTokenCountQuery,
 	selectAllProvisionedTokens:     postgresSelectAllProvisionedTokensQuery,
 	upsertToken:                    postgresUpsertTokenQuery,
+	insertDevice:                   postgresInsertDeviceQuery,
+	selectDevices:                  postgresSelectDevicesQuery,
+	selectDeviceByID:               postgresSelectDeviceByIDQuery,
+	selectDeviceByToken:            postgresSelectDeviceByTokenQuery,
+	updateDeviceConfig:             postgresUpdateDeviceConfigQuery,
+	updateDeviceLastSeen:           postgresUpdateDeviceLastSeenQuery,
+	deleteDevice:                   postgresDeleteDeviceQuery,
+	insertPairingCode:              postgresInsertPairingCodeQuery,
+	selectPairingCode:              postgresSelectPairingCodeQuery,
+	usePairingCode:                 postgresUsePairingCodeQuery,
+	deleteExpiredPairing:           postgresDeleteExpiredPairingQuery,
+	selectPairingUserID:            postgresSelectPairingUserIDQuery,
+	selectDeviceCount:              postgresSelectDeviceCountQuery,
 	updateToken:                    postgresUpdateTokenQuery,
 	updateTokenLastAccess:          postgresUpdateTokenLastAccessQuery,
 	deleteToken:                    postgresDeleteTokenQuery,
@@ -356,3 +369,37 @@ func NewPostgresManager(d *db.DB, config *Config) (*Manager, error) {
 	}
 	return newManager(d, postgresQueries, config)
 }
+
+// axon: device registry + pairing code queries (Postgres twin; $n placeholders).
+const (
+	postgresInsertDeviceQuery = `
+		INSERT INTO user_device (id, user_id, token, label, config, created_at, updated_at, last_seen)
+		VALUES ($1, $2, $3, $4, '{}', $5, $6, $7)`
+	postgresSelectDevicesQuery = `
+		SELECT id, user_id, COALESCE(token, ''), label, config, created_at, updated_at, last_seen
+		FROM user_device WHERE user_id = $1 ORDER BY created_at`
+	postgresSelectDeviceByIDQuery = `
+		SELECT id, user_id, COALESCE(token, ''), label, config, created_at, updated_at, last_seen
+		FROM user_device WHERE id = $1 AND user_id = $2`
+	postgresSelectDeviceByTokenQuery = `
+		SELECT id, user_id, COALESCE(token, ''), label, config, created_at, updated_at, last_seen
+		FROM user_device WHERE token = $1`
+	postgresUpdateDeviceConfigQuery = `
+		UPDATE user_device SET config = $1, updated_at = $2 WHERE id = $3 AND user_id = $4`
+	postgresUpdateDeviceLastSeenQuery = `
+		UPDATE user_device SET last_seen = $1, updated_at = CASE WHEN last_seen = 0 THEN $1 ELSE updated_at END WHERE id = $2`
+	postgresDeleteDeviceQuery = `
+		DELETE FROM user_device WHERE id = $1 AND user_id = $2`
+	postgresInsertPairingCodeQuery = `
+		INSERT INTO user_pairing_code (code, user_id, label, expires_at, used, created_at)
+		VALUES ($1, $2, $3, $4, 0, $5)`
+	postgresSelectPairingCodeQuery = `
+		SELECT code, user_id, label, expires_at FROM user_pairing_code
+		WHERE code = $1 AND used = 0 AND expires_at > $2`
+	postgresUsePairingCodeQuery = `
+		UPDATE user_pairing_code SET used = 1 WHERE code = $1 AND used = 0 AND expires_at > $2`
+	postgresDeleteExpiredPairingQuery = `
+		DELETE FROM user_pairing_code WHERE expires_at < $1 OR (used = 1 AND created_at < $2)`
+	postgresSelectPairingUserIDQuery = `SELECT user_id FROM user_pairing_code WHERE code = $1`
+	postgresSelectDeviceCountQuery   = `SELECT COUNT(*) FROM user_device WHERE user_id = $1`
+)

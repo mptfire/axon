@@ -312,6 +312,8 @@ func (s *Server) callTool(ctx context.Context, params json.RawMessage) *toolResu
 		return s.toolListSubscriptions(ctx, args)
 	case "plan_subscription":
 		return s.toolPlanSubscription(ctx, args)
+	case "request_pairing":
+		return s.toolRequestPairing(ctx, args)
 	default:
 		return errorResult(fmt.Errorf("unknown tool: %s", request.Name))
 	}

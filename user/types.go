@@ -77,6 +77,7 @@ const (
 	TokenScopePublish = "publish"
 	TokenScopeRead    = "read"
 	TokenScopeAI      = "ai"
+	TokenScopeDevice  = "device" // axon: device-scoped token from the pairing flow
 )
 
 // ParseTokenScopes parses a comma-separated scopes column into a list. Empty or blank
@@ -446,6 +447,21 @@ type queries struct {
 	deleteExpiredTokens        string
 	deleteExcessTokens         string
 
+	// Device queries (axon: agent channel)
+	insertDevice         string
+	selectDevices        string
+	selectDeviceByID     string
+	selectDeviceByToken  string
+	updateDeviceConfig   string
+	updateDeviceLastSeen string
+	deleteDevice         string
+	insertPairingCode    string
+	selectPairingCode    string
+	usePairingCode       string
+	deleteExpiredPairing string
+	selectPairingUserID  string
+	selectDeviceCount    string
+
 	// Tier queries
 	insertTier          string
 	selectTiers         string
@@ -480,4 +496,28 @@ type queries struct {
 
 	// Billing queries
 	updateBilling string
+}
+
+// axon: Device is a paired app instance (agent channel participant). The optional
+// token links a device-scoped access token to the device row; config is an opaque
+// JSON blob the app applies on sync (subscriptions, per-topic settings).
+type Device struct {
+	ID        string    `json:"id"`
+	UserID    string    `json:"-"`
+	Token     string    `json:"-"`
+	Label     string    `json:"label,omitempty"`
+	Config    string    `json:"-"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	LastSeen  time.Time `json:"last_seen"`
+}
+
+// axon: PairingCode is a short-lived one-time code that a human taps into the app
+// (axon://pair/<code>) to exchange for a device-scoped token. Minting a code
+// requires an authenticated user; claiming it requires nothing but the code.
+type PairingCode struct {
+	Code      string    `json:"-"`
+	UserID    string    `json:"-"`
+	Label     string    `json:"label,omitempty"`
+	ExpiresAt time.Time `json:"expires_at"`
 }

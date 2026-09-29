@@ -128,6 +128,9 @@ var (
 	apiUsersPath                                         = "/v1/users"
 	apiUsersAccessPath                                   = "/v1/users/access"
 	apiAccountPath                                       = "/v1/account"
+	apiDevicePath                                        = "/v1/device"         // axon: agent channel
+	apiDevicePairingPath                                 = "/v1/device/pairing" // axon
+	apiDeviceClaimPath                                   = "/v1/device/claim"   // axon
 	apiAccountLoginPath                                  = "/v1/account/login"
 	apiAccountTokenPath                                  = "/v1/account/token"
 	apiAccountPasswordPath                               = "/v1/account/password"
@@ -607,6 +610,15 @@ func (s *Server) handleError(w http.ResponseWriter, r *http.Request, v *visitor,
 }
 
 func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	// axon: device-scope sandbox. A device-scoped token (pairing flow) may only
+	// reach its own config, the subscription sync, webpush registration, and the
+	// normal topic/health paths. Everything else under /v1/ is account
+	// management — tokens, passwords, reservations, billing, admin — and must
+	// never be reachable with a device token (not even for admins, so an
+	// admin's paired phone cannot mint unrestricted tokens).
+	if u := v.User(); u != nil && isDeviceScopedToken(u) && !deviceScopeAllowedPath(r.URL.Path) {
+		return errHTTPForbidden
+	}
 	if r.Method == http.MethodGet && r.URL.Path == "/" && s.config.WebRoot == "/" {
 		return s.ensureWebEnabled(s.handleWebApp)(w, r, v)
 	} else if r.Method == http.MethodHead && r.URL.Path == "/" {
@@ -621,6 +633,18 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureWebEnabled(s.handleWebConfig)(w, r, v)
 	} else if r.Method == http.MethodGet && r.URL.Path == webAppManifestPath {
 		return s.ensureWebPushEnabled(s.handleWebManifest)(w, r, v)
+	} else if r.Method == http.MethodPost && r.URL.Path == apiDevicePairingPath {
+		return s.ensureUserManager(s.limitRequests(s.ensureUser(s.handleDevicePairingCreate)))(w, r, v) // axon: agent channel
+	} else if r.Method == http.MethodPost && r.URL.Path == apiDeviceClaimPath {
+		return s.ensureUserManager(s.limitRequests(s.handleDeviceClaim))(w, r, v) // axon: the code is the credential; rate-limited, no auth
+	} else if r.Method == http.MethodGet && r.URL.Path == apiDevicePath {
+		return s.ensureUserManager(s.limitRequests(s.ensureUser(s.handleDevicesList)))(w, r, v) // axon
+	} else if r.Method == http.MethodDelete && devicePathRegex.MatchString(r.URL.Path) {
+		return s.ensureUserManager(s.limitRequests(s.ensureUser(s.handleDeviceDelete)))(w, r, v) // axon
+	} else if r.Method == http.MethodGet && deviceConfigPathRegex.MatchString(r.URL.Path) {
+		return s.ensureUserManager(s.limitRequests(s.ensureUser(s.handleDeviceConfigGet)))(w, r, v) // axon: owner or the device itself (self-enforced)
+	} else if r.Method == http.MethodPut && deviceConfigPathRegex.MatchString(r.URL.Path) {
+		return s.ensureUserManager(s.limitRequests(s.ensureUser(s.handleDeviceConfigPut)))(w, r, v) // axon
 	} else if r.Method == http.MethodGet && r.URL.Path == apiUsersPath {
 		return s.ensureAdmin(s.handleUsersGet)(w, r, v)
 	} else if r.Method == http.MethodPost && r.URL.Path == apiUsersPath {

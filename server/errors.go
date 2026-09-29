@@ -154,6 +154,11 @@ var (
 	errHTTPNotFound                                  = &errHTTP{40401, http.StatusNotFound, "page not found", "", nil}
 	errHTTPUnauthorized                              = &errHTTP{40101, http.StatusUnauthorized, "unauthorized", "https://ntfy.sh/docs/publish/#authentication", nil}
 	errHTTPForbidden                                 = &errHTTP{40301, http.StatusForbidden, "forbidden", "https://ntfy.sh/docs/publish/#authentication", nil}
+	errHTTPBadRequestDeviceLabelTooLong              = &errHTTP{40051, http.StatusBadRequest, "invalid request: device label too long", "", nil}                                               // axon
+	errHTTPBadRequestDevicePairingInvalid            = &errHTTP{40052, http.StatusBadRequest, "invalid request: pairing code invalid, expired, or already used", "", nil}                      // axon
+	errHTTPBadRequestDeviceConfigTooLarge            = &errHTTP{40053, http.StatusBadRequest, "invalid request: device config too large", "", nil}                                             // axon
+	errHTTPBadRequestDeviceConfigInvalid             = &errHTTP{40054, http.StatusBadRequest, "invalid request: invalid device config", "", nil}                                               // axon
+	errHTTPTooManyRequestsLimitDevices               = &errHTTP{42911, http.StatusTooManyRequests, "limit reached: too many paired devices", "https://ntfy.sh/docs/publish/#limitations", nil} // axon
 	errHTTPConflictUserExists                        = &errHTTP{40901, http.StatusConflict, "conflict: user already exists", "", nil}
 	errHTTPConflictTopicReserved                     = &errHTTP{40902, http.StatusConflict, "conflict: access control entry for topic or topic pattern already exists", "", nil}
 	errHTTPConflictSubscriptionExists                = &errHTTP{40903, http.StatusConflict, "conflict: topic subscription already exists", "", nil}

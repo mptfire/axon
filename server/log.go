@@ -26,6 +26,7 @@ const (
 	tagTwilio    = "twilio"
 	tagStripe    = "stripe"
 	tagAccount   = "account"
+	tagDevice    = "device" // axon
 	tagManager   = "manager"
 	tagResetter  = "resetter"
 	tagWebsocket = "websocket"
