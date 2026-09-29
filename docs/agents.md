@@ -101,3 +101,36 @@ webhooks, no public agent endpoint, no polling.
   Principle 2).
 - Topic names are validated client-side (1-64 chars, letters/digits/`-`/`_`); the agent
   can only touch topics its credentials allow.
+
+## Device pairing & the agent channel (mobile half)
+
+The server is the relay for **direct AI control of the axon Android app** —
+agents never talk to the phone directly:
+
+1. **Pair (once per device).** The agent calls the `request_pairing` MCP tool
+   (or the user uses the web UI): `POST /v1/device/pairing` mints a one-time
+   code valid for 5 minutes. The human taps `axon://pair/<code>` on the phone;
+   the app's pairing screen exchanges it at `POST /v1/device/claim` for a
+   **device-scoped token** and stores it as its credentials. The tap is the
+   consent step — minting a code grants nothing.
+2. **Control (the agent channel).** `PUT /v1/device/{id}/config` holds a JSON
+   blob (subscriptions, mutes, priorities; validated, 64 KB cap, no credential
+   fields). The app applies it on start/sync and renders changes in the UI.
+   The agent edits, the app renders, nothing is hidden.
+3. **Revoke.** `DELETE /v1/device/{id}` (web UI → Settings → Devices) removes
+   the device and its token instantly.
+
+Security properties (all covered by `TestServer_Device_PairingLifecycle`):
+
+- Device tokens carry only the `device` scope and are sandboxed: they may read
+  their own config, the subscription sync, webpush, and normal topic paths —
+  nothing else under `/v1/`. `GET /v1/account` is allowed but its token values
+  are **stripped** for device callers, so a paired phone can never harvest the
+  user's unrestricted tokens (including an admin's).
+- A device token can only address its own device row (cross-device access is 403).
+- Pairing codes are single-use (atomic conditional UPDATE), 5-minute TTL, and
+  minting requires an authenticated non-device caller.
+- Agent-initiated config changes are logged (`tag=device`) with device ID.
+
+Fork contract: with `enable-mcp`/AI unused and no devices paired, none of this
+is reachable — the app and server behave as upstream ntfy.
