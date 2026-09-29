@@ -68,6 +68,9 @@ type apiDeviceResponse struct {
 // human tap is the consent step — minting alone grants nothing.
 func (s *Server) handleDevicePairingCreate(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	u := v.User()
+	if isDeviceScopedToken(u) {
+		return errHTTPForbidden // A paired device must never grant further tokens
+	}
 	req, err := readJSONWithLimit[apiPairingRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
@@ -116,6 +119,9 @@ func (s *Server) handleDeviceClaim(w http.ResponseWriter, r *http.Request, v *vi
 // handleDevicesList lists the user's paired devices. Tokens are never included.
 func (s *Server) handleDevicesList(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	u := v.User()
+	if isDeviceScopedToken(u) {
+		return errHTTPForbidden // Devices know their own ID; the fleet view is the owner's
+	}
 	devices, err := s.userManager.Devices(u.ID)
 	if err != nil {
 		return err
@@ -140,6 +146,15 @@ func (s *Server) handleDeviceDelete(w http.ResponseWriter, r *http.Request, v *v
 		return errHTTPInternalErrorInvalidPath
 	}
 	u := v.User()
+	if isDeviceScopedToken(u) {
+		// A device may unpair itself (self-revocation), never a sibling
+		dev, err := s.userManager.DeviceByToken(u.Token)
+		if err != nil {
+			return errHTTPUnauthorized
+		} else if dev.ID != matches[1] {
+			return errHTTPForbidden
+		}
+	}
 	if err := s.userManager.DeleteDevice(u.ID, matches[1]); err != nil {
 		if errors.Is(err, user.ErrDeviceNotFound) {
 			return errHTTPNotFound

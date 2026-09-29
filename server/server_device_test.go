@@ -179,3 +179,50 @@ func TestServer_Device_ExpiredCode(t *testing.T) {
 		// manager unit tests cover the window arithmetic
 	})
 }
+
+func TestServer_Device_SandboxNoSelfEnforcementGaps(t *testing.T) {
+	// Audit follow-up: the /v1/device/* allow-list trusts the handlers to
+	// self-enforce. These pin the three that must.
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
+		s := newTestServer(t, c)
+		defer s.closeDatabases()
+		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+		phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
+
+		mkdevice := func(label string) (string, map[string]string) {
+			rr := request(t, s, "POST", "/v1/device/pairing", `{"label":"`+label+`"}`, phil)
+			require.Equal(t, 200, rr.Code)
+			var pairing struct {
+				Code string `json:"code"`
+			}
+			require.Nil(t, json.NewDecoder(rr.Body).Decode(&pairing))
+			rr = request(t, s, "POST", "/v1/device/claim", `{"code":"`+pairing.Code+`"}`, map[string]string{})
+			require.Equal(t, 200, rr.Code)
+			var claim struct {
+				DeviceID string `json:"device_id"`
+				Token    string `json:"token"`
+			}
+			require.Nil(t, json.NewDecoder(rr.Body).Decode(&claim))
+			return claim.DeviceID, map[string]string{"Authorization": "Bearer " + claim.Token}
+		}
+
+		id1, dev1 := mkdevice("one")
+		id2, _ := mkdevice("two")
+
+		// A device token must NOT mint pairing codes (never grant tokens)
+		rr := request(t, s, "POST", "/v1/device/pairing", `{"label":"evil"}`, dev1)
+		require.Equal(t, 403, rr.Code)
+		// ...NOT see the device fleet
+		rr = request(t, s, "GET", "/v1/device", "", dev1)
+		require.Equal(t, 403, rr.Code)
+		// ...NOT unpair a sibling device
+		rr = request(t, s, "DELETE", "/v1/device/"+id2, "", dev1)
+		require.Equal(t, 403, rr.Code)
+		// But it MAY unpair itself (self-revocation)
+		rr = request(t, s, "DELETE", "/v1/device/"+id1, "", dev1)
+		require.Equal(t, 200, rr.Code)
+		rr = request(t, s, "GET", "/v1/device/"+id1+"/config", "", dev1)
+		require.Equal(t, 401, rr.Code) // its token died with it
+	})
+}
