@@ -214,7 +214,7 @@ func execServe(c *cli.Context) error {
 	aiTranslateLang := c.String("ai-translate-lang")
 	aiEmbeddingsModel := c.String("ai-embeddings-model")
 	enableMCP := c.Bool("enable-mcp")
-	devicePairingKey := c.String("device-pairing-key") // axon
+	devicePairingKey := c.String("device-pairing-key")     // axon
 	devicePairingOwner := c.String("device-pairing-owner") // axon
 	aiVisitorDailyTokenBudget := c.Int64("ai-visitor-daily-token-budget")
 	aiGlobalDailyTokenBudget := c.Int64("ai-global-daily-token-budget")
