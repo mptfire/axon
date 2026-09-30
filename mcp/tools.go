@@ -564,7 +564,8 @@ func (s *Server) toolRequestPairing(ctx context.Context, args map[string]any) *t
 	if resp.StatusCode != http.StatusOK {
 		return errorResult(fmt.Errorf("pairing request failed: HTTP %d: %s", resp.StatusCode, string(b)))
 	}
-	text := "Pairing code minted. Fire this link ON THE PHONE within 5 minutes: " + pairDeepLink(b) + "?auto=1" +
+	text := "Pairing code minted (code: " + pairCode(b) + ", expires in 5 minutes). " +
+		"Fire this link ON THE PHONE: " + pairDeepLink(b) + "?auto=1" +
 		" (auto mode: the app pairs itself, zero user input; plain link " + pairDeepLink(b) + " opens a confirm screen)."
 	return &toolResult{Content: []toolContent{{Type: "text", Text: text}}}
 }
