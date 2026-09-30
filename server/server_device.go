@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 
@@ -247,6 +248,18 @@ func (s *Server) handleDeviceConfigPut(w http.ResponseWriter, r *http.Request, v
 	return s.writeJSON(w, newSuccessResponse())
 }
 
+// validForeignBaseURL accepts http(s) URLs without credentials in them.
+func validForeignBaseURL(u string) bool {
+	parsed, err := url.Parse(u)
+	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") || parsed.Host == "" {
+		return false
+	}
+	if parsed.User != nil || strings.Contains(u, "@") {
+		return false // no credentials in URLs, ever
+	}
+	return true
+}
+
 // validateDeviceConfig enforces the structural contract the app relies on:
 // subscriptions[].topic must be valid topic names on this server, and the blob
 // must not smuggle credential-looking fields.
@@ -270,11 +283,15 @@ func validateDeviceConfig(config map[string]any) error {
 				return errHTTPBadRequestDeviceConfigInvalid.Wrap("invalid topic name")
 			}
 			if baseURL, present := sub["base_url"]; present {
+				// The channel may also manage subscriptions on OTHER ntfy
+				// servers the phone uses (the agent's whole-subscription view).
+				// Shape-checked only: message access on foreign servers happens
+				// with whatever credentials the app has stored per server.
 				url, isString := baseURL.(string)
-				if !isString || url != "" {
-					// This server only — foreign servers are the app's business,
-					// not the agent channel's
-					return errHTTPBadRequestDeviceConfigInvalid.Wrap("foreign base_url not allowed in device config")
+				if !isString {
+					return errHTTPBadRequestDeviceConfigInvalid.Wrap("base_url must be a string")
+				} else if url != "" && !validForeignBaseURL(url) {
+					return errHTTPBadRequestDeviceConfigInvalid.Wrap("invalid base_url")
 				}
 			}
 		}
