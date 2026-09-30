@@ -110,6 +110,7 @@ nav:
       - "FAQs": faq.md
       - "Examples": examples.md
       - "AI agents (MCP)": agents.md
+      - "Agent setup runbook": agent-setup.md
       - "Integrations + projects": integrations.md
       - "Release notes": releases.md
       - "Emojis 🥳 🎉": emojis.md
