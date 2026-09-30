@@ -314,6 +314,10 @@ func (s *Server) callTool(ctx context.Context, params json.RawMessage) *toolResu
 		return s.toolPlanSubscription(ctx, args)
 	case "request_pairing":
 		return s.toolRequestPairing(ctx, args)
+	case "set_device_config":
+		return s.toolSetDeviceConfig(ctx, args)
+	case "device_status":
+		return s.toolDeviceStatus(ctx, args)
 	default:
 		return errorResult(fmt.Errorf("unknown tool: %s", request.Name))
 	}

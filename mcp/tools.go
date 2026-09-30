@@ -139,6 +139,23 @@ func toolDefinitions() []toolDefinition {
 			},
 		},
 		{
+			Name:        "set_device_config",
+			Description: "Write a paired device's agent-channel config: subscriptions [{topic, muted, min_priority, auto_delete_seconds, insistent, display_name}], and manage (\"full\" lets removals apply). The app applies it on sync (max 15 min). Requires an access token.",
+			InputSchema: &inputSchema{
+				Type: "object",
+				Properties: map[string]propertySchema{
+					"device_id": {Type: "string", Description: "Device ID (dv_..., from device_status)"},
+					"config":    {Type: "object", Description: "Full config JSON object; replaces the previous config"},
+				},
+				Required: []string{"device_id", "config"},
+			},
+		},
+		{
+			Name:        "device_status",
+			Description: "List the account's paired devices: id, label, created/updated, last sync (last_seen). Requires an access token.",
+			InputSchema: &inputSchema{Type: "object", Properties: map[string]propertySchema{}},
+		},
+		{
 			Name:        "request_pairing",
 			Description: "Mint a one-time pairing code so the user can pair their phone's axon app with a device-scoped token (tap axon://pair/<code> within 5 minutes). The code grants nothing by itself — the human tap on the phone is the consent step.",
 			InputSchema: &inputSchema{
@@ -158,6 +175,11 @@ var (
 )
 
 func validTopic(topic string) bool { return topicNameRegex.MatchString(topic) }
+
+// validDeviceID matches the server's device ID shape (dv_ + base62).
+var deviceIDRegex = regexp.MustCompile(`^dv_[A-Za-z0-9]{4,32}$`)
+
+func validDeviceID(id string) bool { return deviceIDRegex.MatchString(id) }
 
 // validSince accepts the documented since= forms: "all", a Go-style duration with
 // d/h/m/s units, a unix timestamp, or a message ID. Anything else (including
@@ -542,7 +564,8 @@ func (s *Server) toolRequestPairing(ctx context.Context, args map[string]any) *t
 	if resp.StatusCode != http.StatusOK {
 		return errorResult(fmt.Errorf("pairing request failed: HTTP %d: %s", resp.StatusCode, string(b)))
 	}
-	text := "Pairing code minted. Have the user tap or open this link ON THE PHONE within 5 minutes: " + pairDeepLink(b) + " (code: " + pairCode(b) + "). After the tap, the app is paired with its own device-scoped token."
+	text := "Pairing code minted. Fire this link ON THE PHONE within 5 minutes: " + pairDeepLink(b) + "?auto=1" +
+		" (auto mode: the app pairs itself, zero user input; plain link " + pairDeepLink(b) + " opens a confirm screen)."
 	return &toolResult{Content: []toolContent{{Type: "text", Text: text}}}
 }
 
@@ -560,4 +583,74 @@ func pairDeepLink(pairingResponse []byte) string {
 	}
 	_ = json.Unmarshal(pairingResponse, &parsed)
 	return parsed.DeepLink
+}
+
+// toolSetDeviceConfig writes a device's agent-channel config with the caller's
+// credentials. A device-scoped caller can only address its own device (the
+// server enforces this); unrestricted callers manage any of their devices.
+func (s *Server) toolSetDeviceConfig(ctx context.Context, args map[string]any) *toolResult {
+	if authTokenFrom(ctx) == "" && s.config.AccessToken == "" {
+		return errorResult(errNoToken)
+	}
+	deviceID, _ := args["device_id"].(string)
+	if !validDeviceID(deviceID) {
+		return errorResult(fmt.Errorf("invalid device_id (expected dv_...)"))
+	}
+	cfg, ok := args["config"].(map[string]any)
+	if !ok {
+		return errorResult(fmt.Errorf("config must be a JSON object"))
+	}
+	payload, err := json.Marshal(cfg)
+	if err != nil {
+		return errorResult(err)
+	}
+	resp, err := s.do(ctx, http.MethodPut, "/v1/device/"+deviceID+"/config", bytes.NewReader(payload), http.Header{"Content-Type": []string{"application/json"}})
+	if err != nil {
+		return errorResult(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return errorResult(fmt.Errorf("set_device_config failed: HTTP %d: %s", resp.StatusCode, string(b)))
+	}
+	return textResult("Device config stored. The app applies it on its next sync (background worker, max 15 min; immediately on open).")
+}
+
+// toolDeviceStatus lists paired devices via GET /v1/device.
+func (s *Server) toolDeviceStatus(ctx context.Context, args map[string]any) *toolResult {
+	if authTokenFrom(ctx) == "" && s.config.AccessToken == "" {
+		return errorResult(errNoToken)
+	}
+	resp, err := s.do(ctx, http.MethodGet, "/v1/device", nil, nil)
+	if err != nil {
+		return errorResult(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return errorResult(fmt.Errorf("device_status failed: HTTP %d: %s", resp.StatusCode, string(b)))
+	}
+	var devices []struct {
+		ID        string `json:"id"`
+		Label     string `json:"label"`
+		CreatedAt int64  `json:"created_at"`
+		UpdatedAt int64  `json:"updated_at"`
+		LastSeen  int64  `json:"last_seen"`
+	}
+	if err := json.Unmarshal(b, &devices); err != nil {
+		return errorResult(err)
+	}
+	if len(devices) == 0 {
+		return textResult("No paired devices. Use request_pairing to pair one.")
+	}
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "%d paired device(s):\n", len(devices))
+	for _, d := range devices {
+		fmt.Fprintf(&sb, "- %s", d.ID)
+		if d.Label != "" {
+			fmt.Fprintf(&sb, " (%s)", d.Label)
+		}
+		fmt.Fprintf(&sb, " last sync: %d\n", d.LastSeen)
+	}
+	return textResult(sb.String())
 }

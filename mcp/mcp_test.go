@@ -103,7 +103,7 @@ func TestToolsList(t *testing.T) {
 	for _, tool := range tools {
 		names = append(names, tool.(map[string]any)["name"].(string))
 	}
-	require.Equal(t, []string{"publish", "read_messages", "subscribe_wait", "ask_history", "digest_topic", "briefing", "list_subscriptions", "plan_subscription", "request_pairing"}, names)
+	require.Equal(t, []string{"publish", "read_messages", "subscribe_wait", "ask_history", "digest_topic", "briefing", "list_subscriptions", "plan_subscription", "set_device_config", "device_status", "request_pairing"}, names)
 }
 
 func TestToolPublish(t *testing.T) {
