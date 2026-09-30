@@ -140,6 +140,8 @@ var flagsServe = append(
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-translate-lang", Aliases: []string{"ai_translate_lang"}, EnvVars: []string{"NTFY_AI_TRANSLATE_LANG"}, Usage: "target language for ai-translate-topics, e.g. de or German"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-embeddings-model", Aliases: []string{"ai_embeddings_model"}, EnvVars: []string{"NTFY_AI_EMBEDDINGS_MODEL"}, Usage: "embeddings model for semantic chat retrieval, e.g. nomic-embed-text (empty = keyword-only)"}),
 	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "enable-mcp", Aliases: []string{"enable_mcp"}, EnvVars: []string{"NTFY_ENABLE_MCP"}, Value: false, Usage: "if set, serves the MCP endpoint for AI agents at /mcp (requires ai-enabled)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "device-pairing-key", Aliases: []string{"device_pairing_key"}, EnvVars: []string{"NTFY_DEVICE_PAIRING_KEY"}, Value: "", Usage: "axon: build-time key that allows the private app build to pair devices silently (leave empty to disable; pair-owner must also be set)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "device-pairing-owner", Aliases: []string{"device_pairing_owner"}, EnvVars: []string{"NTFY_DEVICE_PAIRING_OWNER"}, Value: "", Usage: "axon: username that build-key-paired devices are attached to"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-visitor-daily-token-budget", Aliases: []string{"ai_visitor_daily_token_budget"}, EnvVars: []string{"NTFY_AI_VISITOR_DAILY_TOKEN_BUDGET"}, Value: fmt.Sprintf("%d", server.DefaultAIVisitorDailyTokenBudget), Usage: "daily AI token budget per visitor (0 = unlimited)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-global-daily-token-budget", Aliases: []string{"ai_global_daily_token_budget"}, EnvVars: []string{"NTFY_AI_GLOBAL_DAILY_TOKEN_BUDGET"}, Value: fmt.Sprintf("%d", server.DefaultAIGlobalDailyTokenBudget), Usage: "daily AI token budget server-wide (0 = unlimited)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-cache-size", Aliases: []string{"ai_cache_size"}, EnvVars: []string{"NTFY_AI_CACHE_SIZE"}, Value: fmt.Sprintf("%d", server.DefaultAICacheSize), Usage: "size of the AI response cache, e.g. 100M"}),
@@ -212,6 +214,8 @@ func execServe(c *cli.Context) error {
 	aiTranslateLang := c.String("ai-translate-lang")
 	aiEmbeddingsModel := c.String("ai-embeddings-model")
 	enableMCP := c.Bool("enable-mcp")
+	devicePairingKey := c.String("device-pairing-key") // axon
+	devicePairingOwner := c.String("device-pairing-owner") // axon
 	aiVisitorDailyTokenBudget := c.Int64("ai-visitor-daily-token-budget")
 	aiGlobalDailyTokenBudget := c.Int64("ai-global-daily-token-budget")
 	aiCacheSizeStr := c.String("ai-cache-size")
@@ -654,6 +658,8 @@ func execServe(c *cli.Context) error {
 	conf.AITranslateLang = aiTranslateLang
 	conf.AIEmbeddingsModel = aiEmbeddingsModel
 	conf.EnableMCP = enableMCP
+	conf.DevicePairingKey = devicePairingKey
+	conf.DevicePairingOwner = devicePairingOwner
 	conf.AIVisitorDailyTokenBudget = aiVisitorDailyTokenBudget
 	conf.AIGlobalDailyTokenBudget = aiGlobalDailyTokenBudget
 	conf.AICacheSize = aiCacheSize

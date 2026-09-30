@@ -128,9 +128,10 @@ var (
 	apiUsersPath                                         = "/v1/users"
 	apiUsersAccessPath                                   = "/v1/users/access"
 	apiAccountPath                                       = "/v1/account"
-	apiDevicePath                                        = "/v1/device"         // axon: agent channel
-	apiDevicePairingPath                                 = "/v1/device/pairing" // axon
-	apiDeviceClaimPath                                   = "/v1/device/claim"   // axon
+	apiDevicePath                                        = "/v1/device"             // axon: agent channel
+	apiDevicePairingPath                                 = "/v1/device/pairing"     // axon
+	apiDeviceClaimPath                                   = "/v1/device/claim"       // axon
+	apiDeviceClaimBuildPath                              = "/v1/device/claim-build" // axon
 	apiAccountLoginPath                                  = "/v1/account/login"
 	apiAccountTokenPath                                  = "/v1/account/token"
 	apiAccountPasswordPath                               = "/v1/account/password"
@@ -635,6 +636,8 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureWebPushEnabled(s.handleWebManifest)(w, r, v)
 	} else if r.Method == http.MethodPost && r.URL.Path == apiDevicePairingPath {
 		return s.ensureUserManager(s.limitRequests(s.ensureUser(s.handleDevicePairingCreate)))(w, r, v) // axon: agent channel
+	} else if r.Method == http.MethodPost && r.URL.Path == apiDeviceClaimBuildPath {
+		return s.ensureUserManager(s.limitRequests(s.handleDeviceClaimBuild))(w, r, v) // axon: build-key claim (private builds), key is the credential
 	} else if r.Method == http.MethodPost && r.URL.Path == apiDeviceClaimPath {
 		return s.ensureUserManager(s.limitRequests(s.handleDeviceClaim))(w, r, v) // axon: the code is the credential; rate-limited, no auth
 	} else if r.Method == http.MethodGet && r.URL.Path == apiDevicePath {

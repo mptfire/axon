@@ -262,6 +262,8 @@ type Config struct {
 	AITranslateLang           string        // axon: Target language for ai-translate-topics
 	AIEmbeddingsModel         string        // axon: Embeddings model for semantic chat retrieval ("" = keyword-only)
 	EnableMCP                 bool          // axon: Serve the MCP endpoint at /mcp for AI agents over HTTP
+	DevicePairingKey          string        // axon: build-time key allowing silent device pairing (private builds)
+	DevicePairingOwner        string        // axon: username that build-key-paired devices are attached to
 	AIVisitorDailyTokenBudget int64         // Daily token budget per visitor (input+output); 0 = unlimited
 	AIGlobalDailyTokenBudget  int64         // Daily token budget server-wide (input+output); 0 = unlimited
 	AICacheSize               int64         // AI response cache size in bytes
@@ -392,6 +394,8 @@ func NewConfig() *Config {
 		AITranslateLang:           "",
 		AIEmbeddingsModel:         "",
 		EnableMCP:                 false,
+		DevicePairingKey:          "",
+		DevicePairingOwner:        "",
 		AIVisitorDailyTokenBudget: DefaultAIVisitorDailyTokenBudget,
 		AIGlobalDailyTokenBudget:  DefaultAIGlobalDailyTokenBudget,
 		AICacheSize:               DefaultAICacheSize,

@@ -226,3 +226,44 @@ func TestServer_Device_SandboxNoSelfEnforcementGaps(t *testing.T) {
 		require.Equal(t, 401, rr.Code) // its token died with it
 	})
 }
+
+func TestServer_Device_BuildKeyClaim(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
+		s := newTestServer(t, c)
+		defer s.closeDatabases()
+		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+
+		// Disabled by default: 404, no matter what key is sent
+		rr := request(t, s, "POST", "/v1/device/claim-build", `{"key":"anything"}`, map[string]string{})
+		require.Equal(t, 404, rr.Code)
+
+		// Enabled with owner + key
+		s.config.DevicePairingKey = "build-key-secret-123"
+		s.config.DevicePairingOwner = "phil"
+		rr = request(t, s, "POST", "/v1/device/claim-build", `{"key":"wrong","label":"evil"}`, map[string]string{})
+		require.Equal(t, 400, rr.Code) // wrong key
+
+		rr = request(t, s, "POST", "/v1/device/claim-build", `{"key":"build-key-secret-123","label":"pixel"}`, map[string]string{})
+		require.Equal(t, 200, rr.Code)
+		var claim struct {
+			DeviceID string `json:"device_id"`
+			Token    string `json:"token"`
+		}
+		require.Nil(t, json.NewDecoder(rr.Body).Decode(&claim))
+		require.True(t, strings.HasPrefix(claim.DeviceID, "dv_"))
+
+		// The minted token is device-scoped and sandboxed like any other
+		u, err := s.userManager.AuthenticateToken(claim.Token)
+		require.Nil(t, err)
+		require.True(t, u.HasTokenScope(user.TokenScopeDevice))
+		rr = request(t, s, "GET", "/v1/account", "", map[string]string{"Authorization": "Bearer " + claim.Token})
+		require.Equal(t, 200, rr.Code)
+		require.NotContains(t, rr.Body.String(), `"tokens"`)
+
+		// Unknown owner configured: server error surface, no device
+		s.config.DevicePairingOwner = "ghost"
+		rr = request(t, s, "POST", "/v1/device/claim-build", `{"key":"build-key-secret-123"}`, map[string]string{})
+		require.Equal(t, 500, rr.Code)
+	})
+}

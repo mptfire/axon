@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"io"
@@ -46,6 +47,7 @@ type apiPairingResponse struct {
 
 type apiDeviceClaimRequest struct {
 	Code  string `json:"code"`
+	Key   string `json:"key"`   // build-time pairing key (private builds)
 	Label string `json:"label"` // optional
 }
 
@@ -110,6 +112,40 @@ func (s *Server) handleDeviceClaim(w http.ResponseWriter, r *http.Request, v *vi
 		return err
 	}
 	logv(v).Tag(tagDevice).Field("device_id", dev.ID).Info("Device paired")
+	return s.writeJSON(w, &apiDeviceClaimResponse{
+		DeviceID: dev.ID,
+		Token:    token,
+		BaseURL:  s.config.BaseURL,
+	})
+}
+
+// handleDeviceClaimBuild pairs a device using the build-time key (private app
+// builds). No auth: the key is the credential, exactly like a pairing code but
+// standing, because it lives inside the operator's own APK. Constant-time
+// compared against the configured key; disabled unless both key and owner are
+// configured. Rate-limited like the code claim.
+func (s *Server) handleDeviceClaimBuild(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	if s.config.DevicePairingKey == "" || s.config.DevicePairingOwner == "" {
+		return errHTTPNotFound // feature not enabled on this server
+	}
+	req, err := readJSONWithLimit[apiDeviceClaimRequest](r.Body, jsonBodyBytesLimit, false)
+	if err != nil {
+		return err
+	} else if len(req.Key) == 0 || len(req.Key) > 256 || len(req.Label) > 64 {
+		return errHTTPBadRequest
+	}
+	if subtle.ConstantTimeCompare([]byte(req.Key), []byte(s.config.DevicePairingKey)) != 1 {
+		logv(v).Tag(tagDevice).Warn("Build-key pairing rejected (wrong key)")
+		return errHTTPBadRequestDevicePairingInvalid
+	}
+	dev, token, err := s.userManager.ClaimBuildKey(s.config.DevicePairingOwner, req.Label, v.ip)
+	if err != nil {
+		if errors.Is(err, user.ErrTooManyDevices) {
+			return errHTTPTooManyRequestsLimitDevices
+		}
+		return err
+	}
+	logv(v).Tag(tagDevice).Field("device_id", dev.ID).Info("Device paired via build key")
 	return s.writeJSON(w, &apiDeviceClaimResponse{
 		DeviceID: dev.ID,
 		Token:    token,

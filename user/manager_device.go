@@ -211,3 +211,39 @@ func (a *Manager) readDevice(rows *sql.Rows) (*Device, error) {
 		LastSeen:  time.Unix(lastSeen, 0),
 	}, nil
 }
+
+// ClaimBuildKey provisions a device for the configured owner after verifying
+// the build-time pairing key. This is the zero-input path for private app
+// builds: the key is baked into the APK next to the server URL, so the app can
+// pair itself on first launch — no code, no tap, no helper privileges. The
+// resulting device and token are identical to code-paired ones (device scope,
+// revocable, counted against the device budget).
+func (a *Manager) ClaimBuildKey(ownerUsername, label string, origin netip.Addr) (*Device, string, error) {
+	u, err := a.User(ownerUsername)
+	if err != nil {
+		return nil, "", err
+	}
+	var count int
+	if err := a.db.QueryRow(a.queries.selectDeviceCount, u.ID).Scan(&count); err != nil {
+		return nil, "", err
+	} else if count >= deviceMaxPerUser {
+		return nil, "", ErrTooManyDevices
+	}
+	now := time.Now()
+	deviceID := util.RandomStringPrefix(deviceIDPrefix, deviceIDLength+len(deviceIDPrefix))
+	if label == "" {
+		label = "device " + deviceID[len(deviceIDPrefix):]
+	}
+	token := GenerateToken()
+	err = db.ExecTx(a.db, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(a.queries.insertDevice, deviceID, u.ID, token, label, now.Unix(), now.Unix(), now.Unix()); err != nil {
+			return err
+		}
+		_, err := tx.Exec(a.queries.upsertToken, u.ID, token, "device "+deviceID, now.Unix(), origin.String(), 0, false, TokenScopeDevice)
+		return err
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	return &Device{ID: deviceID, UserID: u.ID, Token: token, Label: label, CreatedAt: now, UpdatedAt: now}, token, nil
+}
