@@ -71,6 +71,7 @@ type visitor struct {
 	aiQuotaLimiter       *rate.Limiter      // axon: Limiter for daily AI requests (plans, tunes, digests), may be nil
 	firebase             time.Time          // Next allowed Firebase message
 	seen                 time.Time          // Last seen time of this visitor (needed for removal of stale visitors)
+	statsPersisted       user.Stats         // Counter values already handed to the user manager's write queue; deltas against it are enqueued (see enqueueUserStatsDeltaNoLock)
 	mu                   sync.RWMutex
 }
 
@@ -344,11 +345,41 @@ func (v *visitor) Stats() *user.Stats {
 }
 
 func (v *visitor) ResetStats() {
-	v.mu.RLock() // limiters could be replaced!
-	defer v.mu.RUnlock()
+	v.mu.Lock() // Also protects statsPersisted
+	defer v.mu.Unlock()
 	v.emailsLimiter.Reset()
 	v.messagesLimiter.Reset()
 	v.callsLimiter.Reset()
+	v.statsPersisted = user.Stats{} // The database row is zeroed by the (leader's) daily reset
+}
+
+// EnqueueUserStatsDelta enqueues the visitor's not-yet-persisted stats increments to the user
+// manager's write queue. Deltas add up across cluster nodes (see Manager.EnqueueUserStats).
+func (v *visitor) EnqueueUserStatsDelta() {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.enqueueUserStatsDeltaNoLock()
+}
+
+func (v *visitor) enqueueUserStatsDeltaNoLock() {
+	if v.userManager == nil || v.user == nil {
+		return
+	}
+	current := user.Stats{
+		Messages: v.messagesLimiter.Value(),
+		Emails:   v.emailsLimiter.Value(),
+		Calls:    v.callsLimiter.Value(),
+	}
+	delta := user.Stats{
+		Messages: current.Messages - v.statsPersisted.Messages,
+		Emails:   current.Emails - v.statsPersisted.Emails,
+		Calls:    current.Calls - v.statsPersisted.Calls,
+	}
+	if delta == (user.Stats{}) {
+		return
+	}
+	v.statsPersisted = current
+	v.userManager.EnqueueUserStats(v.user.ID, &delta)
 }
 
 // User returns the visitor user, or nil if there is none
@@ -399,6 +430,11 @@ func (v *visitor) MaybeUserID() string {
 }
 
 func (v *visitor) resetLimitersNoLock(messages, emails, calls int64, enqueueUpdate bool) {
+	if enqueueUpdate {
+		// Flush increments counted against the old limiters before they are replaced below;
+		// the rebuilt limiters are re-seeded from the user's persisted stats
+		v.enqueueUserStatsDeltaNoLock()
+	}
 	limits := v.limitsNoLock()
 	v.requestLimiter = rate.NewLimiter(limits.RequestLimitReplenish, limits.RequestLimitBurst)
 	v.messagesLimiter = util.NewFixedLimiterWithValue(limits.MessageLimit, messages)
@@ -422,13 +458,7 @@ func (v *visitor) resetLimitersNoLock(messages, emails, calls int64, enqueueUpda
 	} else {
 		v.aiQuotaLimiter = nil // AI disabled, no limiter needed
 	}
-	if enqueueUpdate && v.user != nil {
-		go v.userManager.EnqueueUserStats(v.user.ID, &user.Stats{
-			Messages: messages,
-			Emails:   emails,
-			Calls:    calls,
-		})
-	}
+	v.statsPersisted = user.Stats{Messages: messages, Emails: emails, Calls: calls} // Seeds come from the persisted user stats, so nothing is owed to the queue
 	log.Fields(v.contextNoLock()).Debug("Rate limiters reset for visitor") // Must be after function, because contextNoLock() describes rate limiters
 }
 

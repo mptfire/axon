@@ -3561,6 +3561,7 @@ func TestManager_AccountReadsUsePrimary(t *testing.T) {
 	require.Len(t, pendingEmails, 1)
 }
 
+<<<<<<< HEAD
 func TestManager_TokenScopes(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		a := newTestManager(t, newManager, PermissionDenyAll)
@@ -3594,5 +3595,41 @@ func TestManager_TokenScopes(t *testing.T) {
 		// Nil user never has scopes
 		var nilUser *User
 		require.False(t, nilUser.HasTokenScope(TokenScopeAI))
+=======
+func TestManager_EnqueueStats_DeltasAccumulate(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
+		conf := &Config{
+			DefaultAccess:       PermissionReadWrite,
+			BcryptCost:          bcrypt.MinCost,
+			QueueWriterInterval: time.Hour, // Flushed manually below
+		}
+		a := newTestManagerFromConfig(t, newManager, conf)
+		require.Nil(t, a.AddUser("ben", "ben", RoleUser, false))
+		u, err := a.User("ben")
+		require.Nil(t, err)
+
+		// Two enqueues before a flush add up (deltas, not absolute snapshots)
+		a.EnqueueUserStats(u.ID, &Stats{Messages: 3, Emails: 1})
+		a.EnqueueUserStats(u.ID, &Stats{Messages: 2, Calls: 4})
+		require.Nil(t, a.writeUserStatsQueue())
+		u, err = a.User("ben")
+		require.Nil(t, err)
+		require.Equal(t, int64(5), u.Stats.Messages)
+		require.Equal(t, int64(1), u.Stats.Emails)
+		require.Equal(t, int64(4), u.Stats.Calls)
+
+		// A flush from a second manager on the same database (= another cluster node)
+		// adds to the existing stats instead of overwriting them
+		b := newManager(conf)
+		b.EnqueueUserStats(u.ID, &Stats{Messages: 10, Emails: 2})
+		require.Nil(t, b.writeUserStatsQueue())
+		a.EnqueueUserStats(u.ID, &Stats{Messages: 1})
+		require.Nil(t, a.writeUserStatsQueue())
+		u, err = a.User("ben")
+		require.Nil(t, err)
+		require.Equal(t, int64(16), u.Stats.Messages)
+		require.Equal(t, int64(3), u.Stats.Emails)
+		require.Equal(t, int64(4), u.Stats.Calls)
+>>>>>>> ba2b0a62 (Flush user stats as additive deltas instead of absolute values)
 	})
 }
