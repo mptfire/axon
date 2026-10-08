@@ -102,6 +102,9 @@ const (
 			created_at INT NOT NULL,
 			updated_at INT NOT NULL,
 			last_seen INT NOT NULL DEFAULT 0,
+			config_version INT NOT NULL DEFAULT 1,
+			applied_version INT NOT NULL DEFAULT 0,
+			applied_at INT NOT NULL DEFAULT 0,
 			FOREIGN KEY (user_id) REFERENCES "user" (id) ON DELETE CASCADE
 		);
 		CREATE UNIQUE INDEX idx_user_device_token ON user_device (token) WHERE token IS NOT NULL;
@@ -121,7 +124,7 @@ const (
 
 const (
 	// axon: fork migration 9 -> 10 adds token scopes (see sqlite side)
-	postgresCurrentSchemaVersion = 11
+	postgresCurrentSchemaVersion = 12
 )
 
 const (
@@ -161,12 +164,19 @@ var (
 
 	// postgresMigrations maps a schema version to the migration upgrading it to the next
 	// version. Always append migrations at the end, never insert in the middle.
+	postgresMigrate11To12UpdateQueries = `
+		ALTER TABLE user_device ADD COLUMN config_version BIGINT NOT NULL DEFAULT (1);
+		ALTER TABLE user_device ADD COLUMN applied_version BIGINT NOT NULL DEFAULT (0);
+		ALTER TABLE user_device ADD COLUMN applied_at BIGINT NOT NULL DEFAULT (0);
+	`
+
 	postgresMigrations = map[int]schema.MigrateFunc{
 		6:  schema.AsMigrateFunc(postgresMigrate6To7UpdateQueries),
 		7:  schema.AsMigrateFunc(postgresMigrate7To8UpdateQueries),
 		8:  schema.NopMigrateFunc,                                    // 8 -> 9 repairs a SQLite-only foreign key defect; nothing to do on Postgres
 		9:  schema.AsMigrateFunc(postgresMigrate9To10UpdateQueries),  // axon
 		10: schema.AsMigrateFunc(postgresMigrate10To11UpdateQueries), // axon: devices + pairing
+		11: schema.AsMigrateFunc(postgresMigrate11To12UpdateQueries), // axon: applied-config ack
 	}
 )
 

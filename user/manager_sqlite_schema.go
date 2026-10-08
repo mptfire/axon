@@ -116,6 +116,9 @@ const (
 			created_at INT NOT NULL,
 			updated_at INT NOT NULL,
 			last_seen INT NOT NULL DEFAULT (0),
+			config_version INT NOT NULL DEFAULT (1),
+			applied_version INT NOT NULL DEFAULT (0),
+			applied_at INT NOT NULL DEFAULT (0),
 			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
 		);
 		CREATE UNIQUE INDEX idx_user_device_token ON user_device (token) WHERE token IS NOT NULL;
@@ -143,7 +146,7 @@ const (
 	// docs/ai-plan/upstream-sync.md).
 	// axon: fork migration 10 -> 11 adds the device registry + pairing codes
 	// (agent channel, see docs/agents.md).
-	sqliteCurrentSchemaVersion = 11
+	sqliteCurrentSchemaVersion = 12
 )
 
 // Schema migrations for SQLite
@@ -407,6 +410,12 @@ var (
 		ALTER TABLE user_token ADD COLUMN scopes TEXT NOT NULL DEFAULT ('');
 	`
 
+	sqliteMigrate11To12UpdateQueries = `
+		ALTER TABLE user_device ADD COLUMN config_version INT NOT NULL DEFAULT (1);
+		ALTER TABLE user_device ADD COLUMN applied_version INT NOT NULL DEFAULT (0);
+		ALTER TABLE user_device ADD COLUMN applied_at INT NOT NULL DEFAULT (0);
+	`
+
 	sqliteMigrations = map[int]schema.MigrateFunc{
 		1:  sqliteMigrateFrom1,
 		2:  schema.AsMigrateFunc(sqliteMigrate2To3UpdateQueries),
@@ -418,6 +427,7 @@ var (
 		8:  schema.AsMigrateFunc(sqliteMigrate8To9UpdateQueries),
 		9:  schema.AsMigrateFunc(sqliteMigrate9To10UpdateQueries),  // axon
 		10: schema.AsMigrateFunc(sqliteMigrate10To11UpdateQueries), // axon: devices + pairing
+		11: schema.AsMigrateFunc(sqliteMigrate11To12UpdateQueries), // axon: applied-config ack
 	}
 )
 

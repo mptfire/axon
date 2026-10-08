@@ -316,6 +316,7 @@ var sqliteQueries = queries{
 	selectDeviceByToken:            sqliteSelectDeviceByTokenQuery,
 	updateDeviceConfig:             sqliteUpdateDeviceConfigQuery,
 	updateDeviceLastSeen:           sqliteUpdateDeviceLastSeenQuery,
+	updateDeviceApplied:            sqliteUpdateDeviceAppliedQuery,
 	deleteDevice:                   sqliteDeleteDeviceQuery,
 	insertPairingCode:              sqliteInsertPairingCodeQuery,
 	selectPairingCode:              sqliteSelectPairingCodeQuery,
@@ -393,16 +394,18 @@ const (
 		INSERT INTO user_device (id, user_id, token, label, config, created_at, updated_at, last_seen)
 		VALUES (?, ?, ?, ?, '{}', ?, ?, ?)`
 	sqliteSelectDevicesQuery = `
-		SELECT id, user_id, IFNULL(token, ''), label, config, created_at, updated_at, last_seen
+		SELECT id, user_id, IFNULL(token, ''), label, config, created_at, updated_at, last_seen, config_version, applied_version, applied_at
 		FROM user_device WHERE user_id = ? ORDER BY created_at`
 	sqliteSelectDeviceByIDQuery = `
-		SELECT id, user_id, IFNULL(token, ''), label, config, created_at, updated_at, last_seen
+		SELECT id, user_id, IFNULL(token, ''), label, config, created_at, updated_at, last_seen, config_version, applied_version, applied_at
 		FROM user_device WHERE id = ? AND user_id = ?`
 	sqliteSelectDeviceByTokenQuery = `
-		SELECT id, user_id, IFNULL(token, ''), label, config, created_at, updated_at, last_seen
+		SELECT id, user_id, IFNULL(token, ''), label, config, created_at, updated_at, last_seen, config_version, applied_version, applied_at
 		FROM user_device WHERE token = ?`
 	sqliteUpdateDeviceConfigQuery = `
-		UPDATE user_device SET config = ?, updated_at = ? WHERE id = ? AND user_id = ?`
+		UPDATE user_device SET config = ?, config_version = config_version + 1, updated_at = ? WHERE id = ? AND user_id = ?`
+	sqliteUpdateDeviceAppliedQuery = `
+		UPDATE user_device SET applied_version = ?, applied_at = ?, updated_at = ? WHERE id = ? AND user_id = ?`
 	sqliteUpdateDeviceLastSeenQuery = `
 		UPDATE user_device SET last_seen = ?, updated_at = CASE WHEN last_seen = 0 THEN ? ELSE updated_at END WHERE id = ?`
 	sqliteDeleteDeviceQuery = `

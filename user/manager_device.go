@@ -164,6 +164,19 @@ func (a *Manager) ChangeDeviceConfig(userID, deviceID, config string) error {
 	return err
 }
 
+// AckDeviceApplied records which config version the device has applied
+// (axon#22): config_version > applied_version means the device still owes a
+// sync. The version is stored as-reported; staleness is the signal.
+func (a *Manager) AckDeviceApplied(userID, deviceID string, version int64) error {
+	dev, err := a.DeviceByID(userID, deviceID)
+	if err != nil {
+		return err
+	}
+	now := time.Now().Unix()
+	_, err = a.db.Exec(a.queries.updateDeviceApplied, version, now, now, dev.ID, userID)
+	return err
+}
+
 // TouchDevice records a device sync for the status view.
 func (a *Manager) TouchDevice(deviceID string) error {
 	_, err := a.db.Exec(a.queries.updateDeviceLastSeen, time.Now().Unix(), deviceID)
@@ -191,11 +204,11 @@ func (a *Manager) DeleteDevice(userID, deviceID string) error {
 
 func (a *Manager) readDevice(rows *sql.Rows) (*Device, error) {
 	var id, userID, token, label, config string
-	var createdAt, updatedAt, lastSeen int64
+	var createdAt, updatedAt, lastSeen, configVersion, appliedVersion, appliedAt int64
 	if !rows.Next() {
 		return nil, ErrDeviceNotFound
 	}
-	if err := rows.Scan(&id, &userID, &token, &label, &config, &createdAt, &updatedAt, &lastSeen); err != nil {
+	if err := rows.Scan(&id, &userID, &token, &label, &config, &createdAt, &updatedAt, &lastSeen, &configVersion, &appliedVersion, &appliedAt); err != nil {
 		return nil, err
 	} else if err := rows.Err(); err != nil {
 		return nil, err
@@ -209,6 +222,9 @@ func (a *Manager) readDevice(rows *sql.Rows) (*Device, error) {
 		CreatedAt: time.Unix(createdAt, 0),
 		UpdatedAt: time.Unix(updatedAt, 0),
 		LastSeen:  time.Unix(lastSeen, 0),
+		ConfigVersion:  configVersion,
+		AppliedVersion: appliedVersion,
+		AppliedAt:      time.Unix(appliedAt, 0),
 	}, nil
 }
 

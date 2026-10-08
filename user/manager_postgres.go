@@ -320,6 +320,7 @@ var postgresQueries = queries{
 	selectDeviceByToken:            postgresSelectDeviceByTokenQuery,
 	updateDeviceConfig:             postgresUpdateDeviceConfigQuery,
 	updateDeviceLastSeen:           postgresUpdateDeviceLastSeenQuery,
+	updateDeviceApplied:            postgresUpdateDeviceAppliedQuery,
 	deleteDevice:                   postgresDeleteDeviceQuery,
 	insertPairingCode:              postgresInsertPairingCodeQuery,
 	selectPairingCode:              postgresSelectPairingCodeQuery,
@@ -376,16 +377,18 @@ const (
 		INSERT INTO user_device (id, user_id, token, label, config, created_at, updated_at, last_seen)
 		VALUES ($1, $2, $3, $4, '{}', $5, $6, $7)`
 	postgresSelectDevicesQuery = `
-		SELECT id, user_id, COALESCE(token, ''), label, config, created_at, updated_at, last_seen
+		SELECT id, user_id, COALESCE(token, ''), label, config, created_at, updated_at, last_seen, config_version, applied_version, applied_at
 		FROM user_device WHERE user_id = $1 ORDER BY created_at`
 	postgresSelectDeviceByIDQuery = `
-		SELECT id, user_id, COALESCE(token, ''), label, config, created_at, updated_at, last_seen
+		SELECT id, user_id, COALESCE(token, ''), label, config, created_at, updated_at, last_seen, config_version, applied_version, applied_at
 		FROM user_device WHERE id = $1 AND user_id = $2`
 	postgresSelectDeviceByTokenQuery = `
-		SELECT id, user_id, COALESCE(token, ''), label, config, created_at, updated_at, last_seen
+		SELECT id, user_id, COALESCE(token, ''), label, config, created_at, updated_at, last_seen, config_version, applied_version, applied_at
 		FROM user_device WHERE token = $1`
 	postgresUpdateDeviceConfigQuery = `
-		UPDATE user_device SET config = $1, updated_at = $2 WHERE id = $3 AND user_id = $4`
+		UPDATE user_device SET config = $1, config_version = config_version + 1, updated_at = $2 WHERE id = $3 AND user_id = $4`
+	postgresUpdateDeviceAppliedQuery = `
+		UPDATE user_device SET applied_version = $1, applied_at = $2, updated_at = $3 WHERE id = $4 AND user_id = $5`
 	postgresUpdateDeviceLastSeenQuery = `
 		UPDATE user_device SET last_seen = $1, updated_at = CASE WHEN last_seen = 0 THEN $1 ELSE updated_at END WHERE id = $2`
 	postgresDeleteDeviceQuery = `

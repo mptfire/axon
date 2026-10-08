@@ -350,3 +350,78 @@ func TestServer_Device_ConfigValidation(t *testing.T) {
 		require.JSONEq(t, good, rr.Body.String())
 	})
 }
+
+// TestServer_Device_AppliedAck covers the applied-config feedback loop
+// (axon#22): PUT bumps config_version; the device acks what it applied;
+// staleness (config_version > applied_version) becomes observable.
+func TestServer_Device_AppliedAck(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
+		c.AuthDefault = user.PermissionDenyAll
+		s := newTestServer(t, c)
+		defer s.closeDatabases()
+		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+		phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
+
+		rr := request(t, s, "POST", "/v1/device/pairing", `{"label":"test"}`, phil)
+		require.Equal(t, 200, rr.Code)
+		var pairing struct {
+			Code string `json:"code"`
+		}
+		require.Nil(t, json.Unmarshal(rr.Body.Bytes(), &pairing))
+		rr = request(t, s, "POST", "/v1/device/claim", fmt.Sprintf(`{"code":%q}`, pairing.Code), nil)
+		require.Equal(t, 200, rr.Code)
+		var claim struct {
+			DeviceID string `json:"device_id"`
+			Token    string `json:"token"`
+		}
+		require.Nil(t, json.Unmarshal(rr.Body.Bytes(), &claim))
+		device := map[string]string{"Authorization": "Bearer " + claim.Token}
+
+		// First config write → config_version 2 (claim seeds 1, write bumps)
+		rr = request(t, s, "PUT", "/v1/device/"+claim.DeviceID+"/config",
+			`{"subscriptions":[{"topic":"alerts","muted":false}]}`, device)
+		require.Equal(t, 200, rr.Code)
+
+		// List shows the gap: config_version=2, applied_version=0
+		rr = request(t, s, "GET", "/v1/device", "", phil)
+		require.Equal(t, 200, rr.Code)
+		var devices []struct {
+			ID             string `json:"id"`
+			ConfigVersion  int64  `json:"config_version"`
+			AppliedVersion int64  `json:"applied_version"`
+			AppliedAt      int64  `json:"applied_at"`
+		}
+		require.Nil(t, json.Unmarshal(rr.Body.Bytes(), &devices))
+		require.Len(t, devices, 1)
+		require.Equal(t, claim.DeviceID, devices[0].ID)
+		require.Equal(t, int64(2), devices[0].ConfigVersion)
+		require.Equal(t, int64(0), devices[0].AppliedVersion)
+		require.Equal(t, int64(0), devices[0].AppliedAt)
+
+		// The device acks v2 — owner view flips to synced
+		rr = request(t, s, "POST", "/v1/device/"+claim.DeviceID+"/applied", `{"version":2}`, device)
+		require.Equal(t, 200, rr.Code)
+		rr = request(t, s, "GET", "/v1/device", "", phil)
+		require.Nil(t, json.Unmarshal(rr.Body.Bytes(), &devices))
+		require.Equal(t, int64(2), devices[0].AppliedVersion)
+		require.NotZero(t, devices[0].AppliedAt)
+
+		// A second write re-opens the gap
+		rr = request(t, s, "PUT", "/v1/device/"+claim.DeviceID+"/config",
+			`{"subscriptions":[{"topic":"alerts"},{"topic":"other"}]}`, device)
+		require.Equal(t, 200, rr.Code)
+		rr = request(t, s, "GET", "/v1/device", "", phil)
+		require.Nil(t, json.Unmarshal(rr.Body.Bytes(), &devices))
+		require.Equal(t, int64(3), devices[0].ConfigVersion)
+		require.Equal(t, int64(2), devices[0].AppliedVersion) // truthful staleness
+
+		// Validation and authorization
+		rr = request(t, s, "POST", "/v1/device/"+claim.DeviceID+"/applied", `{"version":0}`, device)
+		require.Equal(t, 400, rr.Code)
+		rr = request(t, s, "POST", "/v1/device/"+claim.DeviceID+"/applied", `{"version":-1}`, device)
+		require.Equal(t, 400, rr.Code)
+		rr = request(t, s, "POST", "/v1/device/"+claim.DeviceID+"/applied", `{"version":2}`, nil)
+		require.Equal(t, 401, rr.Code) // anonymous cannot ack
+	})
+}
