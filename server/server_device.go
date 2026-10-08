@@ -33,8 +33,13 @@ import (
 var (
 	devicePathRegex       = regexp.MustCompile(`^/v1/device/([^/]+)$`)
 	deviceConfigPathRegex = regexp.MustCompile(`^/v1/device/([^/]+)/config$`)
+	deviceAppliedPathRegex = regexp.MustCompile(`^/v1/device/([^/]+)/applied$`)
 	deviceIDRegex         = regexp.MustCompile(`^dv_[A-Za-z0-9]{4,32}$`)
 )
+
+type apiDeviceAppliedRequest struct {
+	Version int64 `json:"version"`
+}
 
 type apiPairingRequest struct {
 	Label string `json:"label"` // optional device label, e.g. "Pixel 9"
@@ -59,11 +64,14 @@ type apiDeviceClaimResponse struct {
 }
 
 type apiDeviceResponse struct {
-	ID        string `json:"id"`
-	Label     string `json:"label,omitempty"`
-	CreatedAt int64  `json:"created_at"`
-	UpdatedAt int64  `json:"updated_at"`
-	LastSeen  int64  `json:"last_seen"`
+	ID             string `json:"id"`
+	Label          string `json:"label,omitempty"`
+	CreatedAt      int64  `json:"created_at"`
+	UpdatedAt      int64  `json:"updated_at"`
+	LastSeen       int64  `json:"last_seen"`
+	ConfigVersion  int64  `json:"config_version"`
+	AppliedVersion int64  `json:"applied_version"`
+	AppliedAt      int64  `json:"applied_at"`
 }
 
 // handleDevicePairingCreate mints a one-time pairing code. The caller is an
@@ -154,6 +162,32 @@ func (s *Server) handleDeviceClaimBuild(w http.ResponseWriter, r *http.Request, 
 	})
 }
 
+// handleDeviceAppliedAck records the config version a device has applied
+// (axon#22): closes the "did the phone apply it?" loop. The device itself (or
+// its owner) posts {"version": N}; staleness vs config_version is the alert
+// signal. A stale ack (version < current) is stored as-is — it is truthful.
+func (s *Server) handleDeviceAppliedAck(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	matches := deviceAppliedPathRegex.FindStringSubmatch(r.URL.Path)
+	if len(matches) != 2 || !deviceIDRegex.MatchString(matches[1]) {
+		return errHTTPInternalErrorInvalidPath
+	}
+	req, err := readJSONWithLimit[apiDeviceAppliedRequest](r.Body, jsonBodyBytesLimit, false)
+	if err != nil {
+		return err
+	} else if req.Version < 1 || req.Version > math.MaxInt32 {
+		return errHTTPBadRequestDeviceConfigInvalid.Wrap("version must be a positive integer")
+	}
+	dev, err := s.deviceFromRequest(r, v, matches[1])
+	if err != nil {
+		return err
+	}
+	if err := s.userManager.AckDeviceApplied(dev.UserID, dev.ID, req.Version); err != nil {
+		return err
+	}
+	logvr(v, r).Tag(tagDevice).Field("device_id", dev.ID).Field("applied_version", req.Version).Info("Device applied config")
+	return s.writeJSON(w, newSuccessResponse())
+}
+
 // handleDevicesList lists the user's paired devices. Tokens are never included.
 func (s *Server) handleDevicesList(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	u := v.User()
@@ -167,11 +201,14 @@ func (s *Server) handleDevicesList(w http.ResponseWriter, r *http.Request, v *vi
 	response := make([]*apiDeviceResponse, 0, len(devices))
 	for _, dev := range devices {
 		response = append(response, &apiDeviceResponse{
-			ID:        dev.ID,
-			Label:     dev.Label,
-			CreatedAt: dev.CreatedAt.Unix(),
-			UpdatedAt: dev.UpdatedAt.Unix(),
-			LastSeen:  dev.LastSeen.Unix(),
+			ID:             dev.ID,
+			Label:          dev.Label,
+			CreatedAt:      dev.CreatedAt.Unix(),
+			UpdatedAt:      dev.UpdatedAt.Unix(),
+			LastSeen:       dev.LastSeen.Unix(),
+			ConfigVersion:  dev.ConfigVersion,
+			AppliedVersion: dev.AppliedVersion,
+			AppliedAt:      dev.AppliedAt.Unix(),
 		})
 	}
 	return s.writeJSON(w, response)

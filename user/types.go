@@ -454,6 +454,7 @@ type queries struct {
 	selectDeviceByToken  string
 	updateDeviceConfig   string
 	updateDeviceLastSeen string
+	updateDeviceApplied  string
 	deleteDevice         string
 	insertPairingCode    string
 	selectPairingCode    string
@@ -511,6 +512,12 @@ type Device struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 	LastSeen  time.Time `json:"last_seen"`
+	// axon: applied-config ack — answers "did the phone apply the current
+	// config?" (server_device.go sets ConfigVersion on every PUT; the app
+	// acks after applying).
+	ConfigVersion  int64     `json:"-"`
+	AppliedVersion int64     `json:"-"`
+	AppliedAt      time.Time `json:"-"`
 }
 
 // PairingCode is a short-lived one-time code that a human taps into the app

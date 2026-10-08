@@ -130,6 +130,7 @@ var (
 	apiAccountPath                                       = "/v1/account"
 	apiDevicePath                                        = "/v1/device"             // axon: agent channel
 	apiDevicePairingPath                                 = "/v1/device/pairing"     // axon
+	apiDeviceAppliedPath                                 = "/v1/device/{id}/applied" // axon: applied-config ack
 	apiDeviceClaimPath                                   = "/v1/device/claim"       // axon
 	apiDeviceClaimBuildPath                              = "/v1/device/claim-build" // axon
 	apiAccountLoginPath                                  = "/v1/account/login"
@@ -648,6 +649,8 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 		return s.ensureUserManager(s.limitRequests(s.ensureUser(s.handleDeviceConfigGet)))(w, r, v) // axon: owner or the device itself (self-enforced)
 	} else if r.Method == http.MethodPut && deviceConfigPathRegex.MatchString(r.URL.Path) {
 		return s.ensureUserManager(s.limitRequests(s.ensureUser(s.handleDeviceConfigPut)))(w, r, v) // axon
+	} else if r.Method == http.MethodPost && deviceAppliedPathRegex.MatchString(r.URL.Path) {
+		return s.ensureUserManager(s.limitRequests(s.ensureUser(s.handleDeviceAppliedAck)))(w, r, v) // axon: owner or the device itself
 	} else if r.Method == http.MethodGet && r.URL.Path == apiUsersPath {
 		return s.ensureAdmin(s.handleUsersGet)(w, r, v)
 	} else if r.Method == http.MethodPost && r.URL.Path == apiUsersPath {
