@@ -42,7 +42,7 @@ var (
 // Expired and long-consumed codes are pruned on every mint.
 func (a *Manager) CreatePairingCode(userID, label string) (*PairingCode, error) {
 	pc := &PairingCode{
-		Code:      util.RandomLowerStringPrefix("", pairingCodeLen),
+		Code:      util.RandomStringPrefix("", pairingCodeLen), // full alphanumeric: 62^8 ≈ 2^47.6 (deep-link tapped, not typed)
 		UserID:    userID,
 		Label:     label,
 		ExpiresAt: time.Now().Add(PairingCodeTTL),

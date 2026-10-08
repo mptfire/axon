@@ -133,6 +133,7 @@ func TestServer_AI_Plan(t *testing.T) {
 		c.BaseURL = "http://axon.example.com"
 		s := newTestServer(t, c)
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 		s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
 			// The server must tell the planner its own base URL
 			require.Contains(t, req.System, "http://axon.example.com/mytopic")
@@ -141,8 +142,12 @@ func TestServer_AI_Plan(t *testing.T) {
 			return &ai.Response{Text: `{"subscriptions": [{"topic": "phil-ci", "search": "failed", "min_priority": 4, "justification": "j"}], "publisher_instructions": "curl -d \"failed\" http://axon.example.com/phil-ci", "follow_up_questions": ["q?"]}`, FinishReason: "stop"}, nil
 		})
 
-		// Anonymous planning works and never mutates anything
+		// Anonymous planning is rejected: plan requests cost LLM tokens (AX-5)
 		rr := request(t, s, "POST", "/v1/ai/plan", `{"prompt":"notify me when CI fails","locale":"en"}`, nil)
+		require.Equal(t, 401, rr.Code)
+
+		// Authenticated planning works and never mutates anything
+		rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"notify me when CI fails","locale":"en"}`, phil)
 		require.Equal(t, 200, rr.Code)
 		var plan ai.Plan
 		require.Nil(t, json.NewDecoder(rr.Body).Decode(&plan))
@@ -159,74 +164,89 @@ func TestServer_AI_Plan(t *testing.T) {
 		require.Equal(t, 200, rr.Code)
 
 		// Empty prompt rejected without calling the provider
-		rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"  "}`, nil)
+		rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"  "}`, phil)
 		require.Equal(t, 400, rr.Code)
 		require.Equal(t, 40060, toHTTPError(t, rr.Body.String()).Code)
 	})
 }
 
 func TestServer_AI_Plan_QuotaPerVisitor(t *testing.T) {
-	// Quota test on a fresh server so the per-visitor count is exact
-	c := newTestConfig(t, "")
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+	// Quota test on a fresh server so the per-user count is exact (AX-5:
+	// plans now require a user, so the quota is per-account rather than
+	// per-visitor IP).
+	c := newTestConfigWithAuthFile(t, databaseURL)
+	c.AuthDefault = user.PermissionDenyAll
 	c.AIEnabled = true
 	c.AIProvider = "mock"
 	c.BaseURL = "http://axon.example.com"
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
+	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
 		return &ai.Response{Text: `{"subscriptions": [{"topic": "t"}]}`}, nil
 	})
 	// Invalid requests do not consume quota
-	rr := request(t, s, "POST", "/v1/ai/plan", `{"prompt":"  "}`, nil)
+	rr := request(t, s, "POST", "/v1/ai/plan", `{"prompt":"  "}`, phil)
 	require.Equal(t, 400, rr.Code)
 	// Exactly aiRequestsPerDay plans fit into the daily burst
 	for i := 0; i < aiRequestsPerDay; i++ {
-		rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish"}`, nil)
+		rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish"}`, phil)
 		require.Equal(t, 200, rr.Code, "plan %d should pass", i)
 	}
-	rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"one too many"}`, nil)
+	rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"one too many"}`, phil)
 	require.Equal(t, 429, rr.Code)
 	require.Equal(t, 42912, toHTTPError(t, rr.Body.String()).Code)
+	})
 }
 
 func TestServer_AI_Plan_ProviderGarbageIs500(t *testing.T) {
-	c := newTestConfig(t, "")
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+	c := newTestConfigWithAuthFile(t, databaseURL)
 	c.AIEnabled = true
 	c.AIProvider = "mock"
 	c.BaseURL = "http://axon.example.com"
 	s := newTestServer(t, c)
+	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
 	defer s.closeDatabases()
 	s.ai.Mock().EnqueueText("I cannot answer in JSON, sorry!")
-	rr := request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish"}`, nil)
+	phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
+	rr := request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish"}`, phil)
 	require.Equal(t, 500, rr.Code) // provider misbehavior is an internal error, not user error
+	})
 }
 
 func TestServer_AI_Plan_BudgetExceededIs429(t *testing.T) {
-	c := newTestConfig(t, "")
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+	c := newTestConfigWithAuthFile(t, databaseURL)
 	c.AIEnabled = true
 	c.AIProvider = "mock"
 	c.BaseURL = "http://axon.example.com"
 	c.AIGlobalDailyTokenBudget = 10
 	s := newTestServer(t, c)
+	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
 	defer s.closeDatabases()
 	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
 		return &ai.Response{Text: `{"subscriptions": [{"topic": "t"}]}`, InputTokens: 100, OutputTokens: 100}, nil
 	})
-	rr := request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish"}`, nil)
+	phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
+	rr := request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish"}`, phil)
 	require.Equal(t, 200, rr.Code) // first call overshoots the budget, charged after the fact
 
 	// Every subsequent call is refused with 429 before hitting the provider
-	rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish2"}`, nil)
+	rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish2"}`, phil)
 	require.Equal(t, 429, rr.Code)
 	require.Equal(t, 42912, toHTTPError(t, rr.Body.String()).Code)
 
-	// Usage is attributed to the requesting visitor (same IP as the plan request above)
-	rr = request(t, s, "GET", "/v1/ai/usage", "", nil)
+	// Usage is attributed to the requesting user
+	rr = request(t, s, "GET", "/v1/ai/usage", "", phil)
 	require.Equal(t, 200, rr.Code)
 	var report ai.UsageReport
 	require.Nil(t, json.NewDecoder(rr.Body).Decode(&report))
 	require.Equal(t, int64(1), report.Visitor.Requests)
 	require.Equal(t, int64(200), report.Global.Total())
+	})
 }
 
 func TestServer_AI_Tune(t *testing.T) {
@@ -261,11 +281,14 @@ func TestServer_AI_Tune(t *testing.T) {
 }
 
 func TestServer_AI_Plan_ContextSanitized(t *testing.T) {
-	c := newTestConfig(t, "")
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+	c := newTestConfigWithAuthFile(t, databaseURL)
 	c.AIEnabled = true
 	c.AIProvider = "mock"
 	c.BaseURL = "http://axon.example.com"
 	s := newTestServer(t, c)
+	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 	defer s.closeDatabases()
 	var seenTurns int
 	var seenRoles []ai.Role
@@ -285,7 +308,7 @@ func TestServer_AI_Plan_ContextSanitized(t *testing.T) {
 		{"role":"user","content":"seventh"},
 		{"role":"user","content":"eighth"}
 	]}`
-	rr := request(t, s, "POST", "/v1/ai/plan", body, nil)
+	rr := request(t, s, "POST", "/v1/ai/plan", body, phil)
 	require.Equal(t, 200, rr.Code)
 	// 4 sanitized turns survive ("first wish", the assistant plan, "sixth", "seventh";
 	// system role and empty turn dropped, "eighth" fell outside the cap of 6) plus the
@@ -294,6 +317,7 @@ func TestServer_AI_Plan_ContextSanitized(t *testing.T) {
 	for _, role := range seenRoles {
 		require.NotEqual(t, ai.RoleSystem, role)
 	}
+	})
 }
 
 func newAIEnrichTestServer(t *testing.T, handler func(*ai.Request) (*ai.Response, error)) *Server {
