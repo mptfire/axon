@@ -1,12 +1,28 @@
-# Security Policy
+# Security Policy — axon
 
-## Supported Versions
+axon is a fork of [ntfy](https://github.com/binwiederhier/ntfy). Security
+issues in ntfy-core-inherited code that also affects upstream ntfy should be
+reported upstream per [ntfy's security policy](https://github.com/binwiederhier/ntfy/blob/main/SECURITY.md)
+— but when in doubt, report here first.
 
-As of today, I only support the latest version of ntfy. Please make sure you stay up-to-date.
+## Reporting a vulnerability
 
-## Reporting a Vulnerability
+**Primary channel: GitHub private vulnerability reporting** on this
+repository (Security tab → "Report a vulnerability"). This reaches the
+maintainer (@mptfire) privately and allows coordinated disclosure.
 
-Please report security vulnerabilities privately via email to [security@mail.ntfy.sh](mailto:security@mail.ntfy.sh).
+Please include: affected version/commit, component (device/agent channel,
+MCP, AI layer, web, core), impact, and minimal reproduction steps. Do not
+open public issues with exploitable details, and strip credentials and
+private message content from any logs you attach.
 
-You can also reach me on [Discord](https://discord.gg/cT7ECsZj9w) or [Matrix](https://matrix.to/#/#ntfy:matrix.org) 
-(my username is `binwiederhier`).
+## Supported versions
+
+Only the latest tagged release and current `main` receive security fixes.
+
+## Scope notes
+
+- The device/agent pairing channel, device config sync, MCP server, and AI
+  layer are axon-specific code — report here, not upstream.
+- Treat files, paths, metadata, automation requests, and message content as
+  potentially malicious input.
