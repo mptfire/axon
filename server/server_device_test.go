@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"net/http/httptest"
 
 	"fmt"
 	"github.com/stretchr/testify/require"
@@ -265,5 +266,87 @@ func TestServer_Device_BuildKeyClaim(t *testing.T) {
 		s.config.DevicePairingOwner = "ghost"
 		rr = request(t, s, "POST", "/v1/device/claim-build", `{"key":"build-key-secret-123"}`, map[string]string{})
 		require.Equal(t, 500, rr.Code)
+	})
+}
+
+// TestServer_Device_ConfigValidation covers the write-path schema enforcement
+// and canonicalization added after the "muted":0 incident (axon-android#4,
+// axon#20): a type-drifted writer must never store a blob devices can't parse.
+func TestServer_Device_ConfigValidation(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, databaseURL string) {
+		c := newTestConfigWithAuthFile(t, databaseURL)
+		c.AuthDefault = user.PermissionDenyAll
+		s := newTestServer(t, c)
+		defer s.closeDatabases()
+		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+		phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
+
+		rr := request(t, s, "POST", "/v1/device/pairing", `{"label":"test"}`, phil)
+		require.Equal(t, 200, rr.Code)
+		var pairing struct {
+			Code string `json:"code"`
+		}
+		require.Nil(t, json.Unmarshal(rr.Body.Bytes(), &pairing))
+		rr = request(t, s, "POST", "/v1/device/claim", fmt.Sprintf(`{"code":%q}`, pairing.Code), nil)
+		require.Equal(t, 200, rr.Code)
+		var claim struct {
+			DeviceID string `json:"device_id"`
+			Token    string `json:"token"`
+		}
+		require.Nil(t, json.Unmarshal(rr.Body.Bytes(), &claim))
+		device := map[string]string{"Authorization": "Bearer " + claim.Token}
+
+		put := func(body string) *httptest.ResponseRecorder {
+			return request(t, s, "PUT", "/v1/device/"+claim.DeviceID+"/config", body, device)
+		}
+
+		// Type drift that shipped in the wild: "muted":0 must be normalized
+		// to false, never stored raw (the .17 client cannot parse ints).
+		rr = put(`{"subscriptions":[{"topic":"alerts","muted":0,"insistent":1,"min_priority":2,"auto_delete_seconds":60,"display_name":"Alerts","sneaky_key":"drop me"}]}`)
+		require.Equal(t, 200, rr.Code)
+		rr = request(t, s, "GET", "/v1/device/"+claim.DeviceID+"/config", "", device)
+		require.Equal(t, 200, rr.Code)
+		var stored struct {
+			Subscriptions []map[string]any `json:"subscriptions"`
+		}
+		require.Nil(t, json.Unmarshal(rr.Body.Bytes(), &stored))
+		require.Len(t, stored.Subscriptions, 1)
+		sub := stored.Subscriptions[0]
+		require.Equal(t, false, sub["muted"])          // normalized to bool
+		require.Equal(t, true, sub["insistent"])       // normalized to bool
+		require.Equal(t, float64(2), sub["min_priority"])
+		require.NotContains(t, sub, "sneaky_key")      // canonical form: dropped
+		require.Equal(t, "Alerts", sub["display_name"])
+
+		// Out-of-range / wrong-type values are field-specific 400s
+		for _, bad := range []string{
+			`{"subscriptions":[{"topic":"alerts","muted":"yes"}]}`,
+			`{"subscriptions":[{"topic":"alerts","muted":2}]}`,
+			`{"subscriptions":[{"topic":"alerts","insistent":"on"}]}`,
+			`{"subscriptions":[{"topic":"alerts","min_priority":"high"}]}`,
+			`{"subscriptions":[{"topic":"alerts","min_priority":7}]}`,
+			`{"subscriptions":[{"topic":"alerts","auto_delete_seconds":-5}]}`,
+			`{"subscriptions":[{"topic":"alerts","auto_delete_seconds":1.5}]}`,
+			`{"subscriptions":[{"topic":"alerts","display_name":42}]}`,
+			`{"subscriptions":[{"topic":"alerts","display_name":"` + strings.Repeat("x", 129) + `"}]}`,
+			`{"subscriptions":[{"topic":"alerts","base_url":"ftp://x"}]}`,
+			`{"manage":"all"}`,
+			`{"manage":true}`,
+			`{"token":"tk_smuggled"}`,
+		} {
+			rr := put(bad)
+			if rr.Code != 400 {
+				t.Fatalf("expected 400 for %s, got %d: %s", bad, rr.Code, rr.Body.String())
+			}
+		}
+
+		// Valid canonical writes still round-trip, unknown TOP-LEVEL keys are
+		// preserved (forward compat), manage:"full" accepted.
+		good := `{"subscriptions":[{"topic":"alerts","muted":false}],"manage":"full","settings":{"min_priority":3}}`
+		rr = put(good)
+		require.Equal(t, 200, rr.Code)
+		rr = request(t, s, "GET", "/v1/device/"+claim.DeviceID+"/config", "", device)
+		require.Equal(t, 200, rr.Code)
+		require.JSONEq(t, good, rr.Body.String())
 	})
 }

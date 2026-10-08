@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -274,10 +275,19 @@ func (s *Server) handleDeviceConfigPut(w http.ResponseWriter, r *http.Request, v
 	var config map[string]any
 	if err := json.Unmarshal(configBytes, &config); err != nil {
 		return errHTTPBadRequestDeviceConfigInvalid.Wrap("config must be a JSON object")
-	} else if err := validateDeviceConfig(config); err != nil {
+	}
+	// Validate AND normalize: writers have shipped type drift (e.g. "muted":0
+	// instead of false) that poisoned device sync silently (axon-android#4).
+	// The stored blob becomes the canonical form — typed flags, unknown
+	// per-subscription keys dropped — so every device parses the same thing.
+	if err := validateDeviceConfig(config); err != nil {
 		return err
 	}
-	if err := s.userManager.ChangeDeviceConfig(dev.UserID, dev.ID, string(configBytes)); err != nil {
+	canonical, err := json.Marshal(config)
+	if err != nil {
+		return err
+	}
+	if err := s.userManager.ChangeDeviceConfig(dev.UserID, dev.ID, string(canonical)); err != nil {
 		return err
 	}
 	logvr(v, r).Tag(tagDevice).Field("device_id", dev.ID).Info("Device config updated (agent channel)")
@@ -296,9 +306,12 @@ func validForeignBaseURL(u string) bool {
 	return true
 }
 
-// validateDeviceConfig enforces the structural contract the app relies on:
-// subscriptions[].topic must be valid topic names on this server, and the blob
-// must not smuggle credential-looking fields.
+// validateDeviceConfig enforces the structural contract the app relies on and
+// normalizes the blob to a canonical form: subscriptions[].topic must be valid
+// topic names on this server, flag fields must be bool or 0/1 (normalized to
+// bool), numeric fields whole numbers in range, and the blob must not smuggle
+// credential-looking fields. Unknown per-subscription keys are dropped so a
+// sloppy writer cannot poison device parsers (axon-android#4).
 func validateDeviceConfig(config map[string]any) error {
 	subs, ok := config["subscriptions"]
 	if ok {
@@ -309,14 +322,14 @@ func validateDeviceConfig(config map[string]any) error {
 		if len(list) > 200 {
 			return errHTTPBadRequestDeviceConfigInvalid.Wrap("too many subscriptions")
 		}
-		for _, s := range list {
+		for i, s := range list {
 			sub, isMap := s.(map[string]any)
 			if !isMap {
 				return errHTTPBadRequestDeviceConfigInvalid.Wrap("subscription must be an object")
 			}
 			topic, _ := sub["topic"].(string)
 			if !topicRegex.MatchString(topic) {
-				return errHTTPBadRequestDeviceConfigInvalid.Wrap("invalid topic name")
+				return errHTTPBadRequestDeviceConfigInvalid.Wrap("subscriptions[%d].invalid topic name", i)
 			}
 			if baseURL, present := sub["base_url"]; present {
 				// The channel may also manage subscriptions on OTHER ntfy
@@ -325,17 +338,83 @@ func validateDeviceConfig(config map[string]any) error {
 				// with whatever credentials the app has stored per server.
 				url, isString := baseURL.(string)
 				if !isString {
-					return errHTTPBadRequestDeviceConfigInvalid.Wrap("base_url must be a string")
+					return errHTTPBadRequestDeviceConfigInvalid.Wrap("subscriptions[%d].base_url must be a string", i)
 				} else if url != "" && !validForeignBaseURL(url) {
-					return errHTTPBadRequestDeviceConfigInvalid.Wrap("invalid base_url")
+					return errHTTPBadRequestDeviceConfigInvalid.Wrap("subscriptions[%d].invalid base_url", i)
 				}
 			}
+			if err := normalizeConfigFlag(sub, "muted", i); err != nil {
+				return err
+			}
+			if err := normalizeConfigFlag(sub, "insistent", i); err != nil {
+				return err
+			}
+			if err := wholeNumberInRange(sub, "min_priority", 0, 5, i); err != nil {
+				return err
+			}
+			if err := wholeNumberInRange(sub, "auto_delete_seconds", 0, math.MaxInt32, i); err != nil {
+				return err
+			}
+			if display, present := sub["display_name"]; present && display != nil {
+				ds, isString := display.(string)
+				if !isString {
+					return errHTTPBadRequestDeviceConfigInvalid.Wrap("subscriptions[%d].display_name must be a string or null", i)
+				} else if len(ds) > 128 {
+					return errHTTPBadRequestDeviceConfigInvalid.Wrap("subscriptions[%d].display_name too long (max 128)", i)
+				}
+			}
+			for k := range sub {
+				switch k {
+				case "topic", "base_url", "muted", "min_priority", "auto_delete_seconds", "insistent", "display_name":
+				default:
+					delete(sub, k) // canonical form: unknown keys never reach devices
+				}
+			}
+		}
+	}
+	if manage, present := config["manage"]; present {
+		ms, isString := manage.(string)
+		if !isString || (ms != "full" && ms != "") {
+			return errHTTPBadRequestDeviceConfigInvalid.Wrap("manage must be \"full\" or empty")
 		}
 	}
 	for _, forbidden := range []string{"token", "password", "secret"} {
 		if _, present := config[forbidden]; present {
 			return errHTTPBadRequestDeviceConfigInvalid.Wrap("credential fields not allowed in device config")
 		}
+	}
+	return nil
+}
+
+// normalizeConfigFlag accepts a flag written as bool or 0/1 and rewrites the
+// map in place to a bool. Anything else is a field-specific 400.
+func normalizeConfigFlag(sub map[string]any, field string, i int) error {
+	v, present := sub[field]
+	if !present {
+		return nil
+	}
+	switch t := v.(type) {
+	case bool:
+		return nil
+	case float64:
+		if t == 0 || t == 1 {
+			sub[field] = t == 1
+			return nil
+		}
+	}
+	return errHTTPBadRequestDeviceConfigInvalid.Wrap("subscriptions[%d].%s must be a boolean or 0/1", i, field)
+}
+
+// wholeNumberInRange accepts whole numbers in [min,max] (JSON numbers decode
+// as float64) and rejects bools, fractions, and out-of-range values.
+func wholeNumberInRange(sub map[string]any, field string, min, max float64, i int) error {
+	v, present := sub[field]
+	if !present {
+		return nil
+	}
+	t, ok := v.(float64)
+	if !ok || t != math.Trunc(t) || t < min || t > max {
+		return errHTTPBadRequestDeviceConfigInvalid.Wrap("subscriptions[%d].%s must be an integer between %d and %d", i, field, int64(min), int64(max))
 	}
 	return nil
 }
