@@ -38,6 +38,7 @@ var (
 )
 
 type apiDeviceAppliedRequest struct {
+	// Version is optional: 0/absent means "the currently stored config".
 	Version int64 `json:"version"`
 }
 
@@ -174,14 +175,21 @@ func (s *Server) handleDeviceAppliedAck(w http.ResponseWriter, r *http.Request, 
 	req, err := readJSONWithLimit[apiDeviceAppliedRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
-	} else if req.Version < 1 || req.Version > math.MaxInt32 {
-		return errHTTPBadRequestDeviceConfigInvalid.Wrap("version must be a positive integer")
 	}
 	dev, err := s.deviceFromRequest(r, v, matches[1])
 	if err != nil {
 		return err
 	}
-	if err := s.userManager.AckDeviceApplied(dev.UserID, dev.ID, req.Version); err != nil {
+	// Version-less acks ({} or empty body) mean "the latest": the device applied
+	// whatever config is currently stored. Explicit versions are stored as-
+	// reported (staleness is the signal).
+	version := req.Version
+	if version == 0 {
+		version = dev.ConfigVersion
+	} else if version < 1 || version > math.MaxInt32 {
+		return errHTTPBadRequestDeviceConfigInvalid.Wrap("version must be a positive integer")
+	}
+	if err := s.userManager.AckDeviceApplied(dev.UserID, dev.ID, version); err != nil {
 		return err
 	}
 	logvr(v, r).Tag(tagDevice).Field("device_id", dev.ID).Field("applied_version", req.Version).Info("Device applied config")
