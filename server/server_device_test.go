@@ -416,9 +416,14 @@ func TestServer_Device_AppliedAck(t *testing.T) {
 		require.Equal(t, int64(3), devices[0].ConfigVersion)
 		require.Equal(t, int64(2), devices[0].AppliedVersion) // truthful staleness
 
+		// Version-less ack means "the latest" (that's what the app sends)
+		rr = request(t, s, "POST", "/v1/device/"+claim.DeviceID+"/applied", `{}`, device)
+		require.Equal(t, 200, rr.Code)
+		rr = request(t, s, "GET", "/v1/device", "", phil)
+		require.Nil(t, json.Unmarshal(rr.Body.Bytes(), &devices))
+		require.Equal(t, int64(3), devices[0].AppliedVersion) // acked current
+
 		// Validation and authorization
-		rr = request(t, s, "POST", "/v1/device/"+claim.DeviceID+"/applied", `{"version":0}`, device)
-		require.Equal(t, 400, rr.Code)
 		rr = request(t, s, "POST", "/v1/device/"+claim.DeviceID+"/applied", `{"version":-1}`, device)
 		require.Equal(t, 400, rr.Code)
 		rr = request(t, s, "POST", "/v1/device/"+claim.DeviceID+"/applied", `{"version":2}`, nil)
