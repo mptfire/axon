@@ -130,7 +130,6 @@ var (
 	apiAccountPath                                       = "/v1/account"
 	apiDevicePath                                        = "/v1/device"              // axon: agent channel
 	apiDevicePairingPath                                 = "/v1/device/pairing"      // axon
-	apiDeviceAppliedPath                                 = "/v1/device/{id}/applied" // axon: applied-config ack
 	apiDeviceClaimPath                                   = "/v1/device/claim"        // axon
 	apiDeviceClaimBuildPath                              = "/v1/device/claim-build"  // axon
 	apiAccountLoginPath                                  = "/v1/account/login"
