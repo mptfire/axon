@@ -102,9 +102,9 @@ const (
 			created_at INT NOT NULL,
 			updated_at INT NOT NULL,
 			last_seen INT NOT NULL DEFAULT 0,
-			config_version INT NOT NULL DEFAULT 1,
-			applied_version INT NOT NULL DEFAULT 0,
-			applied_at INT NOT NULL DEFAULT 0,
+			config_version BIGINT NOT NULL DEFAULT 1,
+			applied_version BIGINT NOT NULL DEFAULT 0,
+			applied_at BIGINT NOT NULL DEFAULT 0,
 			FOREIGN KEY (user_id) REFERENCES "user" (id) ON DELETE CASCADE
 		);
 		CREATE UNIQUE INDEX idx_user_device_token ON user_device (token) WHERE token IS NOT NULL;

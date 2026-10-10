@@ -214,14 +214,14 @@ func (a *Manager) readDevice(rows *sql.Rows) (*Device, error) {
 		return nil, err
 	}
 	return &Device{
-		ID:        id,
-		UserID:    userID,
-		Token:     token,
-		Label:     label,
-		Config:    config,
-		CreatedAt: time.Unix(createdAt, 0),
-		UpdatedAt: time.Unix(updatedAt, 0),
-		LastSeen:  time.Unix(lastSeen, 0),
+		ID:             id,
+		UserID:         userID,
+		Token:          token,
+		Label:          label,
+		Config:         config,
+		CreatedAt:      time.Unix(createdAt, 0),
+		UpdatedAt:      time.Unix(updatedAt, 0),
+		LastSeen:       time.Unix(lastSeen, 0),
 		ConfigVersion:  configVersion,
 		AppliedVersion: appliedVersion,
 		AppliedAt:      time.Unix(appliedAt, 0),
