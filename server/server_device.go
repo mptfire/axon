@@ -31,10 +31,10 @@ import (
 // mint tokens, change passwords, or touch other devices.
 
 var (
-	devicePathRegex       = regexp.MustCompile(`^/v1/device/([^/]+)$`)
-	deviceConfigPathRegex = regexp.MustCompile(`^/v1/device/([^/]+)/config$`)
+	devicePathRegex        = regexp.MustCompile(`^/v1/device/([^/]+)$`)
+	deviceConfigPathRegex  = regexp.MustCompile(`^/v1/device/([^/]+)/config$`)
 	deviceAppliedPathRegex = regexp.MustCompile(`^/v1/device/([^/]+)/applied$`)
-	deviceIDRegex         = regexp.MustCompile(`^dv_[A-Za-z0-9]{4,32}$`)
+	deviceIDRegex          = regexp.MustCompile(`^dv_[A-Za-z0-9]{4,32}$`)
 )
 
 type apiDeviceAppliedRequest struct {

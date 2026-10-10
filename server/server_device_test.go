@@ -312,10 +312,10 @@ func TestServer_Device_ConfigValidation(t *testing.T) {
 		require.Nil(t, json.Unmarshal(rr.Body.Bytes(), &stored))
 		require.Len(t, stored.Subscriptions, 1)
 		sub := stored.Subscriptions[0]
-		require.Equal(t, false, sub["muted"])          // normalized to bool
-		require.Equal(t, true, sub["insistent"])       // normalized to bool
+		require.Equal(t, false, sub["muted"])    // normalized to bool
+		require.Equal(t, true, sub["insistent"]) // normalized to bool
 		require.Equal(t, float64(2), sub["min_priority"])
-		require.NotContains(t, sub, "sneaky_key")      // canonical form: dropped
+		require.NotContains(t, sub, "sneaky_key") // canonical form: dropped
 		require.Equal(t, "Alerts", sub["display_name"])
 
 		// Out-of-range / wrong-type values are field-specific 400s
