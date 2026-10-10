@@ -310,7 +310,7 @@ fmt: web-fmt
 	gofmt -s -w .
 
 fmt-check:
-	test -z $(shell gofmt -l .)
+	test -z "$(shell gofmt -l .)"
 
 vet:
 	go vet ./...
