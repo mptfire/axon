@@ -61,15 +61,15 @@ func TestClient_BudgetEnforced(t *testing.T) {
 	mock.SetHandler(func(req *Request) (*Response, error) {
 		return &Response{Text: "ok", InputTokens: 60, OutputTokens: 50}, nil
 	})
-	_, err := client.Complete(context.Background(), &Request{Feature: FeatureChat, Prompt: "1", UserKey: "user:phil"})
+	_, err := client.Complete(context.Background(), &Request{Feature: FeatureChat, Prompt: "1", UserKey: "user:phil", MaxTokens: 1})
 	require.Nil(t, err) // 110 tokens, over visitor budget of 100 — charged after the fact
-	_, err = client.Complete(context.Background(), &Request{Feature: FeatureChat, Prompt: "2", UserKey: "user:phil"})
+	_, err = client.Complete(context.Background(), &Request{Feature: FeatureChat, Prompt: "2", UserKey: "user:phil", MaxTokens: 1})
 	require.ErrorIs(t, err, ErrBudgetExceeded)
 
 	// Other visitors can still spend until the global budget is hit (110/150 used)
-	_, err = client.Complete(context.Background(), &Request{Feature: FeatureChat, Prompt: "3", UserKey: "user:ben"})
+	_, err = client.Complete(context.Background(), &Request{Feature: FeatureChat, Prompt: "3", UserKey: "user:ben", MaxTokens: 1})
 	require.Nil(t, err) // global now at 220
-	_, err = client.Complete(context.Background(), &Request{Feature: FeatureChat, Prompt: "4", UserKey: "user:ben"})
+	_, err = client.Complete(context.Background(), &Request{Feature: FeatureChat, Prompt: "4", UserKey: "user:ben", MaxTokens: 1})
 	require.ErrorIs(t, err, ErrBudgetExceeded)
 
 	report := client.Report("user:phil")

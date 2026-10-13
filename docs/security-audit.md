@@ -283,3 +283,21 @@ Open items: issue #27 (AI consent/disclosure policy — product decision),
 two moderate react-router advisories (major migration deferred), upstream
 sync (178 commits; shutdown/Postgres/cluster fixes listed in the audit
 report), no down-migrations (rely on the daily backups before upgrades).
+
+## Addendum 6 — stacked PR integration gap
+
+A follow-up check of main at `7831282b` found that #39, #42 and #43 had been
+merged into their feature-branch bases after #37 was squashed into main.
+Their merged status did not mean the budget, request-principal and scoped-token
+fixes were present on main. The Addendum 5 claim that all fixes were integrated
+was therefore incorrect.
+
+The restoration change reapplies the reviewed patches together and restores
+their regression tests. Before restoration, the same-IP account and token-scope
+interleavings, unrestricted-token harvesting/minting, embedding-budget bypass
+and publisher-attribution tests fail on main. They pass after restoration.
+
+For future stacks, after merging a parent into main, retarget the next child PR
+to main and reconcile its patch with the merged result. Verify the resulting
+main tree and run the security regressions; a merged feature-branch PR alone is
+not evidence of integration.

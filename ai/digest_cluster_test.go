@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -34,7 +35,7 @@ func TestBuildClusterHints(t *testing.T) {
 		{ID: "m4", Message: "totally different subject entirely"},
 		{ID: "m5", Message: "another unrelated subject here"},
 	}
-	hints := buildClusterHints(embedder, messages)
+	hints := buildClusterHints(context.Background(), embedder, messages, "")
 	t.Logf("hints: %q", hints)
 	// The deterministic mock vectors may or may not split these into 2+ groups;
 	// the function must never panic and must never fabricate message numbers.
@@ -47,6 +48,6 @@ func TestBuildClusterHints_EmptyOnError(t *testing.T) {
 		return nil, ErrInvalidResponse
 	})
 	embedder := client.Embedder("embed-model")
-	hints := buildClusterHints(embedder, []DigestMessage{{Message: "x"}, {Message: "y"}})
+	hints := buildClusterHints(context.Background(), embedder, []DigestMessage{{Message: "x"}, {Message: "y"}}, "")
 	require.Equal(t, "", hints)
 }

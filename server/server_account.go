@@ -23,7 +23,7 @@ const (
 )
 
 func (s *Server) handleAccountCreate(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	if !u.IsAdmin() { // u may be nil, but that's fine
 		if !s.config.EnableSignup {
 			return errHTTPBadRequestSignupNotEnabled
@@ -70,10 +70,9 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 	if err != nil {
 		return err
 	}
-	// axon: a device-scoped token (pairing flow) must never see the account's
-	// token values — that would let a paired phone escalate to unrestricted
-	// credentials. The app only needs prefs/limits here.
-	stripTokens := isDeviceScopedToken(v.User())
+	// Scoped credentials must never see token values that can upgrade their scopes.
+	u := requestUser(r, v)
+	stripTokens := u != nil && len(u.TokenScopes) > 0
 	logvr(v, r).Tag(tagAccount).Fields(visitorExtendedInfoContext(info)).Debug("Retrieving account stats")
 	limits, stats := info.Limits, info.Stats
 	response := &apiAccountResponse{
@@ -102,7 +101,6 @@ func (s *Server) handleAccountGet(w http.ResponseWriter, r *http.Request, v *vis
 			AttachmentTotalSizeRemaining: stats.AttachmentTotalSizeRemaining,
 		},
 	}
-	u := v.User()
 	if u != nil {
 		response.Username = u.Name
 		response.Role = string(u.Role)
@@ -224,7 +222,7 @@ func (s *Server) handleAccountDelete(w http.ResponseWriter, r *http.Request, v *
 	} else if req.Password == "" {
 		return errHTTPBadRequest
 	}
-	u := v.User()
+	u := requestUser(r, v)
 	if _, err := s.userManager.Authenticate(u.Name, req.Password); err != nil {
 		return errHTTPBadRequestIncorrectPasswordConfirmation
 	}
@@ -262,7 +260,7 @@ func (s *Server) handleAccountPasswordChange(w http.ResponseWriter, r *http.Requ
 	} else if req.Password == "" || req.NewPassword == "" {
 		return errHTTPBadRequest
 	}
-	u := v.User()
+	u := requestUser(r, v)
 	if _, err := s.userManager.Authenticate(u.Name, req.Password); err != nil {
 		return errHTTPBadRequestIncorrectPasswordConfirmation
 	}
@@ -281,7 +279,7 @@ func (s *Server) handleAccountPasswordChange(w http.ResponseWriter, r *http.Requ
 // the token endpoint (which exists to mint arbitrary API tokens), this endpoint's job is to log a
 // user in, so it also reports who they are (the identifier they typed may be a primary email).
 func (s *Server) handleAccountLogin(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	logvr(v, r).Tag(tagAccount).Info("Logging in user %s", u.Name)
 	token, err := s.userManager.CreateToken(u.ID, "", time.Now().Add(tokenExpiryDuration), v.IP(), false, "")
 	if err != nil {
@@ -307,7 +305,7 @@ func (s *Server) handleAccountTokenCreate(w http.ResponseWriter, r *http.Request
 	if req.Expires != nil {
 		expires = time.Unix(*req.Expires, 0)
 	}
-	u := v.User()
+	u := requestUser(r, v)
 	logvr(v, r).
 		Tag(tagAccount).
 		Fields(log.Context{
@@ -330,7 +328,10 @@ func (s *Server) handleAccountTokenCreate(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleAccountTokenUpdate(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
+	if u == nil {
+		return errHTTPUnauthorized
+	}
 	req, err := readJSONWithLimit[apiAccountTokenUpdateRequest](r.Body, jsonBodyBytesLimit, true) // Allow empty body!
 	if err != nil {
 		return err
@@ -371,7 +372,7 @@ func (s *Server) handleAccountTokenUpdate(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleAccountTokenDelete(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	token := readParam(r, "X-Token", "Token") // DELETEs cannot have a body, and we don't want it in the path
 	if token == "" {
 		token = u.Token
@@ -397,7 +398,7 @@ func (s *Server) handleAccountSettingsChange(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		return err
 	}
-	u := v.User()
+	u := requestUser(r, v)
 	if u.Prefs == nil {
 		u.Prefs = &user.Prefs{}
 	}
@@ -475,7 +476,7 @@ func (s *Server) handleAccountSubscriptionAdd(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		return err
 	}
-	u := v.User()
+	u := requestUser(r, v)
 	prefs := u.Prefs
 	if prefs == nil {
 		prefs = &user.Prefs{}
@@ -498,7 +499,7 @@ func (s *Server) handleAccountSubscriptionChange(w http.ResponseWriter, r *http.
 	if err != nil {
 		return err
 	}
-	u := v.User()
+	u := requestUser(r, v)
 	prefs := u.Prefs
 	if prefs == nil || prefs.Subscriptions == nil {
 		return errHTTPNotFound
@@ -525,7 +526,7 @@ func (s *Server) handleAccountSubscriptionDelete(w http.ResponseWriter, r *http.
 	// DELETEs cannot have a body, and we don't want it in the path
 	deleteBaseURL := readParam(r, "X-BaseURL", "BaseURL")
 	deleteTopic := readParam(r, "X-Topic", "Topic")
-	u := v.User()
+	u := requestUser(r, v)
 	prefs := u.Prefs
 	if prefs == nil || prefs.Subscriptions == nil {
 		return nil
@@ -551,7 +552,7 @@ func (s *Server) handleAccountSubscriptionDelete(w http.ResponseWriter, r *http.
 // with enough remaining reservations left, or if the user is an admin. Admins can always reserve a topic, unless
 // it is already reserved by someone else.
 func (s *Server) handleAccountReservationAdd(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	req, err := readJSONWithLimit[apiAccountReservationRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
@@ -606,7 +607,7 @@ func (s *Server) handleAccountReservationDelete(w http.ResponseWriter, r *http.R
 	if !topicRegex.MatchString(topic) {
 		return errHTTPBadRequestTopicInvalid
 	}
-	u := v.User()
+	u := requestUser(r, v)
 	authorized, err := s.userManager.HasReservation(u.Name, topic)
 	if err != nil {
 		return err
@@ -653,7 +654,7 @@ func (s *Server) maybeRemoveMessagesAndExcessReservations(r *http.Request, v *vi
 }
 
 func (s *Server) handleAccountPhoneNumberVerify(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	req, err := readJSONWithLimit[apiAccountPhoneNumberVerifyRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
@@ -684,7 +685,7 @@ func (s *Server) handleAccountPhoneNumberVerify(w http.ResponseWriter, r *http.R
 }
 
 func (s *Server) handleAccountPhoneNumberAdd(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	req, err := readJSONWithLimit[apiAccountPhoneNumberAddRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
@@ -706,7 +707,7 @@ func (s *Server) handleAccountPhoneNumberAdd(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) handleAccountPhoneNumberDelete(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	req, err := readJSONWithLimit[apiAccountPhoneNumberAddRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
@@ -725,7 +726,7 @@ func (s *Server) handleAccountPhoneNumberDelete(w http.ResponseWriter, r *http.R
 // magic-link token, stores a pending verification, and emails the link. The address is NOT
 // added to the verified list until the user clicks the link (handleAccountEmailVerify).
 func (s *Server) handleAccountEmailAdd(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	req, err := readJSONWithLimit[apiAccountEmailRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
@@ -774,8 +775,8 @@ func (s *Server) handleAccountEmailVerify(w http.ResponseWriter, r *http.Request
 		return err
 	}
 	logvr(v, r).Tag(tagAccount).Field("email", m.Email).Info("Email verified")
-	// Refresh the verified user's other sessions. The request is unauthenticated (v.User() is
-	// usually nil), so resolve the user from the token row and publish to their sync topic.
+	// Refresh the verified user's other sessions. The request is usually unauthenticated,
+	// so resolve the user from the token row and publish to their sync topic.
 	s.publishSyncEventForUserIDAsync(v, m.UserID)
 	return s.writeJSON(w, newSuccessResponse())
 }
@@ -783,7 +784,7 @@ func (s *Server) handleAccountEmailVerify(w http.ResponseWriter, r *http.Request
 // handleAccountEmailDelete removes an email address, whether verified or still pending
 // (DELETE /v1/account/email). Removing the primary leaves the account with no primary.
 func (s *Server) handleAccountEmailDelete(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	req, err := readJSONWithLimit[apiAccountEmailRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
@@ -804,7 +805,7 @@ func (s *Server) handleAccountEmailDelete(w http.ResponseWriter, r *http.Request
 // handleAccountEmailSetPrimary marks an already-verified email as the user's primary (recovery)
 // email (POST /v1/account/email/primary).
 func (s *Server) handleAccountEmailSetPrimary(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	req, err := readJSONWithLimit[apiAccountEmailRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
@@ -825,7 +826,7 @@ func (s *Server) handleAccountEmailSetPrimary(w http.ResponseWriter, r *http.Req
 
 // handleAccountEmailResend re-sends a pending email verification (POST /v1/account/email/resend).
 func (s *Server) handleAccountEmailResend(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	req, err := readJSONWithLimit[apiAccountEmailRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
@@ -985,17 +986,16 @@ func (s *Server) convertEmailAddress(u *user.User, email string) (string, *errHT
 }
 
 // publishSyncEventAsync kicks of a Go routine to publish a sync message to the user's sync topic
-func (s *Server) publishSyncEventAsync(v *visitor) {
+func (s *Server) publishSyncEventAsync(v *visitor, principals ...*user.User) {
+	u := v.User()
+	if len(principals) > 0 {
+		u = principals[0]
+	}
 	go func() {
-		if err := s.publishSyncEvent(v); err != nil {
+		if err := s.publishSyncEventForUser(v, u); err != nil {
 			logv(v).Err(err).Trace("Error publishing to user's sync topic")
 		}
 	}()
-}
-
-// publishSyncEvent publishes a sync message to the authenticated user's sync topic
-func (s *Server) publishSyncEvent(v *visitor) error {
-	return s.publishSyncEventForUser(v, v.User())
 }
 
 // publishSyncEventForUserIDAsync publishes a sync event to the sync topic of the user with the
