@@ -187,13 +187,24 @@ const checkoutSuccessMaxAttempts = 10
 var (
 	checkoutSuccessMu       sync.Mutex
 	checkoutSuccessAttempts = map[string][]time.Time{} // ip -> attempt times
+	checkoutSuccessCleanup  time.Time
 )
 
 // checkoutSuccessAllowed reports whether this IP may attempt another checkout-success
 // lookup within the current hour.
 func checkoutSuccessAllowed(ip string) bool {
+	checkoutSuccessMu.Lock()
+	defer checkoutSuccessMu.Unlock()
 	now := time.Now()
 	windowStart := now.Add(-time.Hour)
+	if now.Sub(checkoutSuccessCleanup) >= time.Hour {
+		for key, attempts := range checkoutSuccessAttempts {
+			if len(attempts) == 0 || !attempts[len(attempts)-1].After(windowStart) {
+				delete(checkoutSuccessAttempts, key)
+			}
+		}
+		checkoutSuccessCleanup = now
+	}
 	kept := checkoutSuccessAttempts[ip][:0]
 	for _, t := range checkoutSuccessAttempts[ip] {
 		if t.After(windowStart) {
