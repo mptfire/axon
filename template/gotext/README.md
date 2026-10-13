@@ -25,9 +25,9 @@ unexported. The only robust fix is to patch the executor itself. Rather than rea
 heuristics (guessing iteration counts, wrapping every function, etc.), we vendor the package and add
 the cancellation half of #31107 as a patch: `ExecuteContext(ctx, ...)` that aborts with `ctx.Err()`
 when `ctx` is canceled or its deadline passes. The check is a **single poll inside `walk`** of an
-atomic flag that a `context.AfterFunc` watcher flips -- so it bounds CPU for *any* template shape
-(cheap loops and expensive functions alike), it is exact (observed within one node), and it adds no
-measurable overhead. If #31107's cancellation half ever lands upstream, this fork can be deleted and
+atomic flag that a `context.AfterFunc` watcher flips -- so cancellation is observed between walked nodes, including tight loops. A function call
+must return before cancellation can be observed; the server separately limits output and expensive
+helper arguments. This is a cooperative deadline, not a process-level memory limit. If #31107's cancellation half ever lands upstream, this fork can be deleted and
 the call site keeps compiling unchanged.
 
 The one user-facing execution site (`server/server_template.go` `renderTemplate`) wraps execution in
