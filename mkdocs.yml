@@ -111,6 +111,7 @@ nav:
       - "Examples": examples.md
       - "AI agents (MCP)": agents.md
       - "Agent setup runbook": agent-setup.md
+      - "Audit 2026-10-13 (external)": audit-2026-10-13.md
       - "Integrations + projects": integrations.md
       - "Release notes": releases.md
       - "Emojis 🥳 🎉": emojis.md
