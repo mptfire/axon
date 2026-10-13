@@ -42,6 +42,7 @@ type Enrichment struct {
 // EnrichRequest is the input for Enrich. TranslateTo (a language name or code, e.g.
 // "de" or "German") optionally requests a translation of the message body.
 type EnrichRequest struct {
+	UserKey     string // Publisher attribution for token budgets
 	Topic       string
 	Title       string
 	Message     string
@@ -88,6 +89,7 @@ func (e *Enricher) Enrich(ctx context.Context, req *EnrichRequest) (*Enrichment,
 	}
 	request := &Request{
 		Feature:     FeatureEnrich,
+		UserKey:     req.UserKey,
 		System:      fmt.Sprintf(system, EnrichmentMaxSummaryChars),
 		Prompt:      user.String(),
 		JSONSchema:  EnrichmentSchema,

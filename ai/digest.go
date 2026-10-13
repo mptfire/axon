@@ -191,7 +191,7 @@ func (d *Digester) Digest(ctx context.Context, userKey string, in *DigestInput) 
 	}
 	fmt.Fprintf(&prompt, "):\n\n")
 	if d.embedder != nil && len(messages) >= 3 {
-		prompt.WriteString(buildClusterHints(d.embedder, messages))
+		prompt.WriteString(buildClusterHints(ctx, d.embedder, messages, userKey))
 	}
 	for _, m := range messages {
 		timestamp := time.Unix(m.Time, 0).UTC().Format(time.RFC3339)
@@ -274,12 +274,12 @@ func parseDigest(topic string, messageCount int, text string) (*DigestResult, er
 
 // buildClusterHints computes semantic clusters and renders a short hint block for the
 // prompt. Embedding failure degrades silently to no hints (plain summarization).
-func buildClusterHints(e *Embedder, messages []DigestMessage) string {
+func buildClusterHints(ctx context.Context, e *Embedder, messages []DigestMessage, userKey string) string {
 	texts := make([]string, len(messages))
 	for i, m := range messages {
 		texts[i] = m.Title + "\n" + m.Message
 	}
-	vectors, err := e.Embed(context.Background(), texts)
+	vectors, err := e.Embed(ctx, texts, userKey)
 	if err != nil {
 		return ""
 	}
