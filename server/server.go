@@ -620,6 +620,9 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 	if u := requestUser(r, v); u != nil && isDeviceScopedToken(u) && !deviceScopeAllowedPath(r.URL.Path) {
 		return errHTTPForbidden
 	}
+	if !agentScopeAllowedRequest(requestUser(r, v), r) {
+		return errHTTPForbidden
+	}
 	if r.Method == http.MethodGet && r.URL.Path == "/" && s.config.WebRoot == "/" {
 		return s.ensureWebEnabled(s.handleWebApp)(w, r, v)
 	} else if r.Method == http.MethodHead && r.URL.Path == "/" {
