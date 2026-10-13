@@ -140,7 +140,7 @@ type Prefs struct {
 	DateFormat    *string            `json:"date_format,omitempty"`
 	TimeFormat    *string            `json:"time_format,omitempty"`
 	Notification  *NotificationPrefs `json:"notification,omitempty"`
-	Digest        *DigestPrefs       `json:"digest,omitempty"` // axon: daily briefing schedule
+	Digest        *DigestPrefs       `json:"digest,omitempty"`     // axon: daily briefing schedule
 	AIConsent     *bool              `json:"ai_consent,omitempty"` // axon: user consented to provider-side AI processing (issue #27)
 	Subscriptions []*Subscription    `json:"subscriptions,omitempty"`
 }
