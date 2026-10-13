@@ -130,3 +130,23 @@ func requestUserID(r *http.Request, v *visitor) string {
 	}
 	return ""
 }
+
+// agentScopeAllowedRequest prevents a scoped agent from upgrading its credentials
+// through account, device, billing or admin APIs. Device credentials have their
+// own sandbox; AI routes additionally enforce the ai scope and topic ACLs.
+func agentScopeAllowedRequest(u *user.User, r *http.Request) bool {
+	if u == nil || len(u.TokenScopes) == 0 || isDeviceScopedToken(u) {
+		return true
+	}
+	if !strings.HasPrefix(r.URL.Path, "/v1/") || strings.HasPrefix(r.URL.Path, "/v1/ai/") {
+		return true // Normal topic APIs/MCP, or AI APIs with their own scope check.
+	}
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case apiAccountPath, apiHealthPath, apiConfigPath, apiStatsPath, apiTiersPath:
+		return true // Account GET strips credentials for every scoped token.
+	}
+	return false
+}
