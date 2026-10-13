@@ -32,3 +32,26 @@ func TestServer_AI_DigestDelivery_PrivateWithOpenDefault(t *testing.T) {
 	rr = request(t, s, "PUT", "/normal-topic", "normal publish", nil)
 	require.Equal(t, 200, rr.Code, "ordinary topic behavior is unchanged")
 }
+
+func TestServer_AI_DigestDelivery_HardensExistingTopicsWhenAIDisabled(t *testing.T) {
+	c := newTestConfigWithAuthFile(t, "")
+	c.AuthDefault = user.PermissionReadWrite
+	s := newTestServer(t, c)
+	require.NoError(t, s.userManager.AddUser("alice", "alice", user.RoleUser, false))
+	owner, err := s.userManager.User("alice")
+	require.NoError(t, err)
+	require.NoError(t, s.ensureDigestDelivery(owner))
+	topic := *owner.Prefs.Digest.Topic
+	// Simulate the legacy owner-only ACL, with no scheduled delivery to repair it.
+	require.NoError(t, s.userManager.ResetAccess(user.Everyone, topic))
+	s.closeDatabases()
+	c.AIEnabled = false
+	s = newTestServer(t, c)
+	defer s.closeDatabases()
+	rr := request(t, s, "GET", "/"+topic+"/json?poll=1", "", nil)
+	require.Equal(t, 403, rr.Code)
+	rr = request(t, s, "GET", "/"+topic+"/json?poll=1", "", map[string]string{"Authorization": util.BasicAuth("alice", "alice")})
+	require.Equal(t, 200, rr.Code)
+	rr = request(t, s, "PUT", "/ordinary-topic", "ordinary publish", nil)
+	require.Equal(t, 200, rr.Code)
+}

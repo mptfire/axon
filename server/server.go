@@ -370,6 +370,10 @@ func New(conf *Config) (*Server, error) {
 	if conf.EnableMCP {
 		s.mcpHandler = mcp.New(mcp.Config{ServiceBaseURL: conf.BaseURL, Version: conf.BuildVersion}).HTTPHandler() // axon
 	}
+	if err := s.hardenDigestDeliveryTopics(); err != nil {
+		s.closeDatabases()
+		return nil, fmt.Errorf("protect existing digest topics: %w", err)
+	}
 	return s, nil
 }
 

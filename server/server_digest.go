@@ -208,6 +208,34 @@ func (s *Server) ensureDigestDelivery(u *user.User) error {
 	return s.userManager.ChangeSettings(u.ID, u.Prefs)
 }
 
+// hardenDigestDeliveryTopics repairs legacy owner-only ACLs before listening.
+// Disabled schedules and AI-disabled servers must also protect retained history.
+func (s *Server) hardenDigestDeliveryTopics() error {
+	if s.userManager == nil {
+		return nil
+	}
+	users, err := s.userManager.Users()
+	if err != nil {
+		return err
+	}
+	for _, u := range users {
+		if u.Prefs == nil || u.Prefs.Digest == nil || u.Prefs.Digest.Topic == nil {
+			continue
+		}
+		topic := *u.Prefs.Digest.Topic
+		if !strings.HasPrefix(topic, digestTopicPrefix) || !topicRegex.MatchString(topic) {
+			continue
+		}
+		if err := s.userManager.AllowAccess(user.Everyone, topic, user.PermissionDenyAll); err != nil {
+			return err
+		}
+		if err := s.userManager.AllowAccess(u.Name, topic, user.PermissionRead); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // deliverBriefing renders the briefing and dispatches it like a delayed message would
 // be: fan-out to all connected subscribers (web, Firebase, web push) plus the cache.
 func (s *Server) deliverBriefing(u *user.User, briefing *ai.BriefingResult) error {
