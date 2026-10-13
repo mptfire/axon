@@ -58,7 +58,7 @@ export class SubscriptionManager {
       return;
     }
     const priority = notification.priority ?? 3;
-    if (priority < (await prefs.minPriority())) {
+    if (priority < Math.max(await prefs.minPriority(), subscription.minPriority ?? 0)) {
       return;
     }
     await notifier.notify(subscription, notification);
