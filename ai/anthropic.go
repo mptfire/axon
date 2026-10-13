@@ -167,7 +167,7 @@ func (p *anthropicProvider) Stream(ctx context.Context, req *Request) (<-chan St
 	}
 	events := make(chan StreamEvent, 2)
 	events <- StreamEvent{Delta: response.Text}
-	events <- StreamEvent{FinishReason: response.FinishReason}
+	events <- StreamEvent{FinishReason: response.FinishReason, Usage: &Usage{InputTokens: response.InputTokens, OutputTokens: response.OutputTokens}}
 	close(events)
 	return events, nil
 }
