@@ -21,6 +21,7 @@ func TestServer_AI_DigestScheduler(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 
 	// Subscribe and seed history (phil is admin, so publishing works under deny-all)
@@ -87,6 +88,7 @@ func TestServer_AI_DigestScheduler(t *testing.T) {
 
 	// The digest topic is ACL-protected: another user cannot read it
 	require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser, false))
+	grantTestAIConsent(t, s, "ben")
 	rr = request(t, s, "GET", "/"+digestTopic+"/json?poll=1", "", map[string]string{
 		"Authorization": util.BasicAuth("ben", "ben"),
 	})
@@ -100,6 +102,7 @@ func TestServer_AI_DigestScheduler_QuietDay(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 	request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"quiet-topic"}`, auth)
 	rr := request(t, s, "PATCH", "/v1/account/settings", `{"digest":{"enabled":true,"hour":`+fmt.Sprintf("%d", time.Now().UTC().Hour())+`}}`, auth)
@@ -129,6 +132,7 @@ func TestServer_AI_DigestScheduler_Timezone(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 	request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"backups"}`, auth)
 	request(t, s, "PUT", "/backups", "backup failed", nil)

@@ -36,6 +36,10 @@ an LRU response cache, and per-visitor + global daily token budgets. See
 [docs/ai-plan](docs/ai-plan/index.md) for the phased plan and
 [docs/agents.md](docs/agents.md) for the agent quickstart.
 
+AI features require the initiating account owner's explicit consent to the
+configured service. Review or revoke it in **Settings → AI privacy**; see
+[AI privacy and consent](docs/privacy-ai.md) for data flows and upgrade behavior.
+
 ## Install
 
 Prebuilt static Linux binaries (amd64 + arm64, web app and docs embedded) are on the

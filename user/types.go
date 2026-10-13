@@ -432,6 +432,13 @@ type queries struct {
 	deleteTopicAccess           string
 	deleteAllAccess             string
 
+	// AI consent (axon): separate from preferences so settings cannot undo revocation.
+	selectAIConsent       string
+	upsertAIConsent       string
+	deleteAIConsent       string
+	selectAIConsentSecret string
+	insertAIConsentSecret string
+
 	// Token queries
 	selectToken                string
 	selectTokens               string

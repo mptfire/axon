@@ -153,6 +153,8 @@ var (
 	errHTTPBadRequestTagsTooLarge                    = &errHTTP{40058, http.StatusBadRequest, "invalid request: tags are too large", "https://ntfy.sh/docs/publish/#limitations", nil}
 	errHTTPNotFound                                  = &errHTTP{40401, http.StatusNotFound, "page not found", "", nil}
 	errHTTPUnauthorized                              = &errHTTP{40101, http.StatusUnauthorized, "unauthorized", "https://ntfy.sh/docs/publish/#authentication", nil}
+	errHTTPForbiddenAIConsentRequired = &errHTTP{40302, http.StatusForbidden, "AI consent required; review AI privacy settings for your account", "", nil}
+	errHTTPConflictAIProviderChanged = &errHTTP{40909, http.StatusConflict, "AI provider configuration changed; review the updated disclosure before consenting", "", nil}
 	errHTTPForbidden                                 = &errHTTP{40301, http.StatusForbidden, "forbidden", "https://ntfy.sh/docs/publish/#authentication", nil}
 	errHTTPBadRequestDeviceLabelTooLong              = &errHTTP{40051, http.StatusBadRequest, "invalid request: device label too long", "", nil}                                               // axon
 	errHTTPBadRequestDevicePairingInvalid            = &errHTTP{40052, http.StatusBadRequest, "invalid request: pairing code invalid, expired, or already used", "", nil}                      // axon

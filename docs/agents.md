@@ -1,5 +1,9 @@
 # AI agents (MCP)
 
+AI tools require their account owner's current [AI data-sharing consent](privacy-ai.md).
+The owner reviews the provider using account credentials or an unrestricted
+token. Scoped agents cannot grant or revoke it.
+
 axon ships a built-in [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server,
 so AI agents — Claude Desktop, Claude Code, IDE agents, scripts — can use your ntfy server as
 their notification transport: send push notifications to your phone, wait for replies, read
@@ -75,12 +79,12 @@ claude mcp add ntfy -- ntfy mcp --server https://ntfy.example.com --token tk_...
 | `list_subscriptions` | token       | List the account's synced subscriptions |
 | `digest_topic`       | token       | AI summary of one topic's recent messages |
 | `briefing`           | token       | AI summary across all of the account's topics ("what did I miss?") |
-| `plan_subscription`  | -           | Turn a wish like "notify me when backups fail" into a subscription plan (AI layer required on the server) |
+| `plan_subscription`  | token       | Turn a wish like "notify me when backups fail" into a subscription plan (AI layer required on the server) |
 
 ### Human-in-the-loop pattern
 
 The classic agent loop with axon: the agent publishes a message with
-[action buttons](../publish.md#action-buttons) (`publish` + ntfy's `X-Actions` header), the
+[action buttons](publish.md#action-buttons) (`publish` + ntfy's `X-Actions` header), the
 human taps **approve**/**deny** on their phone, and the button publishes back to a reply
 topic the agent is waiting on with `subscribe_wait`. That's the whole round trip — no
 webhooks, no public agent endpoint, no polling.

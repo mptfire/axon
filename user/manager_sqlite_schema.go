@@ -133,7 +133,7 @@ const (
 			FOREIGN KEY (user_id) REFERENCES user (id) ON DELETE CASCADE
 		);
 		CREATE INDEX idx_user_pairing_code_expiry ON user_pairing_code (expires_at);
-	`
+	` + sqliteAIConsentTableQueries
 )
 
 const (
@@ -141,12 +141,11 @@ const (
 )
 
 const (
-	// axon: fork migration 9 -> 10 adds token scopes. When upstream claims 9 -> 10 in a
-	// future release, renumber ours to the next free version on merge (see
-	// docs/ai-plan/upstream-sync.md).
+	// axon: fork migration 9 -> 10 adds token scopes. Preserve deployed versions;
+	// reconcile collisions with forward migrations (see docs/ai-plan/upstream-sync.md).
 	// axon: fork migration 10 -> 11 adds the device registry + pairing codes
 	// (agent channel, see docs/agents.md).
-	sqliteCurrentSchemaVersion = 12
+	sqliteCurrentSchemaVersion = 13
 )
 
 // Schema migrations for SQLite
@@ -428,6 +427,7 @@ var (
 		9:  schema.AsMigrateFunc(sqliteMigrate9To10UpdateQueries),  // axon
 		10: schema.AsMigrateFunc(sqliteMigrate10To11UpdateQueries), // axon: devices + pairing
 		11: schema.AsMigrateFunc(sqliteMigrate11To12UpdateQueries), // axon: applied-config ack
+		12: schema.AsMigrateFunc(sqliteAIConsentTableQueries), // axon: explicit AI consent
 	}
 )
 
@@ -505,3 +505,15 @@ const sqliteMigrate10To11UpdateQueries = `
 		);
 		CREATE INDEX idx_user_pairing_code_expiry ON user_pairing_code (expires_at);
 	`
+
+
+const sqliteAIConsentTableQueries = `
+	CREATE TABLE IF NOT EXISTS user_ai_consent (
+		user_id TEXT PRIMARY KEY NOT NULL REFERENCES user (id) ON DELETE CASCADE,
+		provider_config TEXT NOT NULL,
+		granted_at INT NOT NULL
+	);
+	CREATE TABLE IF NOT EXISTS user_ai_consent_meta (
+		id INTEGER PRIMARY KEY CHECK (id = 1),
+		secret TEXT NOT NULL
+	);`

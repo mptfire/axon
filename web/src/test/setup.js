@@ -4,11 +4,15 @@
 // at import time, and config.js falls back to window.location.origin when base_url is empty.
 const config = { base_url: "https://ntfy.sh", disallowed_topics: ["app", "account", "settings"] };
 
+if (typeof document === "undefined") {
 globalThis.window = {
   location: { origin: "https://ntfy.sh" },
   config,
   atob: globalThis.atob, // urlB64ToUint8Array uses window.atob; Node provides global atob
 };
+} else {
+  window.config = config;
+}
 
 // In the browser, `window` IS the global object, so `window.config` is also reachable as a bare
 // `config` identifier -- Api.js/AccountApi.js/UserManager.js/SubscriptionManager.js rely on that.
@@ -17,6 +21,7 @@ globalThis.config = config;
 
 // utils.js -> Prefs.js -> db.js -> Session.username() reads localStorage at module load.
 // Node has no localStorage; an in-memory stand-in is enough for the pure-logic tests.
+if (typeof document === "undefined") {
 const store = new Map();
 globalThis.localStorage = {
   getItem: (key) => (store.has(key) ? store.get(key) : null),
@@ -24,3 +29,4 @@ globalThis.localStorage = {
   removeItem: (key) => store.delete(key),
   clear: () => store.clear(),
 };
+}

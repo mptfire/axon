@@ -20,6 +20,7 @@ func TestServer_AI_Enrichment_AttributesPublisherUsage(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.NoError(t, s.userManager.AddUser("alice", "alice", user.RoleUser, false))
+	grantTestAIConsent(t, s, "alice")
 	auth := map[string]string{"Authorization": util.BasicAuth("alice", "alice")}
 	s.ai.Mock().Enqueue(ai.MockResult{Response: &ai.Response{Text: `{"summary":"Alert"}`, InputTokens: 3, OutputTokens: 2}})
 	rr := request(t, s, "PUT", "/alerts", strings.Repeat("message data ", 30), auth)

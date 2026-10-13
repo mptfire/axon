@@ -119,6 +119,15 @@ func (s *Server) maybeEnrichMessage(parent context.Context, v *visitor, m *model
 	}
 	ctx, cancel := context.WithTimeout(parent, s.config.AIInlineTimeout)
 	defer cancel()
+	u := contextUser(parent, v)
+	if u == nil || !u.HasTokenScope(user.TokenScopeAI) {
+		return
+	}
+	allowed, err := s.hasAIConsent(ctx, u)
+	if err != nil || !allowed {
+		metrics.AIEnrichmentPassThrough.Inc()
+		return // Delivery succeeds unchanged; no provider call without consent.
+	}
 	enrichment, err := ai.NewEnricher(s.ai).Enrich(ctx, &ai.EnrichRequest{UserKey: aiVisitorID(parent, v), Topic: m.Topic, Title: m.Title, Message: m.Message, TranslateTo: translateTo})
 	if err != nil {
 		log.Tag(tagAI).Err(err).Field("topic", m.Topic).Field("message_id", m.ID).Debug("AI enrichment skipped, passing through")

@@ -18,6 +18,7 @@ func TestServer_AI_Chat(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 
 	// Gates: anonymous and unsubscribed
@@ -66,6 +67,7 @@ func TestServer_AI_Chat_EmptyWindow(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 	request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"quiet-topic"}`, auth)
 
@@ -85,6 +87,7 @@ func TestServer_AI_Chat_InvalidQuestion(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 	request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"backups"}`, auth)
 
@@ -101,6 +104,7 @@ func TestServer_AI_Chat_AllTopics(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 	for _, topic := range []string{"backups", "home-alerts"} {
 		rr := request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"`+topic+`"}`, auth)
@@ -142,6 +146,7 @@ func TestServer_AI_ChatStream(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 	request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"backups"}`, auth)
 	request(t, s, "PUT", "/backups", "backup failed exit 2", map[string]string{"Title": "failure"})
@@ -180,6 +185,7 @@ func TestServer_AI_ChatStream_Gates(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 
 	// Anonymous: 401; unsubscribed: 403
@@ -204,6 +210,7 @@ func TestServer_AI_Chat_HybridRetrieval(t *testing.T) {
 	defer s.closeDatabases()
 	require.NotNil(t, s.embedder) // wired when ai-embeddings-model is set
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 	request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"ops"}`, auth)
 	request(t, s, "PUT", "/ops", "the database migration failed at 03:00", map[string]string{"Title": "migration failure"})
@@ -242,7 +249,9 @@ func TestServer_AI_ACLs_EnforcedAtReadTime(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false)) // owns the topic
+	grantTestAIConsent(t, s, "phil")
 	require.Nil(t, s.userManager.AddUser("maria", "maria", user.RoleUser, false))
+	grantTestAIConsent(t, s, "maria")
 	phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 	maria := map[string]string{"Authorization": util.BasicAuth("maria", "maria")}
 

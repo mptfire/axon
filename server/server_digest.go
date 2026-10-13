@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/netip"
 	"strings"
@@ -67,6 +68,9 @@ func (s *Server) sendDueBriefings() {
 		}
 		today := localNow.Format(digestDayFormat) // User-local day: the dedup marker
 		if err := s.sendDailyBriefing(u, today); err != nil {
+			if errors.Is(err, errHTTPForbiddenAIConsentRequired) {
+				continue // Leave the schedule pending until the owner consents.
+			}
 			log.Tag(tagAI).Err(err).Field("user", u.Name).Warn("Daily briefing failed")
 			continue
 		}
@@ -110,6 +114,12 @@ func digestLocation(u *user.User) *time.Location {
 // sendDailyBriefing gathers, generates, delivers, and marks today's briefing for one
 // user. Quiet days are marked but not delivered.
 func (s *Server) sendDailyBriefing(u *user.User, today string) error {
+	allowed, err := s.hasAIConsent(briefingContext(), u)
+	if err != nil {
+		return err
+	} else if !allowed {
+		return errHTTPForbiddenAIConsentRequired
+	}
 	sinceHours := digestSinceFallback
 	if u.Prefs.Digest.SinceHours != nil {
 		sinceHours = *u.Prefs.Digest.SinceHours

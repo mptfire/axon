@@ -16,6 +16,7 @@ import {
 import { useTranslation } from "react-i18next";
 import aiApi from "../app/AiApi";
 import DialogFooter from "./DialogFooter";
+import AiConsentGate from "./AiConsentGate";
 
 // AiChatDialog answers questions about one subscription's recent history ("what failed
 // last night?"). Answers cite the cached messages they rely on; citations link to the
@@ -25,7 +26,9 @@ const AiChatDialog = (props) => {
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   return (
     <Dialog open={props.open} onClose={props.onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
-      <AiChatPage subscription={props.subscription} onClose={props.onClose} />
+      <AiConsentGate active={props.open} onClose={props.onClose}>
+        <AiChatPage subscription={props.subscription} onClose={props.onClose} />
+      </AiConsentGate>
     </Dialog>
   );
 };

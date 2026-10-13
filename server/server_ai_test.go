@@ -22,6 +22,11 @@ func TestServer_AI_Disabled(t *testing.T) {
 	rr := request(t, s, "GET", "/v1/ai/usage", "", nil)
 	require.Equal(t, 400, rr.Code)
 	require.Equal(t, 40059, toHTTPError(t, rr.Body.String()).Code)
+	for _, method := range []string{"GET", "POST", "DELETE"} {
+		rr = request(t, s, method, "/v1/ai/consent", "", nil)
+		require.Equal(t, 400, rr.Code)
+		require.Equal(t, 40059, toHTTPError(t, rr.Body.String()).Code)
+	}
 }
 
 func TestServer_AI_Usage(t *testing.T) {
@@ -49,7 +54,9 @@ func TestServer_AI_Status_Admin(t *testing.T) {
 		c.AIModel = "test-model"
 		s := newTestServer(t, c)
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+		grantTestAIConsent(t, s, "phil")
 		require.Nil(t, s.userManager.AddUser("ben", "ben", user.RoleUser, false))
+		grantTestAIConsent(t, s, "ben")
 
 		// Admin sees provider health and usage
 		rr := request(t, s, "GET", "/v1/ai/status", "", map[string]string{
@@ -81,6 +88,7 @@ func TestServer_AI_Status_Unhealthy(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	s.ai.Mock().SetPingError(errors.New("connection refused"))
 
 	rr := request(t, s, "GET", "/v1/ai/status", "", map[string]string{
@@ -133,6 +141,7 @@ func TestServer_AI_Plan(t *testing.T) {
 		c.BaseURL = "http://axon.example.com"
 		s := newTestServer(t, c)
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+		grantTestAIConsent(t, s, "phil")
 		phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 		s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
 			// The server must tell the planner its own base URL
@@ -183,6 +192,7 @@ func TestServer_AI_Plan_QuotaPerVisitor(t *testing.T) {
 		s := newTestServer(t, c)
 		defer s.closeDatabases()
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+		grantTestAIConsent(t, s, "phil")
 		phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 		s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
 			return &ai.Response{Text: `{"subscriptions": [{"topic": "t"}]}`}, nil
@@ -209,6 +219,7 @@ func TestServer_AI_Plan_ProviderGarbageIs500(t *testing.T) {
 		c.BaseURL = "http://axon.example.com"
 		s := newTestServer(t, c)
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+		grantTestAIConsent(t, s, "phil")
 		defer s.closeDatabases()
 		s.ai.Mock().EnqueueText("I cannot answer in JSON, sorry!")
 		phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
@@ -226,6 +237,7 @@ func TestServer_AI_Plan_BudgetExceededIs429(t *testing.T) {
 		c.AIGlobalDailyTokenBudget = 4000
 		s := newTestServer(t, c)
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+		grantTestAIConsent(t, s, "phil")
 		defer s.closeDatabases()
 		s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
 			return &ai.Response{Text: `{"subscriptions": [{"topic": "t"}]}`, InputTokens: 2100, OutputTokens: 2100}, nil
@@ -257,6 +269,7 @@ func TestServer_AI_Tune(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
 		require.Equal(t, ai.FeatureTune, req.Feature)
 		require.Contains(t, req.Prompt, "prod-alerts")
@@ -288,6 +301,7 @@ func TestServer_AI_Plan_ContextSanitized(t *testing.T) {
 		c.BaseURL = "http://axon.example.com"
 		s := newTestServer(t, c)
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+		grantTestAIConsent(t, s, "phil")
 		phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 		defer s.closeDatabases()
 		var seenTurns int
@@ -321,7 +335,7 @@ func TestServer_AI_Plan_ContextSanitized(t *testing.T) {
 }
 
 func newAIEnrichTestServer(t *testing.T, handler func(*ai.Request) (*ai.Response, error)) *Server {
-	c := newTestConfig(t, "")
+	c := newTestConfigWithAuthFile(t, "")
 	c.AIEnabled = true
 	c.AIProvider = "mock"
 	c.AIEnrichmentEnabled = true
@@ -330,6 +344,8 @@ func newAIEnrichTestServer(t *testing.T, handler func(*ai.Request) (*ai.Response
 	c.AITranslateLang = "de"
 	c.AIInlineTimeout = 2 * time.Second
 	s := newTestServer(t, c)
+	require.NoError(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	s.ai.Mock().SetHandler(handler)
 	return s
 }
@@ -343,7 +359,7 @@ func TestServer_AI_Enrichment_Applied(t *testing.T) {
 	})
 	defer s.closeDatabases()
 
-	rr := request(t, s, "PUT", "/prod-alerts", strings.Repeat("disk usage at 97% on host db-1, oldest backup failed. ", 5), nil)
+	rr := request(t, s, "PUT", "/prod-alerts", strings.Repeat("disk usage at 97% on host db-1, oldest backup failed. ", 5), consentAuth("phil"))
 	require.Equal(t, 200, rr.Code)
 
 	// The cached message carries the summary as its title and the suggested priority
@@ -363,6 +379,7 @@ func TestServer_AI_Enrichment_NeverOverridesPublisher(t *testing.T) {
 
 	// Publisher title and priority win
 	rr := request(t, s, "PUT", "/prod-alerts", strings.Repeat("important ", 20), map[string]string{
+		"Authorization": util.BasicAuth("phil", "phil"),
 		"Title":    "Publisher title",
 		"Priority": "2",
 	})
@@ -375,20 +392,22 @@ func TestServer_AI_Enrichment_NeverOverridesPublisher(t *testing.T) {
 }
 
 func TestServer_AI_Enrichment_PassThroughOnTimeout(t *testing.T) {
-	c := newTestConfig(t, "")
+	c := newTestConfigWithAuthFile(t, "")
 	c.AIEnabled = true
 	c.AIProvider = "mock"
 	c.AIEnrichmentEnabled = true
 	c.AIEnrichTopics = []string{"prod-alerts"}
 	c.AIInlineTimeout = 50 * time.Millisecond
 	s := newTestServer(t, c)
+	require.NoError(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	defer s.closeDatabases()
 	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
 		time.Sleep(300 * time.Millisecond) // Slower than the inline budget
 		return &ai.Response{Text: `{"summary": "too late"}`}, nil
 	})
 
-	rr := request(t, s, "PUT", "/prod-alerts", strings.Repeat("alert payload ", 20), nil)
+	rr := request(t, s, "PUT", "/prod-alerts", strings.Repeat("alert payload ", 20), consentAuth("phil"))
 	require.Equal(t, 200, rr.Code) // Published anyway
 	rr = request(t, s, "GET", "/prod-alerts/json?poll=1", "", nil)
 	messages := toMessages(t, rr.Body.String())
@@ -404,7 +423,7 @@ func TestServer_AI_Enrichment_OptInTopicsOnly(t *testing.T) {
 	})
 	defer s.closeDatabases()
 
-	rr := request(t, s, "PUT", "/other-topic", strings.Repeat("some long payload ", 20), nil)
+	rr := request(t, s, "PUT", "/other-topic", strings.Repeat("some long payload ", 20), consentAuth("phil"))
 	require.Equal(t, 200, rr.Code)
 	rr = request(t, s, "GET", "/other-topic/json?poll=1", "", nil)
 	messages := toMessages(t, rr.Body.String())
@@ -413,7 +432,7 @@ func TestServer_AI_Enrichment_OptInTopicsOnly(t *testing.T) {
 	require.False(t, called)
 
 	// Short messages on opted-in topics are not enriched either
-	rr = request(t, s, "PUT", "/prod-alerts", "tiny", nil)
+	rr = request(t, s, "PUT", "/prod-alerts", "tiny", consentAuth("phil"))
 	require.Equal(t, 200, rr.Code)
 	require.False(t, called)
 }
@@ -426,6 +445,7 @@ func TestServer_AI_TokenScopes(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	u, err := s.userManager.User("phil")
 	require.Nil(t, err)
 
@@ -475,7 +495,7 @@ func TestServer_AI_Enrichment_Translation(t *testing.T) {
 	})
 	defer s.closeDatabases()
 
-	rr := request(t, s, "PUT", "/prod-alerts", strings.Repeat("Festplatte fast voll auf db-1. ", 5), nil)
+	rr := request(t, s, "PUT", "/prod-alerts", strings.Repeat("Festplatte fast voll auf db-1. ", 5), consentAuth("phil"))
 	require.Equal(t, 200, rr.Code)
 	rr = request(t, s, "GET", "/prod-alerts/json?poll=1", "", nil)
 	messages := toMessages(t, rr.Body.String())

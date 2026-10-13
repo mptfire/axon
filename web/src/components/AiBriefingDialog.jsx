@@ -16,6 +16,7 @@ import {
 import { useTranslation } from "react-i18next";
 import aiApi from "../app/AiApi";
 import DialogFooter from "./DialogFooter";
+import AiConsentGate from "./AiConsentGate";
 
 // AiBriefingDialog summarizes the recent messages across ALL of the user's topics on
 // this server ("what did I miss?"). Requires a logged-in user. Opened from the action
@@ -31,7 +32,9 @@ const AiBriefingDialog = (props) => {
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   return (
     <Dialog open={props.open} onClose={props.onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
-      <AiBriefingPage onClose={props.onClose} />
+      <AiConsentGate active={props.open} onClose={props.onClose}>
+        <AiBriefingPage onClose={props.onClose} />
+      </AiConsentGate>
     </Dialog>
   );
 };

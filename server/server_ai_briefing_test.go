@@ -17,6 +17,7 @@ func TestServer_AI_Briefing(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 
 	// Subscribe to two topics, seed both
@@ -75,6 +76,7 @@ func TestServer_AI_Briefing_EmptySkipsProvider(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 	request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"quiet"}`, auth)
 

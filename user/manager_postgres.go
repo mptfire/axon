@@ -308,6 +308,12 @@ var postgresQueries = queries{
 	deleteUserAccessProvisioned:    postgresDeleteUserAccessProvisionedQuery,
 	deleteTopicAccess:              postgresDeleteTopicAccessQuery,
 	deleteAllAccess:                postgresDeleteAllAccessQuery,
+	selectAIConsent: `SELECT provider_config, granted_at FROM user_ai_consent WHERE user_id = $1`,
+	upsertAIConsent: `INSERT INTO user_ai_consent (user_id, provider_config, granted_at) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO UPDATE SET provider_config = excluded.provider_config, granted_at = excluded.granted_at`,
+	deleteAIConsent: `DELETE FROM user_ai_consent WHERE user_id = $1`,
+	selectAIConsentSecret: `SELECT secret FROM user_ai_consent_meta WHERE id = 1`,
+	insertAIConsentSecret: `INSERT INTO user_ai_consent_meta (id, secret) VALUES (1, $1) ON CONFLICT (id) DO NOTHING`,
+
 	selectToken:                    postgresSelectTokenQuery,
 	selectTokenScopesByValue:       postgresSelectTokenScopesByValueQuery,
 	selectTokens:                   postgresSelectTokensQuery,

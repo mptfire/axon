@@ -124,7 +124,7 @@ const (
 
 const (
 	// axon: fork migration 9 -> 10 adds token scopes (see sqlite side)
-	postgresCurrentSchemaVersion = 12
+	postgresCurrentSchemaVersion = 13
 )
 
 const (
@@ -134,7 +134,7 @@ const (
 			email TEXT NOT NULL,
 			PRIMARY KEY (user_id, email)
 		);
-	`
+	` + postgresAIConsentTableQueries
 
 	// 7 -> 8: primary (recovery) email + magic-link table for verification/reset.
 	// No backfill -- existing verified emails stay non-primary.
@@ -177,6 +177,7 @@ var (
 		9:  schema.AsMigrateFunc(postgresMigrate9To10UpdateQueries),  // axon
 		10: schema.AsMigrateFunc(postgresMigrate10To11UpdateQueries), // axon: devices + pairing
 		11: schema.AsMigrateFunc(postgresMigrate11To12UpdateQueries), // axon: applied-config ack
+		12: schema.AsMigrateFunc(postgresAIConsentTableQueries), // axon: explicit AI consent
 	}
 )
 
@@ -207,3 +208,15 @@ const postgresMigrate10To11UpdateQueries = `
 		);
 		CREATE INDEX idx_user_pairing_code_expiry ON user_pairing_code (expires_at);
 	`
+
+
+const postgresAIConsentTableQueries = `
+	CREATE TABLE IF NOT EXISTS user_ai_consent (
+		user_id TEXT PRIMARY KEY NOT NULL REFERENCES "user" (id) ON DELETE CASCADE,
+		provider_config TEXT NOT NULL,
+		granted_at BIGINT NOT NULL
+	);
+	CREATE TABLE IF NOT EXISTS user_ai_consent_meta (
+		id INTEGER PRIMARY KEY CHECK (id = 1),
+		secret TEXT NOT NULL
+	);`

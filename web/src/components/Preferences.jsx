@@ -52,6 +52,7 @@ import { subscribeTopic } from "./SubscribeDialog";
 import notifier from "../app/Notifier";
 import { useIsLaunchedPWA, useNotificationPermissionListener } from "./hooks";
 import { usePrefCache } from "./PrefCache";
+import AiPrivacySettings from "./AiPrivacySettings";
 
 const maybeUpdateAccountSettings = async (payload) => {
   if (!session.exists()) {
@@ -71,6 +72,7 @@ const Preferences = () => (
   <Container maxWidth="md" sx={{ marginTop: 3, marginBottom: 3 }}>
     <Stack spacing={3}>
       <Notifications />
+      {session.exists() && config.enable_ai && <AiPrivacySettings />}
       {session.exists() && config.enable_ai && <DailyBriefing />}
       <Reservations />
       <Users />

@@ -5,6 +5,31 @@ import { fetchOrThrow, throwAppError } from "./errors";
 // AiApi talks to the axon AI endpoints (/v1/ai/*). They only exist when the server
 // operator enabled the AI layer (config.enable_ai); the UI must hide itself otherwise.
 class AiApi {
+  async consent({ signal } = {}) {
+    const response = await fetchOrThrow(`${config.base_url}/v1/ai/consent`, {
+      headers: maybeWithBearerAuth({}, session.token()),
+      signal,
+    });
+    return response.json();
+  }
+
+  async grantConsent(configuration) {
+    const response = await fetchOrThrow(`${config.base_url}/v1/ai/consent`, {
+      method: "POST",
+      headers: maybeWithBearerAuth({ "Content-Type": "application/json" }, session.token()),
+      body: JSON.stringify({ accepted: true, configuration }),
+    });
+    return response.json();
+  }
+
+  async revokeConsent() {
+    const response = await fetchOrThrow(`${config.base_url}/v1/ai/consent`, {
+      method: "DELETE",
+      headers: maybeWithBearerAuth({}, session.token()),
+    });
+    return response.json();
+  }
+
   async plan(prompt, locale, context = []) {
     const url = `${config.base_url}/v1/ai/plan`;
     console.log(`[AiApi] Planning subscriptions for prompt (${prompt.length} chars, ${context.length} prior turns)`);

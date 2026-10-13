@@ -110,6 +110,7 @@ nav:
       - "FAQs": faq.md
       - "Examples": examples.md
       - "AI agents (MCP)": agents.md
+      - "AI privacy and consent": privacy-ai.md
       - "Agent setup runbook": agent-setup.md
       - "Audit 2026-10-13 (external)": audit-2026-10-13.md
       - "Integrations + projects": integrations.md

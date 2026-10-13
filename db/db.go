@@ -52,9 +52,19 @@ func (d *DB) QueryRow(query string, args ...any) *sql.Row {
 	return d.primary.DB.QueryRow(query, args...)
 }
 
+// QueryRowContext delegates to the primary database with cancellation.
+func (d *DB) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
+	return d.primary.DB.QueryRowContext(ctx, query, args...)
+}
+
 // Exec delegates to the primary database.
 func (d *DB) Exec(query string, args ...any) (sql.Result, error) {
 	return d.primary.DB.Exec(query, args...)
+}
+
+// ExecContext delegates to the primary database with cancellation.
+func (d *DB) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+	return d.primary.DB.ExecContext(ctx, query, args...)
 }
 
 // Begin delegates to the primary database.

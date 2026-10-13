@@ -16,6 +16,7 @@ import {
 import { useTranslation } from "react-i18next";
 import aiApi from "../app/AiApi";
 import DialogFooter from "./DialogFooter";
+import AiConsentGate from "./AiConsentGate";
 
 // AiDigestDialog summarizes the recent messages of one subscription with the server's
 // AI layer ("what did I miss?"). Requires a logged-in user: only synced subscriptions
@@ -31,7 +32,9 @@ const AiDigestDialog = (props) => {
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   return (
     <Dialog open={props.open} onClose={props.onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
-      <AiDigestPage subscription={props.subscription} onClose={props.onClose} />
+      <AiConsentGate active={props.open} onClose={props.onClose}>
+        <AiDigestPage subscription={props.subscription} onClose={props.onClose} />
+      </AiConsentGate>
     </Dialog>
   );
 };

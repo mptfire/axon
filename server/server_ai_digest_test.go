@@ -18,6 +18,7 @@ func TestServer_AI_Digest_RequiresAuthAndSubscription(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 
 	// Anonymous: 401
 	rr := request(t, s, "POST", "/v1/ai/digest", `{"topic":"backups"}`, nil)
@@ -49,6 +50,7 @@ func TestServer_AI_Digest(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 	rr := request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"backups"}`, auth)
 	require.Equal(t, 200, rr.Code)
@@ -95,6 +97,7 @@ func TestServer_AI_Digest_EmptyTopicReturnsZeroMessages(t *testing.T) {
 	s := newTestServer(t, c)
 	defer s.closeDatabases()
 	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	grantTestAIConsent(t, s, "phil")
 	auth := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 	request(t, s, "POST", "/v1/account/subscription", `{"base_url":"`+s.config.BaseURL+`","topic":"empty-topic"}`, auth)
 

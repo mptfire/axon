@@ -15,6 +15,22 @@ export class UnauthorizedError extends Error {
   }
 }
 
+export class AIConsentRequiredError extends Error {
+  static CODE = 40302;
+
+  constructor() {
+    super("AI consent required; review AI privacy settings for your account");
+  }
+}
+
+export class AIProviderChangedError extends Error {
+  static CODE = 40909;
+
+  constructor() {
+    super("AI provider configuration changed; review the updated disclosure before consenting");
+  }
+}
+
 export class UserExistsError extends Error {
   static CODE = 40901; // errHTTPConflictUserExists
 
@@ -64,14 +80,22 @@ export class EmailPrimaryElsewhereError extends Error {
 }
 
 export const throwAppError = async (response) => {
-  if (response.status === 401 || response.status === 403) {
+  if (response.status === 401) {
     console.log(`[Error] HTTP ${response.status}`, response);
     throw new UnauthorizedError();
   }
   const error = await maybeToJson(response);
+  if (response.status === 403) {
+    if (error?.code === AIConsentRequiredError.CODE) {
+      throw new AIConsentRequiredError();
+    }
+    throw new UnauthorizedError();
+  }
   if (error?.code) {
     console.log(`[Error] HTTP ${response.status}, ntfy error ${error.code}: ${error.error || ""}`, response);
-    if (error.code === UserExistsError.CODE) {
+    if (error.code === AIProviderChangedError.CODE) {
+      throw new AIProviderChangedError();
+    } else if (error.code === UserExistsError.CODE) {
       throw new UserExistsError();
     } else if (error.code === TopicReservedError.CODE) {
       throw new TopicReservedError();

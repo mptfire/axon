@@ -19,6 +19,7 @@ import accountApi from "../app/AccountApi";
 import session from "../app/Session";
 import routes from "./routes";
 import DialogFooter from "./DialogFooter";
+import AiConsentGate from "./AiConsentGate";
 import { UnauthorizedError } from "../app/errors";
 
 // AiTuneDialog asks the axon planner to adjust an existing subscription ("quieter",
@@ -30,7 +31,9 @@ const AiTuneDialog = (props) => {
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   return (
     <Dialog open={props.open} onClose={props.onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
-      <AiTunePage subscription={props.subscription} onClose={props.onClose} />
+      <AiConsentGate active={props.open} onClose={props.onClose}>
+        <AiTunePage subscription={props.subscription} onClose={props.onClose} />
+      </AiConsentGate>
     </Dialog>
   );
 };

@@ -18,6 +18,7 @@ import i18n from "i18next";
 import aiApi from "../app/AiApi";
 import { poller, subscribeTopic } from "../app/subscribe";
 import DialogFooter from "./DialogFooter";
+import AiConsentGate from "./AiConsentGate";
 import { validTopic } from "../app/utils";
 
 // applicableSubscriptions returns the plan's subscriptions that can actually be applied.
@@ -34,7 +35,9 @@ const AiSubscribeDialog = (props) => {
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   return (
     <Dialog open={props.open} onClose={props.onCancel} fullScreen={fullScreen}>
-      <AiSubscribePage onCancel={props.onCancel} onSuccess={props.onSuccess} />
+      <AiConsentGate active={props.open} onClose={props.onCancel}>
+        <AiSubscribePage onCancel={props.onCancel} onSuccess={props.onSuccess} />
+      </AiConsentGate>
     </Dialog>
   );
 };

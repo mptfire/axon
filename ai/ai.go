@@ -92,6 +92,22 @@ func (c *Client) ProviderName() string {
 	return c.provider.Name()
 }
 
+// ProviderBaseURL returns the internal endpoint for consent identity/disclosure.
+// Callers must remove credentials, path and query before exposing it to clients.
+func (c *Client) ProviderBaseURL() string {
+	if !c.Enabled() {
+		return ""
+	}
+	switch p := c.provider.(type) {
+	case *openAIProvider:
+		return p.baseURL
+	case *anthropicProvider:
+		return p.baseURL
+	default:
+		return "" // The mock provider has no network endpoint.
+	}
+}
+
 // DefaultModel returns the default model, or the provider's default if unset.
 func (c *Client) DefaultModel() string {
 	if !c.Enabled() {
