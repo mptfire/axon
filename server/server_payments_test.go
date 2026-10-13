@@ -888,6 +888,10 @@ const subscriptionDeletedEventJSON = `
 func TestPayments_CheckoutSuccess_IPRateLimit(t *testing.T) {
 	// Package-level limiter state: use an IP unique to this test to stay isolated
 	ip := "192.0.2.77"
+	checkoutSuccessMu.Lock()
+	delete(checkoutSuccessAttempts, ip)
+	delete(checkoutSuccessAttempts, "192.0.2.78")
+	checkoutSuccessMu.Unlock()
 	for i := 0; i < checkoutSuccessMaxAttempts; i++ {
 		require.True(t, checkoutSuccessAllowed(ip), "attempt %d should be allowed", i+1)
 	}
