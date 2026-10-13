@@ -47,7 +47,7 @@ func (s *Server) ensureAIEnabled(next handleFunc) handleFunc {
 // (plan, tune, digest, chat), not to status/usage.
 func (s *Server) ensureAIScope(next handleFunc) handleFunc {
 	return func(w http.ResponseWriter, r *http.Request, v *visitor) error {
-		if u := v.User(); u != nil && !u.HasTokenScope(user.TokenScopeAI) {
+		if u := requestUser(r, v); u != nil && !u.HasTokenScope(user.TokenScopeAI) {
 			log.Tag(tagAI).With(v).Warn("Token does not carry the ai scope, rejecting request")
 			return errHTTPForbidden
 		}
@@ -88,7 +88,7 @@ func (s *Server) handleAIStatus(w http.ResponseWriter, r *http.Request, v *visit
 // It is intentionally available to anonymous visitors: AI features are rate-limited per
 // visitor, so unauthenticated clients can have usage too.
 func (s *Server) handleAIUsage(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	return s.writeJSON(w, s.ai.Report(aiVisitorID(v)))
+	return s.writeJSON(w, s.ai.Report(aiVisitorID(r.Context(), v)))
 }
 
 const (
@@ -119,7 +119,7 @@ func (s *Server) maybeEnrichMessage(parent context.Context, v *visitor, m *model
 	}
 	ctx, cancel := context.WithTimeout(parent, s.config.AIInlineTimeout)
 	defer cancel()
-	enrichment, err := ai.NewEnricher(s.ai).Enrich(ctx, &ai.EnrichRequest{UserKey: aiVisitorID(v), Topic: m.Topic, Title: m.Title, Message: m.Message, TranslateTo: translateTo})
+	enrichment, err := ai.NewEnricher(s.ai).Enrich(ctx, &ai.EnrichRequest{UserKey: aiVisitorID(parent, v), Topic: m.Topic, Title: m.Title, Message: m.Message, TranslateTo: translateTo})
 	if err != nil {
 		log.Tag(tagAI).Err(err).Field("topic", m.Topic).Field("message_id", m.ID).Debug("AI enrichment skipped, passing through")
 		metrics.AIEnrichmentPassThrough.Inc()
@@ -170,9 +170,9 @@ func (s *Server) handleAIPlan(w http.ResponseWriter, r *http.Request, v *visitor
 	if !v.aiQuotaAllowed() {
 		return errHTTPTooManyRequestsLimitAIRequests
 	}
-	existingTopics := visitorTopics(v)
+	existingTopics := visitorTopics(requestUser(r, v))
 	planner := ai.NewPlanner(s.ai)
-	plan, err := planner.Plan(r.Context(), aiVisitorID(v), s.config.BaseURL, body.Prompt, body.Locale, existingTopics, sanitizePlanContext(body.Context))
+	plan, err := planner.Plan(r.Context(), aiVisitorID(r.Context(), v), s.config.BaseURL, body.Prompt, body.Locale, existingTopics, sanitizePlanContext(body.Context))
 	if err != nil {
 		return s.mapAIError(err)
 	}
@@ -207,7 +207,7 @@ func (s *Server) handleAITune(w http.ResponseWriter, r *http.Request, v *visitor
 		return errHTTPTooManyRequestsLimitAIRequests
 	}
 	planner := ai.NewPlanner(s.ai)
-	tune, err := planner.Tune(r.Context(), aiVisitorID(v), &ai.TuneInput{
+	tune, err := planner.Tune(r.Context(), aiVisitorID(r.Context(), v), &ai.TuneInput{
 		Topic:       body.Topic,
 		DisplayName: body.DisplayName,
 		Search:      body.Search,
@@ -274,7 +274,7 @@ func (s *Server) handleAIDigest(w http.ResponseWriter, r *http.Request, v *visit
 	if !topicRegex.MatchString(body.Topic) {
 		return errHTTPBadRequestAIRequest
 	}
-	u := v.User()
+	u := requestUser(r, v)
 	if !userSubscribesTo(u, s.config.BaseURL, body.Topic) || !s.canReadTopic(u, body.Topic) {
 		return errHTTPForbidden // Only your own subscriptions, keeps the quota honest
 	}
@@ -317,7 +317,7 @@ func (s *Server) handleAIDigest(w http.ResponseWriter, r *http.Request, v *visit
 	if s.embedder != nil {
 		digester = ai.NewDigesterWithEmbedder(s.ai, s.embedder) // axon: semantic pre-clustering
 	}
-	digest, err := digester.Digest(r.Context(), aiVisitorID(v), &ai.DigestInput{
+	digest, err := digester.Digest(r.Context(), aiVisitorID(r.Context(), v), &ai.DigestInput{
 		Topic: body.Topic, Messages: digestMessages,
 	})
 	if err != nil {
@@ -358,14 +358,14 @@ func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request, v *visitor
 	if err != nil {
 		return err
 	}
-	question, context, messageTopics, err := s.chatContext(v, body)
+	question, context, messageTopics, err := s.chatContext(r, v, body)
 	if err != nil {
 		return err
 	}
 	if len(context) == 0 {
 		return s.writeJSON(w, s.emptyChatResponse(body, question))
 	}
-	context = selectChatContext(r.Context(), question, context, s.embedder, aiVisitorID(v))
+	context = selectChatContext(r.Context(), question, context, s.embedder, aiVisitorID(r.Context(), v))
 	log.Tag(tagAI).With(v).Fields(log.Context{
 		"ai_feature":      string(ai.FeatureChat),
 		"ai_chat_topic":   body.Topic,
@@ -376,7 +376,7 @@ func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request, v *visitor
 	for _, m := range context {
 		chatMessages = append(chatMessages, ai.DigestMessage{ID: m.ID, Topic: messageTopics[m.ID], Title: m.Title, Message: m.Message, Priority: m.Priority, Time: m.Time})
 	}
-	answer, err := ai.NewChatter(s.ai).Chat(r.Context(), aiVisitorID(v), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
+	answer, err := ai.NewChatter(s.ai).Chat(r.Context(), aiVisitorID(r.Context(), v), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
 	if err != nil {
 		return s.mapAIError(err)
 	}
@@ -407,7 +407,7 @@ func (s *Server) handleAIChatStream(w http.ResponseWriter, r *http.Request, v *v
 	if err != nil {
 		return err
 	}
-	question, context, messageTopics, err := s.chatContext(v, body)
+	question, context, messageTopics, err := s.chatContext(r, v, body)
 	if err != nil {
 		return err
 	}
@@ -433,7 +433,7 @@ func (s *Server) handleAIChatStream(w http.ResponseWriter, r *http.Request, v *v
 		_ = writeEvent(map[string]any{"type": "delta", "text": "There are no messages in this topic for the selected period."})
 		return writeEvent(map[string]any{"type": "done"})
 	}
-	context = selectChatContext(ctx, question, context, s.embedder, aiVisitorID(v))
+	context = selectChatContext(ctx, question, context, s.embedder, aiVisitorID(r.Context(), v))
 	chatMessages := make([]ai.DigestMessage, 0, len(context))
 	for _, m := range context {
 		chatMessages = append(chatMessages, ai.DigestMessage{ID: m.ID, Topic: messageTopics[m.ID], Title: m.Title, Message: m.Message, Priority: m.Priority, Time: m.Time})
@@ -452,13 +452,13 @@ func (s *Server) handleAIChatStream(w http.ResponseWriter, r *http.Request, v *v
 		}
 		return writeEvent(map[string]any{"type": "citations", "text": answerText, "citations": citations})
 	}
-	events, err := ai.NewChatter(s.ai).ChatStream(ctx, aiVisitorID(v), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
+	events, err := ai.NewChatter(s.ai).ChatStream(ctx, aiVisitorID(r.Context(), v), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
 	if err != nil {
 		if !errors.Is(err, ai.ErrStreamingNotSupported) {
 			return s.mapAIError(err)
 		}
 		// Graceful degradation: provider cannot stream, answer in one shot
-		answer, err := ai.NewChatter(s.ai).Chat(ctx, aiVisitorID(v), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
+		answer, err := ai.NewChatter(s.ai).Chat(ctx, aiVisitorID(r.Context(), v), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
 		if err != nil {
 			return s.mapAIError(err)
 		}
@@ -505,7 +505,7 @@ func (s *Server) handleAIChatStream(w http.ResponseWriter, r *http.Request, v *v
 // enforced by the route decorators; this enforces the request shape and the
 // subscription rule, and gathers the context window (single topic or cross-topic).
 // A nil context return means "no messages in the window" (not an error).
-func (s *Server) chatContext(v *visitor, body *apiAIChatRequest) (string, []*model.Message, map[string]string, error) {
+func (s *Server) chatContext(r *http.Request, v *visitor, body *apiAIChatRequest) (string, []*model.Message, map[string]string, error) {
 	question := strings.TrimSpace(body.Question)
 	if question == "" || len(question) > 1000 || (body.All && body.Topic != "") {
 		return "", nil, nil, errHTTPBadRequestAIRequest
@@ -513,7 +513,7 @@ func (s *Server) chatContext(v *visitor, body *apiAIChatRequest) (string, []*mod
 	if !body.All && !topicRegex.MatchString(body.Topic) {
 		return "", nil, nil, errHTTPBadRequestAIRequest
 	}
-	u := v.User()
+	u := requestUser(r, v)
 	if !body.All && (!userSubscribesTo(u, s.config.BaseURL, body.Topic) || !s.canReadTopic(u, body.Topic)) {
 		return "", nil, nil, errHTTPForbidden
 	}
@@ -701,7 +701,7 @@ func (s *Server) handleAIBriefing(w http.ResponseWriter, r *http.Request, v *vis
 		sinceDuration = parsed
 	}
 	sinceMarker := model.NewSinceTime(time.Now().Add(-1 * sinceDuration).Unix())
-	u := v.User()
+	u := requestUser(r, v)
 	totalMessages := 0
 	topics := make([]ai.BriefingTopicMessages, 0)
 	if u.Prefs != nil {
@@ -738,7 +738,7 @@ func (s *Server) handleAIBriefing(w http.ResponseWriter, r *http.Request, v *vis
 			Disclaimer: ai.BriefingDisclaimer,
 		})
 	}
-	briefing, err := ai.NewBriefinger(s.ai).Briefing(r.Context(), aiVisitorID(v), &ai.BriefingInput{Topics: topics})
+	briefing, err := ai.NewBriefinger(s.ai).Briefing(r.Context(), aiVisitorID(r.Context(), v), &ai.BriefingInput{Topics: topics})
 	if err != nil {
 		return s.mapAIError(err)
 	}
@@ -789,8 +789,7 @@ func userSubscribesTo(u *user.User, baseURL, topic string) bool {
 
 // visitorTopics returns the topics of the visitor's synced subscriptions (empty for
 // anonymous visitors), used as context for the planner.
-func visitorTopics(v *visitor) []string {
-	u := v.User()
+func visitorTopics(u *user.User) []string {
 	if u == nil || u.Prefs == nil {
 		return nil
 	}
@@ -805,8 +804,8 @@ func visitorTopics(v *visitor) []string {
 
 // AI accounting is account-based even for users without a paid tier. Anonymous
 // publishers retain the normal IP-prefix attribution. This matches the scheduler.
-func aiVisitorID(v *visitor) string {
-	if u := v.User(); u != nil {
+func aiVisitorID(ctx context.Context, v *visitor) string {
+	if u := contextUser(ctx, v); u != nil {
 		return "user:" + u.ID
 	}
 	return visitorID(v.ip, nil, v.config)

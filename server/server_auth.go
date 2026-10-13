@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"net/http"
@@ -27,7 +28,7 @@ func (s *Server) maybeAuthenticate(r *http.Request) (*http.Request, *visitor, er
 	// Stash the extracted client IP in the request context so downstream code (the abuse ban-feed in
 	// handleError) can reuse it without re-parsing headers, and so an account-keyed (tier'd) visitor --
 	// whose shared visitor object has a stale v.ip -- is still attributed to the actual request IP.
-	r = withContext(r, map[contextKey]any{contextVisitorIP: ip})
+	r = withContext(r, map[contextKey]any{contextVisitorIP: ip, contextRequestUser: (*user.User)(nil)})
 	vip := s.visitor(ip, nil)
 	if s.userManager == nil {
 		return r, vip, nil
@@ -48,7 +49,9 @@ func (s *Server) maybeAuthenticate(r *http.Request) (*http.Request, *visitor, er
 		logr(r).Err(err).Debug("Authentication failed")
 		return r, vip, errHTTPUnauthorized // Always return visitor, even when error occurs!
 	}
-	// Authentication with user was successful
+	// Authentication with user was successful. The visitor is a shared rate-limit
+	// bucket; its mutable user must never be used as this request's principal.
+	r = withContext(r, map[contextKey]any{contextRequestUser: u})
 	return r, s.visitor(ip, u), nil
 }
 
@@ -108,4 +111,22 @@ func (s *Server) authenticateBearerAuth(r *http.Request, token string) (*user.Us
 		LastOrigin: ip,
 	})
 	return u, nil
+}
+
+// contextUser returns the per-request authentication snapshot. Calls without an
+// HTTP authentication context (background jobs and direct handlers) use v.User.
+func contextUser(ctx context.Context, v *visitor) *user.User {
+	if u, ok := ctx.Value(contextRequestUser).(*user.User); ok {
+		return u
+	}
+	return v.User()
+}
+
+func requestUser(r *http.Request, v *visitor) *user.User { return contextUser(r.Context(), v) }
+
+func requestUserID(r *http.Request, v *visitor) string {
+	if u := requestUser(r, v); u != nil {
+		return u.ID
+	}
+	return ""
 }

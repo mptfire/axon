@@ -115,7 +115,7 @@ func (s *Server) handleBillingTiersGet(w http.ResponseWriter, _ *http.Request, _
 // handleAccountBillingSubscriptionCreate creates a Stripe checkout flow to create a user subscription. The tier
 // will be updated by a subsequent webhook from Stripe, once the subscription becomes active.
 func (s *Server) handleAccountBillingSubscriptionCreate(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	if u.Billing.StripeSubscriptionID != "" {
 		return errHTTPBadRequestBillingSubscriptionExists
 	}
@@ -212,7 +212,7 @@ func checkoutSuccessAllowed(ip string) bool {
 // the session ID in the URL to retrieve the Stripe subscription and update the local database. This is the first
 // and only time we can map the local username with the Stripe customer ID.
 func (s *Server) handleAccountBillingSubscriptionCreateSuccess(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	// We don't have v.User() in this endpoint, only a userManager!
+	// This endpoint resolves its user through the userManager.
 	if !checkoutSuccessAllowed(v.ip.String()) {
 		return errHTTPTooManyRequestsLimitRequests
 	}
@@ -307,7 +307,7 @@ func (s *Server) maybeEnqueueBillingEmailVerification(r *http.Request, v *visito
 // handleAccountBillingSubscriptionUpdate updates an existing Stripe subscription to a new price, and updates
 // a user's tier accordingly. This endpoint only works if there is an existing subscription.
 func (s *Server) handleAccountBillingSubscriptionUpdate(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	if u.Billing.StripeSubscriptionID == "" {
 		return errNoBillingSubscription
 	}
@@ -365,7 +365,7 @@ func (s *Server) handleAccountBillingSubscriptionUpdate(w http.ResponseWriter, r
 // That is done by a webhook at the period end (in X days).
 func (s *Server) handleAccountBillingSubscriptionDelete(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	logvr(v, r).Tag(tagStripe).Info("Deleting Stripe subscription")
-	u := v.User()
+	u := requestUser(r, v)
 	if u.Billing.StripeSubscriptionID != "" {
 		params := &stripe.SubscriptionParams{
 			CancelAtPeriodEnd: stripe.Bool(true),
@@ -382,7 +382,7 @@ func (s *Server) handleAccountBillingSubscriptionDelete(w http.ResponseWriter, r
 // redirect URL. The billing portal allows customers to change their payment methods, and cancel the subscription.
 func (s *Server) handleAccountBillingPortalSessionCreate(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	logvr(v, r).Tag(tagStripe).Info("Creating Stripe billing portal session")
-	u := v.User()
+	u := requestUser(r, v)
 	if u.Billing.StripeCustomerID == "" {
 		return errHTTPBadRequestNotAPaidUser
 	}
