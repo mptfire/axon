@@ -84,11 +84,8 @@ func (a *Manager) ClaimPairingCode(code, label string, origin netip.Addr) (*Devi
 		if err := tx.QueryRow(a.queries.selectPairingUserID, code).Scan(&userID); err != nil {
 			return err
 		}
-		var count int
-		if err := tx.QueryRow(a.queries.selectDeviceCount, userID).Scan(&count); err != nil {
+		if err := a.checkDeviceQuotaTx(tx, userID); err != nil {
 			return err
-		} else if count >= deviceMaxPerUser {
-			return ErrTooManyDevices
 		}
 		now := time.Now()
 		deviceID := util.RandomStringPrefix(deviceIDPrefix, deviceIDLength+len(deviceIDPrefix))
@@ -239,12 +236,6 @@ func (a *Manager) ClaimBuildKey(ownerUsername, label string, origin netip.Addr) 
 	if err != nil {
 		return nil, "", err
 	}
-	var count int
-	if err := a.db.QueryRow(a.queries.selectDeviceCount, u.ID).Scan(&count); err != nil {
-		return nil, "", err
-	} else if count >= deviceMaxPerUser {
-		return nil, "", ErrTooManyDevices
-	}
 	now := time.Now()
 	deviceID := util.RandomStringPrefix(deviceIDPrefix, deviceIDLength+len(deviceIDPrefix))
 	if label == "" {
@@ -252,6 +243,9 @@ func (a *Manager) ClaimBuildKey(ownerUsername, label string, origin netip.Addr) 
 	}
 	token := GenerateToken()
 	err = db.ExecTx(a.db, func(tx *sql.Tx) error {
+		if err := a.checkDeviceQuotaTx(tx, u.ID); err != nil {
+			return err
+		}
 		if _, err := tx.Exec(a.queries.insertDevice, deviceID, u.ID, token, label, now.Unix(), now.Unix(), now.Unix()); err != nil {
 			return err
 		}
@@ -262,4 +256,20 @@ func (a *Manager) ClaimBuildKey(ownerUsername, label string, origin netip.Addr) 
 		return nil, "", err
 	}
 	return &Device{ID: deviceID, UserID: u.ID, Token: token, Label: label, CreatedAt: now, UpdatedAt: now}, token, nil
+}
+
+// checkDeviceQuotaTx locks the owner's row before counting devices. This serializes
+// distinct pairing/build-key claims across managers and server processes, on both
+// SQLite and PostgreSQL, until this transaction inserts the device and commits.
+func (a *Manager) checkDeviceQuotaTx(tx *sql.Tx, userID string) error {
+	if _, err := tx.Exec(a.queries.lockDeviceUser, userID); err != nil {
+		return err
+	}
+	var count int
+	if err := tx.QueryRow(a.queries.selectDeviceCount, userID).Scan(&count); err != nil {
+		return err
+	} else if count >= deviceMaxPerUser {
+		return ErrTooManyDevices
+	}
+	return nil
 }

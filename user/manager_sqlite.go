@@ -324,6 +324,7 @@ var sqliteQueries = queries{
 	deleteExpiredPairing:           sqliteDeleteExpiredPairingQuery,
 	selectPairingUserID:            sqliteSelectPairingUserIDQuery,
 	selectDeviceCount:              sqliteSelectDeviceCountQuery,
+	lockDeviceUser:                 sqliteLockDeviceUserQuery,
 	updateToken:                    sqliteUpdateTokenQuery,
 	updateTokenLastAccess:          sqliteUpdateTokenLastAccessQuery,
 	deleteToken:                    sqliteDeleteTokenQuery,
@@ -422,4 +423,5 @@ const (
 		DELETE FROM user_pairing_code WHERE expires_at < ? OR (used = 1 AND created_at < ?)`
 	sqliteSelectPairingUserIDQuery = `SELECT user_id FROM user_pairing_code WHERE code = ?`
 	sqliteSelectDeviceCountQuery   = `SELECT COUNT(*) FROM user_device WHERE user_id = ?`
+	sqliteLockDeviceUserQuery      = `UPDATE "user" SET id = id WHERE id = ?`
 )
