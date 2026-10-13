@@ -3561,7 +3561,6 @@ func TestManager_AccountReadsUsePrimary(t *testing.T) {
 	require.Len(t, pendingEmails, 1)
 }
 
-<<<<<<< HEAD
 func TestManager_TokenScopes(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		a := newTestManager(t, newManager, PermissionDenyAll)
@@ -3595,7 +3594,9 @@ func TestManager_TokenScopes(t *testing.T) {
 		// Nil user never has scopes
 		var nilUser *User
 		require.False(t, nilUser.HasTokenScope(TokenScopeAI))
-=======
+	})
+}
+
 func TestManager_EnqueueStats_DeltasAccumulate(t *testing.T) {
 	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		conf := &Config{
@@ -3630,6 +3631,5 @@ func TestManager_EnqueueStats_DeltasAccumulate(t *testing.T) {
 		require.Equal(t, int64(16), u.Stats.Messages)
 		require.Equal(t, int64(3), u.Stats.Emails)
 		require.Equal(t, int64(4), u.Stats.Calls)
->>>>>>> ba2b0a62 (Flush user stats as additive deltas instead of absolute values)
 	})
 }

@@ -459,7 +459,7 @@ func (v *visitor) resetLimitersNoLock(messages, emails, calls int64, enqueueUpda
 		v.aiQuotaLimiter = nil // AI disabled, no limiter needed
 	}
 	v.statsPersisted = user.Stats{Messages: messages, Emails: emails, Calls: calls} // Seeds come from the persisted user stats, so nothing is owed to the queue
-	log.Fields(v.contextNoLock()).Debug("Rate limiters reset for visitor") // Must be after function, because contextNoLock() describes rate limiters
+	log.Fields(v.contextNoLock()).Debug("Rate limiters reset for visitor")          // Must be after function, because contextNoLock() describes rate limiters
 }
 
 func (v *visitor) Limits() *visitorLimits {
