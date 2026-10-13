@@ -1000,11 +1000,6 @@ func (s *Server) publishSyncEventAsync(v *visitor, principals ...*user.User) {
 	}()
 }
 
-// publishSyncEvent publishes a sync message to the authenticated user's sync topic
-func (s *Server) publishSyncEvent(v *visitor) error {
-	return s.publishSyncEventForUser(v, v.User())
-}
-
 // publishSyncEventForUserIDAsync publishes a sync event to the sync topic of the user with the
 // given ID, resolving the user first. Used by the unauthenticated email-verify handler, where
 // the request visitor has no associated user but the token identifies the account to refresh.
