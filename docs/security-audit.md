@@ -232,3 +232,54 @@ device-pairing code no external pass had covered.
   the previous release), release-signed, non-debuggable, `allowBackup=false`;
   device token stored in the app DB like upstream credentials (mitigated by
   backups being disabled).
+
+## Addendum 5 — senior-dev audit round (17 findings, 11 fix PRs, all merged)
+
+An external engineering pass (2026-10-13) reproduced 17 defects with
+file:line evidence and delivered fixes as PRs #35–#45, merged in the
+prescribed stack order (#37 → #39 → #42 → #43; independents merged after
+branch updates and green CI). Highlights:
+
+- **F01 (P1)** request-principal isolation: authentication wrote the user into
+  a shared visitor bucket; concurrent requests could inherit another account's
+  identity or token scopes across account/authorization checks. Fixed by
+  carrying the principal (including anonymous nil) in request context (#42).
+- **F02 (P1)** scoped-token escalation: any non-device scoped token could GET
+  `/v1/account` (harvesting unrestricted token values) or mint tokens. Fixed:
+  account/token, device, billing and admin management are blocked for scoped
+  agents (#43) — extending the device-only sandbox to every scope.
+- **F03 (P1)** digest topics were public under a public default ACL (granting
+  the owner did not deny Everyone). Fixed with explicit deny + startup repair
+  of existing `dg_` topics (#38).
+- **F04/F05 (P1)** AI budget races (check-then-record without reservations;
+  embeddings/enrichment unmetered and misattributed). Fixed with atomic
+  reservations and full cost attribution (#39).
+- **F06 (P1)** the checkout-success IP limiter (added in Addendum 2) had a
+  data race — the mutex was never taken. Fixed with locking + inactive-IP
+  reaping (#44). Found by the reviewer's 32-caller race test.
+- **F07 (P2)** device-quota count raced outside the claim transaction;
+  32 concurrent claims produced 11 devices against a quota of 10. Fixed with
+  owner-row serialization (#45).
+- **F08–F14 (P2)** MCP waits returned control events and died early; strict
+  provider schemas were invalid per the OpenAI contract; malformed plan JSON
+  could panic; translation ignored opt-in; AI streams leaked on cancellation,
+  ignored deadlines, mis-accounted tokens; web cross-topic chat sent invalid
+  requests; per-subscription priorities were stored but never applied. All
+  fixed (#35–#37, #41).
+- **F15/F16** Go 1.27.2 + x/net 0.60.0 and npm high advisories patched (#40);
+  govulncheck now 0 reachable with the pinned toolchain. Container/package
+  build inputs repaired and images pinned by digest.
+- **F17** vendored template README claim corrected (cooperative deadline +
+  server caps, not a sandbox).
+
+Validation: combined branch passes build, vet, race suite (single
+environment-blocked Unix-socket test excluded), fmt/golint/staticcheck/
+template-check, web lint + 101 tests, and PostgreSQL CI. Live instance
+verified after deploy: health, 11 MCP tools, plan requires auth (401 anon),
+digest topics 403 for anonymous, UnifiedPush publish works, phone pairing
+intact.
+
+Open items: issue #27 (AI consent/disclosure policy — product decision),
+two moderate react-router advisories (major migration deferred), upstream
+sync (178 commits; shutdown/Postgres/cluster fixes listed in the audit
+report), no down-migrations (rely on the daily backups before upgrades).
