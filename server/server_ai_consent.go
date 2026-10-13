@@ -20,17 +20,17 @@ import (
 const aiConsentLookupTimeout = 2 * time.Second
 
 type apiAIConsentResponse struct {
-	Consented bool `json:"consented"`
-	Provider string `json:"provider"`
-	Endpoint string `json:"endpoint,omitempty"`
-	Models []string `json:"models"`
-	Configuration string `json:"configuration"`
-	CanManage bool `json:"can_manage"`
-	GrantedAt int64 `json:"granted_at,omitempty"`
+	Consented     bool     `json:"consented"`
+	Provider      string   `json:"provider"`
+	Endpoint      string   `json:"endpoint,omitempty"`
+	Models        []string `json:"models"`
+	Configuration string   `json:"configuration"`
+	CanManage     bool     `json:"can_manage"`
+	GrantedAt     int64    `json:"granted_at,omitempty"`
 }
 
 type apiAIConsentRequest struct {
-	Accepted bool `json:"accepted"`
+	Accepted      bool   `json:"accepted"`
 	Configuration string `json:"configuration"`
 }
 
@@ -59,7 +59,7 @@ func (s *Server) aiConsentConfiguration() string {
 	identity, _ := json.Marshal(struct {
 		Provider string
 		Endpoint string
-		Models []string
+		Models   []string
 	}{s.ai.ProviderName(), s.ai.ProviderBaseURL(), []string{s.ai.DefaultModel(), s.config.AIModelPlan, s.config.AIModelEnrich, s.config.AIModelDigest, s.config.AIModelChat, s.config.AIEmbeddingsModel}})
 	mac := hmac.New(sha256.New, s.aiConsentKey)
 	_, _ = mac.Write(identity)

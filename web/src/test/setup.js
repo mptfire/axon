@@ -5,11 +5,11 @@
 const config = { base_url: "https://ntfy.sh", disallowed_topics: ["app", "account", "settings"] };
 
 if (typeof document === "undefined") {
-globalThis.window = {
-  location: { origin: "https://ntfy.sh" },
-  config,
-  atob: globalThis.atob, // urlB64ToUint8Array uses window.atob; Node provides global atob
-};
+  globalThis.window = {
+    location: { origin: "https://ntfy.sh" },
+    config,
+    atob: globalThis.atob, // urlB64ToUint8Array uses window.atob; Node provides global atob
+  };
 } else {
   window.config = config;
 }
@@ -22,11 +22,11 @@ globalThis.config = config;
 // utils.js -> Prefs.js -> db.js -> Session.username() reads localStorage at module load.
 // Node has no localStorage; an in-memory stand-in is enough for the pure-logic tests.
 if (typeof document === "undefined") {
-const store = new Map();
-globalThis.localStorage = {
-  getItem: (key) => (store.has(key) ? store.get(key) : null),
-  setItem: (key, value) => store.set(key, String(value)),
-  removeItem: (key) => store.delete(key),
-  clear: () => store.clear(),
-};
+  const store = new Map();
+  globalThis.localStorage = {
+    getItem: (key) => (store.has(key) ? store.get(key) : null),
+    setItem: (key, value) => store.set(key, String(value)),
+    removeItem: (key) => store.delete(key),
+    clear: () => store.clear(),
+  };
 }

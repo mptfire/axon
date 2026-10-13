@@ -177,7 +177,7 @@ var (
 		9:  schema.AsMigrateFunc(postgresMigrate9To10UpdateQueries),  // axon
 		10: schema.AsMigrateFunc(postgresMigrate10To11UpdateQueries), // axon: devices + pairing
 		11: schema.AsMigrateFunc(postgresMigrate11To12UpdateQueries), // axon: applied-config ack
-		12: schema.AsMigrateFunc(postgresAIConsentTableQueries), // axon: explicit AI consent
+		12: schema.AsMigrateFunc(postgresAIConsentTableQueries),      // axon: explicit AI consent
 	}
 )
 
@@ -208,7 +208,6 @@ const postgresMigrate10To11UpdateQueries = `
 		);
 		CREATE INDEX idx_user_pairing_code_expiry ON user_pairing_code (expires_at);
 	`
-
 
 const postgresAIConsentTableQueries = `
 	CREATE TABLE IF NOT EXISTS user_ai_consent (

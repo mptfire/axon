@@ -121,14 +121,14 @@ func TestServer_AIConsent_RejectsStaleAcceptanceAndCrossOriginWrites(t *testing.
 	configuration := s.aiConsentConfiguration()
 	for _, tc := range []struct {
 		name, body, contentType, origin string
-		want int
+		want                            int
 	}{
-		{"not accepted", `{"accepted":false,"configuration":"`+configuration+`"}`, "application/json", "", 400},
+		{"not accepted", `{"accepted":false,"configuration":"` + configuration + `"}`, "application/json", "", 400},
 		{"stale disclosure", `{"accepted":true,"configuration":"old"}`, "application/json", "", 409},
-		{"form CSRF", `{"accepted":true,"configuration":"`+configuration+`"}`, "application/x-www-form-urlencoded", "", 400},
-		{"text CSRF", `{"accepted":true,"configuration":"`+configuration+`"}`, "text/plain", "", 400},
-		{"cross origin", `{"accepted":true,"configuration":"`+configuration+`"}`, "application/json", "https://evil.example", 403},
-		{"null origin", `{"accepted":true,"configuration":"`+configuration+`"}`, "application/json", "null", 403},
+		{"form CSRF", `{"accepted":true,"configuration":"` + configuration + `"}`, "application/x-www-form-urlencoded", "", 400},
+		{"text CSRF", `{"accepted":true,"configuration":"` + configuration + `"}`, "text/plain", "", 400},
+		{"cross origin", `{"accepted":true,"configuration":"` + configuration + `"}`, "application/json", "https://evil.example", 403},
+		{"null origin", `{"accepted":true,"configuration":"` + configuration + `"}`, "application/json", "null", 403},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			auth := consentAuth("alice")

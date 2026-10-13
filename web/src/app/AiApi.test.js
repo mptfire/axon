@@ -122,7 +122,10 @@ describe("AiApi account consent", () => {
     const { signal } = new AbortController();
     fetchMock.mockResolvedValue({ status: 200, json: async () => ({ consented: false }) });
     expect(await aiApi.consent({ signal })).toEqual({ consented: false });
-    expect(fetchMock).toHaveBeenCalledWith("https://axon.example.com/v1/ai/consent", { headers: { Authorization: "Bearer tk_owner" }, signal });
+    expect(fetchMock).toHaveBeenCalledWith("https://axon.example.com/v1/ai/consent", {
+      headers: { Authorization: "Bearer tk_owner" },
+      signal,
+    });
   });
 
   it("explicitly accepts the displayed configuration and revokes separately", async () => {

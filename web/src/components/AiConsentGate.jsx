@@ -10,7 +10,9 @@ export const AiProviderDisclosure = ({ status }) => {
   return (
     <>
       <Typography sx={{ mt: 1 }}>{t("ai_consent_provider", { provider: status.provider })}</Typography>
-      {status.endpoint && <Typography sx={{ overflowWrap: "anywhere" }}>{t("ai_consent_endpoint", { endpoint: status.endpoint })}</Typography>}
+      {status.endpoint && (
+        <Typography sx={{ overflowWrap: "anywhere" }}>{t("ai_consent_endpoint", { endpoint: status.endpoint })}</Typography>
+      )}
       <Typography sx={{ mb: 2, overflowWrap: "anywhere" }}>{t("ai_consent_models", { models: status.models.join(", ") })}</Typography>
       <DialogContentText sx={{ mb: 2 }}>{t("ai_consent_data")}</DialogContentText>
       <DialogContentText sx={{ mb: 2 }}>{t("ai_consent_retention")}</DialogContentText>
@@ -106,8 +108,16 @@ const AiConsentGate = ({ active, onClose, onConsent, children }) => {
       <DialogContent>
         {!status && !error && <CircularProgress aria-label={t("ai_consent_loading")} size={24} />}
         {status && <AiProviderDisclosure status={status} />}
-        {status && !status.can_manage && <Alert severity="info" sx={{ mt: 2 }}>{t("ai_consent_owner_required")}</Alert>}
-        {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+        {status && !status.can_manage && (
+          <Alert severity="info" sx={{ mt: 2 }}>
+            {t("ai_consent_owner_required")}
+          </Alert>
+        )}
+        {error && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>{t("ai_consent_cancel")}</Button>

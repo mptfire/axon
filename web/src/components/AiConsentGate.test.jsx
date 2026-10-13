@@ -10,7 +10,9 @@ import AiConsentGate from "./AiConsentGate";
 import AiPrivacySettings from "./AiPrivacySettings";
 
 vi.mock("../app/AiApi", () => ({ default: { consent: vi.fn(), grantConsent: vi.fn(), revokeConsent: vi.fn() } }));
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key, values = {}) => `${key} ${Object.values(values).join(" ")}`.trim() }) }));
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({ t: (key, values = {}) => `${key} ${Object.values(values).join(" ")}`.trim() }),
+}));
 
 const disclosure = {
   consented: false,
@@ -25,13 +27,19 @@ let root;
 let container;
 let featureWork;
 const Feature = () => {
-  useEffect(() => { featureWork(); }, []);
+  useEffect(() => {
+    featureWork();
+  }, []);
   return <div>feature-ready</div>;
 };
 const button = (text) => [...container.querySelectorAll("button")].find((element) => element.textContent.trim() === text);
 const renderGate = (active = true) =>
   act(async () => {
-    root.render(<AiConsentGate active={active} onClose={vi.fn()}><Feature /></AiConsentGate>);
+    root.render(
+      <AiConsentGate active={active} onClose={vi.fn()}>
+        <Feature />
+      </AiConsentGate>,
+    );
   });
 
 beforeEach(() => {
@@ -45,7 +53,9 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await act(async () => { root.unmount(); });
+  await act(async () => {
+    root.unmount();
+  });
   container.remove();
 });
 
@@ -57,7 +67,9 @@ describe("explicit account consent", () => {
     expect(featureWork).not.toHaveBeenCalled();
     expect(aiApi.grantConsent).not.toHaveBeenCalled();
     aiApi.grantConsent.mockResolvedValue({ ...disclosure, consented: true });
-    await act(async () => { button("ai_consent_accept").click(); });
+    await act(async () => {
+      button("ai_consent_accept").click();
+    });
     expect(aiApi.grantConsent).toHaveBeenCalledExactlyOnceWith("configuration-one");
     expect(featureWork).toHaveBeenCalledOnce();
     expect(container.textContent).toContain("feature-ready");
@@ -74,12 +86,16 @@ describe("explicit account consent", () => {
     await renderGate();
     aiApi.grantConsent.mockRejectedValueOnce(new AIProviderChangedError());
     aiApi.consent.mockResolvedValue({ ...disclosure, endpoint: "https://new-provider.example", configuration: "configuration-two" });
-    await act(async () => { button("ai_consent_accept").click(); });
+    await act(async () => {
+      button("ai_consent_accept").click();
+    });
     expect(container.textContent).toContain("https://new-provider.example");
     expect(featureWork).not.toHaveBeenCalled();
     expect(aiApi.grantConsent).toHaveBeenCalledTimes(1);
     aiApi.grantConsent.mockResolvedValue({ ...disclosure, consented: true, configuration: "configuration-two" });
-    await act(async () => { button("ai_consent_accept").click(); });
+    await act(async () => {
+      button("ai_consent_accept").click();
+    });
     expect(aiApi.grantConsent).toHaveBeenLastCalledWith("configuration-two");
     expect(featureWork).toHaveBeenCalledOnce();
   });
@@ -88,7 +104,9 @@ describe("explicit account consent", () => {
     aiApi.consent.mockResolvedValue({ ...disclosure, can_manage: false });
     await renderGate();
     expect(button("ai_consent_accept").disabled).toBe(true);
-    await act(async () => { button("ai_consent_accept").click(); });
+    await act(async () => {
+      button("ai_consent_accept").click();
+    });
     expect(aiApi.grantConsent).not.toHaveBeenCalled();
     await renderGate(false);
     aiApi.consent.mockRejectedValue(new Error("metadata unavailable"));
@@ -100,13 +118,21 @@ describe("explicit account consent", () => {
 
   it("ignores acceptance from a closed, then reopened dialog", async () => {
     let complete;
-    aiApi.grantConsent.mockReturnValue(new Promise((resolve) => { complete = resolve; }));
+    aiApi.grantConsent.mockReturnValue(
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+    );
     await renderGate();
-    await act(async () => { button("ai_consent_accept").click(); });
+    await act(async () => {
+      button("ai_consent_accept").click();
+    });
     await renderGate(false);
     aiApi.consent.mockResolvedValue({ ...disclosure, configuration: "configuration-two" });
     await renderGate();
-    await act(async () => { complete({ ...disclosure, consented: true }); });
+    await act(async () => {
+      complete({ ...disclosure, consented: true });
+    });
     expect(featureWork).not.toHaveBeenCalled();
     expect(button("ai_consent_accept").disabled).toBe(false);
   });
@@ -114,8 +140,12 @@ describe("explicit account consent", () => {
   it("revokes through privacy settings without modifying preferences", async () => {
     aiApi.consent.mockResolvedValue({ ...disclosure, consented: true });
     aiApi.revokeConsent.mockResolvedValue(disclosure);
-    await act(async () => { root.render(<AiPrivacySettings />); });
-    await act(async () => { button("ai_consent_revoke").click(); });
+    await act(async () => {
+      root.render(<AiPrivacySettings />);
+    });
+    await act(async () => {
+      button("ai_consent_revoke").click();
+    });
     expect(aiApi.revokeConsent).toHaveBeenCalledOnce();
     expect(container.textContent).toContain("ai_consent_disabled");
     expect(aiApi.grantConsent).not.toHaveBeenCalled();

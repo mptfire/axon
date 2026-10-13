@@ -380,8 +380,8 @@ func TestServer_AI_Enrichment_NeverOverridesPublisher(t *testing.T) {
 	// Publisher title and priority win
 	rr := request(t, s, "PUT", "/prod-alerts", strings.Repeat("important ", 20), map[string]string{
 		"Authorization": util.BasicAuth("phil", "phil"),
-		"Title":    "Publisher title",
-		"Priority": "2",
+		"Title":         "Publisher title",
+		"Priority":      "2",
 	})
 	require.Equal(t, 200, rr.Code)
 	rr = request(t, s, "GET", "/prod-alerts/json?poll=1", "", nil)

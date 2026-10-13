@@ -92,7 +92,10 @@ func TestManager_AIConsent_SecretStableUnderConcurrentInitialization(t *testing.
 	forEachBackend(t, func(t *testing.T, newManager newManagerFunc) {
 		a := newTestManager(t, newManager, PermissionDenyAll)
 		b := newTestManager(t, newManager, PermissionDenyAll)
-		type result struct { secret []byte; err error }
+		type result struct {
+			secret []byte
+			err    error
+		}
 		results := make(chan result, 8)
 		var wg sync.WaitGroup
 		for i := 0; i < cap(results); i++ {
@@ -109,7 +112,9 @@ func TestManager_AIConsent_SecretStableUnderConcurrentInitialization(t *testing.
 		for r := range results {
 			require.NoError(t, r.err)
 			require.Len(t, r.secret, 32)
-			if first == nil { first = r.secret }
+			if first == nil {
+				first = r.secret
+			}
 			require.Equal(t, first, r.secret)
 		}
 		c := newTestManager(t, newManager, PermissionDenyAll)

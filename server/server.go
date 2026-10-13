@@ -76,7 +76,7 @@ type Server struct {
 	priceCache        *util.LookupCache[map[string]int64] // Stripe price ID -> price as cents (USD implied!)
 	metricsHandler    http.Handler                        // Handles /metrics if enable-metrics set, and listen-metrics-http not set
 	ai                *ai.Client                          // axon: AI layer; nil when disabled (see docs/ai-plan/)
-	aiConsentKey []byte // axon: private key for opaque provider identities
+	aiConsentKey      []byte                              // axon: private key for opaque provider identities
 	embedder          *ai.Embedder                        // axon: embeddings for semantic chat retrieval; nil when disabled
 	mcpHandler        http.Handler                        // axon: MCP endpoint for AI agents; nil when disabled
 	closeChan         chan bool
@@ -128,7 +128,7 @@ var (
 	apiAIChatPath                                        = "/v1/ai/chat"        // axon
 	apiAIBriefingPath                                    = "/v1/ai/briefing"    // axon
 	apiAIChatStreamPath                                  = "/v1/ai/chat/stream" // axon
-	apiAIConsentPath = "/v1/ai/consent" // axon: explicit account consent
+	apiAIConsentPath                                     = "/v1/ai/consent"     // axon: explicit account consent
 	apiMCPPath                                           = "/mcp"               // axon: MCP endpoint
 	apiUsersPath                                         = "/v1/users"
 	apiUsersAccessPath                                   = "/v1/users/access"

@@ -427,7 +427,7 @@ var (
 		9:  schema.AsMigrateFunc(sqliteMigrate9To10UpdateQueries),  // axon
 		10: schema.AsMigrateFunc(sqliteMigrate10To11UpdateQueries), // axon: devices + pairing
 		11: schema.AsMigrateFunc(sqliteMigrate11To12UpdateQueries), // axon: applied-config ack
-		12: schema.AsMigrateFunc(sqliteAIConsentTableQueries), // axon: explicit AI consent
+		12: schema.AsMigrateFunc(sqliteAIConsentTableQueries),      // axon: explicit AI consent
 	}
 )
 
@@ -505,7 +505,6 @@ const sqliteMigrate10To11UpdateQueries = `
 		);
 		CREATE INDEX idx_user_pairing_code_expiry ON user_pairing_code (expires_at);
 	`
-
 
 const sqliteAIConsentTableQueries = `
 	CREATE TABLE IF NOT EXISTS user_ai_consent (

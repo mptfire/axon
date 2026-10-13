@@ -14,15 +14,18 @@ const AiPrivacySettings = () => {
 
   useEffect(() => {
     const controller = new AbortController();
-    aiApi.consent({ signal: controller.signal }).then((value) => {
-      if (!controller.signal.aborted) {
-        setStatus(value);
-      }
-    }).catch((e) => {
-      if (!controller.signal.aborted) {
-        setError(e.message);
-      }
-    });
+    aiApi
+      .consent({ signal: controller.signal })
+      .then((value) => {
+        if (!controller.signal.aborted) {
+          setStatus(value);
+        }
+      })
+      .catch((e) => {
+        if (!controller.signal.aborted) {
+          setError(e.message);
+        }
+      });
     return () => controller.abort();
   }, []);
 
@@ -40,11 +43,21 @@ const AiPrivacySettings = () => {
 
   return (
     <Card sx={{ p: 3 }} aria-label={t("ai_consent_settings_title")}>
-      <Typography variant="h5" sx={{ mb: 2 }}>{t("ai_consent_settings_title")}</Typography>
+      <Typography variant="h5" sx={{ mb: 2 }}>
+        {t("ai_consent_settings_title")}
+      </Typography>
       <Typography sx={{ mb: 2 }}>{t(status?.consented ? "ai_consent_enabled" : "ai_consent_disabled")}</Typography>
       {status && <AiProviderDisclosure status={status} />}
-      {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
-      {status && !status.can_manage && <Alert severity="info" sx={{ mt: 2 }}>{t("ai_consent_owner_required")}</Alert>}
+      {error && (
+        <Alert severity="error" sx={{ mt: 2 }}>
+          {error}
+        </Alert>
+      )}
+      {status && !status.can_manage && (
+        <Alert severity="info" sx={{ mt: 2 }}>
+          {t("ai_consent_owner_required")}
+        </Alert>
+      )}
       <Button sx={{ mt: 2 }} disabled={!status?.can_manage || busy} onClick={status?.consented ? revoke : () => setOpen(true)}>
         {t(status?.consented ? "ai_consent_revoke" : "ai_consent_review")}
       </Button>
