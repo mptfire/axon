@@ -792,17 +792,17 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 	} else if r.URL.Path == apiAIConsentPath && (r.Method == http.MethodGet || r.Method == http.MethodPost || r.Method == http.MethodDelete) {
 		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.limitRequests(s.handleAIConsent))))(w, r, v)
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAIPlanPath {
-		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.ensureAIConsent(s.limitRequests(s.handleAIPlan)))))(w, r, v) // axon: plans cost LLM tokens — require a user (AX-5)
+		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.limitRequests(s.ensureAIConsent(s.handleAIPlan)))))(w, r, v) // axon: plans cost LLM tokens — require a user (AX-5)
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAITunePath {
-		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.ensureAIConsent(s.limitRequests(s.handleAITune)))))(w, r, v) // axon: tunes a synced subscription
+		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.limitRequests(s.ensureAIConsent(s.handleAITune)))))(w, r, v) // axon: tunes a synced subscription
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAIDigestPath {
-		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.ensureAIConsent(s.limitRequests(s.handleAIDigest)))))(w, r, v) // axon: digests a synced subscription
+		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.limitRequests(s.ensureAIConsent(s.handleAIDigest)))))(w, r, v) // axon: digests a synced subscription
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAIChatPath {
-		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.ensureAIConsent(s.limitRequests(s.handleAIChat)))))(w, r, v) // axon: asks about a synced subscription
+		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.limitRequests(s.ensureAIConsent(s.handleAIChat)))))(w, r, v) // axon: asks about a synced subscription
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAIBriefingPath {
-		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.ensureAIConsent(s.limitRequests(s.handleAIBriefing)))))(w, r, v) // axon: briefing across all subscriptions
+		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.limitRequests(s.ensureAIConsent(s.handleAIBriefing)))))(w, r, v) // axon: briefing across all subscriptions
 	} else if r.Method == http.MethodPost && r.URL.Path == apiAIChatStreamPath {
-		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.ensureAIConsent(s.limitRequests(s.handleAIChatStream)))))(w, r, v) // axon: SSE variant of chat
+		return s.ensureAIEnabled(s.ensureUser(s.ensureAIScope(s.limitRequests(s.ensureAIConsent(s.handleAIChatStream)))))(w, r, v) // axon: SSE variant of chat
 	} else if r.Method == http.MethodGet && r.URL.Path == matrixPushPath {
 		return s.handleMatrixDiscovery(w)
 	} else if r.Method == http.MethodGet && r.URL.Path == metricsPath && s.metricsHandler != nil {

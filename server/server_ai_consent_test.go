@@ -259,3 +259,18 @@ func TestServer_AIConsent_DatabaseFailureDoesNotForwardContent(t *testing.T) {
 	require.GreaterOrEqual(t, rr.Code, 400)
 	require.Zero(t, calls.Load())
 }
+
+func TestServer_AIConsent_DeniedRequestsStillConsumeRequestQuota(t *testing.T) {
+	c := newTestConfigWithAuthFile(t, "")
+	c.AIEnabled, c.AIProvider = true, "mock"
+	c.VisitorRequestLimitBurst = 1
+	c.VisitorRequestLimitReplenish = time.Hour
+	s := newTestServer(t, c)
+	defer s.closeDatabases()
+	require.NoError(t, s.userManager.AddUser("alice", "alice", user.RoleUser, false))
+	auth := consentAuth("alice")
+	rr := request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish"}`, auth)
+	require.Equal(t, 403, rr.Code)
+	rr = request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish"}`, auth)
+	require.Equal(t, 429, rr.Code, "consent lookups must be protected by the normal request limiter")
+}
