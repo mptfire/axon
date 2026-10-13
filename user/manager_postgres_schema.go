@@ -91,7 +91,7 @@ const (
 		);
 		CREATE INDEX idx_magic_link_user_kind ON user_magic_link (user_id, kind);
 		INSERT INTO "user" (id, user_name, pass, role, sync_topic, provisioned, created)
-		VALUES ('` + everyoneID + `', '*', '', 'anonymous', '', false, EXTRACT(EPOCH FROM NOW())::BIGINT)
+		VALUES ('` + postgresAIConsentTableQueries + everyoneID + `', '*', '', 'anonymous', '', false, EXTRACT(EPOCH FROM NOW())::BIGINT)
 		ON CONFLICT (id) DO NOTHING;
 	CREATE TABLE IF NOT EXISTS user_device (
 			id TEXT PRIMARY KEY,
@@ -134,7 +134,7 @@ const (
 			email TEXT NOT NULL,
 			PRIMARY KEY (user_id, email)
 		);
-	` + postgresAIConsentTableQueries
+	`
 
 	// 7 -> 8: primary (recovery) email + magic-link table for verification/reset.
 	// No backfill -- existing verified emails stay non-primary.
