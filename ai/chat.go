@@ -24,12 +24,13 @@ const (
 var ChatSchema = &Schema{
 	Name: "history_answer",
 	Schema: map[string]any{
-		"type": "object",
+		"type":                 "object",
+		"additionalProperties": false,
 		"properties": map[string]any{
 			"answer":    map[string]any{"type": "string"},
 			"citations": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		},
-		"required": []string{"answer"},
+		"required": []string{"answer", "citations"},
 	},
 }
 
