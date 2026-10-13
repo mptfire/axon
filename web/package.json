@@ -60,5 +60,10 @@
   },
   "prettier": {
     "printWidth": 140
+  },
+  "overrides": {
+    "eslint-config-airbnb": {
+      "eslint-plugin-react-hooks": "$eslint-plugin-react-hooks"
+    }
   }
 }
