@@ -485,3 +485,85 @@ func TestServer_AI_Enrichment_Translation(t *testing.T) {
 	require.True(t, strings.HasPrefix(messages[0].Message, "Disk almost full on db-1"))
 	require.Contains(t, messages[0].Message, "Festplatte fast voll")
 }
+
+func TestServer_AI_ConsentGate(t *testing.T) {
+	// Issue #27: with ai-consent-required, a non-admin user must consent via
+	// /v1/account/settings before any LLM-costing endpoint processes content;
+	// /v1/ai/disclosure works pre-consent; enrichment skips silently.
+	c := newTestConfigWithAuthFile(t, "")
+	c.AIEnabled = true
+	c.AIProvider = "mock"
+	c.AIConsentRequired = true
+	c.AuthDefault = user.PermissionDenyAll
+	s := newTestServer(t, c)
+	defer s.closeDatabases()
+	require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
+	require.Nil(t, s.userManager.AddUser("maria", "maria", user.RoleUser, false))
+	phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
+	maria := map[string]string{"Authorization": util.BasicAuth("maria", "maria")}
+
+	// Both subscribe to a topic; phil publishes into it
+	for _, auth := range []map[string]string{phil, maria} {
+		rr := request(t, s, "POST", "/v1/account/subscription", `{"topic":"news"}`, auth)
+		require.Equal(t, 200, rr.Code)
+	}
+	rr := request(t, s, "PUT", "/news", "huge news just dropped", phil)
+	require.Equal(t, 200, rr.Code)
+
+	// Disclosure is readable pre-consent and states the consent requirement
+	rr = request(t, s, "GET", "/v1/ai/disclosure", "", maria)
+	require.Equal(t, 200, rr.Code)
+	var disclosure struct {
+		Provider       string `json:"provider"`
+		ConsentNeeded  bool   `json:"consent_required"`
+		ConsentGranted bool   `json:"consent_granted"`
+	}
+	require.Nil(t, json.NewDecoder(rr.Body).Decode(&disclosure))
+	require.Equal(t, "mock", disclosure.Provider)
+	require.True(t, disclosure.ConsentNeeded)
+	require.False(t, disclosure.ConsentGranted)
+
+	// Maria: every LLM-costing endpoint refuses with the specific code
+	for _, req := range [][2]string{
+		{"POST", "/v1/ai/chat"},
+		{"POST", "/v1/ai/digest"},
+		{"POST", "/v1/ai/briefing"},
+		{"POST", "/v1/ai/plan"},
+	} {
+		rr := request(t, s, req[0], req[1], `{"topic":"news","question":"summarize","prompt":"x"}`, maria)
+		require.Equal(t, 403, rr.Code, req[1])
+		require.Contains(t, rr.Body.String(), "40355")
+	}
+
+	// Maria consents via the normal settings flow
+	rr = request(t, s, "PATCH", "/v1/account/settings", `{"ai_consent": true}`, maria)
+	require.Equal(t, 200, rr.Code)
+
+	// AI endpoints now answer (digest needs an actual model response)
+	s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
+		return &ai.Response{Text: `{"headline":"News","topics":[]}`}, nil
+	})
+	rr = request(t, s, "POST", "/v1/ai/briefing", `{}`, maria)
+	require.Equal(t, 200, rr.Code)
+
+	// Consent is persisted
+	rr = request(t, s, "GET", "/v1/ai/disclosure", "", maria)
+	require.Nil(t, json.NewDecoder(rr.Body).Decode(&disclosure))
+	require.True(t, disclosure.ConsentGranted)
+
+	// With consent not required (default), everything works as before
+	c2 := newTestConfigWithAuthFile(t, "")
+	c2.AIEnabled = true
+	c2.AIProvider = "mock"
+	s2 := newTestServer(t, c2)
+	defer s2.closeDatabases()
+	require.Nil(t, s2.userManager.AddUser("maria", "maria", user.RoleUser, false))
+	maria2 := map[string]string{"Authorization": util.BasicAuth("maria", "maria")}
+	request(t, s2, "POST", "/v1/account/subscription", `{"topic":"news"}`, maria2)
+	request(t, s2, "PUT", "/news", "content", maria2)
+	s2.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
+		return &ai.Response{Text: `{"headline": "News", "sections": [{"topic": "news", "title": "content", "points": ["content"]}]}`}, nil
+	})
+	rr = request(t, s2, "POST", "/v1/ai/digest", `{"topic":"news"}`, maria2)
+	require.Equal(t, 200, rr.Code)
+}
