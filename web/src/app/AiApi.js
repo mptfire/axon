@@ -38,13 +38,14 @@ class AiApi {
     return response.json(); // May throw SyntaxError
   }
 
-  async chatStream(topic, question, { history = [], since = "168h", all = false, onDelta, onCitations }) {
+  async chatStream(topic, question, { history = [], since = "168h", all = false, onDelta, onCitations, signal }) {
     const url = `${config.base_url}/v1/ai/chat/stream`;
     console.log(`[AiApi] Streaming chat about ${all ? "all topics" : topic}`);
     const response = await fetch(url, {
       method: "POST",
       headers: maybeWithBearerAuth({ "Content-Type": "application/json" }, session.token()),
-      body: JSON.stringify({ topic, question, since, history, all }),
+      body: JSON.stringify({ ...(all ? {} : { topic }), question, since, history, all }),
+      signal,
     });
     if (!response.ok) {
       await throwAppError(response);
@@ -52,12 +53,19 @@ class AiApi {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
+    let completed = false;
     const processFrame = (frame) => {
       const line = frame.trim();
       if (!line.startsWith("data:")) {
         return;
       }
       const event = JSON.parse(line.slice(5).trim());
+      if (event.type === "error") {
+        throw new Error(event.error || "AI response interrupted");
+      }
+      if (event.type === "done") {
+        completed = true;
+      }
       if (event.type === "delta" && onDelta) {
         onDelta(event.text);
       } else if (event.type === "citations" && onCitations) {
@@ -68,15 +76,23 @@ class AiApi {
     const pump = () =>
       reader.read().then(({ done, value }) => {
         if (done) {
+          if (!completed) {
+            throw new Error("AI response incomplete. Please retry.");
+          }
           return undefined;
         }
         buffer += decoder.decode(value, { stream: true });
         const frames = buffer.split("\n\n");
         buffer = frames.pop(); // Last frame may be incomplete
         frames.forEach(processFrame);
-        return pump();
+        return completed ? undefined : pump();
       });
-    await pump();
+    try {
+      await pump();
+    } finally {
+      await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
   }
 
   async digest(topic, since) {
