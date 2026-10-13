@@ -594,7 +594,7 @@ func (s *Server) handleError(w http.ResponseWriter, r *http.Request, v *visitor,
 		ev.Info("Connection closed with HTTP %d (ntfy error %d)", httpErr.HTTPCode, httpErr.Code)
 	}
 	if isRateLimiting && s.config.StripeSecretKey != "" {
-		u := v.User()
+		u := requestUser(r, v)
 		if u == nil || u.Tier == nil {
 			httpErr = httpErr.Wrap("increase your limits with a paid plan, see %s", s.config.BaseURL)
 		}
@@ -617,7 +617,7 @@ func (s *Server) handleInternal(w http.ResponseWriter, r *http.Request, v *visit
 	// management — tokens, passwords, reservations, billing, admin — and must
 	// never be reachable with a device token (not even for admins, so an
 	// admin's paired phone cannot mint unrestricted tokens).
-	if u := v.User(); u != nil && isDeviceScopedToken(u) && !deviceScopeAllowedPath(r.URL.Path) {
+	if u := requestUser(r, v); u != nil && isDeviceScopedToken(u) && !deviceScopeAllowedPath(r.URL.Path) {
 		return errHTTPForbidden
 	}
 	if r.Method == http.MethodGet && r.URL.Path == "/" && s.config.WebRoot == "/" {
@@ -987,7 +987,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 	}
 	if email != "" {
 		var httpErr *errHTTP
-		email, httpErr = s.convertEmailAddress(v.User(), email)
+		email, httpErr = s.convertEmailAddress(requestUser(r, v), email)
 		if httpErr != nil {
 			return nil, httpErr.With(t)
 		} else if !vrate.EmailAllowed() {
@@ -996,7 +996,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 	}
 	if call != "" {
 		var httpErr *errHTTP
-		call, httpErr = s.convertPhoneNumber(v.User(), call)
+		call, httpErr = s.convertPhoneNumber(requestUser(r, v), call)
 		if httpErr != nil {
 			return nil, httpErr.With(t)
 		} else if !vrate.CallAllowed() {
@@ -1007,7 +1007,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 		m = model.NewPollRequestMessage(t.ID, m.PollID)
 	}
 	m.Sender = v.IP()
-	m.User = v.MaybeUserID()
+	m.User = requestUserID(r, v)
 	if cache {
 		m.Expires = time.Unix(m.Time, 0).Add(v.Limits().MessageExpiryDuration).Unix()
 	}
@@ -1066,7 +1066,7 @@ func (s *Server) handlePublishInternal(r *http.Request, v *visitor) (*model.Mess
 			return nil, err
 		}
 	}
-	u := v.User()
+	u := requestUser(r, v)
 	if s.userManager != nil && u != nil && u.Tier != nil {
 		go s.userManager.EnqueueUserStats(u.ID, v.Stats())
 	}
@@ -1142,7 +1142,7 @@ func (s *Server) handleActionMessage(w http.ResponseWriter, r *http.Request, v *
 	// Create an action message with the given event type
 	m := model.NewActionMessage(event, t.ID, sequenceID)
 	m.Sender = v.IP()
-	m.User = v.MaybeUserID()
+	m.User = requestUserID(r, v)
 	m.Expires = time.Unix(m.Time, 0).Add(v.Limits().MessageExpiryDuration).Unix()
 	// Publish to subscribers, Firebase (for Android clients), and web push endpoints
 	if err := s.dispatch(v, t, m, dispatchOpts{firebase: true, webPush: true}); err != nil {
@@ -1595,7 +1595,7 @@ func (s *Server) handleSubscribeHTTP(w http.ResponseWriter, r *http.Request, v *
 	defer cancel()
 	subscriberIDs := make([]int, 0)
 	for _, t := range topics {
-		subscriberIDs = append(subscriberIDs, t.Subscribe(sub, v.MaybeUserID(), cancel))
+		subscriberIDs = append(subscriberIDs, t.Subscribe(sub, requestUserID(r, v), cancel))
 	}
 	defer func() {
 		for i, subscriberID := range subscriberIDs {
@@ -1744,7 +1744,7 @@ func (s *Server) handleSubscribeWS(w http.ResponseWriter, r *http.Request, v *vi
 	}
 	subscriberIDs := make([]int, 0)
 	for _, t := range topics {
-		subscriberIDs = append(subscriberIDs, t.Subscribe(sub, v.MaybeUserID(), cancel))
+		subscriberIDs = append(subscriberIDs, t.Subscribe(sub, requestUserID(r, v), cancel))
 	}
 	defer func() {
 		for i, subscriberID := range subscriberIDs {
@@ -1826,10 +1826,10 @@ func (s *Server) maybeSetRateVisitors(r *http.Request, v *visitor, topics []*top
 			return err
 		}
 		if ownerUserID == "" {
-			if err := s.userManager.Authorize(v.User(), t.ID, user.PermissionWrite); err == nil {
+			if err := s.userManager.Authorize(requestUser(r, v), t.ID, user.PermissionWrite); err == nil {
 				writableRateTopics = append(writableRateTopics, t)
 			}
-		} else if ownerUserID == v.MaybeUserID() {
+		} else if ownerUserID == requestUserID(r, v) {
 			writableRateTopics = append(writableRateTopics, t)
 		}
 	}
