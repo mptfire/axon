@@ -10,7 +10,13 @@ const Page = ({ name }) => {
   const params = useParams();
   const location = useLocation();
   return (
-    <output data-route={name} data-topic={params.topic} data-base-url={params.baseUrl} data-token={params.token} data-search={location.search} />
+    <output
+      data-route={name}
+      data-topic={params.topic}
+      data-base-url={params.baseUrl}
+      data-token={params.token}
+      data-search={location.search}
+    />
   );
 };
 
@@ -28,14 +34,11 @@ const renderRoute = (path) =>
   );
 
 describe("declarative app routes", () => {
-  it.each(["app", "login", "signup", "account", "settings", "passwordResetRequest"])(
-    "keeps %s ahead of the topic route",
-    (name) => {
-      const html = renderRoute(routes[name]);
-      expect(html).toContain(`data-route="${name}"`);
-      expect(html).not.toContain("data-topic=");
-    },
-  );
+  it.each(["app", "login", "signup", "account", "settings", "passwordResetRequest"])("keeps %s ahead of the topic route", (name) => {
+    const html = renderRoute(routes[name]);
+    expect(html).toContain(`data-route="${name}"`);
+    expect(html).not.toContain("data-topic=");
+  });
 
   it.each(["passwordReset", "emailVerify"])("preserves the %s token parameter", (name) => {
     const html = renderRoute(routes[name].replace(":token", "tk_abc123"));
