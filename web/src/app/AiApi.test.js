@@ -84,3 +84,33 @@ describe("AiApi.tune", () => {
     });
   });
 });
+
+describe("AiApi.chatStream", () => {
+  const streamResponse = (text) => ({
+    ok: true,
+    body: new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(text));
+        controller.close();
+      },
+    }),
+  });
+
+  it("omits the topic in all-topics mode", async () => {
+    fetchMock.mockResolvedValue(streamResponse('data: {"type":"done"}\n\n'));
+    await aiApi.chatStream("backups", "what failed?", { all: true });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).topic).toBeUndefined();
+  });
+
+  it("rejects a partial stream without a done event", async () => {
+    fetchMock.mockResolvedValue(streamResponse('data: {"type":"delta","text":"partial"}\n\n'));
+    await expect(aiApi.chatStream("backups", "question", {})).rejects.toThrow("incomplete");
+  });
+
+  it("surfaces an SSE error after partial output", async () => {
+    fetchMock.mockResolvedValue(
+      streamResponse('data: {"type":"delta","text":"partial"}\n\ndata: {"type":"error","error":"Provider interrupted"}\n\n'),
+    );
+    await expect(aiApi.chatStream("backups", "question", {})).rejects.toThrow("Provider interrupted");
+  });
+});
