@@ -95,7 +95,7 @@ nfpms:
       - dst: /var/lib/ntfy
         type: dir
       - dst: /usr/share/ntfy/logo.png
-        src: web/public/static/images/ntfy.png
+        src: web/public/static/images/axon.png
     scripts:
       preinstall: "scripts/preinst.sh"
       postinstall: "scripts/postinst.sh"

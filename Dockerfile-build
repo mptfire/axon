@@ -36,6 +36,7 @@ RUN make web-build
 ADD go.mod go.sum main.go ./
 ADD ./ai ./ai
 ADD ./mcp ./mcp
+ADD ./metrics ./metrics
 ADD ./ban ./ban
 ADD ./twilio ./twilio
 ADD ./client ./client
