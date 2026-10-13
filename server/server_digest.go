@@ -187,6 +187,11 @@ func (s *Server) ensureDigestDelivery(u *user.User) error {
 		topic := util.RandomStringPrefix(digestTopicPrefix, digestTopicRandomLen+len(digestTopicPrefix))
 		u.Prefs.Digest.Topic = &topic
 	}
+	// A user grant alone does not make a topic private when the server's
+	// default access is read/write. Deny everyone before granting the owner.
+	if err := s.userManager.AllowAccess(user.Everyone, *u.Prefs.Digest.Topic, user.PermissionDenyAll); err != nil {
+		return err
+	}
 	if err := s.userManager.AllowAccess(u.Name, *u.Prefs.Digest.Topic, user.PermissionRead); err != nil {
 		return err
 	}
