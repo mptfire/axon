@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Button,
   CircularProgress,
@@ -40,7 +40,9 @@ const AiChatPage = (props) => {
   const [error, setError] = useState("");
 
   const [allTopics, setAllTopics] = useState(false); // axon: ask across all subscriptions
-  const [thread, setThread] = useState([]); // Prior Q/A pairs, sent as history for follow-ups
+  const [thread, setThread] = useState([]);
+  const activeRequest = useRef(null);
+  useEffect(() => () => activeRequest.current?.abort(), []); // Prior Q/A pairs, sent as history for follow-ups
 
   const handleAsk = async () => {
     setLoading(true);
@@ -48,11 +50,14 @@ const AiChatPage = (props) => {
     setStreamText("");
     setAnswer(null);
     const asked = question;
+    const controller = new AbortController();
+    activeRequest.current = controller;
     try {
       let finalText = "";
       let citations = [];
       await aiApi.chatStream(subscription.topic, asked, {
         history: thread,
+        signal: controller.signal,
         all: allTopics,
         onDelta: (text) => setStreamText((prev) => prev + text),
         onCitations: (text, cites) => {
@@ -61,7 +66,7 @@ const AiChatPage = (props) => {
         },
       });
       setThread((prev) => [...prev.slice(-4), { question: asked, answer: finalText }]);
-      setAnswer({ answer: finalText || streamText, citations });
+      setAnswer({ answer: finalText, citations });
       setQuestion("");
     } catch (e) {
       console.log(`[AiChatDialog] Chat failed`, e);

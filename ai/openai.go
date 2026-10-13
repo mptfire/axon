@@ -73,6 +73,11 @@ type openAIChatRequest struct {
 	Temperature    *float64              `json:"temperature,omitempty"`
 	ResponseFormat *openAIResponseFormat `json:"response_format,omitempty"`
 	Stream         bool                  `json:"stream,omitempty"`
+	StreamOptions  *openAIStreamOptions  `json:"stream_options,omitempty"`
+}
+
+type openAIStreamOptions struct {
+	IncludeUsage bool `json:"include_usage"`
 }
 
 type openAIMessage struct {
@@ -183,11 +188,12 @@ func (p *openAIProvider) Stream(ctx context.Context, req *Request) (<-chan Strea
 		messages = append(messages, openAIMessage{Role: RoleUser, Content: req.Prompt})
 	}
 	chatReq := openAIChatRequest{
-		Model:       p.modelOr(req),
-		Messages:    messages,
-		MaxTokens:   req.MaxTokens,
-		Temperature: temperaturePtr(req.Temperature),
-		Stream:      true,
+		Model:         p.modelOr(req),
+		Messages:      messages,
+		MaxTokens:     req.MaxTokens,
+		Temperature:   temperaturePtr(req.Temperature),
+		Stream:        true,
+		StreamOptions: &openAIStreamOptions{IncludeUsage: true},
 	}
 	body, err := json.Marshal(chatReq)
 	if err != nil {
@@ -210,13 +216,15 @@ func (p *openAIProvider) Stream(ctx context.Context, req *Request) (<-chan Strea
 		_, _ = io.Copy(io.Discard, io.LimitReader(httpResp.Body, 4096))
 		return nil, &ProviderError{Provider: p.name, Status: httpResp.StatusCode, Message: httpResp.Status}
 	}
-	events := make(chan StreamEvent)
+	events := make(chan StreamEvent, 1)
 	go func() {
 		defer close(events)
 		defer httpResp.Body.Close()
+		fail := func(err error) { sendStreamEvent(ctx, events, StreamEvent{Err: err}) }
 		scanner := bufio.NewScanner(httpResp.Body)
 		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 		finish := ""
+		done := false
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
 			if !strings.HasPrefix(line, "data:") {
@@ -224,6 +232,7 @@ func (p *openAIProvider) Stream(ctx context.Context, req *Request) (<-chan Strea
 			}
 			payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
 			if payload == "[DONE]" {
+				done = true
 				break
 			}
 			var chunk struct {
@@ -233,20 +242,44 @@ func (p *openAIProvider) Stream(ctx context.Context, req *Request) (<-chan Strea
 					} `json:"delta"`
 					FinishReason string `json:"finish_reason"`
 				} `json:"choices"`
+				Usage *struct {
+					Input  int64 `json:"prompt_tokens"`
+					Output int64 `json:"completion_tokens"`
+				} `json:"usage"`
+				Error *openAIError `json:"error"`
 			}
 			if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
-				continue // Keepalives/comments and unparseable chunks are skipped
+				fail(fmt.Errorf("%w: malformed stream chunk", ErrInvalidResponse))
+				return
+			}
+			if chunk.Error != nil {
+				fail(&ProviderError{Provider: p.name, Status: httpResp.StatusCode, Message: chunk.Error.Message})
+				return
+			}
+			if chunk.Usage != nil {
+				if !sendStreamEvent(ctx, events, StreamEvent{Usage: &Usage{InputTokens: chunk.Usage.Input, OutputTokens: chunk.Usage.Output}}) {
+					return
+				}
 			}
 			if len(chunk.Choices) > 0 {
-				if delta := chunk.Choices[0].Delta.Content; delta != "" {
-					events <- StreamEvent{Delta: delta}
+				choice := chunk.Choices[0]
+				if choice.Delta.Content != "" && !sendStreamEvent(ctx, events, StreamEvent{Delta: choice.Delta.Content}) {
+					return
 				}
-				if chunk.Choices[0].FinishReason != "" {
-					finish = chunk.Choices[0].FinishReason
+				if choice.FinishReason != "" {
+					finish = choice.FinishReason
 				}
 			}
 		}
-		events <- StreamEvent{FinishReason: finish}
+		if err := scanner.Err(); err != nil {
+			fail(err)
+			return
+		}
+		if !done && finish == "" {
+			fail(fmt.Errorf("%w: %w", ErrInvalidResponse, io.ErrUnexpectedEOF))
+			return
+		}
+		sendStreamEvent(ctx, events, StreamEvent{FinishReason: finish})
 	}()
 	return events, nil
 }
