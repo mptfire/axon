@@ -15,12 +15,14 @@ import (
 var PlanSchema = &Schema{
 	Name: "subscription_plan",
 	Schema: map[string]any{
-		"type": "object",
+		"type":                 "object",
+		"additionalProperties": false,
 		"properties": map[string]any{
 			"subscriptions": map[string]any{
 				"type": "array",
 				"items": map[string]any{
-					"type": "object",
+					"type":                 "object",
+					"additionalProperties": false,
 					"properties": map[string]any{
 						"topic":         map[string]any{"type": "string"},
 						"display_name":  map[string]any{"type": "string"},
@@ -28,13 +30,13 @@ var PlanSchema = &Schema{
 						"min_priority":  map[string]any{"type": "integer"},
 						"justification": map[string]any{"type": "string"},
 					},
-					"required": []string{"topic"},
+					"required": []string{"topic", "display_name", "search", "min_priority", "justification"},
 				},
 			},
 			"publisher_instructions": map[string]any{"type": "string"},
 			"follow_up_questions":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
 		},
-		"required": []string{"subscriptions"},
+		"required": []string{"subscriptions", "publisher_instructions", "follow_up_questions"},
 	},
 }
 
@@ -42,13 +44,15 @@ var PlanSchema = &Schema{
 var TuneSchema = &Schema{
 	Name: "subscription_tune",
 	Schema: map[string]any{
-		"type": "object",
+		"type":                 "object",
+		"additionalProperties": false,
 		"properties": map[string]any{
 			"display_name":  map[string]any{"type": "string"},
 			"search":        map[string]any{"type": "string"},
 			"min_priority":  map[string]any{"type": "integer"},
 			"justification": map[string]any{"type": "string"},
 		},
+		"required": []string{"display_name", "search", "min_priority", "justification"},
 	},
 }
 

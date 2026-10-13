@@ -462,6 +462,7 @@ type queries struct {
 	deleteExpiredPairing string
 	selectPairingUserID  string
 	selectDeviceCount    string
+	lockDeviceUser       string
 
 	// Tier queries
 	insertTier          string

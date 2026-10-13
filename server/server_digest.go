@@ -187,6 +187,11 @@ func (s *Server) ensureDigestDelivery(u *user.User) error {
 		topic := util.RandomStringPrefix(digestTopicPrefix, digestTopicRandomLen+len(digestTopicPrefix))
 		u.Prefs.Digest.Topic = &topic
 	}
+	// A user grant alone does not make a topic private when the server's
+	// default access is read/write. Deny everyone before granting the owner.
+	if err := s.userManager.AllowAccess(user.Everyone, *u.Prefs.Digest.Topic, user.PermissionDenyAll); err != nil {
+		return err
+	}
 	if err := s.userManager.AllowAccess(u.Name, *u.Prefs.Digest.Topic, user.PermissionRead); err != nil {
 		return err
 	}
@@ -201,6 +206,34 @@ func (s *Server) ensureDigestDelivery(u *user.User) error {
 		u.Prefs.Subscriptions = append(u.Prefs.Subscriptions, &user.Subscription{BaseURL: s.config.BaseURL, Topic: *u.Prefs.Digest.Topic})
 	}
 	return s.userManager.ChangeSettings(u.ID, u.Prefs)
+}
+
+// hardenDigestDeliveryTopics repairs legacy owner-only ACLs before listening.
+// Disabled schedules and AI-disabled servers must also protect retained history.
+func (s *Server) hardenDigestDeliveryTopics() error {
+	if s.userManager == nil {
+		return nil
+	}
+	users, err := s.userManager.Users()
+	if err != nil {
+		return err
+	}
+	for _, u := range users {
+		if u.Prefs == nil || u.Prefs.Digest == nil || u.Prefs.Digest.Topic == nil {
+			continue
+		}
+		topic := *u.Prefs.Digest.Topic
+		if !strings.HasPrefix(topic, digestTopicPrefix) || !topicRegex.MatchString(topic) {
+			continue
+		}
+		if err := s.userManager.AllowAccess(user.Everyone, topic, user.PermissionDenyAll); err != nil {
+			return err
+		}
+		if err := s.userManager.AllowAccess(u.Name, topic, user.PermissionRead); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // deliverBriefing renders the briefing and dispatches it like a delayed message would

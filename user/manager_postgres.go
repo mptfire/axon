@@ -328,6 +328,7 @@ var postgresQueries = queries{
 	deleteExpiredPairing:           postgresDeleteExpiredPairingQuery,
 	selectPairingUserID:            postgresSelectPairingUserIDQuery,
 	selectDeviceCount:              postgresSelectDeviceCountQuery,
+	lockDeviceUser:                 postgresLockDeviceUserQuery,
 	updateToken:                    postgresUpdateTokenQuery,
 	updateTokenLastAccess:          postgresUpdateTokenLastAccessQuery,
 	deleteToken:                    postgresDeleteTokenQuery,
@@ -405,4 +406,5 @@ const (
 		DELETE FROM user_pairing_code WHERE expires_at < $1 OR (used = 1 AND created_at < $2)`
 	postgresSelectPairingUserIDQuery = `SELECT user_id FROM user_pairing_code WHERE code = $1`
 	postgresSelectDeviceCountQuery   = `SELECT COUNT(*) FROM user_device WHERE user_id = $1`
+	postgresLockDeviceUserQuery      = `UPDATE "user" SET id = id WHERE id = $1`
 )

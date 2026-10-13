@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 
 	"heckel.io/ntfy/v2/ai"
 	"heckel.io/ntfy/v2/log"
@@ -400,6 +401,8 @@ func (s *Server) handleAIChat(w http.ResponseWriter, r *http.Request, v *visitor
 // the text refer to the numbered context and are resolved server-side), then done.
 // Providers without streaming support degrade to a single-delta response.
 func (s *Server) handleAIChatStream(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 	body, err := readJSONWithLimit[apiAIChatRequest](r.Body, jsonBodyBytesLimit, false)
 	if err != nil {
 		return err
@@ -412,10 +415,10 @@ func (s *Server) handleAIChatStream(w http.ResponseWriter, r *http.Request, v *v
 	if !ok {
 		return errHTTPInternalError
 	}
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("X-Accel-Buffering", "no")
 	writeEvent := func(payload map[string]any) error {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("X-Accel-Buffering", "no")
 		serialized, err := json.Marshal(payload)
 		if err != nil {
 			return err
@@ -430,7 +433,7 @@ func (s *Server) handleAIChatStream(w http.ResponseWriter, r *http.Request, v *v
 		_ = writeEvent(map[string]any{"type": "delta", "text": "There are no messages in this topic for the selected period."})
 		return writeEvent(map[string]any{"type": "done"})
 	}
-	context = selectChatContext(r.Context(), question, context, s.embedder)
+	context = selectChatContext(ctx, question, context, s.embedder)
 	chatMessages := make([]ai.DigestMessage, 0, len(context))
 	for _, m := range context {
 		chatMessages = append(chatMessages, ai.DigestMessage{ID: m.ID, Topic: messageTopics[m.ID], Title: m.Title, Message: m.Message, Priority: m.Priority, Time: m.Time})
@@ -449,13 +452,13 @@ func (s *Server) handleAIChatStream(w http.ResponseWriter, r *http.Request, v *v
 		}
 		return writeEvent(map[string]any{"type": "citations", "text": answerText, "citations": citations})
 	}
-	events, err := ai.NewChatter(s.ai).ChatStream(r.Context(), visitorID(v.ip, v.user, v.config), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
+	events, err := ai.NewChatter(s.ai).ChatStream(ctx, visitorID(v.ip, v.user, v.config), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
 	if err != nil {
 		if !errors.Is(err, ai.ErrStreamingNotSupported) {
 			return s.mapAIError(err)
 		}
 		// Graceful degradation: provider cannot stream, answer in one shot
-		answer, err := ai.NewChatter(s.ai).Chat(r.Context(), visitorID(v.ip, v.user, v.config), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
+		answer, err := ai.NewChatter(s.ai).Chat(ctx, visitorID(v.ip, v.user, v.config), body.Topic, question, chatMessages, sanitizeChatHistory(body.History))
 		if err != nil {
 			return s.mapAIError(err)
 		}
@@ -470,15 +473,27 @@ func (s *Server) handleAIChatStream(w http.ResponseWriter, r *http.Request, v *v
 	}
 	for event := range events {
 		if event.Err != nil {
-			return s.mapAIError(event.Err)
+			return writeEvent(map[string]any{"type": "error", "error": "AI response interrupted. Please retry."})
 		}
 		if event.Delta == "" {
 			continue
 		}
+		remaining := ai.ChatMaxAnswerChars - utf8.RuneCountInString(full.String())
+		delta := []rune(event.Delta)
+		if len(delta) > remaining {
+			delta = delta[:remaining]
+		}
+		event.Delta = string(delta)
 		full.WriteString(event.Delta)
 		if err := writeEvent(map[string]any{"type": "delta", "text": event.Delta}); err != nil {
 			return err
 		}
+		if utf8.RuneCountInString(full.String()) >= ai.ChatMaxAnswerChars {
+			break
+		}
+	}
+	if ctx.Err() != nil {
+		return nil
 	}
 	if err := appendCitations(); err != nil {
 		return err

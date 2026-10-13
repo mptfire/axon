@@ -193,6 +193,10 @@ func validSince(since string) bool { return sinceRegex.MatchString(since) }
 // caller's raw Authorization header (HTTP transport) or empty (stdio transport, which
 // falls back to the server-wide configured access token).
 func (s *Server) do(ctx context.Context, method, path string, body io.Reader, header http.Header) (*http.Response, error) {
+	return s.doWithClient(ctx, s.client, method, path, body, header)
+}
+
+func (s *Server) doWithClient(ctx context.Context, client *http.Client, method, path string, body io.Reader, header http.Header) (*http.Response, error) {
 	httpReq, err := http.NewRequestWithContext(ctx, method, strings.TrimSuffix(s.config.ServiceBaseURL, "/")+path, body)
 	if err != nil {
 		return nil, err
@@ -214,7 +218,7 @@ func (s *Server) do(ctx context.Context, method, path string, body io.Reader, he
 	case s.config.AccessToken != "":
 		httpReq.Header.Set("Authorization", "Bearer "+s.config.AccessToken)
 	}
-	return s.client.Do(httpReq)
+	return client.Do(httpReq)
 }
 
 // toolPublish publishes a message via PUT /{topic}.
@@ -291,8 +295,8 @@ func (s *Server) toolReadMessages(ctx context.Context, args map[string]any) *too
 		if err := json.Unmarshal(scanner.Bytes(), &generic); err != nil {
 			continue
 		}
-		if id, _ := generic["id"].(string); id == "" {
-			continue // open/keepalive events have no id
+		if event, _ := generic["event"].(string); event != "message" {
+			continue // Control events also carry IDs in the ntfy protocol.
 		}
 		messages = append(messages, generic)
 		if len(messages) >= limit {
@@ -325,7 +329,12 @@ func (s *Server) toolSubscribeWait(ctx context.Context, args map[string]any) *to
 	waitCtx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
 	// Live-only stream (no since=): the first message event is the next message.
-	resp, err := s.do(waitCtx, http.MethodGet, "/"+topic+"/json", nil, nil)
+	// A live subscription uses the requested wait deadline, not the shorter
+	// timeout for ordinary API calls. Copy the client; concurrent tools keep
+	// their normal timeout and transport settings.
+	waitClient := *s.client
+	waitClient.Timeout = 0
+	resp, err := s.doWithClient(waitCtx, &waitClient, http.MethodGet, "/"+topic+"/json", nil, nil)
 	if err != nil {
 		if waitCtx.Err() != nil || ctx.Err() != nil {
 			return textResult(fmt.Sprintf("timeout: no message arrived on topic %q within %s", topic, wait))
@@ -344,8 +353,8 @@ func (s *Server) toolSubscribeWait(ctx context.Context, args map[string]any) *to
 		if err := json.Unmarshal(line, &generic); err != nil {
 			continue
 		}
-		if eventID, _ := generic["id"].(string); eventID == "" {
-			continue // open/keepalive events have no id
+		if event, _ := generic["event"].(string); event != "message" {
+			continue // Wait for a notification, never open/keepalive/delete events.
 		}
 		return textResult("Next message on topic " + strconv.Quote(topic) + ":\n" + string(line))
 	}

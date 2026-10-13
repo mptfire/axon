@@ -149,12 +149,11 @@ func (p *MockProvider) Stream(ctx context.Context, req *Request) (<-chan StreamE
 			}
 			select {
 			case <-ctx.Done():
-				events <- StreamEvent{Err: ctx.Err()}
 				return
 			case events <- StreamEvent{Delta: string(runes[i:end])}:
 			}
 		}
-		events <- StreamEvent{FinishReason: response.FinishReason}
+		sendStreamEvent(ctx, events, StreamEvent{FinishReason: response.FinishReason, Usage: &Usage{InputTokens: response.InputTokens, OutputTokens: response.OutputTokens}})
 	}()
 	return events, nil
 }
