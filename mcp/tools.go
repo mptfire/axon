@@ -193,10 +193,10 @@ func validSince(since string) bool { return sinceRegex.MatchString(since) }
 // caller's raw Authorization header (HTTP transport) or empty (stdio transport, which
 // falls back to the server-wide configured access token).
 func (s *Server) do(ctx context.Context, method, path string, body io.Reader, header http.Header) (*http.Response, error) {
-	return s.doWithClient(s.client, ctx, method, path, body, header)
+	return s.doWithClient(ctx, s.client, method, path, body, header)
 }
 
-func (s *Server) doWithClient(client *http.Client, ctx context.Context, method, path string, body io.Reader, header http.Header) (*http.Response, error) {
+func (s *Server) doWithClient(ctx context.Context, client *http.Client, method, path string, body io.Reader, header http.Header) (*http.Response, error) {
 	httpReq, err := http.NewRequestWithContext(ctx, method, strings.TrimSuffix(s.config.ServiceBaseURL, "/")+path, body)
 	if err != nil {
 		return nil, err
@@ -334,7 +334,7 @@ func (s *Server) toolSubscribeWait(ctx context.Context, args map[string]any) *to
 	// their normal timeout and transport settings.
 	waitClient := *s.client
 	waitClient.Timeout = 0
-	resp, err := s.doWithClient(&waitClient, waitCtx, http.MethodGet, "/"+topic+"/json", nil, nil)
+	resp, err := s.doWithClient(waitCtx, &waitClient, http.MethodGet, "/"+topic+"/json", nil, nil)
 	if err != nil {
 		if waitCtx.Err() != nil || ctx.Err() != nil {
 			return textResult(fmt.Sprintf("timeout: no message arrived on topic %q within %s", topic, wait))
