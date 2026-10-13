@@ -167,6 +167,9 @@ func parsePlan(baseURL, text string) (*Plan, error) {
 		if i >= PlannerMaxSubscriptions {
 			break
 		}
+		if sub == nil {
+			return nil, fmt.Errorf("%w: null subscription", ErrInvalidResponse)
+		}
 		topic := strings.TrimSpace(sub.Topic)
 		if !topicNameRegex.MatchString(topic) {
 			return nil, fmt.Errorf("planner returned invalid topic %q", topic)
