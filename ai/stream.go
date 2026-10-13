@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"heckel.io/ntfy/v2/metrics"
@@ -31,6 +32,9 @@ func (c *Client) CompleteStream(ctx context.Context, req *Request) (<-chan Strea
 		return nil, ErrDisabled
 	}
 	request := *req // Callers may reuse requests concurrently.
+	if request.MaxTokens <= 0 {
+		request.MaxTokens = 1024
+	}
 	if request.Model == "" {
 		request.Model = c.modelFor(request.Feature)
 	}
@@ -38,13 +42,15 @@ func (c *Client) CompleteStream(ctx context.Context, req *Request) (<-chan Strea
 	if !ok {
 		return nil, ErrStreamingNotSupported
 	}
-	if err := c.budget.Allow(request.UserKey); err != nil {
+	reservation, err := c.budget.Reserve(request.UserKey, requestInputTokens(&request)+int64(request.MaxTokens))
+	if err != nil {
 		return nil, err
 	}
 	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	events, err := streamer.Stream(callCtx, &request)
 	if err != nil {
 		cancel()
+		reservation.Finish(0, 0)
 		metrics.AIRequestsFailure.WithLabelValues(string(request.Feature)).Inc()
 		return nil, err
 	}
@@ -58,10 +64,10 @@ func (c *Client) CompleteStream(ctx context.Context, req *Request) (<-chan Strea
 		success := false
 		defer func() {
 			output := (outputBytes + 3) / 4
-			if reported != nil {
+			if reported != nil && reported.Total() > 0 {
 				input, output = reported.InputTokens, reported.OutputTokens
 			}
-			c.budget.Record(request.UserKey, input, output)
+			reservation.Finish(input, output)
 			metrics.AITokensInput.WithLabelValues(string(request.Feature)).Add(float64(max(0, input)))
 			metrics.AITokensOutput.WithLabelValues(string(request.Feature)).Add(float64(max(0, output)))
 			if success {
@@ -103,6 +109,10 @@ func (c *Client) CompleteStream(ctx context.Context, req *Request) (<-chan Strea
 					return
 				}
 				if event.Usage != nil {
+					if event.Usage.InputTokens < 0 || event.Usage.OutputTokens < 0 {
+						fail(ErrInvalidResponse)
+						return
+					}
 					reported = event.Usage
 				}
 				if event.Err != nil {
@@ -134,6 +144,10 @@ func requestInputTokens(req *Request) int64 {
 		}
 	} else {
 		bytes += len(req.Prompt)
+	}
+	if req.JSONSchema != nil {
+		schema, _ := json.Marshal(req.JSONSchema.Schema)
+		bytes += len(schema)
 	}
 	return int64((bytes + 3) / 4)
 }

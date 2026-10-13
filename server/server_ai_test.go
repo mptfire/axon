@@ -223,12 +223,12 @@ func TestServer_AI_Plan_BudgetExceededIs429(t *testing.T) {
 		c.AIEnabled = true
 		c.AIProvider = "mock"
 		c.BaseURL = "http://axon.example.com"
-		c.AIGlobalDailyTokenBudget = 10
+		c.AIGlobalDailyTokenBudget = 4000
 		s := newTestServer(t, c)
 		require.Nil(t, s.userManager.AddUser("phil", "phil", user.RoleAdmin, false))
 		defer s.closeDatabases()
 		s.ai.Mock().SetHandler(func(req *ai.Request) (*ai.Response, error) {
-			return &ai.Response{Text: `{"subscriptions": [{"topic": "t"}]}`, InputTokens: 100, OutputTokens: 100}, nil
+			return &ai.Response{Text: `{"subscriptions": [{"topic": "t"}]}`, InputTokens: 2100, OutputTokens: 2100}, nil
 		})
 		phil := map[string]string{"Authorization": util.BasicAuth("phil", "phil")}
 		rr := request(t, s, "POST", "/v1/ai/plan", `{"prompt":"wish"}`, phil)
@@ -245,7 +245,7 @@ func TestServer_AI_Plan_BudgetExceededIs429(t *testing.T) {
 		var report ai.UsageReport
 		require.Nil(t, json.NewDecoder(rr.Body).Decode(&report))
 		require.Equal(t, int64(1), report.Visitor.Requests)
-		require.Equal(t, int64(200), report.Global.Total())
+		require.Equal(t, int64(4200), report.Global.Total())
 	})
 }
 

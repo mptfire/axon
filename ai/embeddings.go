@@ -46,7 +46,11 @@ func (c *Client) Embedder(model string) *Embedder {
 // Embed returns one vector per input text, in input order. Uncached texts are sent to
 // the provider in batches of EmbedBatchSize; repeated identical texts are served from
 // the cache.
-func (e *Embedder) Embed(ctx context.Context, texts []string) ([][]float32, error) {
+func (e *Embedder) Embed(ctx context.Context, texts []string, userKeys ...string) ([][]float32, error) {
+	userKey := ""
+	if len(userKeys) > 0 {
+		userKey = userKeys[0]
+	}
 	out := make([][]float32, len(texts))
 	var missingIdx []int
 	var missing []string
@@ -66,7 +70,7 @@ func (e *Embedder) Embed(ctx context.Context, texts []string) ([][]float32, erro
 			if end > len(missing) {
 				end = len(missing)
 			}
-			part, err := e.client.embedTexts(ctx, e.model, missing[start:end])
+			part, err := e.client.embedTexts(ctx, e.model, missing[start:end], userKey)
 			if err != nil {
 				return nil, err
 			}
