@@ -137,3 +137,15 @@ Security properties (all covered by `TestServer_Device_PairingLifecycle`):
 
 Fork contract: with `enable-mcp`/AI unused and no devices paired, none of this
 is reachable — the app and server behave as upstream ntfy.
+
+## AI consent & disclosure (#27)
+
+Set `ai-consent-required: true` to require each non-admin user to consent
+before AI features process their content. Until consent is granted, the
+LLM-costing endpoints (plan, tune, digest, chat, chat-stream, briefing)
+return `403 40355`. Users read `GET /v1/ai/disclosure` (provider, host,
+retention disclosure — operator-settable via `ai-provider-disclosure`) and
+consent with `PATCH /v1/account/settings {"ai_consent": true}`. Inline
+enrichment skips silently without consent — publishing never fails over AI.
+Admins configure the provider and are exempt. Default: off (single-operator
+deployments behave as before).

@@ -426,6 +426,9 @@ func (s *Server) handleAccountSettingsChange(w http.ResponseWriter, r *http.Requ
 			prefs.Notification.MinPriority = newPrefs.Notification.MinPriority
 		}
 	}
+	if newPrefs.AIConsent != nil { // axon: issue #27 consent gate
+		prefs.AIConsent = newPrefs.AIConsent
+	}
 	if newPrefs.Digest != nil { // axon: daily briefing schedule
 		if prefs.Digest == nil {
 			prefs.Digest = &user.DigestPrefs{}

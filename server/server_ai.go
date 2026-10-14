@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/url"
 	"slices"
 	"sort"
 	"strings"
@@ -66,6 +67,56 @@ type apiAIStatusResponse struct {
 }
 
 // handleAIStatus reports provider health and today's global token usage (admin only).
+// errHTTPAIConsentRequired tells the client exactly why AI features refuse and
+// where the disclosure lives.
+var errHTTPAIConsentRequired = &errHTTP{40355, http.StatusForbidden, "ai consent required: see /v1/ai/disclosure", "", nil} // axon #27
+
+// aiConsentGranted reports whether the requesting user may use AI features.
+// Admins configure the provider and are always allowed; other users must have
+// consented when ai-consent-required is set.
+func (s *Server) aiConsentGranted(u *user.User) bool {
+	if !s.config.AIConsentRequired || u == nil {
+		return true
+	}
+	return u.Role == user.RoleAdmin || (u.Prefs != nil && u.Prefs.AIConsent != nil && *u.Prefs.AIConsent)
+}
+
+// ensureAIConsent gates the LLM-costing endpoints behind per-user consent (#27).
+func (s *Server) ensureAIConsent(next handleFunc) handleFunc {
+	return func(w http.ResponseWriter, r *http.Request, v *visitor) error {
+		if u := v.User(); !s.aiConsentGranted(u) {
+			return errHTTPAIConsentRequired
+		}
+		return next(w, r, v)
+	}
+}
+
+// handleAIDisclosure returns the provider data-flow disclosure and the caller's
+// consent state. Available before consent — it is what the consent prompt shows.
+func (s *Server) handleAIDisclosure(w http.ResponseWriter, r *http.Request, v *visitor) error {
+	u := v.User()
+	provider := s.config.AIProvider
+	if provider == "" {
+		provider = "none"
+	}
+	baseHost := ""
+	if u, err := url.Parse(s.config.AIBaseURL); err == nil {
+		baseHost = u.Host
+	}
+	disclosure := s.config.AIProviderDisclosure
+	if disclosure == "" {
+		disclosure = "Message content you send to AI features (digests, chat, briefings, plans) is transmitted to the configured AI provider for processing. The provider's retention and training policies define what happens to that content afterwards; axon does not control it. With the local Ollama provider, content stays on this server."
+	}
+	granted := s.aiConsentGranted(u)
+	return s.writeJSON(w, map[string]any{
+		"provider":         provider,
+		"provider_host":    baseHost,
+		"disclosure":       disclosure,
+		"consent_required": s.config.AIConsentRequired,
+		"consent_granted":  granted,
+	})
+}
+
 func (s *Server) handleAIStatus(w http.ResponseWriter, r *http.Request, v *visitor) error {
 	ctx, cancel := context.WithTimeout(r.Context(), aiPingTimeout)
 	defer cancel()
