@@ -112,6 +112,11 @@ func (c *Client) Complete(ctx context.Context, req *Request) (*Response, error) 
 	if !c.Enabled() {
 		return nil, ErrDisabled
 	}
+	request := *req
+	req = &request
+	if req.MaxTokens <= 0 {
+		req.MaxTokens = 1024
+	}
 	if req.Model == "" {
 		req.Model = c.modelFor(req.Feature)
 	}
@@ -120,10 +125,13 @@ func (c *Client) Complete(ctx context.Context, req *Request) (*Response, error) 
 		metrics.AICacheHits.WithLabelValues(string(req.Feature)).Inc()
 		return cached, nil
 	}
-	if err := c.budget.Allow(req.UserKey); err != nil {
+	reservation, err := c.budget.Reserve(req.UserKey, requestInputTokens(req)+int64(req.MaxTokens))
+	if err != nil {
 		metrics.AIRequestsFailure.WithLabelValues(string(req.Feature)).Inc()
 		return nil, err
 	}
+	input, output := requestInputTokens(req), int64(0)
+	defer func() { reservation.Finish(input, output) }()
 	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
 	defer cancel()
 	start := time.Now()
@@ -133,10 +141,19 @@ func (c *Client) Complete(ctx context.Context, req *Request) (*Response, error) 
 		metrics.AIRequestsFailure.WithLabelValues(string(req.Feature)).Inc()
 		return nil, err
 	}
+	if response == nil || response.InputTokens < 0 || response.OutputTokens < 0 {
+		return nil, ErrInvalidResponse
+	}
+	input, output = response.InputTokens, response.OutputTokens
+	if input == 0 && output == 0 {
+		input = requestInputTokens(req)
+		output = int64((len(response.Text) + 3) / 4)
+		response.InputTokens = input
+		response.OutputTokens = output
+	}
 	metrics.AIRequestsSuccess.WithLabelValues(string(req.Feature)).Inc()
 	metrics.AITokensInput.WithLabelValues(string(req.Feature)).Add(float64(response.InputTokens))
 	metrics.AITokensOutput.WithLabelValues(string(req.Feature)).Add(float64(response.OutputTokens))
-	c.budget.Record(req.UserKey, response.InputTokens, response.OutputTokens)
 	c.cache.Store(req, response)
 	return response, nil
 }
@@ -173,12 +190,33 @@ func (c *Client) Mock() *MockProvider {
 // embedTexts computes embeddings via the provider's embeddings endpoint. Only
 // OpenAI-compatible providers implement it; others return ErrStreamingNotSupported-style
 // capability errors which callers map to keyword-only fallbacks.
-func (c *Client) embedTexts(ctx context.Context, model string, texts []string) ([][]float32, error) {
+func (c *Client) embedTexts(ctx context.Context, model string, texts []string, userKey string) ([][]float32, error) {
 	te, ok := c.provider.(TextEmbedder)
 	if !ok {
 		return nil, ErrEmbeddingsNotSupported
 	}
-	return te.EmbedTexts(ctx, model, texts)
+	var bytes int64
+	for _, text := range texts {
+		bytes += int64(len(text))
+	}
+	input := (bytes + 3) / 4
+	reservation, err := c.budget.Reserve(userKey, input)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { reservation.Finish(input, 0) }()
+	callCtx, cancel := context.WithTimeout(ctx, c.timeout)
+	defer cancel()
+	if metered, ok := te.(interface {
+		embedTextsWithUsage(context.Context, string, []string) ([][]float32, int64, error)
+	}); ok {
+		vectors, tokens, err := metered.embedTextsWithUsage(callCtx, model, texts)
+		if tokens > 0 {
+			input = tokens
+		}
+		return vectors, err
+	}
+	return te.EmbedTexts(callCtx, model, texts)
 }
 
 // modelFor resolves the per-feature model override, falling back to the default model.
