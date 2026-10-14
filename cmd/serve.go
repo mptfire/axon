@@ -141,6 +141,8 @@ var flagsServe = append(
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-embeddings-model", Aliases: []string{"ai_embeddings_model"}, EnvVars: []string{"NTFY_AI_EMBEDDINGS_MODEL"}, Usage: "embeddings model for semantic chat retrieval, e.g. nomic-embed-text (empty = keyword-only)"}),
 	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "enable-mcp", Aliases: []string{"enable_mcp"}, EnvVars: []string{"NTFY_ENABLE_MCP"}, Value: false, Usage: "if set, serves the MCP endpoint for AI agents at /mcp (requires ai-enabled)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "device-pairing-key", Aliases: []string{"device_pairing_key"}, EnvVars: []string{"NTFY_DEVICE_PAIRING_KEY"}, Value: "", Usage: "axon: build-time key that allows the private app build to pair devices silently (leave empty to disable; pair-owner must also be set)"}),
+	altsrc.NewBoolFlag(&cli.BoolFlag{Name: "ai-consent-required", Aliases: []string{"ai_consent_required"}, EnvVars: []string{"NTFY_AI_CONSENT_REQUIRED"}, Value: false, Usage: "axon: require each non-admin user to consent before AI features process their content (#27)"}),
+	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-provider-disclosure", Aliases: []string{"ai_provider_disclosure"}, EnvVars: []string{"NTFY_AI_PROVIDER_DISCLOSURE"}, Value: "", Usage: "axon: provider data-flow disclosure shown with the consent prompt (#27)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "device-pairing-owner", Aliases: []string{"device_pairing_owner"}, EnvVars: []string{"NTFY_DEVICE_PAIRING_OWNER"}, Value: "", Usage: "axon: username that build-key-paired devices are attached to"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-visitor-daily-token-budget", Aliases: []string{"ai_visitor_daily_token_budget"}, EnvVars: []string{"NTFY_AI_VISITOR_DAILY_TOKEN_BUDGET"}, Value: fmt.Sprintf("%d", server.DefaultAIVisitorDailyTokenBudget), Usage: "daily AI token budget per visitor (0 = unlimited)"}),
 	altsrc.NewStringFlag(&cli.StringFlag{Name: "ai-global-daily-token-budget", Aliases: []string{"ai_global_daily_token_budget"}, EnvVars: []string{"NTFY_AI_GLOBAL_DAILY_TOKEN_BUDGET"}, Value: fmt.Sprintf("%d", server.DefaultAIGlobalDailyTokenBudget), Usage: "daily AI token budget server-wide (0 = unlimited)"}),
@@ -659,6 +661,8 @@ func execServe(c *cli.Context) error {
 	conf.AIEmbeddingsModel = aiEmbeddingsModel
 	conf.EnableMCP = enableMCP
 	conf.DevicePairingKey = devicePairingKey
+	conf.AIConsentRequired = c.Bool("ai-consent-required")
+	conf.AIProviderDisclosure = c.String("ai-provider-disclosure")
 	conf.DevicePairingOwner = devicePairingOwner
 	conf.AIVisitorDailyTokenBudget = aiVisitorDailyTokenBudget
 	conf.AIGlobalDailyTokenBudget = aiGlobalDailyTokenBudget

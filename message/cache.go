@@ -28,20 +28,21 @@ const (
 	// shutdown must still finish well inside systemd's stop timeout.
 	closeFlushTimeout = 5 * time.Second
 
-	// insertMessageColumns is the number of values per row in insertMessage and insertMessages
-	insertMessageColumns = 24
+	// queueBufferedBatches is how many full batches can wait for the batch writer before publishes
+	// block. 100 batches of the default 100 messages are ~10 MB typical, ~60 MB at the 4 KB limit.
+	// Every buffered batch must be written within closeFlushTimeout on shutdown.
+	queueBufferedBatches = 100
 
-	// insertMessagesMaxRows caps the rows per multi-row INSERT, keeping it well below PostgreSQL's
-	// limit of 65535 parameters per statement
-	insertMessagesMaxRows = 1000
+	// insertMessageColumns is the number of values insertMessageArgs returns per message, which is
+	// the number of columns in each backend's INSERT statement
+	insertMessageColumns = 24
 )
 
 var errNoRows = errors.New("no rows found")
 
 // queries holds the database-specific SQL queries
 type queries struct {
-	insertMessage                    string
-	insertMessages                   func(rows int) string // Multi-row INSERT; nil writes row by row with insertMessage
+	insertMessages                   func(tx *sql.Tx, ms []*model.Message) error // Writes a batch of messages in as few statements as possible
 	selectScheduledMessageIDsBySeqID string
 	deleteScheduledBySequenceID      string
 	updateMessagesForTopicExpiry     string
@@ -79,7 +80,7 @@ type Cache struct {
 func newCache(db *db.DB, queries queries, mu *sync.Mutex, batchSize int, batchTimeout time.Duration, nop bool) *Cache {
 	var queue *util.BatchingQueue[*model.Message]
 	if batchSize > 0 || batchTimeout > 0 {
-		queue = util.NewBatchingQueue[*model.Message](batchSize, batchTimeout)
+		queue = util.NewBatchingQueue[*model.Message](batchSize, batchTimeout, queueBufferedBatches)
 	}
 	c := &Cache{
 		db:      db,
@@ -135,12 +136,7 @@ func (c *Cache) addMessages(ms []*model.Message) error {
 		return err
 	}
 	defer tx.Rollback()
-	if c.queries.insertMessages != nil {
-		err = insertMessagesMultiRow(tx, c.queries.insertMessages, ms)
-	} else {
-		err = insertMessagesRowByRow(tx, c.queries.insertMessage, ms)
-	}
-	if err != nil {
+	if err := c.queries.insertMessages(tx, ms); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -151,46 +147,8 @@ func (c *Cache) addMessages(ms []*model.Message) error {
 	return nil
 }
 
-// insertMessagesMultiRow writes the messages with as few statements as possible: against a remote
-// database, every statement is a round trip, and the batch writer is the only writer
-func insertMessagesMultiRow(tx *sql.Tx, query func(rows int) string, ms []*model.Message) error {
-	for len(ms) > 0 {
-		chunk := ms[:min(len(ms), insertMessagesMaxRows)]
-		ms = ms[len(chunk):]
-		args := make([]any, 0, len(chunk)*insertMessageColumns)
-		for _, m := range chunk {
-			rowArgs, err := insertMessageArgs(m)
-			if err != nil {
-				return err
-			}
-			args = append(args, rowArgs...)
-		}
-		if _, err := tx.Exec(query(len(chunk)), args...); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func insertMessagesRowByRow(tx *sql.Tx, query string, ms []*model.Message) error {
-	stmt, err := tx.Prepare(query)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-	for _, m := range ms {
-		args, err := insertMessageArgs(m)
-		if err != nil {
-			return err
-		}
-		if _, err := stmt.Exec(args...); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// insertMessageArgs returns the insertMessageColumns values of one message row, in column order
+// insertMessageArgs returns the values of one message row, in the order of the columns in the
+// backends' INSERT statements (postgresInsertMessagesQuery, sqliteInsertMessagesQuery)
 func insertMessageArgs(m *model.Message) ([]any, error) {
 	if m.Event != model.MessageEvent && m.Event != model.MessageDeleteEvent && m.Event != model.MessageClearEvent {
 		return nil, model.ErrUnexpectedMessageType

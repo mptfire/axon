@@ -61,7 +61,7 @@ func (s *Server) handleWebPushUpdate(w http.ResponseWriter, r *http.Request, v *
 		return err
 	}
 	if s.userManager != nil {
-		u := v.User()
+		u := requestUser(r, v)
 		for _, t := range topics {
 			if err := s.userManager.Authorize(u, t.ID, user.PermissionRead); err != nil {
 				logvr(v, r).With(t).Err(err).Debug("Access to topic %s not authorized", t.ID)
@@ -69,7 +69,7 @@ func (s *Server) handleWebPushUpdate(w http.ResponseWriter, r *http.Request, v *
 			}
 		}
 	}
-	if err := s.webPush.UpsertSubscription(req.Endpoint, req.Auth, req.P256dh, v.MaybeUserID(), v.IP(), req.Topics); err != nil {
+	if err := s.webPush.UpsertSubscription(req.Endpoint, req.Auth, req.P256dh, requestUserID(r, v), v.IP(), req.Topics); err != nil {
 		return err
 	}
 	return s.writeJSON(w, newSuccessResponse())

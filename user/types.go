@@ -71,8 +71,9 @@ type Token struct {
 }
 
 // axon: token scopes. An empty scopes list means the token is unrestricted (backwards
-// compatible with all pre-existing tokens). Non-empty scopes restrict what the token can
-// do; currently only TokenScopeAI is enforced (LLM-costing endpoints).
+// compatible with all pre-existing tokens). Scoped agents cannot manage credentials
+// or accounts; ai gates LLM endpoints, and device has its own sandbox. Read and
+// publish currently remain labels; topic ACLs still control normal message access.
 const (
 	TokenScopePublish = "publish"
 	TokenScopeRead    = "read"
@@ -140,7 +141,8 @@ type Prefs struct {
 	DateFormat    *string            `json:"date_format,omitempty"`
 	TimeFormat    *string            `json:"time_format,omitempty"`
 	Notification  *NotificationPrefs `json:"notification,omitempty"`
-	Digest        *DigestPrefs       `json:"digest,omitempty"` // axon: daily briefing schedule
+	Digest        *DigestPrefs       `json:"digest,omitempty"`     // axon: daily briefing schedule
+	AIConsent     *bool              `json:"ai_consent,omitempty"` // axon: user consented to provider-side AI processing (issue #27)
 	Subscriptions []*Subscription    `json:"subscriptions,omitempty"`
 }
 

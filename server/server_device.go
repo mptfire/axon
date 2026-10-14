@@ -80,7 +80,7 @@ type apiDeviceResponse struct {
 // then handed to the human, who taps axon://pair/<code> on the phone. The
 // human tap is the consent step — minting alone grants nothing.
 func (s *Server) handleDevicePairingCreate(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	if isDeviceScopedToken(u) {
 		return errHTTPForbidden // A paired device must never grant further tokens
 	}
@@ -198,7 +198,7 @@ func (s *Server) handleDeviceAppliedAck(w http.ResponseWriter, r *http.Request, 
 
 // handleDevicesList lists the user's paired devices. Tokens are never included.
 func (s *Server) handleDevicesList(w http.ResponseWriter, r *http.Request, v *visitor) error {
-	u := v.User()
+	u := requestUser(r, v)
 	if isDeviceScopedToken(u) {
 		return errHTTPForbidden // Devices know their own ID; the fleet view is the owner's
 	}
@@ -228,7 +228,7 @@ func (s *Server) handleDeviceDelete(w http.ResponseWriter, r *http.Request, v *v
 	if len(matches) != 2 || !deviceIDRegex.MatchString(matches[1]) {
 		return errHTTPInternalErrorInvalidPath
 	}
-	u := v.User()
+	u := requestUser(r, v)
 	if isDeviceScopedToken(u) {
 		// A device may unpair itself (self-revocation), never a sibling
 		dev, err := s.userManager.DeviceByToken(u.Token)
@@ -252,7 +252,7 @@ func (s *Server) handleDeviceDelete(w http.ResponseWriter, r *http.Request, v *v
 // access rule: an unrestricted (or admin) token of the owning user may address
 // any of their devices; a device-scoped token may only address itself.
 func (s *Server) deviceFromRequest(r *http.Request, v *visitor, deviceID string) (*user.Device, error) {
-	u := v.User()
+	u := requestUser(r, v)
 	if !deviceIDRegex.MatchString(deviceID) {
 		return nil, errHTTPInternalErrorInvalidPath
 	}
@@ -288,7 +288,7 @@ func (s *Server) handleDeviceConfigGet(w http.ResponseWriter, r *http.Request, v
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, err = w.Write([]byte(dev.Config))
-	if err == nil && isDeviceScopedToken(v.User()) {
+	if err == nil && isDeviceScopedToken(requestUser(r, v)) {
 		_ = s.userManager.TouchDevice(dev.ID) // device synced; status only, failure harmless
 	}
 	return err

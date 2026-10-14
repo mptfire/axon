@@ -263,6 +263,8 @@ type Config struct {
 	AIEmbeddingsModel         string        // axon: Embeddings model for semantic chat retrieval ("" = keyword-only)
 	EnableMCP                 bool          // axon: Serve the MCP endpoint at /mcp for AI agents over HTTP
 	DevicePairingKey          string        // axon: build-time key allowing silent device pairing (private builds)
+	AIConsentRequired         bool          // axon: non-admin users must consent before AI features process their content (#27)
+	AIProviderDisclosure      string        // axon: operator-provided provider retention/data-flow disclosure text
 	DevicePairingOwner        string        // axon: username that build-key-paired devices are attached to
 	AIVisitorDailyTokenBudget int64         // Daily token budget per visitor (input+output); 0 = unlimited
 	AIGlobalDailyTokenBudget  int64         // Daily token budget server-wide (input+output); 0 = unlimited
@@ -396,6 +398,8 @@ func NewConfig() *Config {
 		EnableMCP:                 false,
 		DevicePairingKey:          "",
 		DevicePairingOwner:        "",
+		AIConsentRequired:         false,
+		AIProviderDisclosure:      "",
 		AIVisitorDailyTokenBudget: DefaultAIVisitorDailyTokenBudget,
 		AIGlobalDailyTokenBudget:  DefaultAIGlobalDailyTokenBudget,
 		AICacheSize:               DefaultAICacheSize,

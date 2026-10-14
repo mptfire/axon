@@ -89,13 +89,16 @@ webhooks, no public agent endpoint, no polling.
 
 - Create a dedicated access token for your agent (`ntfy token add`) and treat it as the
   agent's identity; revoke it to cut the agent off. Server-side AI token budgets
-  (`ai-visitor-daily-token-budget`) apply per token.
+  (`ai-visitor-daily-token-budget`) apply per account, including free accounts.
 - **Scoped tokens** (axon): give an agent only what it needs with
-  `ntfy token add --scope=ai phil`. A token created with any `--scope` list can *only*
-  perform the listed capabilities — `--scope=ai` allows the AI endpoints (plan, tune,
-  digest, chat) but denies nothing else by itself, while a token *without* the `ai`
-  scope can publish/subscribe but never invoke AI features. Tokens created without
-  `--scope` remain fully unrestricted (backwards compatible).
+  `ntfy token add --scope=ai phil`. The `ai` scope grants access to AI endpoints
+  (plan, tune, digest, chat and briefing); a non-empty scope list without `ai`
+  cannot invoke them. Normal publishing and subscribing still use topic ACLs:
+  `read` and `publish` are currently labels, not independent capability gates.
+  Scoped agents cannot manage accounts, tokens, devices, billing or admin settings,
+  and account responses omit token values. Tokens created without `--scope` remain
+  fully unrestricted (backwards compatible). Device tokens use their separate
+  device sandbox described below.
 - `plan_subscription` only *proposes* plans — subscribing, and everything else the agent
   does, should still be reviewed by a human (see the [fork plan](ai-plan/index.md),
   Principle 2).
@@ -134,3 +137,15 @@ Security properties (all covered by `TestServer_Device_PairingLifecycle`):
 
 Fork contract: with `enable-mcp`/AI unused and no devices paired, none of this
 is reachable — the app and server behave as upstream ntfy.
+
+## AI consent & disclosure (#27)
+
+Set `ai-consent-required: true` to require each non-admin user to consent
+before AI features process their content. Until consent is granted, the
+LLM-costing endpoints (plan, tune, digest, chat, chat-stream, briefing)
+return `403 40355`. Users read `GET /v1/ai/disclosure` (provider, host,
+retention disclosure — operator-settable via `ai-provider-disclosure`) and
+consent with `PATCH /v1/account/settings {"ai_consent": true}`. Inline
+enrichment skips silently without consent — publishing never fails over AI.
+Admins configure the provider and are exempt. Default: off (single-operator
+deployments behave as before).

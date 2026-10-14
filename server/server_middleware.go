@@ -13,7 +13,8 @@ const (
 	contextRateVisitor contextKey = iota + 2586
 	contextTopic
 	contextMatrixPushKey
-	contextVisitorIP // Client IP extracted in maybeAuthenticate; reused by the abuse ban-feed (see ban.Service.Record)
+	contextRequestUser // Immutable authentication result for this HTTP request (axon).
+	contextVisitorIP   // Client IP extracted in maybeAuthenticate; reused by the abuse ban-feed (see ban.Service.Record)
 )
 
 func (s *Server) limitRequests(next handleFunc) handleFunc {
@@ -80,7 +81,7 @@ func (s *Server) ensureUserManager(next handleFunc) handleFunc {
 
 func (s *Server) ensureUser(next handleFunc) handleFunc {
 	return s.ensureUserManager(func(w http.ResponseWriter, r *http.Request, v *visitor) error {
-		if v.User() == nil {
+		if requestUser(r, v) == nil {
 			return errHTTPUnauthorized
 		}
 		return next(w, r, v)
@@ -89,7 +90,7 @@ func (s *Server) ensureUser(next handleFunc) handleFunc {
 
 func (s *Server) ensureAdmin(next handleFunc) handleFunc {
 	return s.ensureUserManager(func(w http.ResponseWriter, r *http.Request, v *visitor) error {
-		if !v.User().IsAdmin() {
+		if !requestUser(r, v).IsAdmin() {
 			return errHTTPUnauthorized
 		}
 		return next(w, r, v)
@@ -125,7 +126,7 @@ func (s *Server) ensurePaymentsEnabled(next handleFunc) handleFunc {
 
 func (s *Server) ensureStripeCustomer(next handleFunc) handleFunc {
 	return s.ensureUser(func(w http.ResponseWriter, r *http.Request, v *visitor) error {
-		if v.User().Billing.StripeCustomerID == "" {
+		if requestUser(r, v).Billing.StripeCustomerID == "" {
 			return errHTTPBadRequestNotAPaidUser
 		}
 		return next(w, r, v)
@@ -136,7 +137,7 @@ func (s *Server) withAccountSync(next handleFunc) handleFunc {
 	return func(w http.ResponseWriter, r *http.Request, v *visitor) error {
 		err := next(w, r, v)
 		if err == nil {
-			s.publishSyncEventAsync(v)
+			s.publishSyncEventAsync(v, requestUser(r, v))
 		}
 		return err
 	}
@@ -159,7 +160,7 @@ func (s *Server) authorizeTopic(next handleFunc, perm user.Permission) handleFun
 		if err != nil {
 			return err
 		}
-		u := v.User()
+		u := requestUser(r, v)
 		for _, t := range topics {
 			if err := s.userManager.Authorize(u, t.ID, perm); err != nil {
 				logvr(v, r).With(t).Err(err).Debug("Access to topic %s not authorized", t.ID)

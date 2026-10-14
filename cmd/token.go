@@ -52,7 +52,7 @@ Examples:
   ntfy token add --expires=2d phil      # Create token for user phil which expires in 2 days
   ntfy token add -e "tuesday, 8pm" phil # Create token for user phil which expires next Tuesday
   ntfy token add -l backups phil        # Create token for user phil with label "backups"
-  ntfy token add --scope=ai phil        # axon: token restricted to AI features only`,
+  ntfy token add --scope=ai phil        # axon: allow AI; block account/admin management`,
 		},
 		{
 			Name:      "remove",
