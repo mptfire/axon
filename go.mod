@@ -16,7 +16,7 @@ require (
 	github.com/urfave/cli/v2 v2.27.7
 	golang.org/x/crypto v0.57.0
 	golang.org/x/oauth2 v0.37.0 // indirect
-	golang.org/x/sync v0.23.0
+	golang.org/x/sync v0.24.0
 	golang.org/x/term v0.46.0
 	golang.org/x/time v0.16.0
 	google.golang.org/api v0.299.0
@@ -35,7 +35,7 @@ require (
 	github.com/prometheus/client_golang v1.25.0
 	github.com/stripe/stripe-go/v74 v74.30.0
 	golang.org/x/sys v0.48.0
-	golang.org/x/text v0.42.0
+	golang.org/x/text v0.43.0
 )
 
 require (
