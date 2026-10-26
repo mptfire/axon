@@ -279,6 +279,17 @@ func (s *Server) mapAIError(err error) error {
 	if errors.Is(err, ai.ErrDisabled) {
 		return errHTTPBadRequestAIDisabled
 	}
+	var pe *ai.ProviderError
+	if errors.As(err, &pe) {
+		// Provider-side failures are not user error. Surface rate limits as 429
+		// (retry later makes sense); everything else (auth, balance, schema
+		// rejections) is an operator problem — log the specifics, return 500.
+		log.Tag(tagAI).Field("provider_status", pe.Status).Field("provider_message", pe.Message).Err(err).Warn("AI provider call failed")
+		if pe.Status == http.StatusTooManyRequests {
+			return errHTTPTooManyRequestsLimitAIRequests
+		}
+		return errHTTPInternalError
+	}
 	if errors.Is(err, ai.ErrInvalidResponse) {
 		return errHTTPInternalError // provider misbehavior is not user error
 	}
