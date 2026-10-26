@@ -154,7 +154,9 @@ func (c *Client) Complete(ctx context.Context, req *Request) (*Response, error) 
 	metrics.AIRequestsSuccess.WithLabelValues(string(req.Feature)).Inc()
 	metrics.AITokensInput.WithLabelValues(string(req.Feature)).Add(float64(response.InputTokens))
 	metrics.AITokensOutput.WithLabelValues(string(req.Feature)).Add(float64(response.OutputTokens))
-	c.cache.Store(req, response)
+	if response.Text != "" {
+		c.cache.Store(req, response) // Empty answers (reasoning models that spent the budget thinking) must not stick for the cache TTL
+	}
 	return response, nil
 }
 
