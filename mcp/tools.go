@@ -641,11 +641,14 @@ func (s *Server) toolDeviceStatus(ctx context.Context, args map[string]any) *too
 		return errorResult(fmt.Errorf("device_status failed: HTTP %d: %s", resp.StatusCode, string(b)))
 	}
 	var devices []struct {
-		ID        string `json:"id"`
-		Label     string `json:"label"`
-		CreatedAt int64  `json:"created_at"`
-		UpdatedAt int64  `json:"updated_at"`
-		LastSeen  int64  `json:"last_seen"`
+		ID             string `json:"id"`
+		Label          string `json:"label"`
+		CreatedAt      int64  `json:"created_at"`
+		UpdatedAt      int64  `json:"updated_at"`
+		LastSeen       int64  `json:"last_seen"`
+		ConfigVersion  int64  `json:"config_version"`
+		AppliedVersion int64  `json:"applied_version"`
+		AppliedAt      int64  `json:"applied_at"`
 	}
 	if err := json.Unmarshal(b, &devices); err != nil {
 		return errorResult(err)
@@ -659,6 +662,10 @@ func (s *Server) toolDeviceStatus(ctx context.Context, args map[string]any) *too
 		fmt.Fprintf(&sb, "- %s", d.ID)
 		if d.Label != "" {
 			fmt.Fprintf(&sb, " (%s)", d.Label)
+		}
+		fmt.Fprintf(&sb, " config_version=%d applied_version=%d", d.ConfigVersion, d.AppliedVersion)
+		if d.AppliedVersion < d.ConfigVersion {
+			fmt.Fprintf(&sb, " STALE (device has not applied the latest config yet; syncs every 15 min)")
 		}
 		fmt.Fprintf(&sb, " last sync: %d\n", d.LastSeen)
 	}
