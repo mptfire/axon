@@ -138,6 +138,22 @@ Security properties (all covered by `TestServer_Device_PairingLifecycle`):
 Fork contract: with `enable-mcp`/AI unused and no devices paired, none of this
 is reachable — the app and server behave as upstream ntfy.
 
+### Zero-dialog installs (private builds)
+
+Private builds never show prompts. After install + first open, the operator's
+agent grants the two Android-managed permissions silently:
+
+``` bash
+adb shell pm grant app.axon android.permission.POST_NOTIFICATIONS
+adb shell dumpsys deviceidle whitelist +app.axon
+```
+
+(Or via Shizuku/root on-device.) Without them the app runs but notifications
+are silent and background sync can be deferred — the agent can check state
+with `dumpsys package app.axon | grep -E "POST_NOTIFICATIONS|whitelist"`. No
+other dialogs exist: pairing, subscriptions, priorities, and consent-free
+operation are all agent-driven.
+
 ## AI consent & disclosure (#27)
 
 Set `ai-consent-required: true` to require each non-admin user to consent
