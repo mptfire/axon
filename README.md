@@ -1,15 +1,6 @@
-<div align="center" markdown="1">
-<sup>Special thanks to:</sup>
-<br>
-<br>
-<a href="https://go.warp.dev/ntfy">
-  <img alt="Warp sponsorship" width="400" src="https://raw.githubusercontent.com/warpdotdev/brand-assets/refs/heads/main/Github/Sponsor/Warp-Github-LG-02.png">
-</a>
+# Axon
 
-### [Warp, built for coding with multiple AI agents.](https://go.warp.dev/ntfy)
-[Available for MacOS, Linux, & Windows](https://go.warp.dev/ntfy)<br>
-</div>
-<hr>
+Self-hosted push notifications with optional AI features. For example, enable AI to turn a week of alerts from a topic into a short digest.
 
 > [!NOTE]
 > **This is axon — an AI-native fork of ntfy.** It adds an optional AI layer on top of
@@ -36,7 +27,7 @@ an LRU response cache, and per-visitor + global daily token budgets. See
 [docs/ai-plan](docs/ai-plan/index.md) for the phased plan and
 [docs/agents.md](docs/agents.md) for the agent quickstart.
 
-## Install
+## Quick start
 
 Prebuilt static Linux binaries (amd64 + arm64, web app and docs embedded) are on the
 [Releases page](https://github.com/mptfire/axon/releases):
@@ -48,6 +39,21 @@ axon serve --listen-http :8080   # http://127.0.0.1:8080 — AI off (plain ntfy)
 ```
 
 Tags matching `v*-axon*` automatically produce a release with binaries via GitHub Actions.
+
+Use the [Axon Android client](https://github.com/mptfire/axon-android) to receive notifications on your phone.
+
+<div align="center" markdown="1">
+<sup>Special thanks to:</sup>
+<br>
+<br>
+<a href="https://go.warp.dev/ntfy">
+  <img alt="Warp sponsorship" width="400" src="https://raw.githubusercontent.com/warpdotdev/brand-assets/refs/heads/main/Github/Sponsor/Warp-Github-LG-02.png">
+</a>
+
+### [Warp, built for coding with multiple AI agents.](https://go.warp.dev/ntfy)
+[Available for MacOS, Linux, & Windows](https://go.warp.dev/ntfy)<br>
+</div>
+<hr>
 
 ![ntfy](web/public/static/images/ntfy.png)
 
